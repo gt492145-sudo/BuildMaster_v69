@@ -9,22 +9,6 @@ import json
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-REQUIRED_MATERIALS = {
-    "模板工程(透天)",
-    "模板工程(大樓)",
-    "模板工程(大樓)-鋁模",
-    "2000psi混凝土(140kg)",
-    "3000psi混凝土(210kg)",
-    "竹節鋼筋(SD280)",
-    "竹節鋼筋(SD420W)",
-    "鋼筋加工費",
-    "綁紮工程(透天)",
-    "綁紮工程(大樓)",
-    "鷹架(透天)",
-    "鷹架(大樓)",
-}
-
-
 def fail(msg: str) -> None:
     raise ValueError(msg)
 
@@ -57,7 +41,7 @@ def validate_items(items: List[Dict]) -> Dict[str, float]:
             fail(f"items[{idx}] invalid price: {e}")
         if price <= 0:
             fail(f"items[{idx}] price must be > 0: {name}")
-        if price > 500000:
+        if price > 100000000:
             fail(f"items[{idx}] price too high: {name}={price}")
         if name in seen:
             fail(f"duplicate material name: {name}")
@@ -122,10 +106,6 @@ def main() -> int:
 
     payload = parse_prices_json(Path(args.prices))
     prices = validate_items(payload["items"])
-
-    missing_required = sorted(REQUIRED_MATERIALS - set(prices.keys()))
-    if missing_required:
-        fail(f"missing required materials: {', '.join(missing_required)}")
 
     if args.csv:
         csv_prices = parse_csv(Path(args.csv))

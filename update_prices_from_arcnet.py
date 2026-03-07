@@ -157,12 +157,14 @@ def parse_csv_items(csv_path: Path) -> List[Dict[str, float]]:
     with csv_path.open("r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
         # Accept common header variants
-        name_keys = {"材料名稱", "name", "項目", "品名"}
+        name_keys = {"材料名稱", "工種項目", "name", "項目", "品名"}
         price_keys = {"單價 (已取高標)", "單價", "price", "價格"}
+        unit_keys = {"單位", "unit"}
 
         field_map = {k.strip(): k for k in (reader.fieldnames or [])}
         name_col = next((field_map[k] for k in name_keys if k in field_map), None)
         price_col = next((field_map[k] for k in price_keys if k in field_map), None)
+        unit_col = next((field_map[k] for k in unit_keys if k in field_map), None)
         if not name_col or not price_col:
             raise ValueError("CSV 缺少欄位：需要材料名稱/單價")
 
@@ -177,7 +179,12 @@ def parse_csv_items(csv_path: Path) -> List[Dict[str, float]]:
                 continue
             if price <= 0:
                 continue
-            items.append({"name": name, "price": int(price) if price.is_integer() else price})
+            record = {"name": name, "price": int(price) if price.is_integer() else price}
+            if unit_col:
+                unit = str(row.get(unit_col, "")).strip()
+                if unit:
+                    record["unit"] = unit
+            items.append(record)
     return items
 
 

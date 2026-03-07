@@ -43,31 +43,29 @@ jobs:
 
       - name: Update prices.json
         run: |
-          cd BuildMaster_v69
-          if [ -f "../seasonal-prices.csv" ]; then
-            python3 update_prices_from_arcnet.py --csv "../seasonal-prices.csv"
+          if [ -f "seasonal-prices.csv" ]; then
+            python3 update_prices_from_arcnet.py --csv "seasonal-prices.csv"
           else
             python3 update_prices_from_arcnet.py
           fi
 
       - name: QA validate seasonal prices
         run: |
-          cd BuildMaster_v69
-          if [ -f "../seasonal-prices.csv" ]; then
-            python3 qa_validate_prices.py --prices prices.json --csv "../seasonal-prices.csv"
+          if [ -f "seasonal-prices.csv" ]; then
+            python3 qa_validate_prices.py --prices prices.json --csv "seasonal-prices.csv"
           else
             python3 qa_validate_prices.py --prices prices.json
           fi
 
       - name: Commit and push if changed
         run: |
-          if git diff --quiet -- BuildMaster_v69/prices.json; then
+          if git diff --quiet -- prices.json; then
             echo "No prices.json changes"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add BuildMaster_v69/prices.json
+          git add prices.json
           git commit -m "chore: update seasonal prices (qa verified)"
           git push
 

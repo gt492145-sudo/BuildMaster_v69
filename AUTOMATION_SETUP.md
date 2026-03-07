@@ -59,3 +59,40 @@ workflow 內已加入 `qa_validate_prices.py`，會在 commit 前驗證：
 - 若有提供 CSV，`prices.json` 與 CSV 價格必須一致
 
 任何一項不符，workflow 會直接失敗並停止更新。
+
+## 6) 各縣市一鍵匯入（新增）
+
+已提供批次匯入腳本：
+
+- `import_regional_csvs.py`
+
+### 準備 CSV 檔名（放同一個資料夾）
+
+- `prices_taipei.csv`
+- `prices_newtaipei.csv`
+- `prices_taoyuan.csv`
+- `prices_taichung.csv`
+- `prices_tainan.csv`
+- `prices_kaohsiung.csv`
+
+CSV 欄位至少要有：
+
+- `材料名稱`（或 `工種項目`）
+- `單價`（或 `單價 (已取高標)`）
+- `單位`（可選）
+
+### 執行範例
+
+```bash
+cd BuildMaster_v69
+python3 import_regional_csvs.py --input-dir "/Users/chenhongming/Downloads" --output-dir "."
+```
+
+執行後會自動更新對應檔：
+
+- `prices-taipei.json`
+- `prices-newtaipei.json`
+- `prices-taoyuan.json`
+- `prices-taichung.json`
+- `prices-tainan.json`
+- `prices-kaohsiung.json`

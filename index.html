@@ -11,6 +11,7 @@
 <meta name="theme-color" content="#0b1220">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="BuildMaster">
+<meta name="referrer" content="no-referrer">
 <style>
     /* ... 保留之前的 CSS 樣式，這裡為了精簡先省略，請沿用 V6.9 的黑洞版 CSS ... */
     :root { --bg-dark: #0b1220; --panel-bg: rgba(10, 18, 32, 0.34); --text-main: #ecf0f1; --highlight: #ff9800; --accent: #5ecbff; --money: #2ecc71; --line-soft: rgba(255,255,255,0.16); --text-subtle: #b8c7d9; }
@@ -47,6 +48,40 @@
     .material-quick-bar { display: flex; gap: 10px; align-items: center; margin-top: 8px; margin-bottom: 12px; }
     .material-chip { padding: 7px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.05); color: #dce8f7; font-size: 0.8em; }
     .material-chip strong { color: #ffd08b; }
+    .bim-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0 10px; }
+    .bim-card { border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.04); border-radius: 8px; padding: 8px; font-size: 0.78em; color: #d9e8f6; }
+    .bim-card strong { display: block; font-size: 1.1em; color: #ffd287; margin-top: 4px; }
+    .bim-note { font-size: 0.78em; color: var(--text-subtle); margin-top: 6px; }
+    .bim-table-wrap { max-height: 180px; overflow: auto; border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; margin-top: 8px; }
+    .bim-table-wrap table { margin-top: 0; }
+    .bim-warn { margin-top: 8px; border: 1px solid rgba(255, 140, 140, 0.45); background: rgba(255, 80, 80, 0.08); color: #ffd5d5; border-radius: 8px; padding: 8px; font-size: 0.78em; min-height: 18px; }
+    .bim-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .bim-estimate-wrap { max-height: 200px; overflow: auto; border: 1px solid rgba(135, 220, 170, 0.28); border-radius: 8px; margin-top: 8px; }
+    .bim-rule-wrap { margin-top: 8px; border: 1px solid rgba(120, 180, 255, 0.28); border-radius: 8px; padding: 8px; background: rgba(120, 180, 255, 0.05); }
+    .bim-rule-grid { display: grid; grid-template-columns: 1.1fr 1fr auto auto; gap: 8px; align-items: end; }
+    .bim-rule-grid input, .bim-rule-grid select { width: 100%; padding: 9px; background: rgba(10, 20, 36, 0.56); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 6px; box-sizing: border-box; }
+    .bim-rule-table { max-height: 150px; overflow: auto; margin-top: 8px; border: 1px solid rgba(120, 180, 255, 0.22); border-radius: 8px; }
+    .bim-rule-table table { margin-top: 0; }
+    .bim-unmatched-wrap { margin-top: 8px; border: 1px solid rgba(255, 196, 120, 0.35); border-radius: 8px; padding: 8px; background: rgba(255, 196, 120, 0.08); }
+    .bim-unmatched-grid { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 8px; align-items: end; }
+    .bim-unmatched-grid select { width: 100%; padding: 9px; background: rgba(10, 20, 36, 0.56); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 6px; box-sizing: border-box; }
+    .audit-wrap { margin-top: 8px; border: 1px solid rgba(160, 255, 210, 0.28); border-radius: 8px; padding: 8px; background: rgba(130, 255, 190, 0.06); }
+    .audit-table { max-height: 150px; overflow: auto; border: 1px solid rgba(160, 255, 210, 0.2); border-radius: 8px; margin-top: 8px; }
+    .audit-table table { margin-top: 0; }
+    .snapshot-wrap { margin-top: 8px; border: 1px solid rgba(255, 220, 140, 0.32); border-radius: 8px; padding: 8px; background: rgba(255, 210, 110, 0.08); }
+    .snapshot-table { max-height: 160px; overflow: auto; border: 1px solid rgba(255, 220, 140, 0.22); border-radius: 8px; margin-top: 8px; }
+    .snapshot-table table { margin-top: 0; }
+    .unit-wrap { margin-top: 8px; border: 1px solid rgba(180, 180, 255, 0.28); border-radius: 8px; padding: 8px; background: rgba(150, 170, 255, 0.07); }
+    .unit-grid { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: end; }
+    .unit-grid input, .unit-grid select { width: 100%; padding: 9px; background: rgba(10, 20, 36, 0.56); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 6px; box-sizing: border-box; }
+    .security-lock { position: fixed; inset: 0; z-index: 99999; background: rgba(3, 8, 18, 0.92); display: none; align-items: center; justify-content: center; padding: 20px; }
+    .security-lock.show { display: flex; }
+    .security-panel { width: min(420px, 92vw); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; background: rgba(12, 22, 38, 0.96); box-shadow: 0 12px 30px rgba(0,0,0,0.35); padding: 16px; }
+    .security-panel h3 { margin: 0 0 8px; color: #ffd287; letter-spacing: 0.5px; }
+    .security-panel p { margin: 0 0 10px; color: #c4d9ee; font-size: 0.86em; line-height: 1.45; }
+    .security-input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.22); background: rgba(4, 10, 20, 0.84); color: #fff; box-sizing: border-box; margin-bottom: 10px; }
+    .security-hint { font-size: 0.78em; color: #9fb9d3; min-height: 1.2em; }
+    .security-watermark { position: fixed; right: 10px; bottom: 10px; z-index: 9997; pointer-events: none; opacity: 0.36; font-size: 11px; color: #d5e7ff; background: rgba(8, 16, 28, 0.55); border: 1px dashed rgba(173, 216, 255, 0.3); border-radius: 6px; padding: 5px 8px; letter-spacing: 0.3px; }
     .price-input { border-color: var(--money) !important; color: var(--money) !important; font-weight: bold; }
     .preview-bar { margin-top: 15px; padding: 12px; background: rgba(46, 204, 113, 0.05); border-radius: 8px; border: 1px solid var(--money); font-size: 0.9em; }
     .preview-val { color: var(--money); font-weight: bold; font-size: 1.1em; }
@@ -84,6 +119,8 @@
     body.high-contrast .input-wrapper select { background: rgba(6, 14, 28, 0.72); border-color: rgba(255,255,255,0.38); color: #ffffff; }
     body.high-contrast .tool-bar { background: rgba(255,255,255,0.05); }
     body.high-contrast .tool-mini { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.28); color: #dce9f8; }
+    body.high-contrast .bim-card { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.35); }
+    body.high-contrast .bim-table-wrap { border-color: rgba(255,255,255,0.3); }
     body.high-contrast td { border-bottom-color: rgba(255,255,255,0.18); }
     body.high-contrast .mode-btn { background: rgba(255, 198, 90, 0.2); border-color: rgba(255, 218, 135, 0.68); color: #ffe5b0; }
     @media (max-width: 1200px) {
@@ -98,6 +135,10 @@
         .calc-panel { overflow: visible; }
         .footer-bar { grid-template-columns: repeat(2, 1fr); }
         .total-budget { grid-column: span 2; }
+        .bim-grid { grid-template-columns: repeat(2, 1fr); }
+        .bim-rule-grid { grid-template-columns: 1fr; }
+        .bim-unmatched-grid { grid-template-columns: 1fr; }
+        .unit-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 768px) {
         .header-actions { margin-left: 0; }
@@ -115,6 +156,17 @@
 </style>
 </head>
 <body>
+
+<div id="securityLock" class="security-lock">
+    <div class="security-panel">
+        <h3>BuildMaster 保護模式</h3>
+        <p id="securityMessage">請輸入存取碼以啟用系統。</p>
+        <input id="securityCodeInput" class="security-input" type="password" placeholder="輸入存取碼">
+        <button class="tool-btn" style="width:100%;" onclick="submitSecurityCode()">解鎖並進入</button>
+        <div id="securityHint" class="security-hint"></div>
+    </div>
+</div>
+<div id="securityWatermark" class="security-watermark"></div>
 
 <header>
     <img src="logo-app.png" class="logo-img" alt="Black Hole Logo">
@@ -134,6 +186,7 @@
             <button class="tool-btn" style="border-color: #d35400" onclick="startCalibration()">📏 定比例</button>
             <button class="tool-btn" style="border-color: var(--money)" onclick="startMeasure()">📐 測量</button>
             <button class="tool-btn" onclick="clearCanvas()">🧽 清空標註</button>
+            <button class="tool-btn" onclick="removeLoadedImage()">🗑️ 移除圖紙</button>
             <button id="btn3D" class="tool-btn" onclick="toggle3DView()">🧊 3D檢視</button>
             <button id="btn360" class="tool-btn" onclick="toggle360Spin()">🌀 360翻轉</button>
             <button class="tool-btn" onclick="reset3DView()">🎯 重設視角</button>
@@ -152,6 +205,140 @@
     </div>
 
     <div class="calc-panel">
+        <div class="group-title">
+            BIM 模型檢核（IFC）
+            <span style="font-size: 0.6em; color: #98c8ff;">QA v1</span>
+        </div>
+        <div class="input-row">
+            <div class="input-wrapper">
+                <label>上傳 IFC 模型</label>
+                <input type="file" id="ifcInput" accept=".ifc,.ifczip,.txt" onchange="loadIFCModel(event)">
+            </div>
+            <div class="input-wrapper">
+                <label>模型查詢（ID/Type）</label>
+                <input type="text" id="ifcSearch" placeholder="例如 #123 或 IFCWALL" oninput="searchIFCEntity(this.value)">
+            </div>
+        </div>
+        <div class="bim-grid">
+            <div class="bim-card">模型檔名<strong id="bimFileName">尚未載入</strong></div>
+            <div class="bim-card">總實體數<strong id="bimEntityCount">0</strong></div>
+            <div class="bim-card">構件數量<strong id="bimElementCount">0</strong></div>
+            <div class="bim-card">QA 分數<strong id="bimQaScore">0 / 100</strong></div>
+        </div>
+        <div class="bim-grid">
+            <div class="bim-card">長度總量<strong id="bimQtyLength">0</strong></div>
+            <div class="bim-card">面積總量<strong id="bimQtyArea">0</strong></div>
+            <div class="bim-card">體積總量<strong id="bimQtyVolume">0</strong></div>
+            <div class="bim-card">計數總量<strong id="bimQtyCount">0</strong></div>
+        </div>
+        <div class="bim-table-wrap">
+            <table>
+                <thead><tr><th>IFC Type</th><th>數量</th></tr></thead>
+                <tbody id="bimTypeBody"></tbody>
+            </table>
+        </div>
+        <div id="bimWarnings" class="bim-warn"></div>
+        <div class="bim-rule-wrap">
+            <div class="bim-note" style="margin-top:0;">匹配規則編輯器（QA）：自訂 IFC 類型對應材料，優先於系統預設匹配。</div>
+            <div class="bim-rule-grid">
+                <div>
+                    <label style="font-size:0.75em;color:var(--text-subtle);">IFC Type（例：IFCWALL）</label>
+                    <input type="text" id="bimRuleIfcType" placeholder="輸入 IFC Type">
+                </div>
+                <div>
+                    <label style="font-size:0.75em;color:var(--text-subtle);">對應材料</label>
+                    <select id="bimRuleMaterial"></select>
+                </div>
+                <button class="tool-btn" onclick="saveBimRule()">💾 儲存規則</button>
+                <button class="tool-btn" onclick="deleteBimRule()">🗑 刪除規則</button>
+            </div>
+            <div class="bim-actions" style="margin-top:8px;">
+                <button class="tool-btn" onclick="exportBimRules()">⬇️ 匯出規則 JSON</button>
+                <button class="tool-btn" onclick="triggerImportBimRules()">⬆️ 匯入規則 JSON</button>
+                <button class="tool-btn" onclick="resetBimRules()">♻️ 清空全部規則</button>
+                <input type="file" id="bimRuleImportFile" accept=".json,application/json" style="display:none;" onchange="importBimRulesFromFile(event)">
+            </div>
+            <div class="bim-rule-table">
+                <table>
+                    <thead><tr><th>IFC Type</th><th>對應材料</th><th>操作</th></tr></thead>
+                    <tbody id="bimRuleBody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="bim-actions">
+            <button class="tool-btn" onclick="generateBIMEstimate()">🧮 BIM 自動估價預覽</button>
+            <button class="tool-btn" onclick="importBIMEstimateToList()">📥 匯入估價到清單</button>
+        </div>
+        <div class="bim-estimate-wrap">
+            <table>
+                <thead><tr><th>IFC Type</th><th>對應材料</th><th>數量</th><th>單價</th><th>小計</th></tr></thead>
+                <tbody id="bimEstimateBody"></tbody>
+            </table>
+        </div>
+        <div class="bim-unmatched-wrap">
+            <div class="bim-note" style="margin-top:0;">未匹配修復精靈：針對未匹配 IFC 類型快速補規則。</div>
+            <div class="bim-unmatched-grid">
+                <div>
+                    <label style="font-size:0.75em;color:var(--text-subtle);">未匹配 IFC Type</label>
+                    <select id="bimUnmatchedType"></select>
+                </div>
+                <div>
+                    <label style="font-size:0.75em;color:var(--text-subtle);">套用材料</label>
+                    <select id="bimUnmatchedMaterial"></select>
+                </div>
+                <button class="tool-btn" onclick="applyUnmatchedRuleOnce()">➕ 套用當前</button>
+                <button class="tool-btn" onclick="applyUnmatchedRuleAll()">⚡ 全部套用</button>
+            </div>
+        </div>
+        <div class="unit-wrap">
+            <div class="bim-note" style="margin-top:0;">單位換算器（QA）：估價前快速核對單位是否一致。</div>
+            <div class="unit-grid">
+                <div>
+                    <label style="font-size:0.75em;color:var(--text-subtle);">數值</label>
+                    <input type="number" id="unitConvertValue" step="0.01" value="1">
+                </div>
+                <div>
+                    <label style="font-size:0.75em;color:var(--text-subtle);">來源單位</label>
+                    <select id="unitFrom"></select>
+                </div>
+                <div>
+                    <label style="font-size:0.75em;color:var(--text-subtle);">目標單位</label>
+                    <select id="unitTo"></select>
+                </div>
+                <button class="tool-btn" onclick="runUnitConvert()">🔁 換算</button>
+            </div>
+            <div id="unitConvertResult" class="bim-note">結果：尚未換算</div>
+        </div>
+        <div class="audit-wrap">
+            <div class="bim-note" style="margin-top:0;">操作日誌（Audit Log）：記錄關鍵操作，便於 QA 追溯。</div>
+            <div class="audit-table">
+                <table>
+                    <thead><tr><th>時間</th><th>動作</th><th>內容</th></tr></thead>
+                    <tbody id="auditBody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="snapshot-wrap">
+            <div class="bim-note" style="margin-top:0;">版本快照與回滾：保存規則/估價/清單狀態，支援整體回滾與部分回滾。</div>
+            <div class="bim-actions">
+                <button class="tool-btn" onclick="createDataSnapshot('手動快照')">📸 建立快照</button>
+                <button class="tool-btn" onclick="rollbackLatestSnapshot()">⏪ 一鍵回滾（最近）</button>
+                <button class="tool-btn" onclick="rollbackLatestSnapshot('rules')">↩️ 只回規則（最近）</button>
+                <button class="tool-btn" onclick="rollbackLatestSnapshot('list')">↩️ 只回清單（最近）</button>
+                <button class="tool-btn" onclick="rollbackLatestSnapshot('estimate')">↩️ 只回估價（最近）</button>
+                <button class="tool-btn" onclick="exportSnapshots()">⬇️ 匯出快照</button>
+                <button class="tool-btn" onclick="triggerImportSnapshots()">⬆️ 匯入快照</button>
+                <input type="file" id="snapshotImportFile" accept=".json,application/json" style="display:none;" onchange="importSnapshotsFromFile(event)">
+            </div>
+            <div class="snapshot-table">
+                <table>
+                    <thead><tr><th>時間</th><th>標籤</th><th>摘要</th><th>操作</th></tr></thead>
+                    <tbody id="snapshotBody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="bim-note">支援 IFC 文字解析：自動統計構件類型、讀取部分 Quantity 欄位，作為 QA 與算量前檢核。</div>
+
         <div class="group-title">
             專案與位置設定
             <span style="font-size: 0.6em; color: #666;">會員專用模組</span>
@@ -189,6 +376,25 @@
         <div class="group-title">材料單價查詢（試算表）</div>
         <div class="input-row">
             <div class="input-wrapper">
+                <label>地區資料來源</label>
+                <select id="regionSelect" onchange="handleRegionChange(this.value)">
+                    <option value="auto">自動判斷（定位）</option>
+                    <option value="全台共用">全台共用</option>
+                    <option value="台北市">台北市</option>
+                    <option value="新北市">新北市</option>
+                    <option value="桃園市">桃園市</option>
+                    <option value="台中市">台中市</option>
+                    <option value="台南市">台南市</option>
+                    <option value="高雄市">高雄市</option>
+                </select>
+            </div>
+            <div class="input-wrapper">
+                <label>定位同步</label>
+                <button class="tool-btn" style="width:100%;" onclick="autoDetectRegion()">📍 重新定位並套用</button>
+            </div>
+        </div>
+        <div class="input-row">
+            <div class="input-wrapper">
                 <label>搜尋材料關鍵字</label>
                 <input type="text" id="materialSearch" placeholder="例如：模板、混凝土、鋼筋..." oninput="filterMaterialCatalog(this.value)">
             </div>
@@ -202,6 +408,7 @@
         <div class="material-quick-bar">
             <div id="materialCountChip" class="material-chip">資料筆數：<strong>0</strong></div>
             <div id="materialPriceChip" class="material-chip">目前單價：<strong>尚未選取</strong></div>
+            <div id="materialRegionChip" class="material-chip">地區：<strong>全台共用</strong>（預設）</div>
             <button class="tool-btn" style="margin-left:auto;" onclick="applySelectedMaterialPrice()">📌 套用到單價欄</button>
         </div>
 
@@ -262,6 +469,13 @@
     // 1.0 資料隔離與相容性設定
     const STORAGE_KEY = 'bm_69:list';
     const SCHEMA_VERSION = '6.9.1';
+    const SECURITY_UNLOCK_KEY = 'bm_69:security_unlocked';
+    const SECURITY_CONFIG = {
+        // 預設存取碼：BuildMaster@2026!
+        accessHash: '78e098f0bd34f7c3246e9c0d0b91cc6f78b1fe0321bc7bfc5c58215d838dc663',
+        allowedHosts: ['gt492145-sudo.github.io', 'localhost', '127.0.0.1']
+    };
+    let appBootstrapped = false;
     let scalePixelsPerUnit = 0;
     let drawMode = 'none';
     let clickPoints = [];
@@ -269,6 +483,15 @@
     let imageFilterState = { contrast: 1, brightness: 1 };
     let selectedMaterial = null;
     const PRICES_JSON_URL = 'prices.json';
+    const REGION_STORAGE_KEY = 'bm_69:region_pref';
+    const REGION_FILE_MAP = {
+        '台北市': 'prices-taipei.json',
+        '新北市': 'prices-newtaipei.json',
+        '桃園市': 'prices-taoyuan.json',
+        '台中市': 'prices-taichung.json',
+        '台南市': 'prices-tainan.json',
+        '高雄市': 'prices-kaohsiung.json'
+    };
     const DEFAULT_MATERIAL_CATALOG = [
         { name: '模板工程(透天)', price: 14000 },
         { name: '模板工程(大樓)', price: 10800 },
@@ -284,6 +507,17 @@
         { name: '鷹架(大樓)', price: 520 }
     ];
     let materialCatalog = [...DEFAULT_MATERIAL_CATALOG];
+    let currentRegionLabel = '全台共用';
+    let currentRegionMode = '預設';
+    let bimModelData = null;
+    let bimEstimateRows = [];
+    const BIM_RULES_STORAGE_KEY = 'bm_69:bim_rules';
+    const BIM_AUDIT_STORAGE_KEY = 'bm_69:bim_audit_logs';
+    const BIM_SNAPSHOT_STORAGE_KEY = 'bm_69:bim_snapshots';
+    const UNIT_OPTIONS = ['m', '尺', 'm²', '坪', '建坪', 'm³', '噸', '件', '組', '台', '戶', '樘', '只', '工', '次', '包', '塊', '才'];
+    let bimRuleMap = {};
+    let bimAuditLogs = [];
+    let bimSnapshots = [];
     let is3DView = false;
     let is360Spinning = false;
     let spinTimer = null;
@@ -319,41 +553,1129 @@
     let coachTimer = null;
 
     window.onload = async function() {
+        const canStart = await bootstrapSecurity();
+        if (!canStart) return;
+        await startApp();
+    };
+
+    async function startApp() {
+        if (appBootstrapped) return;
+        appBootstrapped = true;
         applyAutoContrastMode();
         applyContrastMode();
         await initMaterialCatalog();
         updateUI();
         renderTable();
         initTouchCoach();
-    };
-
-    async function initMaterialCatalog() {
-        materialCatalog = await loadMaterialCatalog();
-        renderMaterialOptions(materialCatalog);
-        updateMaterialChips(materialCatalog.length, null);
+        initUtilityWidgets();
     }
 
-    async function loadMaterialCatalog() {
-        try {
-            const res = await fetch(`${PRICES_JSON_URL}?v=${Date.now()}`, { cache: 'no-store' });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const payload = await res.json();
-            const items = Array.isArray(payload.items) ? payload.items : [];
-            const normalized = items
-                .map(item => ({
-                    name: String(item.name || '').trim(),
-                    price: Number(item.price)
-                }))
-                .filter(item => item.name && Number.isFinite(item.price) && item.price > 0);
-            if (normalized.length > 0) {
-                showToast(`已同步最新季價 (${normalized.length} 筆)`);
-                return normalized;
+    function isDevHost() {
+        return location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    }
+
+    async function hashTextSHA256(text) {
+        const msgUint8 = new TextEncoder().encode(text);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+        return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function showSecurityLock(message) {
+        const lock = document.getElementById('securityLock');
+        const msg = document.getElementById('securityMessage');
+        if (msg) msg.innerText = message || '請輸入存取碼以啟用系統。';
+        if (lock) lock.classList.add('show');
+        const input = document.getElementById('securityCodeInput');
+        if (input) setTimeout(() => input.focus(), 80);
+    }
+
+    function hideSecurityLock() {
+        const lock = document.getElementById('securityLock');
+        if (lock) lock.classList.remove('show');
+    }
+
+    function setupSecurityWatermark() {
+        const wm = document.getElementById('securityWatermark');
+        if (!wm) return;
+        const stamp = new Date().toLocaleString('zh-TW');
+        wm.innerText = `BuildMaster Secure | ${location.hostname} | ${stamp}`;
+    }
+
+    function bindClientDeterrence() {
+        if (isDevHost()) return;
+        document.addEventListener('contextmenu', e => e.preventDefault());
+        document.addEventListener('keydown', e => {
+            const key = String(e.key || '').toLowerCase();
+            const blocked =
+                key === 'f12' ||
+                (e.ctrlKey && e.shiftKey && ['i', 'j', 'c'].includes(key)) ||
+                (e.metaKey && e.altKey && ['i', 'j', 'c'].includes(key)) ||
+                (e.ctrlKey && key === 'u') ||
+                (e.metaKey && key === 'u') ||
+                (e.ctrlKey && key === 's') ||
+                (e.metaKey && key === 's');
+            if (blocked) {
+                e.preventDefault();
+                showToast('此快捷鍵已受保護模式限制');
             }
-            throw new Error('No valid items');
+        });
+    }
+
+    async function bootstrapSecurity() {
+        setupSecurityWatermark();
+        bindClientDeterrence();
+
+        if (window.top !== window.self) {
+            showSecurityLock('偵測到外部框架嵌入，已阻擋顯示。');
+            return false;
+        }
+
+        const hostAllowed = SECURITY_CONFIG.allowedHosts.includes(location.hostname) || location.hostname.endsWith('.netlify.app');
+        if (!hostAllowed) {
+            showSecurityLock(`未授權網域：${location.hostname}`);
+            return false;
+        }
+
+        const unlocked = sessionStorage.getItem(SECURITY_UNLOCK_KEY) === '1';
+        if (unlocked || isDevHost()) {
+            hideSecurityLock();
+            return true;
+        }
+
+        showSecurityLock('請輸入存取碼以啟用系統。');
+        const input = document.getElementById('securityCodeInput');
+        if (input) {
+            input.addEventListener('keydown', ev => {
+                if (ev.key === 'Enter') submitSecurityCode();
+            }, { once: true });
+        }
+        return false;
+    }
+
+    async function submitSecurityCode() {
+        const input = document.getElementById('securityCodeInput');
+        const hint = document.getElementById('securityHint');
+        const code = String((input && input.value) || '').trim();
+        if (!code) {
+            if (hint) hint.innerText = '請先輸入存取碼';
+            return;
+        }
+        const hashed = await hashTextSHA256(code);
+        if (hashed !== SECURITY_CONFIG.accessHash) {
+            if (hint) hint.innerText = '存取碼錯誤，請重試';
+            if (input) input.value = '';
+            return;
+        }
+        sessionStorage.setItem(SECURITY_UNLOCK_KEY, '1');
+        hideSecurityLock();
+        if (hint) hint.innerText = '';
+        if (input) input.value = '';
+        await startApp();
+        showToast('保護模式驗證成功');
+    }
+
+    async function initMaterialCatalog() {
+        const savedRegion = localStorage.getItem(REGION_STORAGE_KEY);
+        if (savedRegion) {
+            currentRegionLabel = savedRegion;
+            currentRegionMode = '手動';
+            const selector = document.getElementById('regionSelect');
+            if (selector) selector.value = savedRegion;
+        } else {
+            const detected = await detectRegionFromDevice();
+            if (detected) {
+                currentRegionLabel = detected;
+                currentRegionMode = '自動';
+                const selector = document.getElementById('regionSelect');
+                if (selector) selector.value = 'auto';
+            }
+        }
+        materialCatalog = await loadMaterialCatalog(currentRegionLabel);
+        renderMaterialOptions(materialCatalog);
+        updateMaterialChips(materialCatalog.length, null);
+        updateRegionChip();
+        initBimRuleEditor();
+    }
+
+    function initUtilityWidgets() {
+        renderUnmatchedMaterialOptions();
+        renderUnmatchedWizard();
+        initUnitSelectors();
+        loadAuditLogs();
+        renderAuditTable();
+        loadSnapshots();
+        renderSnapshotTable();
+    }
+
+    function loadAuditLogs() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(BIM_AUDIT_STORAGE_KEY) || '[]');
+            bimAuditLogs = Array.isArray(parsed) ? parsed : [];
+        } catch (_e) {
+            bimAuditLogs = [];
+        }
+    }
+
+    function persistAuditLogs() {
+        localStorage.setItem(BIM_AUDIT_STORAGE_KEY, JSON.stringify(bimAuditLogs.slice(0, 120)));
+    }
+
+    function addAuditLog(action, detail) {
+        const row = {
+            ts: new Date().toISOString(),
+            action: String(action || '').trim(),
+            detail: String(detail || '').trim()
+        };
+        bimAuditLogs.unshift(row);
+        bimAuditLogs = bimAuditLogs.slice(0, 120);
+        persistAuditLogs();
+        renderAuditTable();
+    }
+
+    function renderAuditTable() {
+        const body = document.getElementById('auditBody');
+        if (!body) return;
+        body.innerHTML = '';
+        if (!bimAuditLogs.length) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="3" style="color:#99b2c9;">尚無操作紀錄</td>';
+            body.appendChild(tr);
+            return;
+        }
+        bimAuditLogs.slice(0, 50).forEach(log => {
+            const tr = document.createElement('tr');
+            const dt = new Date(log.ts);
+            tr.innerHTML = `<td>${dt.toLocaleString('zh-TW')}</td><td>${log.action}</td><td>${log.detail}</td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    function loadSnapshots() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(BIM_SNAPSHOT_STORAGE_KEY) || '[]');
+            bimSnapshots = Array.isArray(parsed) ? parsed : [];
+        } catch (_e) {
+            bimSnapshots = [];
+        }
+    }
+
+    function persistSnapshots() {
+        localStorage.setItem(BIM_SNAPSHOT_STORAGE_KEY, JSON.stringify(bimSnapshots.slice(0, 40)));
+    }
+
+    function snapshotSummaryText(snap) {
+        const ruleCount = snap && snap.bimRuleMap ? Object.keys(snap.bimRuleMap).length : 0;
+        const estimateCount = snap && Array.isArray(snap.bimEstimateRows) ? snap.bimEstimateRows.length : 0;
+        const listCount = snap && Array.isArray(snap.list) ? snap.list.length : 0;
+        return `規則 ${ruleCount} / 估價 ${estimateCount} / 清單 ${listCount}`;
+    }
+
+    function safeCloneJson(obj, fallback) {
+        try {
+            return JSON.parse(JSON.stringify(obj));
+        } catch (_e) {
+            return fallback;
+        }
+    }
+
+    function createDataSnapshot(label, silent) {
+        const snap = {
+            id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            ts: new Date().toISOString(),
+            label: String(label || '快照').trim(),
+            region: currentRegionLabel,
+            bimRuleMap: safeCloneJson(bimRuleMap, {}),
+            bimEstimateRows: safeCloneJson(bimEstimateRows, []),
+            list: safeCloneJson(list, [])
+        };
+        bimSnapshots.unshift(snap);
+        bimSnapshots = bimSnapshots.slice(0, 40);
+        persistSnapshots();
+        renderSnapshotTable();
+        addAuditLog('建立快照', `${snap.label}（${snapshotSummaryText(snap)}）`);
+        if (!silent) showToast(`已建立快照：${snap.label}`);
+    }
+
+    function renderSnapshotTable() {
+        const body = document.getElementById('snapshotBody');
+        if (!body) return;
+        body.innerHTML = '';
+        if (!bimSnapshots.length) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="4" style="color:#99b2c9;">尚無版本快照</td>';
+            body.appendChild(tr);
+            return;
+        }
+        bimSnapshots.slice(0, 30).forEach(snap => {
+            const tr = document.createElement('tr');
+            const dt = new Date(snap.ts);
+            tr.innerHTML = `
+                <td>${dt.toLocaleString('zh-TW')}</td>
+                <td>${snap.label || '快照'}</td>
+                <td>${snapshotSummaryText(snap)}</td>
+                <td>
+                    <button class="tool-btn" style="padding:4px 8px;" onclick="restoreSnapshotById('${snap.id}', 'all')">全部</button>
+                    <button class="tool-btn" style="padding:4px 8px;" onclick="restoreSnapshotById('${snap.id}', 'rules')">規則</button>
+                    <button class="tool-btn" style="padding:4px 8px;" onclick="restoreSnapshotById('${snap.id}', 'estimate')">估價</button>
+                    <button class="tool-btn" style="padding:4px 8px;" onclick="restoreSnapshotById('${snap.id}', 'list')">清單</button>
+                </td>
+            `;
+            body.appendChild(tr);
+        });
+    }
+
+    function renderBimEstimateTableFromRows() {
+        const body = document.getElementById('bimEstimateBody');
+        if (!body) return;
+        body.innerHTML = '';
+        bimEstimateRows.forEach(row => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${row.ifcType}</td>
+                <td>${row.materialName}</td>
+                <td>${row.qty.toLocaleString()} ${row.unit}${row.priceUnit !== row.unit ? ` → ${Math.round(row.effectiveQty * 1000) / 1000} ${row.priceUnit}` : ''}${row.unitMismatch ? ' (單位不相容)' : ''}</td>
+                <td>${row.price ? row.price.toLocaleString() : '-'}</td>
+                <td style="color:var(--money); font-weight:bold;">${row.subtotal ? Math.round(row.subtotal).toLocaleString() : '-'}</td>
+            `;
+            body.appendChild(tr);
+        });
+        renderUnmatchedWizard();
+    }
+
+    function getRollbackScopeLabel(scope) {
+        if (scope === 'rules') return '只回規則';
+        if (scope === 'estimate') return '只回估價';
+        if (scope === 'list') return '只回清單';
+        return '全部回滾';
+    }
+
+    function restoreSnapshotById(snapshotId, scope = 'all') {
+        const snap = bimSnapshots.find(s => s.id === snapshotId);
+        if (!snap) return showToast('找不到指定快照');
+        const mode = ['all', 'rules', 'estimate', 'list'].includes(scope) ? scope : 'all';
+        const modeLabel = getRollbackScopeLabel(mode);
+        const ok = confirm(`將回滾到：${snap.label || '快照'}\n模式：${modeLabel}\n時間：${new Date(snap.ts).toLocaleString('zh-TW')}\n${snapshotSummaryText(snap)}\n\n是否繼續？`);
+        if (!ok) return;
+
+        if (mode === 'all' || mode === 'rules') {
+            bimRuleMap = safeCloneJson(snap.bimRuleMap || {}, {});
+            persistBimRules();
+            renderBimRuleTable();
+        }
+        if (mode === 'all') {
+            bimEstimateRows = safeCloneJson(snap.bimEstimateRows || [], []);
+            renderBimEstimateTableFromRows();
+        }
+        if (mode === 'estimate') {
+            bimEstimateRows = safeCloneJson(snap.bimEstimateRows || [], []);
+            renderBimEstimateTableFromRows();
+        }
+        if (mode === 'all' || mode === 'list') {
+            list = safeCloneJson(snap.list || [], []);
+            saveData();
+            renderTable();
+        }
+
+        addAuditLog('回滾快照', `${snap.label}（${modeLabel} / ${snapshotSummaryText(snap)}）`);
+        showToast(`已回滾：${snap.label || '快照'}（${modeLabel}）`);
+    }
+
+    function rollbackLatestSnapshot(scope = 'all') {
+        if (!bimSnapshots.length) return showToast('目前沒有可回滾的快照');
+        restoreSnapshotById(bimSnapshots[0].id, scope);
+    }
+
+    function exportSnapshots() {
+        const payload = {
+            version: '1.0',
+            exported_at: new Date().toISOString(),
+            snapshots: bimSnapshots
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `bim-snapshots-${new Date().getTime()}.json`;
+        link.click();
+        addAuditLog('匯出快照', `共 ${bimSnapshots.length} 筆`);
+        showToast('快照已匯出');
+    }
+
+    function triggerImportSnapshots() {
+        const fileInput = document.getElementById('snapshotImportFile');
+        if (fileInput) fileInput.click();
+    }
+
+    function importSnapshotsFromFile(event) {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+            try {
+                const parsed = JSON.parse(String(e.target.result || '{}'));
+                const incoming = Array.isArray(parsed.snapshots) ? parsed.snapshots : (Array.isArray(parsed) ? parsed : []);
+                const normalized = incoming
+                    .filter(s => s && typeof s === 'object')
+                    .map(s => ({
+                        id: String(s.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+                        ts: String(s.ts || new Date().toISOString()),
+                        label: String(s.label || '匯入快照'),
+                        region: String(s.region || '全台共用'),
+                        bimRuleMap: safeCloneJson(s.bimRuleMap || {}, {}),
+                        bimEstimateRows: safeCloneJson(s.bimEstimateRows || [], []),
+                        list: safeCloneJson(s.list || [], [])
+                    }));
+                if (!normalized.length) return showToast('匯入失敗：沒有有效快照');
+                const merged = [...normalized, ...bimSnapshots];
+                const seen = new Set();
+                bimSnapshots = merged.filter(s => {
+                    if (seen.has(s.id)) return false;
+                    seen.add(s.id);
+                    return true;
+                }).slice(0, 40);
+                persistSnapshots();
+                renderSnapshotTable();
+                addAuditLog('匯入快照', `匯入 ${normalized.length} 筆`);
+                showToast(`已匯入快照 ${normalized.length} 筆`);
+            } catch (_err) {
+                showToast('匯入快照失敗：JSON 格式不正確');
+            } finally {
+                event.target.value = '';
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function initUnitSelectors() {
+        const fromSel = document.getElementById('unitFrom');
+        const toSel = document.getElementById('unitTo');
+        if (!fromSel || !toSel) return;
+        [fromSel, toSel].forEach(sel => {
+            sel.innerHTML = '';
+            UNIT_OPTIONS.forEach(u => {
+                const opt = document.createElement('option');
+                opt.value = u;
+                opt.textContent = u;
+                sel.appendChild(opt);
+            });
+        });
+        fromSel.value = 'm²';
+        toSel.value = '坪';
+    }
+
+    function normalizeUnitToken(unit) {
+        const u = String(unit || '').trim();
+        if (!u) return '';
+        if (u === '呎') return '尺';
+        if (u === '平方公尺') return 'm²';
+        if (u === '立方公尺') return 'm³';
+        return u;
+    }
+
+    function unitFamily(unit) {
+        const u = normalizeUnitToken(unit);
+        if (['m', '尺'].includes(u)) return 'length';
+        if (['m²', '坪', '建坪', '才'].includes(u)) return 'area';
+        if (['m³'].includes(u)) return 'volume';
+        if (['噸'].includes(u)) return 'mass';
+        if (['件', '組', '台', '戶', '樘', '只', '工', '次', '包', '塊'].includes(u)) return 'count';
+        return '';
+    }
+
+    function toBaseUnit(value, unit) {
+        const u = normalizeUnitToken(unit);
+        const v = Number(value);
+        if (!Number.isFinite(v)) return null;
+        if (u === 'm') return { family: 'length', value: v };
+        if (u === '尺') return { family: 'length', value: v * 0.30303 };
+        if (u === 'm²') return { family: 'area', value: v };
+        if (u === '坪' || u === '建坪') return { family: 'area', value: v * 3.305785 };
+        if (u === '才') return { family: 'area', value: v * 0.091827 };
+        if (u === 'm³') return { family: 'volume', value: v };
+        if (u === '噸') return { family: 'mass', value: v };
+        if (unitFamily(u) === 'count') return { family: 'count', value: v };
+        return null;
+    }
+
+    function fromBaseUnit(baseValue, targetUnit) {
+        const u = normalizeUnitToken(targetUnit);
+        const v = Number(baseValue);
+        if (!Number.isFinite(v)) return null;
+        if (u === 'm') return v;
+        if (u === '尺') return v / 0.30303;
+        if (u === 'm²') return v;
+        if (u === '坪' || u === '建坪') return v / 3.305785;
+        if (u === '才') return v / 0.091827;
+        if (u === 'm³') return v;
+        if (u === '噸') return v;
+        if (unitFamily(u) === 'count') return v;
+        return null;
+    }
+
+    function convertValueBetweenUnits(value, fromUnit, toUnit) {
+        const from = toBaseUnit(value, fromUnit);
+        if (!from) return null;
+        const toFamily = unitFamily(toUnit);
+        if (!toFamily || toFamily !== from.family) return null;
+        const out = fromBaseUnit(from.value, toUnit);
+        return out;
+    }
+
+    function runUnitConvert() {
+        const val = Number(document.getElementById('unitConvertValue').value || 0);
+        const from = document.getElementById('unitFrom').value;
+        const to = document.getElementById('unitTo').value;
+        const resultBox = document.getElementById('unitConvertResult');
+        const out = convertValueBetweenUnits(val, from, to);
+        if (out === null) {
+            resultBox.innerText = `結果：無法從 ${from} 換算到 ${to}`;
+            return showToast('單位不相容，請確認同類型單位');
+        }
+        const rounded = Math.round(out * 10000) / 10000;
+        resultBox.innerText = `結果：${val} ${from} = ${rounded} ${to}`;
+        addAuditLog('單位換算', `${val} ${from} -> ${rounded} ${to}`);
+        showToast(`單位換算完成：${rounded} ${to}`);
+    }
+
+    function loadIFCModel(event) {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const text = String(e.target.result || '');
+            bimModelData = parseIFCText(text, file.name);
+            renderBIMSummary(bimModelData);
+            addAuditLog('載入 IFC', `${file.name} / ${bimModelData.totalEntities} entities`);
+            showToast(`BIM 模型已載入：${file.name}`);
+        };
+        reader.readAsText(file);
+    }
+
+    function parseIFCText(text, fileName) {
+        const data = {
+            fileName,
+            totalEntities: 0,
+            totalElements: 0,
+            typeCounts: {},
+            elements: [],
+            qtyLength: 0,
+            qtyArea: 0,
+            qtyVolume: 0,
+            qtyCount: 0,
+            warnings: []
+        };
+
+        if (!text.includes('ISO-10303-21') && !text.includes('IFC')) {
+            data.warnings.push('檔案看起來不是標準 IFC 文字格式，請確認來源。');
+        }
+
+        const lines = text.replace(/\r/g, '').split('\n');
+        let duplicateIds = 0;
+        const idSet = new Set();
+
+        for (const lineRaw of lines) {
+            const line = lineRaw.trim();
+            if (!line.startsWith('#')) continue;
+            const m = line.match(/^#(\d+)\s*=\s*([A-Z0-9_]+)\((.*)\);?$/i);
+            if (!m) continue;
+
+            const entityId = `#${m[1]}`;
+            const type = m[2].toUpperCase();
+            const body = m[3] || '';
+
+            if (idSet.has(entityId)) duplicateIds += 1;
+            idSet.add(entityId);
+
+            data.totalEntities += 1;
+            data.typeCounts[type] = (data.typeCounts[type] || 0) + 1;
+
+            if (/^IFC(WALL|WALLSTANDARDCASE|SLAB|BEAM|COLUMN|STAIR|ROOF|DOOR|WINDOW|FOOTING|PILE|CURTAINWALL|MEMBER)/.test(type)) {
+                data.totalElements += 1;
+                if (data.elements.length < 500) {
+                    const nameMatch = body.match(/'([^']+)'/);
+                    data.elements.push({ id: entityId, type, name: nameMatch ? nameMatch[1] : '' });
+                }
+            }
+
+            if (type === 'IFCQUANTITYLENGTH' || type === 'IFCQUANTITYAREA' || type === 'IFCQUANTITYVOLUME' || type === 'IFCQUANTITYCOUNT') {
+                const nums = body.match(/-?\d+(\.\d+)?/g);
+                const value = nums ? Number(nums[nums.length - 1]) : 0;
+                if (Number.isFinite(value)) {
+                    if (type === 'IFCQUANTITYLENGTH') data.qtyLength += value;
+                    if (type === 'IFCQUANTITYAREA') data.qtyArea += value;
+                    if (type === 'IFCQUANTITYVOLUME') data.qtyVolume += value;
+                    if (type === 'IFCQUANTITYCOUNT') data.qtyCount += value;
+                }
+            }
+        }
+
+        if (data.totalEntities === 0) data.warnings.push('沒有解析到 IFC Entity，請確認是否為純 IFC 檔。');
+        if (data.totalElements === 0) data.warnings.push('未找到常見構件（牆/梁/柱/板），可能是非建築模型或格式版本差異。');
+        if (data.qtyLength + data.qtyArea + data.qtyVolume + data.qtyCount === 0) data.warnings.push('未讀到 Quantity 實體，建議在 BIM 端先輸出算量屬性。');
+        if (duplicateIds > 0) data.warnings.push(`偵測到重複 Entity ID：${duplicateIds} 筆`);
+
+        return data;
+    }
+
+    function calcBIMQaScore(data) {
+        let score = 40;
+        if (data.totalEntities > 1000) score += 20;
+        else if (data.totalEntities > 200) score += 12;
+        else if (data.totalEntities > 50) score += 6;
+
+        if (data.totalElements > 50) score += 20;
+        else if (data.totalElements > 10) score += 12;
+        else if (data.totalElements > 0) score += 6;
+
+        const qtySum = data.qtyLength + data.qtyArea + data.qtyVolume + data.qtyCount;
+        if (qtySum > 0) score += 20;
+
+        const coreTypes = ['IFCWALL', 'IFCSLAB', 'IFCBEAM', 'IFCCOLUMN'];
+        const hit = coreTypes.filter(t => (data.typeCounts[t] || data.typeCounts[`${t}STANDARDCASE`] || 0) > 0).length;
+        score += hit * 5;
+
+        score -= Math.min(20, data.warnings.length * 5);
+        return Math.max(0, Math.min(100, score));
+    }
+
+    function renderBIMSummary(data) {
+        document.getElementById('bimFileName').innerText = data.fileName || '未命名';
+        document.getElementById('bimEntityCount').innerText = data.totalEntities.toLocaleString();
+        document.getElementById('bimElementCount').innerText = data.totalElements.toLocaleString();
+        document.getElementById('bimQaScore').innerText = `${calcBIMQaScore(data)} / 100`;
+        document.getElementById('bimQtyLength').innerText = data.qtyLength.toFixed(2);
+        document.getElementById('bimQtyArea').innerText = data.qtyArea.toFixed(2);
+        document.getElementById('bimQtyVolume').innerText = data.qtyVolume.toFixed(2);
+        document.getElementById('bimQtyCount').innerText = data.qtyCount.toFixed(2);
+
+        const typeBody = document.getElementById('bimTypeBody');
+        typeBody.innerHTML = '';
+        const topTypes = Object.entries(data.typeCounts).sort((a, b) => b[1] - a[1]).slice(0, 50);
+        topTypes.forEach(([type, count]) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${type}</td><td>${count}</td>`;
+            typeBody.appendChild(tr);
+        });
+
+        const warnBox = document.getElementById('bimWarnings');
+        warnBox.innerHTML = data.warnings.length
+            ? data.warnings.map(w => `• ${w}`).join('<br>')
+            : 'QA 檢核：未發現明顯結構問題。';
+    }
+
+    function searchIFCEntity(keyword) {
+        if (!bimModelData) return;
+        const q = String(keyword || '').trim().toUpperCase();
+        const typeBody = document.getElementById('bimTypeBody');
+        if (!q) return renderBIMSummary(bimModelData);
+
+        // If searching by #id, show closest element match.
+        if (q.startsWith('#')) {
+            const found = bimModelData.elements.find(e => e.id.toUpperCase() === q);
+            typeBody.innerHTML = '';
+            const tr = document.createElement('tr');
+            tr.innerHTML = found
+                ? `<td>${found.id} ${found.type}${found.name ? ` - ${found.name}` : ''}</td><td>1</td>`
+                : `<td>查無 ${q}</td><td>0</td>`;
+            typeBody.appendChild(tr);
+            return;
+        }
+
+        const filtered = Object.entries(bimModelData.typeCounts).filter(([type]) => type.includes(q)).sort((a, b) => b[1] - a[1]);
+        typeBody.innerHTML = '';
+        filtered.slice(0, 50).forEach(([type, count]) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${type}</td><td>${count}</td>`;
+            typeBody.appendChild(tr);
+        });
+        if (filtered.length === 0) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>查無 ${q}</td><td>0</td>`;
+            typeBody.appendChild(tr);
+        }
+    }
+
+    function findMaterialByKeywords(keywords) {
+        const lowered = materialCatalog.map(item => ({ ...item, _k: item.name.toLowerCase() }));
+        for (const k of keywords) {
+            const hit = lowered.find(item => item._k.includes(k));
+            if (hit) return hit;
+        }
+        return null;
+    }
+
+    function normalizeIfcType(type) {
+        return String(type || '').trim().toUpperCase();
+    }
+
+    function initBimRuleEditor() {
+        loadBimRules();
+        renderBimRuleMaterialOptions();
+        renderBimRuleTable();
+    }
+
+    function renderBimRuleMaterialOptions() {
+        const sel = document.getElementById('bimRuleMaterial');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">請選擇材料</option>';
+        materialCatalog.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.name;
+            const unitText = item.unit ? ` / ${item.unit}` : '';
+            opt.textContent = `${item.name} (${Number(item.price).toLocaleString()}${unitText})`;
+            sel.appendChild(opt);
+        });
+        renderUnmatchedMaterialOptions();
+    }
+
+    function renderUnmatchedMaterialOptions() {
+        const sel = document.getElementById('bimUnmatchedMaterial');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">請選擇材料</option>';
+        materialCatalog.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.name;
+            const unitText = item.unit ? ` / ${item.unit}` : '';
+            opt.textContent = `${item.name} (${Number(item.price).toLocaleString()}${unitText})`;
+            sel.appendChild(opt);
+        });
+    }
+
+    function inferIfcQuantityUnit(type) {
+        const t = normalizeIfcType(type);
+        if (t.includes('IFCWALL') || t.includes('IFCSLAB') || t.includes('IFCROOF') || t.includes('IFCCURTAINWALL')) return 'm²';
+        if (t.includes('IFCBEAM') || t.includes('IFCCOLUMN') || t.includes('IFCMEMBER') || t.includes('IFCPILE')) return 'm';
+        if (t.includes('IFCFOOTING')) return 'm³';
+        if (t.includes('IFCDOOR') || t.includes('IFCWINDOW')) return '樘';
+        return '件';
+    }
+
+    function renderUnmatchedWizard() {
+        const sel = document.getElementById('bimUnmatchedType');
+        if (!sel) return;
+        sel.innerHTML = '';
+        const unmatchedTypes = Array.from(new Set(
+            bimEstimateRows.filter(row => !row.price || row.materialName === '未匹配').map(row => row.ifcType)
+        ));
+        if (!unmatchedTypes.length) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = '目前沒有未匹配項目';
+            sel.appendChild(opt);
+            return;
+        }
+        unmatchedTypes.forEach(type => {
+            const opt = document.createElement('option');
+            opt.value = type;
+            opt.textContent = type;
+            sel.appendChild(opt);
+        });
+    }
+
+    function applyUnmatchedRuleOnce() {
+        const ifcType = normalizeIfcType(document.getElementById('bimUnmatchedType').value);
+        const materialName = String(document.getElementById('bimUnmatchedMaterial').value || '').trim();
+        if (!ifcType) return showToast('目前沒有未匹配 IFC 類型');
+        if (!materialName) return showToast('請先選擇要套用的材料');
+        createDataSnapshot('修復未匹配前', true);
+        bimRuleMap[ifcType] = materialName;
+        persistBimRules();
+        renderBimRuleTable();
+        addAuditLog('修復未匹配', `${ifcType} -> ${materialName}`);
+        showToast(`已套用規則：${ifcType} -> ${materialName}`);
+        generateBIMEstimate();
+    }
+
+    function applyUnmatchedRuleAll() {
+        const materialName = String(document.getElementById('bimUnmatchedMaterial').value || '').trim();
+        if (!materialName) return showToast('請先選擇要批次套用的材料');
+        const targets = Array.from(new Set(
+            bimEstimateRows.filter(row => !row.price || row.materialName === '未匹配').map(row => normalizeIfcType(row.ifcType))
+        )).filter(Boolean);
+        if (!targets.length) return showToast('沒有未匹配項目可批次套用');
+        createDataSnapshot('批次修復未匹配前', true);
+        targets.forEach(t => { bimRuleMap[t] = materialName; });
+        persistBimRules();
+        renderBimRuleTable();
+        addAuditLog('批次修復未匹配', `${targets.length} 筆 -> ${materialName}`);
+        showToast(`已批次套用 ${targets.length} 筆規則`);
+        generateBIMEstimate();
+    }
+
+    function loadBimRules() {
+        bimRuleMap = {};
+        try {
+            const raw = localStorage.getItem(BIM_RULES_STORAGE_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object') return;
+            Object.keys(parsed).forEach(key => {
+                const t = normalizeIfcType(key);
+                const v = String(parsed[key] || '').trim();
+                if (t && v) bimRuleMap[t] = v;
+            });
         } catch (e) {
-            console.warn('載入 prices.json 失敗，改用內建價格', e);
+            console.warn('BIM 規則載入失敗', e);
+        }
+    }
+
+    function persistBimRules() {
+        localStorage.setItem(BIM_RULES_STORAGE_KEY, JSON.stringify(bimRuleMap));
+    }
+
+    function renderBimRuleTable() {
+        const body = document.getElementById('bimRuleBody');
+        if (!body) return;
+        body.innerHTML = '';
+        const entries = Object.entries(bimRuleMap).sort((a, b) => a[0].localeCompare(b[0]));
+        if (!entries.length) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="3" style="color:#99b2c9;">尚無自訂規則</td>';
+            body.appendChild(tr);
+            return;
+        }
+        entries.forEach(([ifcType, materialName]) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${ifcType}</td><td>${materialName}</td><td><button class="tool-btn" style="padding:4px 8px;" onclick="useBimRule('${ifcType}')">編輯</button></td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    function useBimRule(ifcType) {
+        const t = normalizeIfcType(ifcType);
+        document.getElementById('bimRuleIfcType').value = t;
+        const mat = bimRuleMap[t] || '';
+        document.getElementById('bimRuleMaterial').value = mat;
+    }
+
+    function saveBimRule() {
+        const t = normalizeIfcType(document.getElementById('bimRuleIfcType').value);
+        const mat = String(document.getElementById('bimRuleMaterial').value || '').trim();
+        if (!t) return showToast('請輸入 IFC Type');
+        if (!mat) return showToast('請選擇對應材料');
+        const exists = materialCatalog.some(m => m.name === mat);
+        if (!exists) return showToast('所選材料不在目前價目表中');
+        createDataSnapshot('規則變更前', true);
+        bimRuleMap[t] = mat;
+        persistBimRules();
+        renderBimRuleTable();
+        addAuditLog('儲存規則', `${t} -> ${mat}`);
+        showToast(`已儲存規則：${t} -> ${mat}`);
+    }
+
+    function deleteBimRule() {
+        const t = normalizeIfcType(document.getElementById('bimRuleIfcType').value);
+        if (!t) return showToast('請先輸入要刪除的 IFC Type');
+        if (!bimRuleMap[t]) return showToast('此規則不存在');
+        createDataSnapshot('刪除規則前', true);
+        delete bimRuleMap[t];
+        persistBimRules();
+        renderBimRuleTable();
+        addAuditLog('刪除規則', t);
+        showToast(`已刪除規則：${t}`);
+    }
+
+    function exportBimRules() {
+        const payload = {
+            version: '1.0',
+            exported_at: new Date().toISOString(),
+            rules: bimRuleMap
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `bim-rules-${new Date().getTime()}.json`;
+        link.click();
+        addAuditLog('匯出規則', `共 ${Object.keys(bimRuleMap).length} 筆`);
+        showToast('BIM 規則已匯出');
+    }
+
+    function triggerImportBimRules() {
+        const fileInput = document.getElementById('bimRuleImportFile');
+        if (fileInput) fileInput.click();
+    }
+
+    function importBimRulesFromFile(event) {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+            try {
+                const parsed = JSON.parse(String(e.target.result || '{}'));
+                const rules = parsed.rules && typeof parsed.rules === 'object' ? parsed.rules : parsed;
+                const nextMap = {};
+                let skippedInvalid = 0;
+                let skippedNoMaterial = 0;
+                Object.keys(rules || {}).forEach(key => {
+                    const ifcType = normalizeIfcType(key);
+                    const materialName = String(rules[key] || '').trim();
+                    if (!ifcType || !materialName) {
+                        skippedInvalid += 1;
+                        return;
+                    }
+                    const exists = materialCatalog.some(m => m.name === materialName);
+                    if (exists) nextMap[ifcType] = materialName;
+                    else skippedNoMaterial += 1;
+                });
+
+                const before = bimRuleMap || {};
+                let added = 0;
+                let updated = 0;
+                let unchanged = 0;
+                Object.keys(nextMap).forEach(ifcType => {
+                    if (!(ifcType in before)) {
+                        added += 1;
+                        return;
+                    }
+                    if (before[ifcType] === nextMap[ifcType]) unchanged += 1;
+                    else updated += 1;
+                });
+
+                if (Object.keys(nextMap).length === 0) {
+                    return showToast('匯入失敗：沒有可用規則（請確認材料名稱與價目表一致）');
+                }
+
+                const importVersion = parsed && parsed.version ? String(parsed.version) : '未標示';
+                const summary = [
+                    `匯入版本：${importVersion}`,
+                    `新增 ${added} 筆`,
+                    `覆蓋 ${updated} 筆`,
+                    `不變 ${unchanged} 筆`,
+                    `忽略 ${skippedInvalid + skippedNoMaterial} 筆`
+                ].join('\n');
+
+                const ok = confirm(`即將以匯入檔覆蓋目前 BIM 規則：\n\n${summary}\n\n是否繼續？`);
+                if (!ok) return showToast('已取消匯入');
+
+                createDataSnapshot('匯入規則前', true);
+                bimRuleMap = nextMap;
+                persistBimRules();
+                renderBimRuleTable();
+                addAuditLog('匯入規則', `新增 ${added} / 覆蓋 ${updated} / 不變 ${unchanged}`);
+                showToast(`已匯入 BIM 規則 ${Object.keys(bimRuleMap).length} 筆（+${added} / ~${updated}）`);
+            } catch (_err) {
+                showToast('匯入失敗：JSON 格式不正確');
+            } finally {
+                event.target.value = '';
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function resetBimRules() {
+        if (!confirm('確定清空所有 BIM 匹配規則嗎？')) return;
+        createDataSnapshot('清空規則前', true);
+        bimRuleMap = {};
+        persistBimRules();
+        renderBimRuleTable();
+        addAuditLog('清空規則', '全部清空');
+        showToast('已清空所有 BIM 規則');
+    }
+
+    function mapIfcTypeToMaterial(type) {
+        const t = normalizeIfcType(type);
+        const customMaterialName = bimRuleMap[t];
+        if (customMaterialName) {
+            const custom = materialCatalog.find(item => item.name === customMaterialName);
+            if (custom) return custom;
+        }
+        if (t.includes('IFCBEAM')) return findMaterialByKeywords(['模板工程', '混凝土', '鋼筋']);
+        if (t.includes('IFCCOLUMN')) return findMaterialByKeywords(['鋼筋', '模板工程', '混凝土']);
+        if (t.includes('IFCWALL')) return findMaterialByKeywords(['模板工程', '混凝土']);
+        if (t.includes('IFCSLAB')) return findMaterialByKeywords(['混凝土', '模板工程']);
+        if (t.includes('IFCFOOTING')) return findMaterialByKeywords(['混凝土', '鋼筋']);
+        if (t.includes('IFCSTAIR')) return findMaterialByKeywords(['混凝土', '模板工程']);
+        if (t.includes('IFCPILE')) return findMaterialByKeywords(['鋼筋', '混凝土']);
+        if (t.includes('IFCDOOR')) return findMaterialByKeywords(['門', '木門', '防火門']);
+        if (t.includes('IFCWINDOW')) return findMaterialByKeywords(['玻璃', '門窗']);
+        return findMaterialByKeywords(['模板工程', '混凝土', '鋼筋']);
+    }
+
+    function isIfcElementType(type) {
+        return /^IFC(WALL|WALLSTANDARDCASE|SLAB|BEAM|COLUMN|STAIR|ROOF|DOOR|WINDOW|FOOTING|PILE|CURTAINWALL|MEMBER)/.test(type);
+    }
+
+    function generateBIMEstimate() {
+        if (!bimModelData || !bimModelData.totalEntities) {
+            return showToast('請先上傳 IFC 模型');
+        }
+        if (!materialCatalog.length) {
+            return showToast('尚未載入材料價格資料');
+        }
+
+        const entries = Object.entries(bimModelData.typeCounts)
+            .filter(([type, count]) => isIfcElementType(type) && count > 0)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 30);
+
+        bimEstimateRows = entries.map(([type, count]) => {
+            const material = mapIfcTypeToMaterial(type);
+            const price = material ? Number(material.price) : 0;
+            const sourceUnit = inferIfcQuantityUnit(type);
+            const priceUnit = material && material.unit ? normalizeUnitToken(material.unit) : sourceUnit;
+            const convertedQty = convertValueBetweenUnits(count, sourceUnit, priceUnit);
+            const effectiveQty = Number.isFinite(convertedQty) ? convertedQty : count;
+            const subtotal = effectiveQty * price;
+            return {
+                ifcType: type,
+                materialName: material ? material.name : '未匹配',
+                qty: count,
+                unit: sourceUnit,
+                priceUnit,
+                effectiveQty,
+                price,
+                subtotal,
+                unitMismatch: !!material && sourceUnit !== priceUnit && !Number.isFinite(convertedQty)
+            };
+        });
+
+        renderBimEstimateTableFromRows();
+
+        const unmatched = bimEstimateRows.filter(r => !r.price).length;
+        const mismatch = bimEstimateRows.filter(r => r.unitMismatch).length;
+        addAuditLog('生成 BIM 估價', `${bimEstimateRows.length} 筆，未匹配 ${unmatched}，單位不相容 ${mismatch}`);
+        if (unmatched > 0) {
+            showToast(`BIM 估價完成（${bimEstimateRows.length} 筆，${unmatched} 筆未匹配）`);
+        } else {
+            showToast(`BIM 估價完成（${bimEstimateRows.length} 筆）`);
+        }
+    }
+
+    function inferCategoryFromName(name) {
+        const n = String(name || '');
+        if (n.includes('鋼筋') || n.includes('綁紮')) return 'STEEL';
+        if (n.includes('模板')) return 'MOLD';
+        if (n.includes('混凝土')) return 'CEMENT';
+        if (n.includes('土') || n.includes('挖掘')) return 'EARTH';
+        return 'MOLD';
+    }
+
+    function importBIMEstimateToList() {
+        if (!bimEstimateRows.length) {
+            return showToast('請先執行 BIM 自動估價預覽');
+        }
+        createDataSnapshot('匯入估價前', true);
+        const floor = document.getElementById('floor_tag').value.trim() || 'BIM';
+        let imported = 0;
+        for (const row of bimEstimateRows) {
+            if (!row.price || row.qty <= 0) continue;
+            list.push({
+                floor: escapeHTML(floor),
+                name: escapeHTML(`BIM-${row.ifcType} [${row.materialName}]`),
+                res: row.qty,
+                up: row.price,
+                totalCost: row.subtotal,
+                cat: inferCategoryFromName(row.materialName),
+                unit: row.unit
+            });
+            imported += 1;
+        }
+        if (!imported) return showToast('沒有可匯入的 BIM 估價項目');
+        saveData();
+        renderTable();
+        addAuditLog('匯入 BIM 估價', `匯入 ${imported} 筆`);
+        showToast(`已匯入 ${imported} 筆 BIM 估價到清單`);
+    }
+
+    async function loadMaterialCatalog(regionLabel = '全台共用') {
+        const regionFile = REGION_FILE_MAP[regionLabel];
+        const candidateFiles = regionFile ? [regionFile, PRICES_JSON_URL] : [PRICES_JSON_URL];
+
+        for (const file of candidateFiles) {
+            try {
+                const res = await fetch(`${file}?v=${Date.now()}`, { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const payload = await res.json();
+                const items = Array.isArray(payload.items) ? payload.items : [];
+                const normalized = items
+                    .map(item => ({
+                        name: String(item.name || '').trim(),
+                        price: Number(item.price),
+                        unit: String(item.unit || '').trim()
+                    }))
+                    .filter(item => item.name && Number.isFinite(item.price) && item.price > 0);
+                if (normalized.length > 0) {
+                    showToast(`已同步${regionLabel}價格 (${normalized.length} 筆)`);
+                    return normalized;
+                }
+            } catch (e) {
+                console.warn(`載入 ${file} 失敗`, e);
+            }
+        }
+
+        try {
             showToast('使用內建單價（離線模式）');
             return [...DEFAULT_MATERIAL_CATALOG];
+        } catch (_e) {
+            return [...DEFAULT_MATERIAL_CATALOG];
+        }
+    }
+
+    async function handleRegionChange(value) {
+        if (value === 'auto') {
+            localStorage.removeItem(REGION_STORAGE_KEY);
+            const detected = await detectRegionFromDevice();
+            currentRegionLabel = detected || '全台共用';
+            currentRegionMode = detected ? '自動' : '預設';
+        } else {
+            currentRegionLabel = value;
+            currentRegionMode = '手動';
+            localStorage.setItem(REGION_STORAGE_KEY, value);
+        }
+
+        selectedMaterial = null;
+        materialCatalog = await loadMaterialCatalog(currentRegionLabel);
+        renderMaterialOptions(materialCatalog);
+        renderBimRuleMaterialOptions();
+        updateMaterialChips(materialCatalog.length, null);
+        updateRegionChip();
+        addAuditLog('切換地區價目', `${currentRegionLabel}（${currentRegionMode}）`);
+    }
+
+    async function autoDetectRegion() {
+        localStorage.removeItem(REGION_STORAGE_KEY);
+        const selector = document.getElementById('regionSelect');
+        if (selector) selector.value = 'auto';
+        await handleRegionChange('auto');
+    }
+
+    function updateRegionChip() {
+        const chip = document.getElementById('materialRegionChip');
+        if (!chip) return;
+        chip.innerHTML = `地區：<strong>${currentRegionLabel}</strong>（${currentRegionMode}）`;
+    }
+
+    function normalizeRegionName(name) {
+        const text = String(name || '');
+        if (text.includes('台中') || text.includes('臺中')) return '台中市';
+        if (text.includes('台北') || text.includes('臺北')) return '台北市';
+        if (text.includes('新北')) return '新北市';
+        if (text.includes('桃園')) return '桃園市';
+        if (text.includes('台南') || text.includes('臺南')) return '台南市';
+        if (text.includes('高雄')) return '高雄市';
+        return '';
+    }
+
+    async function detectRegionFromDevice() {
+        if (!navigator.geolocation) return '';
+
+        try {
+            const pos = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: false,
+                    timeout: 6000,
+                    maximumAge: 600000
+                });
+            });
+            const { latitude, longitude } = pos.coords;
+            const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&accept-language=zh-TW`;
+            const res = await fetch(url);
+            if (!res.ok) return '';
+            const data = await res.json();
+            const address = data.address || {};
+            const cityRaw = address.city || address.county || address.state || address.town || '';
+            return normalizeRegionName(cityRaw);
+        } catch (_e) {
+            return '';
         }
     }
 
@@ -364,7 +1686,8 @@
         items.forEach(item => {
             const opt = document.createElement('option');
             opt.value = item.name;
-            opt.textContent = `${item.name}  |  ${item.price.toLocaleString()}`;
+            const unitText = item.unit ? ` ${item.unit}` : '';
+            opt.textContent = `${item.name}  |  ${item.price.toLocaleString()}${unitText}`;
             select.appendChild(opt);
         });
     }
@@ -392,7 +1715,8 @@
         if (countChip) countChip.innerHTML = `資料筆數：<strong>${count}</strong>`;
         if (priceChip) {
             if (material) {
-                priceChip.innerHTML = `目前單價：<strong>${material.price.toLocaleString()}</strong>`;
+                const unitText = material.unit ? ` / ${material.unit}` : '';
+                priceChip.innerHTML = `目前單價：<strong>${material.price.toLocaleString()}${unitText}</strong>`;
             } else {
                 priceChip.innerHTML = '目前單價：<strong>尚未選取</strong>';
             }
@@ -561,6 +1885,26 @@
         drawMode = 'measure'; clickPoints = []; showToast('點擊你要測量的【起點】與【終點】');
     }
     function clearCanvas() { ctx.clearRect(0,0,canvas.width,canvas.height); clickPoints = []; drawMode = 'none'; showToast('🧽 畫布已擦乾淨！'); }
+    function removeLoadedImage() {
+        if (!img.src) return showToast('目前沒有已上傳圖紙');
+        img.removeAttribute('src');
+        img.style.width = '';
+        img.style.height = '';
+        img.style.filter = '';
+        canvas.width = 0;
+        canvas.height = 0;
+        canvas.style.width = '';
+        canvas.style.height = '';
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        clickPoints = [];
+        drawMode = 'none';
+        scalePixelsPerUnit = 0;
+        document.getElementById('scale-info').innerText = '比例: 未設定';
+        const fileInput = document.getElementById('fileInput');
+        if (fileInput) fileInput.value = '';
+        reset3DView(true);
+        showToast('已移除上傳圖紙');
+    }
 
     const canvasContainer = document.getElementById('canvas-container');
     canvasContainer.addEventListener('mousedown', begin3DDrag);
@@ -849,10 +2193,12 @@
     
     function clearAll() { 
         if(confirm('⚠️ 確定要清空所有數據嗎?')) { 
+            createDataSnapshot('清空清單前', true);
             list = []; saveData(); renderTable(); ctx.clearRect(0,0,canvas.width,canvas.height); 
             document.getElementById('scale-info').innerText = '比例: 未設定'; scalePixelsPerUnit = 0; 
             document.getElementById('customName').value = ''; 
             document.getElementById('v1').value = ''; document.getElementById('v2').value = ''; document.getElementById('v3').value = '';
+            addAuditLog('清空主清單', '全部清空');
             previewCalc(); showToast('黑洞已重置');
         } 
     }
@@ -886,6 +2232,29 @@
     }
 
     function resolveCoachMessage(target) {
+        if (target.closest('#ifcInput')) return '這裡上傳 IFC 模型，系統會做 BIM QA 解析與構件統計。';
+        if (target.closest('#ifcSearch')) return '可輸入 IFC 類型或 #ID 查詢模型內容，例如 IFCWALL、#123。';
+        if (target.closest('#bimRuleIfcType')) return '先輸入 IFC Type，例如 IFCWALL、IFCBEAM。';
+        if (target.closest('#bimRuleMaterial')) return '選擇要對應的材料，估價時會優先套用這條規則。';
+        if (target.closest('button[onclick="saveBimRule()"]')) return '儲存規則後，BIM 自動估價會優先採用你的自訂映射。';
+        if (target.closest('button[onclick="deleteBimRule()"]')) return '刪除指定 IFC Type 的自訂規則，會回到系統預設匹配。';
+        if (target.closest('button[onclick="exportBimRules()"]')) return '匯出目前 BIM 規則為 JSON，可跨裝置共用。';
+        if (target.closest('button[onclick="triggerImportBimRules()"]')) return '匯入規則 JSON，快速套用既有 BIM 匹配設定。';
+        if (target.closest('button[onclick="resetBimRules()"]')) return '清空全部 BIM 規則，恢復系統預設匹配。';
+        if (target.closest('button[onclick="generateBIMEstimate()"]')) return '依 IFC 類型與材料單價自動產生估價預覽表。';
+        if (target.closest('button[onclick="importBIMEstimateToList()"]')) return '把 BIM 估價結果一鍵匯入主清單，直接進入總價彙整。';
+        if (target.closest('button[onclick="applyUnmatchedRuleOnce()"]')) return '把選定材料套用到目前這個未匹配 IFC Type，並立即重算。';
+        if (target.closest('button[onclick="applyUnmatchedRuleAll()"]')) return '把同一材料批次套用到所有未匹配 IFC Type，適合快速補齊規則。';
+        if (target.closest('button[onclick="runUnitConvert()"]')) return '單位換算器：先選來源/目標單位，快速核對數值是否一致。';
+        if (target.closest('button[onclick="createDataSnapshot(\'手動快照\')"]')) return '手動建立版本快照，會保存規則、估價與清單狀態。';
+        if (target.closest('button[onclick="rollbackLatestSnapshot()"]')) return '一鍵回到最近快照，適合誤操作後立即復原。';
+        if (target.closest('button[onclick="rollbackLatestSnapshot(\'rules\')"]')) return '只回滾最近快照中的 BIM 規則，不影響主清單。';
+        if (target.closest('button[onclick="rollbackLatestSnapshot(\'list\')"]')) return '只回滾最近快照中的主清單，不影響 BIM 規則。';
+        if (target.closest('button[onclick="rollbackLatestSnapshot(\'estimate\')"]')) return '只回滾最近快照中的 BIM 估價表，不會改動規則與主清單。';
+        if (target.closest('button[onclick="exportSnapshots()"]')) return '匯出所有快照為 JSON，可做備份或跨裝置還原。';
+        if (target.closest('button[onclick="triggerImportSnapshots()"]')) return '匯入快照 JSON，把歷史版本帶回本機。';
+        if (target.closest('#bimEstimateBody')) return '這裡是 BIM 估價預覽，可先確認匹配結果再匯入。';
+
         if (target.closest('#fileInput')) return '這格是圖紙上傳框：先選圖片，再做定比例與量測。';
         if (target.closest('button[onclick="changeZoom(0.2)"]')) return '放大圖面，方便點更精準的位置。';
         if (target.closest('button[onclick="changeZoom(-0.2)"]')) return '縮小圖面，方便看整體配置。';
