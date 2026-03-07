@@ -215,7 +215,7 @@
                 <input type="file" id="ifcInput" accept=".ifc,.ifczip,.txt" onchange="loadIFCModel(event)">
             </div>
             <div class="input-wrapper">
-                <label>模型查詢（ID/Type）</label>
+                <label>模型查詢（ID/類型）</label>
                 <input type="text" id="ifcSearch" placeholder="例如 #123 或 IFCWALL" oninput="searchIFCEntity(this.value)">
             </div>
         </div>
@@ -233,7 +233,7 @@
         </div>
         <div class="bim-table-wrap">
             <table>
-                <thead><tr><th>IFC Type</th><th>數量</th></tr></thead>
+                <thead><tr><th>IFC 類型</th><th>數量</th></tr></thead>
                 <tbody id="bimTypeBody"></tbody>
             </table>
         </div>
@@ -242,8 +242,8 @@
             <div class="bim-note" style="margin-top:0;">匹配規則編輯器（QA）：自訂 IFC 類型對應材料，優先於系統預設匹配。</div>
             <div class="bim-rule-grid">
                 <div>
-                    <label style="font-size:0.75em;color:var(--text-subtle);">IFC Type（例：IFCWALL）</label>
-                    <input type="text" id="bimRuleIfcType" placeholder="輸入 IFC Type">
+                    <label style="font-size:0.75em;color:var(--text-subtle);">IFC 類型（例：IFCWALL）</label>
+                    <input type="text" id="bimRuleIfcType" placeholder="輸入 IFC 類型">
                 </div>
                 <div>
                     <label style="font-size:0.75em;color:var(--text-subtle);">對應材料</label>
@@ -253,14 +253,14 @@
                 <button class="tool-btn" onclick="deleteBimRule()">🗑 刪除規則</button>
             </div>
             <div class="bim-actions" style="margin-top:8px;">
-                <button class="tool-btn" onclick="exportBimRules()">⬇️ 匯出規則 JSON</button>
-                <button class="tool-btn" onclick="triggerImportBimRules()">⬆️ 匯入規則 JSON</button>
+                <button class="tool-btn" onclick="exportBimRules()">⬇️ 匯出規則檔（JSON）</button>
+                <button class="tool-btn" onclick="triggerImportBimRules()">⬆️ 匯入規則檔（JSON）</button>
                 <button class="tool-btn" onclick="resetBimRules()">♻️ 清空全部規則</button>
                 <input type="file" id="bimRuleImportFile" accept=".json,application/json" style="display:none;" onchange="importBimRulesFromFile(event)">
             </div>
             <div class="bim-rule-table">
                 <table>
-                    <thead><tr><th>IFC Type</th><th>對應材料</th><th>操作</th></tr></thead>
+                    <thead><tr><th>IFC 類型</th><th>對應材料</th><th>操作</th></tr></thead>
                     <tbody id="bimRuleBody"></tbody>
                 </table>
             </div>
@@ -271,7 +271,7 @@
         </div>
         <div class="bim-estimate-wrap">
             <table>
-                <thead><tr><th>IFC Type</th><th>對應材料</th><th>數量</th><th>單價</th><th>小計</th></tr></thead>
+                <thead><tr><th>IFC 類型</th><th>對應材料</th><th>數量</th><th>單價</th><th>小計</th></tr></thead>
                 <tbody id="bimEstimateBody"></tbody>
             </table>
         </div>
@@ -279,7 +279,7 @@
             <div class="bim-note" style="margin-top:0;">未匹配修復精靈：針對未匹配 IFC 類型快速補規則。</div>
             <div class="bim-unmatched-grid">
                 <div>
-                    <label style="font-size:0.75em;color:var(--text-subtle);">未匹配 IFC Type</label>
+                    <label style="font-size:0.75em;color:var(--text-subtle);">未匹配 IFC 類型</label>
                     <select id="bimUnmatchedType"></select>
                 </div>
                 <div>
@@ -310,7 +310,7 @@
             <div id="unitConvertResult" class="bim-note">結果：尚未換算</div>
         </div>
         <div class="audit-wrap">
-            <div class="bim-note" style="margin-top:0;">操作日誌（Audit Log）：記錄關鍵操作，便於 QA 追溯。</div>
+            <div class="bim-note" style="margin-top:0;">操作日誌：記錄關鍵操作，便於 QA 追溯。</div>
             <div class="audit-table">
                 <table>
                     <thead><tr><th>時間</th><th>動作</th><th>內容</th></tr></thead>
@@ -1579,34 +1579,57 @@
         showToast(`已匯入 ${imported} 筆 BIM 估價到清單`);
     }
 
+    function normalizeMaterialItems(payload) {
+        const items = Array.isArray(payload && payload.items) ? payload.items : [];
+        return items
+            .map(item => ({
+                name: String(item.name || '').trim(),
+                price: Number(item.price),
+                unit: String(item.unit || '').trim()
+            }))
+            .filter(item => item.name && Number.isFinite(item.price) && item.price > 0);
+    }
+
     async function loadMaterialCatalog(regionLabel = '全台共用') {
         const regionFile = REGION_FILE_MAP[regionLabel];
         const candidateFiles = regionFile ? [regionFile, PRICES_JSON_URL] : [PRICES_JSON_URL];
+        const loaded = [];
 
         for (const file of candidateFiles) {
             try {
                 const res = await fetch(`${file}?v=${Date.now()}`, { cache: 'no-store' });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const payload = await res.json();
-                const items = Array.isArray(payload.items) ? payload.items : [];
-                const normalized = items
-                    .map(item => ({
-                        name: String(item.name || '').trim(),
-                        price: Number(item.price),
-                        unit: String(item.unit || '').trim()
-                    }))
-                    .filter(item => item.name && Number.isFinite(item.price) && item.price > 0);
+                const normalized = normalizeMaterialItems(payload);
                 if (normalized.length > 0) {
-                    showToast(`已同步${regionLabel}價格 (${normalized.length} 筆)`);
-                    return normalized;
+                    loaded.push({ file, items: normalized });
                 }
             } catch (e) {
                 console.warn(`載入 ${file} 失敗`, e);
             }
         }
 
+        if (loaded.length > 0) {
+            loaded.sort((a, b) => b.items.length - a.items.length);
+            const best = loaded[0];
+            const isRegionFile = !!regionFile && best.file === regionFile;
+            const isRegionMode = regionLabel !== '全台共用';
+
+            // 若地區檔資料筆數偏少，優先改用全台完整檔，避免只看到少量單價。
+            if (isRegionMode && isRegionFile && best.items.length < 30) {
+                const fallbackGlobal = loaded.find(entry => entry.file === PRICES_JSON_URL);
+                if (fallbackGlobal && fallbackGlobal.items.length > best.items.length) {
+                    showToast(`偵測到地區單價僅 ${best.items.length} 筆，已改用全台完整價目 ${fallbackGlobal.items.length} 筆`);
+                    return fallbackGlobal.items;
+                }
+            }
+
+            showToast(`已同步${regionLabel}價格（${best.items.length} 筆）`);
+            return best.items;
+        }
+
         try {
-            showToast('使用內建單價（離線模式）');
+            showToast('使用內建單價（離線模式：12 筆）');
             return [...DEFAULT_MATERIAL_CATALOG];
         } catch (_e) {
             return [...DEFAULT_MATERIAL_CATALOG];
@@ -2236,18 +2259,21 @@
 
     function resolveCoachMessage(target) {
         if (target.closest('#ifcInput')) return '這裡上傳 IFC 模型，系統會做 BIM QA 解析與構件統計。';
-        if (target.closest('#ifcSearch')) return '可輸入 IFC 類型或 #ID 查詢模型內容，例如 IFCWALL、#123。';
-        if (target.closest('#bimRuleIfcType')) return '先輸入 IFC Type，例如 IFCWALL、IFCBEAM。';
+        if (target.closest('#ifcSearch')) return '可輸入 IFC 類型或 #ID 查詢模型，例如 IFCWALL、#123。';
+        if (target.closest('#bimRuleIfcType')) return '先輸入 IFC 類型，例如 IFCWALL、IFCBEAM。';
         if (target.closest('#bimRuleMaterial')) return '選擇要對應的材料，估價時會優先套用這條規則。';
         if (target.closest('button[onclick="saveBimRule()"]')) return '儲存規則後，BIM 自動估價會優先採用你的自訂映射。';
         if (target.closest('button[onclick="deleteBimRule()"]')) return '刪除指定 IFC Type 的自訂規則，會回到系統預設匹配。';
-        if (target.closest('button[onclick="exportBimRules()"]')) return '匯出目前 BIM 規則為 JSON，可跨裝置共用。';
-        if (target.closest('button[onclick="triggerImportBimRules()"]')) return '匯入規則 JSON，快速套用既有 BIM 匹配設定。';
+        if (target.closest('button[onclick="exportBimRules()"]')) return '匯出目前 BIM 規則檔（JSON），可跨裝置共用。';
+        if (target.closest('button[onclick="triggerImportBimRules()"]')) return '匯入規則檔（JSON），快速套用既有 BIM 匹配設定。';
         if (target.closest('button[onclick="resetBimRules()"]')) return '清空全部 BIM 規則，恢復系統預設匹配。';
         if (target.closest('button[onclick="generateBIMEstimate()"]')) return '依 IFC 類型與材料單價自動產生估價預覽表。';
         if (target.closest('button[onclick="importBIMEstimateToList()"]')) return '把 BIM 估價結果一鍵匯入主清單，直接進入總價彙整。';
+        if (target.closest('#bimUnmatchedType')) return '這裡列出尚未匹配的 IFC 類型，先選一個要修正的類型。';
+        if (target.closest('#bimUnmatchedMaterial')) return '這裡選要套用的材料，選好後可單筆或批次修復。';
         if (target.closest('button[onclick="applyUnmatchedRuleOnce()"]')) return '把選定材料套用到目前這個未匹配 IFC Type，並立即重算。';
         if (target.closest('button[onclick="applyUnmatchedRuleAll()"]')) return '把同一材料批次套用到所有未匹配 IFC Type，適合快速補齊規則。';
+        if (target.closest('#unitFrom') || target.closest('#unitTo')) return '先選來源與目標單位，再按換算。若單位不同類型會提示不相容。';
         if (target.closest('button[onclick="runUnitConvert()"]')) return '單位換算器：先選來源/目標單位，快速核對數值是否一致。';
         if (target.closest('button[onclick="createDataSnapshot(\'手動快照\')"]')) return '手動建立版本快照，會保存規則、估價與清單狀態。';
         if (target.closest('button[onclick="rollbackLatestSnapshot()"]')) return '一鍵回到最近快照，適合誤操作後立即復原。';
@@ -2257,6 +2283,13 @@
         if (target.closest('button[onclick="exportSnapshots()"]')) return '匯出所有快照為 JSON，可做備份或跨裝置還原。';
         if (target.closest('button[onclick="triggerImportSnapshots()"]')) return '匯入快照 JSON，把歷史版本帶回本機。';
         if (target.closest('#bimEstimateBody')) return '這裡是 BIM 估價預覽，可先確認匹配結果再匯入。';
+
+        if (target.closest('#regionSelect')) return '可選地區價目；若地區資料筆數太少，系統會自動改用全台完整價目。';
+        if (target.closest('button[onclick="autoDetectRegion()"]')) return '按這裡用定位自動判斷地區並套用價目。';
+        if (target.closest('#materialSearch')) return '輸入關鍵字搜尋材料，例如：模板、混凝土、鋼筋。';
+        if (target.closest('#materialSelect')) return '從清單挑選材料，右側會顯示目前單價與單位。';
+        if (target.closest('#materialCountChip')) return '這裡顯示目前載入的價目筆數，正常應該是多筆資料。';
+        if (target.closest('button[onclick="applySelectedMaterialPrice()"]')) return '把選好的材料單價帶入「單價欄」，省去手動輸入。';
 
         if (target.closest('#fileInput')) return '這格是圖紙上傳框：先選圖片，再做定比例與量測。';
         if (target.closest('button[onclick="changeZoom(0.2)"]')) return '放大圖面，方便點更精準的位置。';
