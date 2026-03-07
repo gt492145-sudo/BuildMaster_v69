@@ -1,0 +1,1026 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BuildMaster V6.9 - 預算決策系統 (會員上線版)</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#0b1220">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BuildMaster">
+<style>
+    /* ... 保留之前的 CSS 樣式，這裡為了精簡先省略，請沿用 V6.9 的黑洞版 CSS ... */
+    :root { --bg-dark: #0b1220; --panel-bg: rgba(10, 18, 32, 0.34); --text-main: #ecf0f1; --highlight: #ff9800; --accent: #5ecbff; --money: #2ecc71; --line-soft: rgba(255,255,255,0.16); --text-subtle: #b8c7d9; }
+    html { font-size: 110%; }
+    body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; min-height: 100dvh; background-color: var(--bg-dark); background-image: linear-gradient(rgba(6, 10, 18, 0.26), rgba(6, 10, 18, 0.26)), url('app-wallpaper.jpg'); background-size: 100% 100%; background-position: center center; background-repeat: no-repeat; background-attachment: fixed; color: var(--text-main); }
+    header { background: rgba(10, 16, 30, 0.38); padding: 10px 20px; display: flex; align-items: center; border-bottom: 2px solid rgba(255,152,0,0.65); box-shadow: 0 4px 15px rgba(255,152,0,0.2); backdrop-filter: blur(8px) saturate(115%); }
+    .logo-img { width: 70px; height: 70px; border-radius: 50%; border: 2px solid var(--highlight); margin-right: 15px; object-fit: cover; box-shadow: 0 0 10px var(--highlight); }
+    .header-title { font-size: 1.4em; font-weight: bold; color: var(--highlight); letter-spacing: 2px; text-shadow: 0 0 10px rgba(255, 152, 0, 0.35); }
+    .header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .mode-btn { border: 1px solid rgba(255,255,255,0.35); border-radius: 999px; background: rgba(16, 29, 48, 0.62); color: #e8f5ff; font-weight: 700; padding: 8px 12px; cursor: pointer; transition: 0.2s; }
+    .mode-btn:hover { background: rgba(36, 61, 92, 0.72); transform: translateY(-1px); }
+    .mode-btn:active { transform: translateY(0); opacity: 0.92; }
+    .main-layout { display: flex; flex-direction: row; flex: 1; min-height: 0; overflow: hidden; padding: 10px; gap: 10px; border-radius: 14px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05), 0 12px 30px rgba(0,0,0,0.28); }
+    .drawing-panel { flex: 1.2; min-height: 0; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01)), var(--panel-bg); border: 1px solid var(--line-soft); display: flex; flex-direction: column; border-radius: 12px; backdrop-filter: blur(8px) saturate(115%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -20px 30px rgba(5,10,20,0.12), 0 10px 24px rgba(0,0,0,0.24); }
+    .calc-panel { flex: 1; min-height: 0; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01)), var(--panel-bg); border: 1px solid var(--line-soft); padding: 15px; overflow-y: auto; border-radius: 12px; backdrop-filter: blur(8px) saturate(115%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -20px 30px rgba(5,10,20,0.12), 0 10px 24px rgba(0,0,0,0.24); }
+    .tool-bar { display: flex; gap: 8px; padding: 10px; background: rgba(255,255,255,0.025); align-items: center; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; }
+    .tool-btn { padding: 6px 12px; cursor: pointer; border: 1px solid rgba(255,255,255,0.22); border-radius: 6px; color: #e9f3ff; font-weight: bold; font-size: 0.85em; transition: 0.25s; background: linear-gradient(135deg, rgba(67, 102, 131, 0.55), rgba(55, 86, 113, 0.45)); }
+    .tool-btn:hover { background: linear-gradient(135deg, rgba(106, 157, 198, 0.7), rgba(77, 120, 155, 0.6)); color: white; transform: translateY(-1px); box-shadow: 0 6px 14px rgba(0,0,0,0.25); }
+    .tool-btn:active { transform: translateY(0); opacity: 0.93; }
+    .tool-mini { display: inline-flex; align-items: center; gap: 6px; color: var(--text-subtle); font-size: 0.76em; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.15); border-radius: 999px; padding: 5px 8px; }
+    .tool-mini input[type="range"] { width: 78px; accent-color: var(--highlight); }
+    #canvas-container { flex: 1; overflow: auto; background: rgba(3, 8, 18, 0.34); position: relative; }
+    #img-wrapper { position: relative; display: inline-block; transform-origin: center center; transform-style: preserve-3d; will-change: transform; transition: transform 0.15s linear; }
+    #img-wrapper.viewer-3d { cursor: grab; }
+    #img-wrapper.viewer-3d.dragging { cursor: grabbing; }
+    #blueprint { display: block; pointer-events: none; }
+    #drawCanvas { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; }
+    .group-title { color: var(--highlight); font-weight: bold; margin-top: 15px; border-left: 4px solid var(--highlight); padding-left: 10px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+    .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .input-wrapper { flex: 1; }
+    .input-wrapper label { display: block; font-size: 0.75em; color: var(--text-subtle); margin-bottom: 4px; }
+    .input-wrapper input, .input-wrapper select { width: 100%; padding: 10px; background: rgba(10, 20, 36, 0.56); border: 1px solid rgba(255,255,255,0.20); color: white; border-radius: 6px; box-sizing: border-box; }
+    .input-wrapper input:focus { border-color: var(--highlight); outline: none; }
+    .material-quick-bar { display: flex; gap: 10px; align-items: center; margin-top: 8px; margin-bottom: 12px; }
+    .material-chip { padding: 7px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.05); color: #dce8f7; font-size: 0.8em; }
+    .material-chip strong { color: #ffd08b; }
+    .price-input { border-color: var(--money) !important; color: var(--money) !important; font-weight: bold; }
+    .preview-bar { margin-top: 15px; padding: 12px; background: rgba(46, 204, 113, 0.05); border-radius: 8px; border: 1px solid var(--money); font-size: 0.9em; }
+    .preview-val { color: var(--money); font-weight: bold; font-size: 1.1em; }
+    .btn-add { background: linear-gradient(135deg, #ffb347, #ff9800); color: #1d1400; font-size: 1.1em; margin: 15px 0; border: none; font-weight: 900; box-shadow: 0 8px 18px rgba(255,152,0,0.35); padding: 12px; cursor: pointer; width: 100%; border-radius: 8px; transition: 0.25s; }
+    .btn-add:hover { transform: translateY(-1px) scale(1.01); box-shadow: 0 12px 24px rgba(255,152,0,0.42); }
+    .btn-add:active { transform: translateY(0) scale(1); opacity: 0.95; }
+    .btn-add:disabled { cursor: not-allowed; opacity: 0.55; filter: grayscale(0.2); box-shadow: none; transform: none; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85em; margin-top: 15px; }
+    th { background: rgba(255,255,255,0.05); color: var(--highlight); padding: 10px; border-bottom: 2px solid var(--line-soft); letter-spacing: 0.5px; font-weight: 700; }
+    td { padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: center; }
+    tbody tr:hover { background: rgba(255,255,255,0.05); }
+    .footer-bar { background: rgba(10, 16, 30, 0.34); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,152,0,0.6); margin-top: 20px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; backdrop-filter: blur(8px) saturate(115%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 20px rgba(0,0,0,0.2); }
+    .total-budget { grid-column: span 4; text-align: center; font-size: 1.5em; color: var(--money); font-weight: bold; border-top: 1px solid var(--line-soft); padding-top: 15px; }
+    #toast { visibility: hidden; background: var(--highlight); color: black; padding: 12px 25px; position: fixed; left: 50%; bottom: 50px; transform: translateX(-50%); border-radius: 50px; font-weight: bold; z-index: 9999; }
+    #toast.show { visibility: visible; animation: fadeInUp 0.5s; }
+    @keyframes fadeInUp { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+    .btn-export { background: linear-gradient(135deg, #2e8bc5, #236998); color: #f4fbff; padding: 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer; font-weight: bold; flex: 1; transition: 0.2s; }
+    .btn-export:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .btn-export:active { transform: translateY(0); opacity: 0.93; }
+    .btn-clear { background: rgba(192, 57, 43, 0.18); color: #ffd2ce; padding: 10px; border: 1px solid rgba(231, 76, 60, 0.45); border-radius: 8px; cursor: pointer; font-weight: bold; flex: 1; transition: 0.2s; }
+    .btn-clear:hover { background: rgba(192, 57, 43, 0.28); color: #ffe2df; transform: translateY(-1px); }
+    .btn-clear:active { transform: translateY(0); opacity: 0.93; }
+    .touch-coach { position: fixed; right: 18px; top: 86px; z-index: 9998; display: flex; align-items: flex-start; gap: 10px; opacity: 1; transform: translateY(0); transition: opacity 0.25s ease, transform 0.25s ease; pointer-events: none; }
+    .touch-coach.hide { opacity: 0; transform: translateY(12px); }
+    .coach-avatar { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; font-size: 30px; background: radial-gradient(circle at 30% 30%, #ffd894, #ff9800); box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35); border: 2px solid rgba(255,255,255,0.45); }
+    .coach-bubble { max-width: 280px; padding: 10px 12px; border-radius: 14px; background: rgba(11, 22, 38, 0.92); border: 1px solid rgba(255,255,255,0.2); color: #eaf6ff; font-size: 0.86em; line-height: 1.45; box-shadow: 0 10px 24px rgba(0,0,0,0.35); position: relative; pointer-events: auto; }
+    .coach-bubble::after { content: ''; position: absolute; right: -8px; top: 14px; width: 14px; height: 14px; background: rgba(11, 22, 38, 0.92); border-right: 1px solid rgba(255,255,255,0.2); border-top: 1px solid rgba(255,255,255,0.2); transform: rotate(45deg); }
+    .coach-close { position: absolute; top: 6px; right: 8px; border: none; background: transparent; color: #8dbad8; cursor: pointer; font-size: 14px; padding: 0; }
+    .coach-close:hover { color: white; }
+    .coach-title { color: #ffd27a; font-weight: bold; margin-bottom: 2px; }
+    body.high-contrast { --panel-bg: rgba(8, 14, 26, 0.62); --line-soft: rgba(255,255,255,0.32); --text-main: #ffffff; --text-subtle: #d4e4f4; --highlight: #ffc552; --accent: #7ad8ff; }
+    body.high-contrast { background-image: linear-gradient(rgba(4, 8, 14, 0.40), rgba(4, 8, 14, 0.40)), url('app-wallpaper.jpg'); }
+    body.high-contrast .input-wrapper input,
+    body.high-contrast .input-wrapper select { background: rgba(6, 14, 28, 0.72); border-color: rgba(255,255,255,0.38); color: #ffffff; }
+    body.high-contrast .tool-bar { background: rgba(255,255,255,0.05); }
+    body.high-contrast .tool-mini { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.28); color: #dce9f8; }
+    body.high-contrast td { border-bottom-color: rgba(255,255,255,0.18); }
+    body.high-contrast .mode-btn { background: rgba(255, 198, 90, 0.2); border-color: rgba(255, 218, 135, 0.68); color: #ffe5b0; }
+    @media (max-width: 1200px) {
+        .drawing-panel { flex: 1; }
+        .calc-panel { flex: 1; }
+    }
+    @media (max-width: 992px) {
+        body { background-attachment: scroll; }
+        .main-layout { flex-direction: column; overflow: auto; }
+        .drawing-panel { min-height: 42vh; }
+        #canvas-container { min-height: 280px; }
+        .calc-panel { overflow: visible; }
+        .footer-bar { grid-template-columns: repeat(2, 1fr); }
+        .total-budget { grid-column: span 2; }
+    }
+    @media (max-width: 768px) {
+        .header-actions { margin-left: 0; }
+        .mode-btn { padding: 6px 10px; font-size: 0.8em; }
+        .touch-coach { right: 10px; top: 74px; gap: 8px; }
+        .coach-avatar { width: 50px; height: 50px; font-size: 26px; }
+        .coach-bubble { max-width: 220px; font-size: 0.8em; padding: 9px 10px; }
+        .logo-img { width: 54px; height: 54px; margin-right: 10px; }
+        .header-title { font-size: 1.05em; letter-spacing: 1px; }
+        .input-row { flex-direction: column; }
+        .btn-group { flex-direction: column; }
+        .footer-bar { grid-template-columns: 1fr; }
+        .total-budget { grid-column: span 1; }
+    }
+</style>
+</head>
+<body>
+
+<header>
+    <img src="logo-app.png" class="logo-img" alt="Black Hole Logo">
+    <div class="header-title">BUILDMASTER V6.9 - BLACK HOLE POWER</div>
+    <div class="header-actions">
+        <button id="contrastToggle" class="mode-btn" onclick="toggleContrastMode()">高對比: 關</button>
+        <button id="contrastAutoToggle" class="mode-btn" onclick="toggleAutoContrastMode()">自動: 關</button>
+    </div>
+</header>
+
+<div class="main-layout">
+    <div class="drawing-panel">
+        <div class="tool-bar">
+            <input type="file" id="fileInput" onchange="loadImg(event)" style="width: 150px; color: #888;">
+            <button class="tool-btn" onclick="changeZoom(0.2)">🔍 放大</button>
+            <button class="tool-btn" onclick="changeZoom(-0.2)">🔍 縮小</button>
+            <button class="tool-btn" style="border-color: #d35400" onclick="startCalibration()">📏 定比例</button>
+            <button class="tool-btn" style="border-color: var(--money)" onclick="startMeasure()">📐 測量</button>
+            <button class="tool-btn" onclick="clearCanvas()">🧽 清空標註</button>
+            <button id="btn3D" class="tool-btn" onclick="toggle3DView()">🧊 3D檢視</button>
+            <button id="btn360" class="tool-btn" onclick="toggle360Spin()">🌀 360翻轉</button>
+            <button class="tool-btn" onclick="reset3DView()">🎯 重設視角</button>
+            <label class="tool-mini">對比 <input type="range" id="imgContrast" min="0.7" max="1.5" step="0.01" value="1" oninput="updateImageFilter('contrast', this.value)"></label>
+            <label class="tool-mini">亮度 <input type="range" id="imgBrightness" min="0.7" max="1.4" step="0.01" value="1" oninput="updateImageFilter('brightness', this.value)"></label>
+            <button class="tool-btn" onclick="autoEnhanceImage()">✨ 自動優化</button>
+            <button class="tool-btn" onclick="resetImageFilter()">♻️ 重設畫質</button>
+            <span id="scale-info" style="color:var(--highlight); font-size:0.8em; margin-left:auto;">比例: 未設定</span>
+        </div>
+        <div id="canvas-container">
+            <div id="img-wrapper">
+                <img id="blueprint">
+                <canvas id="drawCanvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="calc-panel">
+        <div class="group-title">
+            專案與位置設定
+            <span style="font-size: 0.6em; color: #666;">會員專用模組</span>
+        </div>
+        <div class="input-row">
+            <div class="input-wrapper"><label>工地建案名稱</label><input type="text" id="project_name" value="梧棲案測試"></div>
+            <div class="input-wrapper"><label>樓層/分區標籤</label><input type="text" id="floor_tag" placeholder="如: 1F, B1, 基礎"></div>
+        </div>
+
+        <div class="group-title">工種規格選擇</div>
+        <div class="input-row">
+            <div class="input-wrapper">
+                <select id="calcType" onchange="updateUI()">
+                    <optgroup label="模板與混凝土">
+                        <option value="C_VOL">通用體積 (長x寬x高)</option>
+                        <option value="C_COL">柱體積 (AxBxH)</option>
+                        <option value="M_WALL">版牆模板 (長x寬)</option>
+                        <option value="M_COL">獨立柱模 (長+寬)x2x高</option> 
+                        <option value="M_BEAM_SIDES">一般樑模-雙側 (長x側高x2側)</option> 
+                        <option value="M_BEAM_ALL">獨立樑模-三面 (高x2+寬)x長</option>
+                    </optgroup>
+                    <optgroup label="鋼筋工程 (分號轉換)">
+                        <option value="R_SLAB">鋼筋 - 樓板/牆 (雙層網)</option>
+                        <option value="R_MAIN">鋼筋 - 柱/樑 主筋</option>
+                        <option value="R_HOOP">鋼筋 - 柱/樑 箍筋</option>
+                    </optgroup>
+                    <optgroup label="土方工程">
+                        <option value="E_DIG">開挖 / 回填</option>
+                    </optgroup>
+                </select>
+            </div>
+            <div class="input-wrapper"><input type="text" id="customName" placeholder="部位名稱 (如: C2柱)"></div>
+        </div>
+
+        <div class="group-title">材料單價查詢（試算表）</div>
+        <div class="input-row">
+            <div class="input-wrapper">
+                <label>搜尋材料關鍵字</label>
+                <input type="text" id="materialSearch" placeholder="例如：模板、混凝土、鋼筋..." oninput="filterMaterialCatalog(this.value)">
+            </div>
+            <div class="input-wrapper">
+                <label>試算表項目</label>
+                <select id="materialSelect" onchange="selectMaterialFromDropdown(this.value)">
+                    <option value="">請選擇材料項目</option>
+                </select>
+            </div>
+        </div>
+        <div class="material-quick-bar">
+            <div id="materialCountChip" class="material-chip">資料筆數：<strong>0</strong></div>
+            <div id="materialPriceChip" class="material-chip">目前單價：<strong>尚未選取</strong></div>
+            <button class="tool-btn" style="margin-left:auto;" onclick="applySelectedMaterialPrice()">📌 套用到單價欄</button>
+        </div>
+
+        <div class="group-title">尺寸與預算預覽</div>
+        <div class="input-row">
+            <div class="input-wrapper"><label id="lbl_v1">長 / 寬A (m)</label><input type="number" id="v1" step="0.01" min="0" oninput="previewCalc()"></div>
+            <div class="input-wrapper"><label id="lbl_v2">寬 / 寬B (m)</label><input type="number" id="v2" step="0.01" min="0" oninput="previewCalc()"></div>
+        </div>
+        <div class="input-row">
+            <div class="input-wrapper"><label id="lbl_v3">高 / 深 (m)</label><input type="number" id="v3" step="0.01" min="0" oninput="previewCalc()"></div>
+            <div class="input-wrapper"><label id="lbl_qty">數量 (N)</label><input type="number" id="qty" value="1" min="0" oninput="previewCalc()"></div>
+        </div>
+        <div class="input-row" style="margin-top: 15px; border: 1px dashed var(--money); padding: 10px; border-radius: 6px;">
+            <div class="input-wrapper">
+                <label id="lbl_price" style="color: var(--money); font-size: 0.9em;">發包單價 ($/M³ 或 $/Kg)</label>
+                <input type="number" id="unitPrice" class="price-input" placeholder="請輸入單價" min="0" oninput="previewCalc()">
+            </div>
+        </div>
+
+        <div class="preview-bar">
+            💡 即時算力：<span class="preview-val" id="prev_qty">0.00</span> <span id="prev_unit" style="color:var(--accent); font-weight:bold;">單位</span> | 
+            小計：<span class="preview-val" id="prev_cost" style="color:var(--highlight)">$ 0</span>
+        </div>
+
+        <button id="addBtn" class="btn-add" onclick="calculateAndAdd()">🚀 吸入計算清單</button>
+        
+        <table>
+            <thead><tr><th>樓層</th><th>項目</th><th>數量</th><th>單價</th><th>金額</th><th>操作</th></tr></thead>
+            <tbody id="listBody"></tbody>
+        </table>
+
+        <div class="btn-group">
+            <button class="btn-export" onclick="exportToCSV()">📥 匯出商用報表 (Excel)</button>
+            <button class="btn-clear" onclick="clearAll()">🗑️ 重新開始</button>
+        </div>
+    </div>
+</div>
+
+<div class="footer-bar">
+    <div id="sumC">水泥: 0 M³</div>
+    <div id="sumM">模板: 0 M²</div>
+    <div id="sumE">土方: 0 M³</div>
+    <div id="sumS">鋼筋: 0 Kg</div>
+    <div class="total-budget">💰 黑洞總算力 (預估支出) : $<span id="totalMoney">0</span> 元</div>
+</div>
+
+<div id="toast"></div>
+<div id="touchCoach" class="touch-coach hide" aria-live="polite">
+    <div class="coach-bubble">
+        <button class="coach-close" onclick="hideCoach(true)" aria-label="關閉解說員">x</button>
+        <div class="coach-title">小教練</div>
+        <div id="coachText">哈囉，先上傳圖紙，我陪你一步步完成。</div>
+    </div>
+    <div class="coach-avatar" aria-hidden="true">🐣</div>
+</div>
+
+<script>
+    // 1.0 資料隔離與相容性設定
+    const STORAGE_KEY = 'bm_69:list';
+    const SCHEMA_VERSION = '6.9.1';
+    let scalePixelsPerUnit = 0;
+    let drawMode = 'none';
+    let clickPoints = [];
+    let zoomLevel = 1;
+    let imageFilterState = { contrast: 1, brightness: 1 };
+    let selectedMaterial = null;
+    const PRICES_JSON_URL = 'prices.json';
+    const DEFAULT_MATERIAL_CATALOG = [
+        { name: '模板工程(透天)', price: 14000 },
+        { name: '模板工程(大樓)', price: 10800 },
+        { name: '模板工程(大樓)-鋁模', price: 1400 },
+        { name: '2000psi混凝土(140kg)', price: 2700 },
+        { name: '3000psi混凝土(210kg)', price: 2800 },
+        { name: '竹節鋼筋(SD280)', price: 16400 },
+        { name: '竹節鋼筋(SD420W)', price: 17600 },
+        { name: '鋼筋加工費', price: 1500 },
+        { name: '綁紮工程(透天)', price: 6400 },
+        { name: '綁紮工程(大樓)', price: 6200 },
+        { name: '鷹架(透天)', price: 320 },
+        { name: '鷹架(大樓)', price: 520 }
+    ];
+    let materialCatalog = [...DEFAULT_MATERIAL_CATALOG];
+    let is3DView = false;
+    let is360Spinning = false;
+    let spinTimer = null;
+    let rotation3D = { x: 0, y: 0 };
+    let dragState3D = { active: false, x: 0, y: 0 };
+    
+    // 載入資料並檢查版本 (降級策略)
+    let list = [];
+    try {
+        const storedData = localStorage.getItem(STORAGE_KEY);
+        if (storedData) {
+            const parsed = JSON.parse(storedData);
+            // 簡單的版本檢查，若結構大改可在此處寫轉換邏輯
+            if (parsed.version && parsed.version.startsWith('6.9')) {
+                list = parsed.data || [];
+            } else {
+                console.warn("偵測到舊版資料，嘗試載入...");
+                list = Array.isArray(parsed) ? parsed : [];
+            }
+        }
+    } catch (e) {
+        console.error("資料解析失敗", e);
+        list = [];
+    }
+
+    const canvas = document.getElementById('drawCanvas');
+    const ctx = canvas.getContext('2d');
+    const img = document.getElementById('blueprint');
+
+    const COACH_DISABLED_KEY = 'bm_69:coach_disabled';
+    const CONTRAST_MODE_KEY = 'bm_69:contrast_mode';
+    const CONTRAST_AUTO_KEY = 'bm_69:contrast_auto';
+    let coachTimer = null;
+
+    window.onload = async function() {
+        applyAutoContrastMode();
+        applyContrastMode();
+        await initMaterialCatalog();
+        updateUI();
+        renderTable();
+        initTouchCoach();
+    };
+
+    async function initMaterialCatalog() {
+        materialCatalog = await loadMaterialCatalog();
+        renderMaterialOptions(materialCatalog);
+        updateMaterialChips(materialCatalog.length, null);
+    }
+
+    async function loadMaterialCatalog() {
+        try {
+            const res = await fetch(`${PRICES_JSON_URL}?v=${Date.now()}`, { cache: 'no-store' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const payload = await res.json();
+            const items = Array.isArray(payload.items) ? payload.items : [];
+            const normalized = items
+                .map(item => ({
+                    name: String(item.name || '').trim(),
+                    price: Number(item.price)
+                }))
+                .filter(item => item.name && Number.isFinite(item.price) && item.price > 0);
+            if (normalized.length > 0) {
+                showToast(`已同步最新季價 (${normalized.length} 筆)`);
+                return normalized;
+            }
+            throw new Error('No valid items');
+        } catch (e) {
+            console.warn('載入 prices.json 失敗，改用內建價格', e);
+            showToast('使用內建單價（離線模式）');
+            return [...DEFAULT_MATERIAL_CATALOG];
+        }
+    }
+
+    function renderMaterialOptions(items) {
+        const select = document.getElementById('materialSelect');
+        if (!select) return;
+        select.innerHTML = '<option value="">請選擇材料項目</option>';
+        items.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.name;
+            opt.textContent = `${item.name}  |  ${item.price.toLocaleString()}`;
+            select.appendChild(opt);
+        });
+    }
+
+    function normalizeText(text) {
+        return (text || '').toLowerCase().replace(/\s+/g, '');
+    }
+
+    function filterMaterialCatalog(keyword) {
+        const q = normalizeText(keyword);
+        const filtered = materialCatalog.filter(item => normalizeText(item.name).includes(q));
+        renderMaterialOptions(filtered);
+        selectedMaterial = filtered.length === 1 ? filtered[0] : null;
+        updateMaterialChips(filtered.length, selectedMaterial);
+    }
+
+    function selectMaterialFromDropdown(name) {
+        selectedMaterial = materialCatalog.find(item => item.name === name) || null;
+        updateMaterialChips(materialCatalog.length, selectedMaterial);
+    }
+
+    function updateMaterialChips(count, material) {
+        const countChip = document.getElementById('materialCountChip');
+        const priceChip = document.getElementById('materialPriceChip');
+        if (countChip) countChip.innerHTML = `資料筆數：<strong>${count}</strong>`;
+        if (priceChip) {
+            if (material) {
+                priceChip.innerHTML = `目前單價：<strong>${material.price.toLocaleString()}</strong>`;
+            } else {
+                priceChip.innerHTML = '目前單價：<strong>尚未選取</strong>';
+            }
+        }
+    }
+
+    function applySelectedMaterialPrice() {
+        if (!selectedMaterial) return showToast('請先從試算表項目選擇材料');
+        const unitPriceInput = document.getElementById('unitPrice');
+        const customNameInput = document.getElementById('customName');
+        unitPriceInput.value = selectedMaterial.price;
+        if (!customNameInput.value.trim()) customNameInput.value = selectedMaterial.name;
+        previewCalc();
+        showToast(`已套用「${selectedMaterial.name}」單價`);
+    }
+
+    // --- 圖紙測量模組 (保留 V6.8 完整邏輯) ---
+    function loadImg(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            img.src = event.target.result;
+            img.onload = () => {
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                imageFilterState = { contrast: 1, brightness: 1 };
+                syncImageFilterUI();
+                applyImageFilter();
+                reset3DView(true);
+                zoomLevel = 1; applyZoom();
+                showToast('圖紙載入，黑洞能量已就緒');
+            };
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function changeZoom(delta) {
+        if (!img.src) return showToast('請先上傳圖紙！');
+        zoomLevel = Math.max(0.2, Math.min(5, zoomLevel + delta));
+        applyZoom();
+    }
+
+    function applyZoom() {
+        if (!img.src) return;
+        const w = img.naturalWidth * zoomLevel;
+        const h = img.naturalHeight * zoomLevel;
+        img.style.width = w + 'px'; img.style.height = h + 'px';
+        canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+    }
+
+    function apply3DTransform() {
+        const wrapper = document.getElementById('img-wrapper');
+        if (!wrapper) return;
+        if (!is3DView) {
+            wrapper.style.transform = 'none';
+            wrapper.classList.remove('viewer-3d', 'dragging');
+            return;
+        }
+        wrapper.classList.add('viewer-3d');
+        wrapper.style.transform = `perspective(1300px) rotateX(${rotation3D.x}deg) rotateY(${rotation3D.y}deg)`;
+    }
+
+    function toggle3DView() {
+        if (!img.src) return showToast('請先上傳圖紙！');
+        is3DView = !is3DView;
+        if (is3DView) {
+            drawMode = 'none';
+            clickPoints = [];
+            showToast('🧊 3D 檢視開啟，可拖曳圖紙旋轉角度');
+        } else {
+            stop360Spin();
+            rotation3D = { x: 0, y: 0 };
+            showToast('已關閉 3D 檢視，回到平面模式');
+        }
+        update3DButtons();
+        apply3DTransform();
+    }
+
+    function toggle360Spin() {
+        if (!img.src) return showToast('請先上傳圖紙！');
+        if (!is3DView) {
+            is3DView = true;
+            showToast('已自動切到 3D 模式');
+        }
+
+        if (is360Spinning) {
+            stop360Spin();
+            showToast('已停止 360 翻轉');
+            return;
+        }
+
+        is360Spinning = true;
+        spinTimer = setInterval(() => {
+            rotation3D.y = (rotation3D.y + 2.5) % 360;
+            apply3DTransform();
+        }, 40);
+        update3DButtons();
+        apply3DTransform();
+        showToast('🌀 360 度翻轉啟動');
+    }
+
+    function stop360Spin() {
+        if (spinTimer) clearInterval(spinTimer);
+        spinTimer = null;
+        is360Spinning = false;
+        update3DButtons();
+    }
+
+    function reset3DView(silent = false) {
+        stop360Spin();
+        is3DView = false;
+        rotation3D = { x: 0, y: 0 };
+        dragState3D = { active: false, x: 0, y: 0 };
+        apply3DTransform();
+        update3DButtons();
+        if (!silent) showToast('視角已重設');
+    }
+
+    function update3DButtons() {
+        const btn3D = document.getElementById('btn3D');
+        const btn360 = document.getElementById('btn360');
+        if (btn3D) btn3D.innerText = is3DView ? '🧊 3D中' : '🧊 3D檢視';
+        if (btn360) btn360.innerText = is360Spinning ? '⏸ 停止翻轉' : '🌀 360翻轉';
+    }
+
+    function syncImageFilterUI() {
+        const c = document.getElementById('imgContrast');
+        const b = document.getElementById('imgBrightness');
+        if (c) c.value = imageFilterState.contrast.toFixed(2);
+        if (b) b.value = imageFilterState.brightness.toFixed(2);
+    }
+
+    function applyImageFilter() {
+        img.style.filter = `contrast(${imageFilterState.contrast}) brightness(${imageFilterState.brightness})`;
+    }
+
+    function updateImageFilter(type, value) {
+        imageFilterState[type] = parseFloat(value) || 1;
+        applyImageFilter();
+    }
+
+    function autoEnhanceImage() {
+        if (!img.src) return showToast('請先上傳圖紙再優化畫質');
+        imageFilterState = { contrast: 1.18, brightness: 1.05 };
+        syncImageFilterUI();
+        applyImageFilter();
+        showToast('✨ 圖面已自動優化（更清楚）');
+    }
+
+    function resetImageFilter() {
+        if (!img.src) return showToast('目前尚未載入圖紙');
+        imageFilterState = { contrast: 1, brightness: 1 };
+        syncImageFilterUI();
+        applyImageFilter();
+        showToast('已重設圖面畫質');
+    }
+
+    function startCalibration() {
+        if (is3DView) return showToast('請先關閉 3D 檢視再做定比例');
+        drawMode = 'calibration'; clickPoints = []; showToast('點擊圖面上已知長度的【起點】與【終點】');
+    }
+    function startMeasure() {
+        if (is3DView) return showToast('請先關閉 3D 檢視再做量測');
+        if (!scalePixelsPerUnit) return showToast('請先設定比例！');
+        drawMode = 'measure'; clickPoints = []; showToast('點擊你要測量的【起點】與【終點】');
+    }
+    function clearCanvas() { ctx.clearRect(0,0,canvas.width,canvas.height); clickPoints = []; drawMode = 'none'; showToast('🧽 畫布已擦乾淨！'); }
+
+    const canvasContainer = document.getElementById('canvas-container');
+    canvasContainer.addEventListener('mousedown', begin3DDrag);
+    canvasContainer.addEventListener('touchstart', begin3DDrag, { passive: true });
+    window.addEventListener('mousemove', on3DDragMove);
+    window.addEventListener('touchmove', on3DDragMove, { passive: true });
+    window.addEventListener('mouseup', end3DDrag);
+    window.addEventListener('touchend', end3DDrag);
+
+    function begin3DDrag(e) {
+        if (!is3DView || is360Spinning) return;
+        const wrapper = document.getElementById('img-wrapper');
+        if (!wrapper || !e.target.closest('#img-wrapper')) return;
+        const p = e.touches ? e.touches[0] : e;
+        dragState3D.active = true;
+        dragState3D.x = p.clientX;
+        dragState3D.y = p.clientY;
+        wrapper.classList.add('dragging');
+    }
+
+    function on3DDragMove(e) {
+        if (!dragState3D.active || !is3DView || is360Spinning) return;
+        const p = e.touches ? e.touches[0] : e;
+        const dx = p.clientX - dragState3D.x;
+        const dy = p.clientY - dragState3D.y;
+        dragState3D.x = p.clientX;
+        dragState3D.y = p.clientY;
+
+        rotation3D.y += dx * 0.35;
+        rotation3D.x -= dy * 0.25;
+        rotation3D.x = Math.max(-80, Math.min(80, rotation3D.x));
+        apply3DTransform();
+    }
+
+    function end3DDrag() {
+        dragState3D.active = false;
+        const wrapper = document.getElementById('img-wrapper');
+        if (wrapper) wrapper.classList.remove('dragging');
+    }
+
+    canvas.addEventListener('click', function(e) {
+        if (drawMode === 'none') return;
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / zoomLevel;
+        const y = (e.clientY - rect.top) / zoomLevel;
+        
+        clickPoints.push({x, y});
+        ctx.fillStyle = 'orange'; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
+
+        if (clickPoints.length === 2) {
+            const p1 = clickPoints[0], p2 = clickPoints[1];
+            ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+            const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+
+            if (drawMode === 'calibration') {
+                let actualLen = prompt("這條線實際是幾公尺？(m)", "1");
+                if (actualLen && !isNaN(actualLen) && actualLen > 0) {
+                    scalePixelsPerUnit = dist / parseFloat(actualLen);
+                    document.getElementById('scale-info').innerText = '✅ 比例已設';
+                    showToast('比例設定完成！可以開始測量了');
+                } else { showToast('比例設定取消或無效'); }
+            } else if (drawMode === 'measure') {
+                let m = dist / scalePixelsPerUnit;
+                if (!document.getElementById('v2').value && document.getElementById('calcType').value.startsWith('R_')) {
+                    document.getElementById('v2').value = m.toFixed(2);
+                } else if (!document.getElementById('v1').value) {
+                    document.getElementById('v1').value = m.toFixed(2);
+                } else { document.getElementById('v2').value = m.toFixed(2); }
+                showToast(`📏 測量結果: ${m.toFixed(2)}m`); previewCalc();
+            }
+            clickPoints = []; drawMode = 'none';
+        }
+    });
+
+    // --- 核心計算引擎 (統一公式) ---
+    function getRebarDiameter(val) {
+        if (val === 3) return 9.53; if (val === 4) return 12.7; if (val === 5) return 15.9; 
+        if (val === 6) return 19.1; if (val === 7) return 22.2; if (val === 8) return 25.4; 
+        if (val === 10) return 32.2; return val; 
+    }
+
+    // 抽出獨立的計算邏輯，確保預覽和加入清單的結果絕對一致
+    function coreCalculate(type, v1, v2, v3, n, up) {
+        let res = 0, unit = '', cat = '';
+        
+        if (type.startsWith('C_') || type.startsWith('E_')) {
+            cat = type.startsWith('C_') ? 'CEMENT' : 'EARTH';
+            res = v1 * v2 * v3 * n; 
+            if (cat === 'CEMENT') res = res * 1.05; // 水泥含損耗
+            unit = 'M³';
+        } else if (type.startsWith('R_')) {
+            cat = 'STEEL';
+            let actualD = getRebarDiameter(v1); 
+            let mult = (v3 === 0) ? 1 : v3; 
+            res = (Math.pow(actualD, 2) / 162) * v2 * mult * n * 1.10; // 鋼筋含損耗
+            unit = 'Kg';
+        } else if (type === 'M_COL') { 
+            cat = 'MOLD'; res = (v1 + v2) * 2 * v3 * n; unit = 'M²';
+        } else if (type === 'M_BEAM_SIDES') { 
+            cat = 'MOLD'; res = v1 * v3 * 2 * n; unit = 'M²';
+        } else if (type === 'M_BEAM_ALL') { 
+            cat = 'MOLD'; res = (v3 * 2 + v2) * v1 * n; unit = 'M²';
+        } else if (type === 'M_WALL') { 
+            cat = 'MOLD'; res = v1 * v2 * n; unit = 'M²'; 
+        }
+
+        let totalCost = res * up;
+        return { res, unit, cat, totalCost };
+    }
+
+    function updateUI() {
+        const type = document.getElementById('calcType').value;
+        const l1 = document.getElementById('lbl_v1'), l2 = document.getElementById('lbl_v2'), l3 = document.getElementById('lbl_v3');
+        const lq = document.getElementById('lbl_qty'), lp = document.getElementById('lbl_price'), v3Input = document.getElementById('v3');
+
+        l1.style.color = '#888'; l2.style.color = '#888'; l3.style.color = '#888'; lq.style.color = '#888'; lq.innerText = '數量 (N)';
+
+        if (type === 'R_SLAB') {
+            l1.innerText = '鋼筋規格 (分)'; l2.innerText = '單排長度/長向 L (m)'; l3.innerText = '排筋層數 (雙層請打2)'; lp.innerText = '發包單價 ($/Kg)';
+            l1.style.color = '#ff9800'; l3.style.color = '#00d2d3'; if (!v3Input.value) v3Input.value = 1;
+        } else if (type === 'R_MAIN') {
+            l1.innerText = '主筋規格 (分)'; l2.innerText = '單支長度(含搭接) L (m)'; l3.innerText = '單柱/樑 總支數'; lq.innerText = '柱/樑 總數量'; lp.innerText = '發包單價 ($/Kg)';
+            l1.style.color = '#ff9800'; l3.style.color = '#00d2d3'; lq.style.color = '#00d2d3';
+        } else if (type === 'R_HOOP') {
+            l1.innerText = '箍筋規格 (分)'; l2.innerText = '單圈展開長度 L (m)'; l3.innerText = '單柱/樑 總圈數'; lq.innerText = '柱/樑 總數量'; lp.innerText = '發包單價 ($/Kg)';
+            l1.style.color = '#ff9800'; l3.style.color = '#00d2d3'; lq.style.color = '#00d2d3';
+        } else if (type === 'M_BEAM_SIDES') {
+            l1.innerText = '樑長 L (m)'; l2.innerText = '樑寬 (無作用可不填)'; l3.innerText = '樑側淨高(扣版厚) (m)'; lp.innerText = '發包單價 ($/M²)'; l3.style.color = '#ff9800';
+        } else {
+            l1.innerText = '長 / 寬A (m)'; l2.innerText = '寬 / 寬B (m)'; l3.innerText = '高 / 深 (m)';
+            lp.innerText = (type.startsWith('M_')) ? '發包單價 ($/M²)' : '發包單價 ($/M³)';
+        }
+        previewCalc();
+    }
+
+    function previewCalc() {
+        const type = document.getElementById('calcType').value;
+        const v1 = readInputNumber('v1', 0);
+        const v2 = readInputNumber('v2', 0);
+        const v3 = readInputNumber('v3', 0);
+        const n = readInputNumber('qty', 0);
+        const up = readInputNumber('unitPrice', 0);
+        const validation = validateCalcInputs(type, v1, v2, v3, n, up);
+
+        if (!validation.ok) {
+            document.getElementById('prev_qty').innerText = "--";
+            document.getElementById('prev_unit').innerText = "單位";
+            document.getElementById('prev_cost').innerText = validation.msg;
+            updateAddButtonState(false, validation.msg);
+            return;
+        }
+
+        const result = coreCalculate(type, v1, v2, v3, n, up);
+        
+        document.getElementById('prev_qty').innerText = result.res.toFixed(2);
+        document.getElementById('prev_unit').innerText = result.unit;
+        document.getElementById('prev_cost').innerText = "$ " + Math.round(result.totalCost).toLocaleString();
+        updateAddButtonState(true);
+    }
+
+    function readInputNumber(id, fallback = 0) {
+        const n = parseFloat(document.getElementById(id).value);
+        return Number.isFinite(n) ? n : fallback;
+    }
+
+    function validateCalcInputs(type, v1, v2, v3, n, up) {
+        if (v1 < 0 || v2 < 0 || v3 < 0 || n < 0 || up < 0) {
+            return { ok: false, msg: "參數不可為負" };
+        }
+        if (n <= 0) return { ok: false, msg: "請輸入有效數量" };
+
+        if (type === 'M_BEAM_SIDES') {
+            if (v1 <= 0 || v3 <= 0) return { ok: false, msg: "請輸入樑長與樑高" };
+            return { ok: true, msg: "" };
+        }
+        if (type === 'M_WALL') {
+            if (v1 <= 0 || v2 <= 0) return { ok: false, msg: "請輸入長與寬" };
+            return { ok: true, msg: "" };
+        }
+        if (type.startsWith('R_')) {
+            if (v1 <= 0 || v2 <= 0) return { ok: false, msg: "請輸入鋼筋規格與長度" };
+            return { ok: true, msg: "" };
+        }
+        if (v1 <= 0 || v2 <= 0 || v3 <= 0) return { ok: false, msg: "請補齊尺寸參數" };
+        return { ok: true, msg: "" };
+    }
+
+    function updateAddButtonState(enabled, reason = '') {
+        const addBtn = document.getElementById('addBtn');
+        if (!addBtn) return;
+        addBtn.disabled = !enabled;
+        addBtn.title = enabled ? '可加入計算清單' : reason;
+    }
+
+    // --- 安全防護：XSS 處理 ---
+    function escapeHTML(str) {
+        return str.replace(/[&<>'"]/g, 
+            tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+        );
+    }
+
+    function calculateAndAdd() {
+        const type = document.getElementById('calcType').value;
+        const typeText = document.getElementById('calcType').options[document.getElementById('calcType').selectedIndex].text.split(' (')[0]; 
+        let customName = document.getElementById('customName').value.trim();
+        let floor = document.getElementById('floor_tag').value.trim() || "未分層";
+        
+        const v1 = readInputNumber('v1', 0);
+        const v2 = readInputNumber('v2', 0);
+        const v3 = readInputNumber('v3', 0);
+        const n = readInputNumber('qty', 1);
+        const up = readInputNumber('unitPrice', 0);
+        const validation = validateCalcInputs(type, v1, v2, v3, n, up);
+        if (!validation.ok) {
+            return showToast(`⚠️ ${validation.msg}`);
+        }
+
+        let isDeduct = confirm("這筆是要『扣除』的項目嗎？\n(如窗戶開口請點確定，一般計算點取消)");
+        
+        // 呼叫統一公式引擎
+        let result = coreCalculate(type, v1, v2, v3, n, up);
+        let res = result.res;
+        let name = typeText;
+
+        if (isDeduct) { 
+            res = -Math.abs(res); 
+            name = `扣除(${name})`; 
+            // 若為扣除，水泥不乘損耗率 (還原)
+            if(result.cat === 'CEMENT') res = res / 1.05; 
+        } else if (result.cat === 'STEEL') {
+            name = `${typeText}(含損耗)`;
+        }
+
+        if (customName !== "") { name = `${name} [${customName}]`; }
+
+        const totalCost = res * up;
+        
+        // 安全處理使用者輸入
+        const safeName = escapeHTML(name);
+        const safeFloor = escapeHTML(floor);
+
+        list.push({ 
+            floor: safeFloor, 
+            name: safeName, 
+            res: res, 
+            up: up, 
+            totalCost: totalCost, 
+            cat: result.cat, 
+            unit: result.unit 
+        });
+        
+        saveData(); renderTable(); 
+        showToast(isDeduct ? '✂️ 已執行自動扣除' : '🚀 數據已吸入黑洞！');
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('listBody'); 
+        tbody.innerHTML = '';
+        let sums = { CEMENT: 0, MOLD: 0, EARTH: 0, STEEL: 0, total: 0 };
+        
+        list.forEach((item, idx) => {
+            if (sums[item.cat] !== undefined) sums[item.cat] += item.res; 
+            sums.total += item.totalCost;
+            
+            // 建立 DOM 元素以進一步防範 XSS
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${item.floor}</td>
+                <td style="color:${item.res < 0 ? '#ff4757' : 'white'}">${item.name}</td>
+                <td>${item.res.toFixed(2)} <span style="font-size:0.8em;color:#888;">${item.unit||''}</span></td>
+                <td>${item.up}</td>
+                <td style="color:var(--money); font-weight:bold;">${Math.round(item.totalCost).toLocaleString()}</td>
+                <td><button style="width:auto; padding:4px 8px; margin:0; background:#e74c3c; border:none; border-radius:4px; cursor:pointer;" onclick="removeItem(${idx})">X</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+        
+        document.getElementById('sumC').innerText = `水泥: ${sums.CEMENT.toFixed(2)} M³`; 
+        document.getElementById('sumM').innerText = `模板: ${sums.MOLD.toFixed(2)} M²`;
+        document.getElementById('sumE').innerText = `土方: ${sums.EARTH.toFixed(2)} M³`; 
+        document.getElementById('sumS').innerText = `鋼筋: ${sums.STEEL.toFixed(2)} Kg`;
+        document.getElementById('totalMoney').innerText = Math.round(sums.total).toLocaleString();
+    }
+
+    function removeItem(idx) { list.splice(idx, 1); saveData(); renderTable(); }
+    
+    function clearAll() { 
+        if(confirm('⚠️ 確定要清空所有數據嗎?')) { 
+            list = []; saveData(); renderTable(); ctx.clearRect(0,0,canvas.width,canvas.height); 
+            document.getElementById('scale-info').innerText = '比例: 未設定'; scalePixelsPerUnit = 0; 
+            document.getElementById('customName').value = ''; 
+            document.getElementById('v1').value = ''; document.getElementById('v2').value = ''; document.getElementById('v3').value = '';
+            previewCalc(); showToast('黑洞已重置');
+        } 
+    }
+    
+    function saveData() { 
+        const payload = {
+            version: SCHEMA_VERSION,
+            data: list,
+            timestamp: new Date().toISOString()
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); 
+    }
+
+    function initTouchCoach() {
+        if (localStorage.getItem(COACH_DISABLED_KEY) === '1') return;
+        document.addEventListener('click', handleCoachInteraction, true);
+        document.addEventListener('touchstart', handleCoachInteraction, { passive: true, capture: true });
+        setTimeout(() => {
+            speakCoach('點任何功能框，我都會即時告訴你用途與下一步。');
+        }, 550);
+    }
+
+    function handleCoachInteraction(e) {
+        if (localStorage.getItem(COACH_DISABLED_KEY) === '1') return;
+        const target = e.target;
+        if (!target || !target.closest) return;
+        if (target.closest('#touchCoach')) return;
+
+        const message = resolveCoachMessage(target);
+        if (message) speakCoach(message);
+    }
+
+    function resolveCoachMessage(target) {
+        if (target.closest('#fileInput')) return '這格是圖紙上傳框：先選圖片，再做定比例與量測。';
+        if (target.closest('button[onclick="changeZoom(0.2)"]')) return '放大圖面，方便點更精準的位置。';
+        if (target.closest('button[onclick="changeZoom(-0.2)"]')) return '縮小圖面，方便看整體配置。';
+        if (target.closest('button[onclick="startCalibration()"]')) return '定比例功能：先點兩點，再輸入真實長度，系統就知道比例。';
+        if (target.closest('button[onclick="startMeasure()"]')) return '量測功能：點起點和終點，距離會自動填入欄位。';
+        if (target.closest('button[onclick="clearCanvas()"]')) return '清空目前標註線段與點位，不會刪掉你的清單資料。';
+        if (target.closest('#scale-info')) return '這裡顯示比例狀態；看到「已設」就可以開始量測。';
+
+        if (target.closest('#project_name')) return '專案名稱欄：用來識別這次工程。';
+        if (target.closest('#floor_tag')) return '樓層/分區欄：每筆項目會帶入這個位置標籤。';
+        if (target.closest('#calcType')) return '工種公式選擇區：不同工種會套不同計算公式。';
+        if (target.closest('#customName')) return '自訂部位名稱：例如 C2柱、外牆A區。';
+        if (target.closest('#v1')) return '尺寸欄 v1：通常是長度或規格。';
+        if (target.closest('#v2')) return '尺寸欄 v2：通常是寬度或單排長度。';
+        if (target.closest('#v3')) return '尺寸欄 v3：通常是高度、深度或層數。';
+        if (target.closest('#qty')) return '數量欄：同一構件的重複數量。';
+        if (target.closest('#unitPrice')) return '單價欄：輸入後會即時計算每筆小計。';
+        if (target.closest('.preview-bar')) return '即時預覽區：顯示目前算出的數量與金額。';
+        if (target.closest('.btn-add')) return '主按鈕：把目前資料加入計算清單。';
+
+        if (target.closest('#listBody')) return '明細清單：可檢查每筆數量、單價與金額。';
+        if (target.closest('.btn-export')) return '匯出按鈕：下載 Excel/CSV 報表。';
+        if (target.closest('.btn-clear')) return '重置按鈕：清空所有資料並重新開始。';
+        if (target.closest('.footer-bar')) return '底部總覽：顯示各工種加總與總預算。';
+        if (target.closest('.drawing-panel')) return '左側是圖紙操作區：上傳、定比例、量測都在這裡。';
+        if (target.closest('.calc-panel')) return '右側是參數與預算區：輸入尺寸、單價並產生清單。';
+
+        return '';
+    }
+
+    function speakCoach(message) {
+        const coach = document.getElementById('touchCoach');
+        const coachText = document.getElementById('coachText');
+        if (!coach || !coachText) return;
+        coachText.innerText = message;
+        coach.classList.remove('hide');
+
+        if (coachTimer) clearTimeout(coachTimer);
+        coachTimer = setTimeout(() => {
+            coach.classList.add('hide');
+        }, 4600);
+    }
+
+    function hideCoach(remember) {
+        const coach = document.getElementById('touchCoach');
+        if (coach) coach.classList.add('hide');
+        if (remember) localStorage.setItem(COACH_DISABLED_KEY, '1');
+    }
+
+    function applyContrastMode() {
+        const autoEnabled = localStorage.getItem(CONTRAST_AUTO_KEY) === '1';
+        if (autoEnabled) {
+            const hour = new Date().getHours();
+            const shouldEnable = (hour >= 18 || hour < 6);
+            document.body.classList.toggle('high-contrast', shouldEnable);
+            const btnAuto = document.getElementById('contrastAutoToggle');
+            if (btnAuto) btnAuto.innerText = '自動: 開';
+            const btnManual = document.getElementById('contrastToggle');
+            if (btnManual) btnManual.innerText = shouldEnable ? '高對比: 夜間' : '高對比: 白天';
+            return;
+        }
+
+        const enabled = localStorage.getItem(CONTRAST_MODE_KEY) === '1';
+        document.body.classList.toggle('high-contrast', enabled);
+        const btn = document.getElementById('contrastToggle');
+        if (btn) btn.innerText = enabled ? '高對比: 開' : '高對比: 關';
+        const btnAuto = document.getElementById('contrastAutoToggle');
+        if (btnAuto) btnAuto.innerText = '自動: 關';
+    }
+
+    function toggleContrastMode() {
+        localStorage.setItem(CONTRAST_AUTO_KEY, '0');
+        const isEnabled = localStorage.getItem(CONTRAST_MODE_KEY) === '1';
+        localStorage.setItem(CONTRAST_MODE_KEY, isEnabled ? '0' : '1');
+        applyContrastMode();
+        showToast(isEnabled ? '高對比模式已關閉' : '高對比模式已啟用');
+    }
+
+    function applyAutoContrastMode() {
+        const autoEnabled = localStorage.getItem(CONTRAST_AUTO_KEY) === '1';
+        if (!autoEnabled && localStorage.getItem(CONTRAST_AUTO_KEY) === null) {
+            localStorage.setItem(CONTRAST_AUTO_KEY, '1');
+        }
+    }
+
+    function toggleAutoContrastMode() {
+        const autoEnabled = localStorage.getItem(CONTRAST_AUTO_KEY) === '1';
+        localStorage.setItem(CONTRAST_AUTO_KEY, autoEnabled ? '0' : '1');
+        applyContrastMode();
+        showToast(autoEnabled ? '自動高對比已關閉' : '自動高對比已啟用（18:00-06:00）');
+    }
+
+    function showToast(m) { const t=document.getElementById("toast"); t.innerText=m; t.className="show"; setTimeout(()=>t.className="",3000); }
+    
+    // --- 安全防護：CSV 匯出注入處理 ---
+    function sanitizeCSVField(field) {
+        if (typeof field !== 'string') field = field.toString();
+        // 如果開頭是 =, +, -, @，前面加上單引號防止 Excel 當作公式執行
+        if (/^[=+\-@]/.test(field)) {
+            field = "'" + field;
+        }
+        // 如果內容有逗號，用雙引號包起來
+        if (field.includes(',')) {
+            field = `"${field}"`;
+        }
+        return field;
+    }
+
+    function exportToCSV() {
+        if (list.length === 0) {
+            return showToast('⚠️ 尚無資料可匯出！');
+        }
+
+        let csvContent = "\uFEFF樓層,工種大類,自訂項目(部位),計算數量,單位,發包單價,小計總額\n";
+        
+        list.forEach(item => {
+            let catMap = { 'CEMENT': '混凝土', 'MOLD': '模板', 'EARTH': '土方', 'STEEL': '鋼筋' };
+            let catName = catMap[item.cat] || item.cat;
+            
+            let sFloor = sanitizeCSVField(item.floor);
+            let sName = sanitizeCSVField(item.name);
+            
+            csvContent += `${sFloor},${catName},${sName},${item.res.toFixed(2)},${item.unit},${item.up},${Math.round(item.totalCost)}\n`;
+        });
+
+        const totalMoney = document.getElementById('totalMoney').innerText.replace(/,/g, '');
+        csvContent += `\n,,,,,,預估總計金額,${totalMoney}\n`;
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `BuildMaster_黑洞報表_${new Date().getTime()}.csv`;
+        link.click();
+        showToast('📥 報表已下載！');
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+name: Quarterly Price Update
+
+on:
+  schedule:
+    # Quarterly run at 09:00 Taiwan time (01:00 UTC) on Jan/Apr/Jul/Oct 1st
+    - cron: "0 1 1 1,4,7,10 *"
+  workflow_dispatch:
+    inputs:
+      csv_url:
+        description: "Optional CSV URL for reviewed seasonal prices"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  update-prices:
+    runs-on: ubuntu-latest
+    env:
+      DEFAULT_CSV_URL: ${{ secrets.SEASONAL_CSV_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Resolve CSV source URL
+        run: |
+          CSV_URL="${{ github.event.inputs.csv_url }}"
+          if [ -z "$CSV_URL" ]; then
+            CSV_URL="${DEFAULT_CSV_URL}"
+          fi
+          echo "CSV_URL=$CSV_URL" >> "$GITHUB_ENV"
+
+      - name: Download reviewed CSV (optional)
+        if: ${{ env.CSV_URL != '' }}
+        run: |
+          curl -L --fail "$CSV_URL" -o seasonal-prices.csv
+
+      - name: Update prices.json
+        run: |
+          cd BuildMaster_v69
+          if [ -f "../seasonal-prices.csv" ]; then
+            python3 update_prices_from_arcnet.py --csv "../seasonal-prices.csv"
+          else
+            python3 update_prices_from_arcnet.py
+          fi
+
+      - name: QA validate seasonal prices
+        run: |
+          cd BuildMaster_v69
+          if [ -f "../seasonal-prices.csv" ]; then
+            python3 qa_validate_prices.py --prices prices.json --csv "../seasonal-prices.csv"
+          else
+            python3 qa_validate_prices.py --prices prices.json
+          fi
+
+      - name: Commit and push if changed
+        run: |
+          if git diff --quiet -- BuildMaster_v69/prices.json; then
+            echo "No prices.json changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add BuildMaster_v69/prices.json
+          git commit -m "chore: update seasonal prices (qa verified)"
+          git push
+
+      - name: Notify webhook on failure (optional)
+        if: ${{ failure() && secrets.PRICE_UPDATE_WEBHOOK != '' }}
+        run: |
+          curl -X POST "${{ secrets.PRICE_UPDATE_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d '{"text":"BuildMaster price update failed. Please check GitHub Actions logs."}'
