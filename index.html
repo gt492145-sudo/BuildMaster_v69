@@ -630,7 +630,10 @@
             return false;
         }
 
-        const hostAllowed = SECURITY_CONFIG.allowedHosts.includes(location.hostname) || location.hostname.endsWith('.netlify.app');
+        const hostAllowed =
+            SECURITY_CONFIG.allowedHosts.includes(location.hostname) ||
+            location.hostname.endsWith('.netlify.app') ||
+            location.hostname.endsWith('.github.io');
         if (!hostAllowed) {
             showSecurityLock(`未授權網域：${location.hostname}`);
             return false;
