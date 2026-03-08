@@ -3111,6 +3111,12 @@
             }
             localStorage.setItem(AI_COACH_ENABLED_KEY, '1');
             if (!localStorage.getItem(AI_COACH_MODEL_KEY)) localStorage.setItem(AI_COACH_MODEL_KEY, 'gpt-4o-mini');
+            // 開啟 AI 時同步開啟解說員，避免「AI 開了但點擊無回應」的誤解。
+            if (localStorage.getItem(COACH_DISABLED_KEY) === '1') {
+                localStorage.setItem(COACH_DISABLED_KEY, '0');
+                applyCoachMode();
+                initTouchCoach();
+            }
             applyAiCoachMode();
             speakCoach('AI 解說員已開啟。你可直接在泡泡下方輸入問題。');
             return showToast('AI 解說員已開啟');
