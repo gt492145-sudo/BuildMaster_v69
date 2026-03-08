@@ -1,0 +1,278 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BuildMaster 通用放樣大師 V4.2</title>
+<style>
+    :root { --bg: #1e272e; --panel: #2f3640; --text: #ecf0f1; --radar: #00ff00; --accent: #f39c12; --btn: #3498db; --danger: #e74c3c; }
+    body { font-family: sans-serif; margin: 0; padding: 10px; background-color: var(--bg); color: var(--text); }
+    header { background: #000; color: var(--accent); padding: 15px; text-align: center; font-size: 1.5em; font-weight: bold; border-bottom: 2px solid var(--accent); margin-bottom: 15px; }
+    
+    .global-settings { background: rgba(0,0,0,0.5); padding: 15px; border: 1px dashed var(--accent); border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; }
+    .global-settings input { width: 120px; padding: 8px; background: #222; color: #fff; border: 1px solid #555; }
+    
+    .tabs { display: flex; gap: 5px; margin-bottom: 15px; }
+    .tab-btn { flex: 1; padding: 10px; background: #333; color: #aaa; border: none; cursor: pointer; font-weight: bold; border-radius: 4px 4px 0 0; }
+    .tab-btn.active { background: var(--btn); color: #fff; }
+    
+    .tab-content { display: none; background: var(--panel); padding: 15px; border-radius: 0 0 8px 8px; border: 1px solid #444; }
+    .tab-content.active { display: block; }
+
+    .input-group { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
+    .input-group input { padding: 8px; background: #222; border: 1px solid #555; color: #fff; flex: 1; min-width:60px;}
+    button { padding: 10px 15px; background: var(--btn); color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; }
+    button:hover { filter: brightness(1.2); }
+    
+    canvas { background: #111; border: 1px solid #444; width: 100%; max-width: 500px; height: 300px; cursor: crosshair; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.85em; background: #000; }
+    th { background: #333; color: var(--accent); padding: 6px; border: 1px solid #555; }
+    td { border: 1px solid #555; padding: 6px; text-align: center; }
+    
+    .result-box { background: #000; padding: 15px; border-left: 4px solid var(--radar); margin-top: 15px; font-family: monospace; font-size: 1.1em; color: var(--radar); }
+</style>
+</head>
+<body>
+
+<header>🏗️ BuildMaster 通用放樣精算系統 (V4.2 衛星制導版)</header>
+
+<div class="global-settings">
+    <div style="width: 100%; color: var(--accent); font-weight: bold; margin-bottom: 5px;">📍 專案基準點設定 (Global Settings)</div>
+    <div><label>政府座標 E: </label><input type="number" id="gE" value="204000" step="0.001"></div>
+    <div><label>政府座標 N: </label><input type="number" id="gN" value="2682000" step="0.001"></div>
+    <div><label>基準高程 H: </label><input type="number" id="gH" value="0" step="0.001"></div>
+    <div><label>圖面旋轉度: </label><input type="number" id="gRot" value="0" step="0.1"></div>
+</div>
+
+<div class="tabs">
+    <button class="tab-btn active" onclick="switchTab(event, 'tab-radar')">🌐 3D雷達轉換</button>
+    <button class="tab-btn" onclick="switchTab(event, 'tab-offset')">🚧 支距避障</button>
+    <button class="tab-btn" onclick="switchTab(event, 'tab-area')">🥾 鞋帶面積</button>
+    <button class="tab-btn" onclick="switchTab(event, 'tab-slope')">💧 坡度高程</button>
+</div>
+
+<div id="tab-radar" class="tab-content active">
+    <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+        <div style="flex: 1; min-width: 300px;">
+            <canvas id="radarCanvas" width="500" height="300"></canvas>
+            <div id="hudDisplay" style="color:var(--radar); font-family:monospace; margin-top:5px; font-size:0.9em;">自動縮放啟動中... 滑鼠移至圖面追蹤座標</div>
+        </div>
+        <div style="flex: 1; min-width: 300px;">
+            <div class="input-group">
+                <input type="text" id="pName" placeholder="名稱(例:A1)">
+                <input type="number" id="pX" placeholder="圖 X">
+                <input type="number" id="pY" placeholder="圖 Y">
+                <button onclick="addPoint()">加入</button>
+            </div>
+            <table>
+                <thead><tr><th>名稱</th><th>圖(X,Y)</th><th>政府(E,N)</th><th>空照</th><th>刪</th></tr></thead>
+                <tbody id="reportBody"></tbody>
+            </table>
+            <button style="width:100%; background:#27ae60; margin-top:10px;" onclick="exportCSV()">💽 匯出 CSV (儀器用)</button>
+        </div>
+    </div>
+</div>
+
+<div id="tab-offset" class="tab-content">
+    <h3>🚧 支距法避障放樣</h3>
+    <div class="input-group"><span style="width:50px">起點P1</span><input type="number" id="oP1x" placeholder="X"><input type="number" id="oP1y" placeholder="Y"></div>
+    <div class="input-group"><span style="width:50px">終點P2</span><input type="number" id="oP2x" placeholder="X"><input type="number" id="oP2y" placeholder="Y"></div>
+    <div class="input-group"><span style="width:50px">目標點</span><input type="number" id="oTx" placeholder="X"><input type="number" id="oTy" placeholder="Y"></div>
+    <button onclick="runOffset()">📐 精算路徑</button>
+    <div class="result-box" id="resOffset">等待計算...</div>
+</div>
+
+<div id="tab-area" class="tab-content">
+    <h3>🥾 不規則面積與坪數 (精準版)</h3>
+    <div class="input-group">
+        <span style="width:70px">圖紙單位</span>
+        <select id="aUnit" style="padding:8px; background:#222; color:#fff; border:1px solid #555; flex:1;">
+            <option value="m">公尺 (m)</option>
+            <option value="cm" selected>公分 (cm)</option>
+        </select>
+    </div>
+    <div class="input-group"><input type="number" id="aX" placeholder="角點 X"><input type="number" id="aY" placeholder="角點 Y"><button onclick="addAreaPoint()">➕ 增加角點</button></div>
+    <div id="areaPointList" style="margin-bottom:10px; color:var(--accent); font-size:0.9em;">已輸入：(無)</div>
+    <button style="background:#8e44ad;" onclick="runArea()">🧮 計算面積</button> <button style="background:#e74c3c;" onclick="clearArea()">🗑️ 清空</button>
+    <div class="result-box" id="resArea">等待計算...</div>
+</div>
+
+<div id="tab-slope" class="tab-content">
+    <h3>💧 坡度高程計算</h3>
+    <div class="input-group"><span style="width:100px">起點高程</span><input type="number" id="sH" value="100"></div>
+    <div class="input-group"><span style="width:100px">水平距離</span><input type="number" id="sD" placeholder="距離"></div>
+    <div class="input-group"><span style="width:100px">坡度 (%)</span><input type="number" id="sS" placeholder="-1"></div>
+    <button onclick="runSlope()">🌊 計算目標</button>
+    <div class="result-box" id="resSlope">等待計算...</div>
+</div>
+
+<script>
+    function switchTab(evt, tabId) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        evt.currentTarget.classList.add('active');
+    }
+
+    function getConfig() {
+        return {
+            offsetX: parseFloat(document.getElementById('gE').value) || 0,
+            offsetY: parseFloat(document.getElementById('gN').value) || 0,
+            offsetZ: parseFloat(document.getElementById('gH').value) || 0,
+            rotation: parseFloat(document.getElementById('gRot').value) || 0,
+            scale: 1
+        };
+    }
+
+    // ================= 高等大地測量學：TWD97 轉 WGS84 引擎 =================
+    function twd97ToWgs84(x, y) {
+        const a = 6378137.0, b = 6356752.314245, lon0 = 121 * Math.PI / 180, k0 = 0.9999, dx = 250000;
+        let e = Math.pow((1 - Math.pow(b, 2) / Math.pow(a, 2)), 0.5);
+        x -= dx;
+        let M = y / k0;
+        let mu = M / (a * (1.0 - Math.pow(e, 2) / 4.0 - 3 * Math.pow(e, 4) / 64.0 - 5 * Math.pow(e, 6) / 256.0));
+        let e1 = (1.0 - Math.pow((1.0 - Math.pow(e, 2)), 0.5)) / (1.0 + Math.pow((1.0 - Math.pow(e, 2)), 0.5));
+        let J1 = (3 * e1 / 2 - 27 * Math.pow(e1, 3) / 32.0), J2 = (21 * Math.pow(e1, 2) / 16 - 55 * Math.pow(e1, 4) / 32.0);
+        let J3 = (151 * Math.pow(e1, 3) / 96.0), J4 = (1097 * Math.pow(e1, 4) / 512.0);
+        let fp = mu + J1 * Math.sin(2 * mu) + J2 * Math.sin(4 * mu) + J3 * Math.sin(6 * mu) + J4 * Math.sin(8 * mu);
+        let e2 = Math.pow((e * a / b), 2), C1 = Math.pow(e2 * Math.cos(fp), 2), T1 = Math.pow(Math.tan(fp), 2);
+        let R1 = a * (1 - Math.pow(e, 2)) / Math.pow((1 - Math.pow(e, 2) * Math.pow(Math.sin(fp), 2)), 1.5);
+        let N1 = a / Math.pow((1 - Math.pow(e, 2) * Math.pow(Math.sin(fp), 2)), 0.5);
+        let D = x / (N1 * k0);
+        let Q1 = N1 * Math.tan(fp) / R1, Q2 = (Math.pow(D, 2) / 2.0);
+        let Q3 = (5 + 3 * T1 + 10 * C1 - 4 * Math.pow(C1, 2) - 9 * e2) * Math.pow(D, 4) / 24.0;
+        let Q4 = (61 + 90 * T1 + 298 * C1 + 45 * Math.pow(T1, 2) - 3 * Math.pow(C1, 2) - 252 * e2) * Math.pow(D, 6) / 720.0;
+        let lat = fp - Q1 * (Q2 - Q3 + Q4);
+        let Q5 = D, Q6 = (1 + 2 * T1 + C1) * Math.pow(D, 3) / 6;
+        let Q7 = (5 - 2 * C1 + 28 * T1 - 3 * Math.pow(C1, 2) + 8 * e2 + 24 * Math.pow(T1, 2)) * Math.pow(D, 5) / 120.0;
+        let lon = lon0 + (Q5 - Q6 + Q7) / Math.cos(fp);
+        return { lat: (lat * 180) / Math.PI, lng: (lon * 180) / Math.PI };
+    }
+
+    function openGoogleMap(e, n) {
+        const wgs = twd97ToWgs84(parseFloat(e), parseFloat(n));
+        const url = `https://www.google.com/maps/search/?api=1&query=${wgs.lat},${wgs.lng}`;
+        window.open(url, '_blank'); // 開啟新分頁顯示衛星圖
+    }
+
+    // ================= V4.2 雷達大腦 =================
+    let radarPoints = [];
+    const canvas = document.getElementById('radarCanvas');
+    const ctx = canvas.getContext('2d');
+    let currentScale = 1, currentCx = 0, currentCy = 0;
+    
+    function buildMaster_3D_Converter(x, y, z, config) {
+        const rad = config.rotation * (Math.PI / 180);
+        const E = (x * Math.cos(rad) - y * Math.sin(rad)) * config.scale + config.offsetX;
+        const N = (x * Math.sin(rad) + y * Math.cos(rad)) * config.scale + config.offsetY;
+        const H = z * config.scale + config.offsetZ;
+        return { E: E.toFixed(3), N: N.toFixed(3), H: H.toFixed(3) };
+    }
+
+    function updateRadarUI() {
+        const tbody = document.getElementById('reportBody');
+        tbody.innerHTML = '';
+        const config = getConfig();
+        
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.strokeStyle = '#113311';
+        for(let i=0; i<500; i+=20) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,300); ctx.stroke(); }
+        for(let i=0; i<300; i+=20) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(500,i); ctx.stroke(); }
+
+        if (radarPoints.length === 0) return;
+
+        let minX = Math.min(...radarPoints.map(p=>p.x)), maxX = Math.max(...radarPoints.map(p=>p.x));
+        let minY = Math.min(...radarPoints.map(p=>p.y)), maxY = Math.max(...radarPoints.map(p=>p.y));
+        let pad = 40, rangeX = Math.max(maxX - minX, 10), rangeY = Math.max(maxY - minY, 10);
+        
+        currentScale = Math.min((canvas.width - pad*2)/rangeX, (canvas.height - pad*2)/rangeY);
+        currentCx = (minX + maxX) / 2; currentCy = (minY + maxY) / 2;
+
+        ctx.strokeStyle = '#00ff00'; ctx.lineWidth = 2; ctx.beginPath();
+        radarPoints.forEach((p, i) => {
+            let dx = canvas.width/2 + (p.x - currentCx) * currentScale;
+            let dy = canvas.height/2 - (p.y - currentCy) * currentScale;
+            if(i===0) ctx.moveTo(dx, dy); else ctx.lineTo(dx, dy);
+        });
+        ctx.closePath(); ctx.stroke();
+
+        radarPoints.forEach((p, i) => {
+            const g = buildMaster_3D_Converter(p.x, p.y, p.z, config);
+            // 表格新增「空照圖」按鈕
+            tbody.innerHTML += `<tr><td>${p.n}</td><td>${p.x}, <br>${p.y}</td><td style="color:#0f0">${g.E},<br>${g.N}</td>
+                <td><button style="padding:4px 8px; background:#2980b9;" onclick="openGoogleMap(${g.E}, ${g.N})">🗺️</button></td>
+                <td><button style="padding:4px 8px; background:red;" onclick="radarPoints.splice(${i},1); updateRadarUI();">X</button></td></tr>`;
+            
+            let dx = canvas.width/2 + (p.x - currentCx) * currentScale;
+            let dy = canvas.height/2 - (p.y - currentCy) * currentScale;
+            ctx.fillStyle='red'; ctx.beginPath(); ctx.arc(dx, dy, 5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle='#00ff00'; ctx.font = '12px sans-serif'; ctx.fillText(`${p.n} (${p.x}, ${p.y})`, dx + 8, dy - 8);
+        });
+    }
+
+    function addPoint() {
+        const n = document.getElementById('pName').value || `P${radarPoints.length+1}`;
+        const x = parseFloat(document.getElementById('pX').value)||0, y = parseFloat(document.getElementById('pY').value)||0;
+        radarPoints.push({n, x, y, z:0}); updateRadarUI();
+        document.getElementById('pName').value=''; document.getElementById('pX').value=''; document.getElementById('pY').value='';
+    }
+
+    canvas.addEventListener('mousemove', (e) => {
+        if(radarPoints.length === 0) return;
+        const r = canvas.getBoundingClientRect();
+        let realX = currentCx + (e.clientX - r.left - canvas.width/2) / currentScale;
+        let realY = currentCy - (e.clientY - r.top - canvas.height/2) / -currentScale;
+        const g = buildMaster_3D_Converter(realX, realY, 0, getConfig());
+        document.getElementById('hudDisplay').innerText = `圖面(${realX.toFixed(1)}, ${realY.toFixed(1)}) ➔ E:${g.E}, N:${g.N}`;
+    });
+
+    function exportCSV() {
+        let csv = "\ufeff名稱,圖面X,圖面Y,TWD97_E,TWD97_N,高程H\n";
+        const cfg = getConfig();
+        radarPoints.forEach(p => {
+            const g = buildMaster_3D_Converter(p.x, p.y, p.z, cfg); csv += `${p.n},${p.x},${p.y},${g.E},${g.N},${g.H}\n`;
+        });
+        const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+        a.download = "BuildMaster_放樣座標.csv"; a.click();
+    }
+
+    // === 支距、面積、高程 ===
+    function runOffset() {
+        const p1 = {x: parseFloat(document.getElementById('oP1x').value)||0, y: parseFloat(document.getElementById('oP1y').value)||0};
+        const p2 = {x: parseFloat(document.getElementById('oP2x').value)||0, y: parseFloat(document.getElementById('oP2y').value)||0};
+        const t = {x: parseFloat(document.getElementById('oTx').value)||0, y: parseFloat(document.getElementById('oTy').value)||0};
+        let dx = p2.x - p1.x, dy = p2.y - p1.y, len = Math.sqrt(dx*dx + dy*dy);
+        if(len===0) return alert("P1和P2不能同一點！");
+        let fwd = ((t.x-p1.x)*dx + (t.y-p1.y)*dy)/len, off = ((t.x-p1.x)*-dy + (t.y-p1.y)*dx)/len;
+        let dir = off > 0 ? "向左轉 90 度" : "向右轉 90 度";
+        document.getElementById('resOffset').innerHTML = `沿基準線前進: <span style="color:#fff">${fwd.toFixed(3)} m</span><br>${dir}直走: <span style="color:#fff">${Math.abs(off).toFixed(3)} m</span>`;
+    }
+    
+    let areaPts = [];
+    function addAreaPoint() {
+        const x=parseFloat(document.getElementById('aX').value), y=parseFloat(document.getElementById('aY').value);
+        if(isNaN(x)||isNaN(y)) return; areaPts.push({x,y});
+        document.getElementById('areaPointList').innerText = "已輸入：\n" + areaPts.map((p,i)=>`P${i+1}(${p.x}, ${p.y})`).join(" ➔ ");
+        document.getElementById('aX').value=''; document.getElementById('aY').value='';
+    }
+    function clearArea() { areaPts=[]; document.getElementById('areaPointList').innerText="已輸入：(無)"; document.getElementById('resArea').innerText="等待計算..."; }
+    
+    function runArea() {
+        if(areaPts.length < 3) return alert("至少3點！");
+        let a = 0, n = areaPts.length;
+        for (let i=0; i<n; i++) { let j=(i+1)%n; a += areaPts[i].x*areaPts[j].y; a -= areaPts[j].x*areaPts[i].y; }
+        let rawArea = Math.abs(a)/2;
+        let unit = document.getElementById('aUnit').value;
+        let sqm = (unit === 'cm') ? (rawArea / 10000) : rawArea;
+        document.getElementById('resArea').innerHTML = `面積: <span style="color:#fff">${sqm.toFixed(2)} 平方公尺</span><br>坪數: <span style="color:#fff">${(sqm*0.3025).toFixed(2)} 坪</span>`;
+    }
+    
+    function runSlope() {
+        const h = parseFloat(document.getElementById('sH').value)||0, d = parseFloat(document.getElementById('sD').value)||0, s = parseFloat(document.getElementById('sS').value)||0;
+        document.getElementById('resSlope').innerHTML = `目標高程: <span style="color:#fff">${(h + d*(s/100)).toFixed(3)} m</span>`;
+    }
+    updateRadarUI();
+</script>
+</body>
+</html>

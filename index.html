@@ -71,6 +71,9 @@
     .snapshot-wrap { margin-top: 8px; border: 1px solid rgba(255, 220, 140, 0.32); border-radius: 8px; padding: 8px; background: rgba(255, 210, 110, 0.08); }
     .snapshot-table { max-height: 160px; overflow: auto; border: 1px solid rgba(255, 220, 140, 0.22); border-radius: 8px; margin-top: 8px; }
     .snapshot-table table { margin-top: 0; }
+    .member-wrap { margin-top: 8px; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 8px; background: rgba(255,255,255,0.04); }
+    .member-table { max-height: 140px; overflow: auto; border: 1px solid rgba(255,255,255,0.14); border-radius: 8px; margin-top: 8px; }
+    .member-table table { margin-top: 0; }
     .unit-wrap { margin-top: 8px; border: 1px solid rgba(180, 180, 255, 0.28); border-radius: 8px; padding: 8px; background: rgba(150, 170, 255, 0.07); }
     .unit-grid { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: end; }
     .unit-grid input, .unit-grid select { width: 100%; padding: 9px; background: rgba(10, 20, 36, 0.56); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 6px; box-sizing: border-box; }
@@ -113,6 +116,18 @@
     .coach-close { position: absolute; top: 6px; right: 8px; border: none; background: transparent; color: #8dbad8; cursor: pointer; font-size: 14px; padding: 0; }
     .coach-close:hover { color: white; }
     .coach-title { color: #ffd27a; font-weight: bold; margin-bottom: 2px; }
+    .coach-ai-row { margin-top: 8px; display: flex; gap: 6px; pointer-events: auto; }
+    .coach-ai-input { flex: 1; min-width: 0; border-radius: 8px; border: 1px solid rgba(255,255,255,0.22); background: rgba(4,10,20,0.78); color: #eaf6ff; padding: 6px 8px; font-size: 0.78em; }
+    .coach-ai-btn { border: 1px solid rgba(255,255,255,0.25); background: rgba(122, 216, 255, 0.12); color: #dff3ff; border-radius: 8px; padding: 6px 8px; font-size: 0.75em; cursor: pointer; }
+    .coach-ai-btn:hover { background: rgba(122, 216, 255, 0.2); }
+    .coach-ai-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .coach-guide { margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.18); padding-top: 8px; }
+    .coach-guide.hide { display: none; }
+    .coach-guide-step { font-size: 0.75em; color: #b6d8f0; margin-bottom: 6px; }
+    .coach-guide-actions { display: flex; gap: 6px; }
+    .coach-guide-btn { border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.08); color: #eaf6ff; border-radius: 8px; padding: 4px 8px; font-size: 0.74em; cursor: pointer; }
+    .coach-guide-btn:hover { background: rgba(255,255,255,0.15); }
+    .coach-guide-btn:disabled { opacity: 0.45; cursor: not-allowed; }
     body.high-contrast { --panel-bg: rgba(8, 14, 26, 0.62); --line-soft: rgba(255,255,255,0.32); --text-main: #ffffff; --text-subtle: #d4e4f4; --highlight: #ffc552; --accent: #7ad8ff; }
     body.high-contrast { background-image: linear-gradient(rgba(4, 8, 14, 0.40), rgba(4, 8, 14, 0.40)), url('app-wallpaper.jpg'); }
     body.high-contrast .input-wrapper input,
@@ -161,6 +176,7 @@
     <div class="security-panel">
         <h3>BuildMaster 保護模式</h3>
         <p id="securityMessage">請輸入存取碼以啟用系統。</p>
+        <input id="securityMemberInput" class="security-input" type="text" placeholder="會員帳號（選填，可用自訂密碼）">
         <input id="securityCodeInput" class="security-input" type="password" placeholder="輸入存取碼">
         <button class="tool-btn" style="width:100%;" onclick="submitSecurityCode()">解鎖並進入</button>
         <div id="securityHint" class="security-hint"></div>
@@ -172,6 +188,9 @@
     <img src="logo-app.png" class="logo-img" alt="Black Hole Logo">
     <div class="header-title">BUILDMASTER V6.9 - BLACK HOLE POWER</div>
     <div class="header-actions">
+        <button id="coachToggle" class="mode-btn" onclick="toggleCoachMode()">解說員: 開</button>
+        <button id="aiCoachToggle" class="mode-btn" onclick="toggleAiCoachMode()">AI解說: 關</button>
+        <button id="coachGuideBtn" class="mode-btn" onclick="startCoachGuide(true)">新手導覽</button>
         <button id="contrastToggle" class="mode-btn" onclick="toggleContrastMode()">高對比: 關</button>
         <button id="contrastAutoToggle" class="mode-btn" onclick="toggleAutoContrastMode()">自動: 關</button>
     </div>
@@ -185,15 +204,22 @@
             <button class="tool-btn" onclick="changeZoom(-0.2)">🔍 縮小</button>
             <button class="tool-btn" style="border-color: #d35400" onclick="startCalibration()">📏 定比例</button>
             <button class="tool-btn" style="border-color: var(--money)" onclick="startMeasure()">📐 測量</button>
+            <button id="btnMeasureAssist" class="tool-btn" onclick="toggleMeasureAssist()">📏 量圖輔助: 關</button>
+            <button class="tool-btn" onclick="calibrateMeasureAssist()">🧲 校正量圖</button>
+            <button id="btnMeasureStrict" class="tool-btn" onclick="toggleMeasureStrictMode()">🛡 量圖嚴格: 關</button>
             <button class="tool-btn" onclick="clearCanvas()">🧽 清空標註</button>
             <button class="tool-btn" onclick="removeLoadedImage()">🗑️ 移除圖紙</button>
             <button id="btn3D" class="tool-btn" onclick="toggle3DView()">🧊 3D檢視</button>
             <button id="btn360" class="tool-btn" onclick="toggle360Spin()">🌀 360翻轉</button>
             <button class="tool-btn" onclick="reset3DView()">🎯 重設視角</button>
+            <button id="btnGyro" class="tool-btn" onclick="toggleGyroMode()">🧭 陀螺儀: 關</button>
+            <button class="tool-btn" onclick="calibrateGyroBaseline()">🎯 校正陀螺儀</button>
             <label class="tool-mini">對比 <input type="range" id="imgContrast" min="0.7" max="1.5" step="0.01" value="1" oninput="updateImageFilter('contrast', this.value)"></label>
             <label class="tool-mini">亮度 <input type="range" id="imgBrightness" min="0.7" max="1.4" step="0.01" value="1" oninput="updateImageFilter('brightness', this.value)"></label>
             <button class="tool-btn" onclick="autoEnhanceImage()">✨ 自動優化</button>
             <button class="tool-btn" onclick="resetImageFilter()">♻️ 重設畫質</button>
+            <span id="measureAssistInfo" style="color:#bdeecf; font-size:0.8em;">量圖輔助: 未啟用</span>
+            <span id="gyroInfo" style="color:#9fd0ff; font-size:0.8em;">陀螺儀: 未啟用</span>
             <span id="scale-info" style="color:var(--highlight); font-size:0.8em; margin-left:auto;">比例: 未設定</span>
         </div>
         <div id="canvas-container">
@@ -347,6 +373,29 @@
             <div class="input-wrapper"><label>工地建案名稱</label><input type="text" id="project_name" value="梧棲案測試"></div>
             <div class="input-wrapper"><label>樓層/分區標籤</label><input type="text" id="floor_tag" placeholder="如: 1F, B1, 基礎"></div>
         </div>
+        <div class="member-wrap">
+            <div class="bim-note" style="margin-top:0;">會員密碼管理（本機）：可新增會員帳號並自訂登入密碼。</div>
+            <div class="input-row">
+                <div class="input-wrapper">
+                    <label>會員帳號</label>
+                    <input type="text" id="memberAccountInput" placeholder="例如：engineer01">
+                </div>
+                <div class="input-wrapper">
+                    <label>會員密碼</label>
+                    <input type="password" id="memberPasswordInput" placeholder="輸入新密碼（至少6碼）">
+                </div>
+            </div>
+            <div class="bim-actions">
+                <button class="tool-btn" onclick="saveMemberCode()">💾 儲存會員密碼</button>
+                <button class="tool-btn" onclick="deleteMemberCodeFromInput()">🗑 刪除會員</button>
+            </div>
+            <div class="member-table">
+                <table>
+                    <thead><tr><th>會員帳號</th><th>操作</th></tr></thead>
+                    <tbody id="memberCodeBody"></tbody>
+                </table>
+            </div>
+        </div>
 
         <div class="group-title">工種規格選擇</div>
         <div class="input-row">
@@ -442,6 +491,7 @@
 
         <div class="btn-group">
             <button class="btn-export" onclick="exportToCSV()">📥 匯出商用報表 (Excel)</button>
+            <button class="btn-export" onclick="exportMeasureQaReport()">🧪 匯出量圖QA報告</button>
             <button class="btn-clear" onclick="clearAll()">🗑️ 重新開始</button>
         </div>
     </div>
@@ -461,6 +511,18 @@
         <button class="coach-close" onclick="hideCoach(true)" aria-label="關閉解說員">x</button>
         <div class="coach-title">小教練</div>
         <div id="coachText">哈囉，先上傳圖紙，我陪你一步步完成。</div>
+        <div class="coach-ai-row">
+            <input id="coachAiInput" class="coach-ai-input" type="text" placeholder="可問：這區怎麼用？">
+            <button id="coachAiAskBtn" class="coach-ai-btn" onclick="askAiCoachManual()">問AI</button>
+        </div>
+        <div id="coachGuidePanel" class="coach-guide hide">
+            <div id="coachGuideStep" class="coach-guide-step"></div>
+            <div class="coach-guide-actions">
+                <button id="coachGuidePrev" class="coach-guide-btn" onclick="prevCoachGuideStep()">上一步</button>
+                <button id="coachGuideNext" class="coach-guide-btn" onclick="nextCoachGuideStep()">下一步</button>
+                <button id="coachGuideDone" class="coach-guide-btn" onclick="finishCoachGuide()">完成</button>
+            </div>
+        </div>
     </div>
     <div class="coach-avatar" aria-hidden="true">🐣</div>
 </div>
@@ -470,6 +532,7 @@
     const STORAGE_KEY = 'bm_69:list';
     const SCHEMA_VERSION = '6.9.1';
     const SECURITY_UNLOCK_KEY = 'bm_69:security_unlocked';
+    const MEMBER_CODES_STORAGE_KEY = 'bm_69:member_codes';
     const SECURITY_CONFIG = {
         // 預設存取碼：BuildMaster@2026!
         accessHash: '78e098f0bd34f7c3246e9c0d0b91cc6f78b1fe0321bc7bfc5c58215d838dc663',
@@ -484,6 +547,10 @@
     let selectedMaterial = null;
     const PRICES_JSON_URL = 'prices.json';
     const REGION_STORAGE_KEY = 'bm_69:region_pref';
+    const GYRO_MODE_KEY = 'bm_69:gyro_mode';
+    const MEASURE_ASSIST_KEY = 'bm_69:measure_assist';
+    const MEASURE_STRICT_KEY = 'bm_69:measure_strict';
+    const MEASURE_STRICT_TILT_DEG = 8;
     const REGION_FILE_MAP = {
         '台北市': 'prices-taipei.json',
         '新北市': 'prices-newtaipei.json',
@@ -518,11 +585,25 @@
     let bimRuleMap = {};
     let bimAuditLogs = [];
     let bimSnapshots = [];
+    let memberCodeMap = {};
     let is3DView = false;
     let is360Spinning = false;
     let spinTimer = null;
     let rotation3D = { x: 0, y: 0 };
     let dragState3D = { active: false, x: 0, y: 0 };
+    let gyroState = { enabled: false, ready: false, baselineBeta: null, baselineGamma: null, smoothX: 0, smoothY: 0 };
+    let measureAssistState = { enabled: false, strict: false, baselineBeta: null, baselineGamma: null, tiltDeg: 0, warned: false };
+    let measureQaStats = {
+        startedAt: new Date().toISOString(),
+        calibrationStarts: 0,
+        calibrationSuccess: 0,
+        measureStarts: 0,
+        measureSuccess: 0,
+        tiltSamples: 0,
+        tiltSum: 0,
+        tiltMax: 0,
+        strictBlocks: 0
+    };
     
     // 載入資料並檢查版本 (降級策略)
     let list = [];
@@ -548,9 +629,24 @@
     const img = document.getElementById('blueprint');
 
     const COACH_DISABLED_KEY = 'bm_69:coach_disabled';
+    const COACH_GUIDE_DONE_KEY = 'bm_69:coach_guide_done';
+    const AI_COACH_ENABLED_KEY = 'bm_69:ai_coach_enabled';
+    const AI_COACH_API_KEY = 'bm_69:ai_coach_api_key';
+    const AI_COACH_MODEL_KEY = 'bm_69:ai_coach_model';
+    const AI_COACH_ENDPOINT_KEY = 'bm_69:ai_coach_endpoint';
     const CONTRAST_MODE_KEY = 'bm_69:contrast_mode';
     const CONTRAST_AUTO_KEY = 'bm_69:contrast_auto';
+    const COACH_GUIDE_STEPS = [
+        { selector: '#regionSelect', message: '第 1 步：先選地區價目來源，確保抓到正確單價。' },
+        { selector: '#materialSearch', message: '第 2 步：輸入關鍵字搜尋材料，例如模板、混凝土、鋼筋。' },
+        { selector: 'button[onclick="applySelectedMaterialPrice()"]', message: '第 3 步：把材料單價套用到單價欄，省去手動輸入。' },
+        { selector: '#fileInput', message: '第 4 步：上傳圖紙，接著用定比例與量測取得尺寸。' },
+        { selector: '.btn-add', message: '第 5 步：確認預覽後按加入清單，最後可匯出報表。' }
+    ];
     let coachTimer = null;
+    let coachBound = false;
+    let coachGuideState = { active: false, stepIndex: 0 };
+    let aiCoachState = { enabled: false, busy: false };
 
     window.onload = async function() {
         const canStart = await bootstrapSecurity();
@@ -568,6 +664,10 @@
         renderTable();
         initTouchCoach();
         initUtilityWidgets();
+        restoreMeasureAssistMode();
+        restoreGyroMode();
+        applyAiCoachMode();
+        maybeStartCoachGuide();
     }
 
     function isDevHost() {
@@ -647,8 +747,14 @@
 
         showSecurityLock('請輸入存取碼以啟用系統。');
         const input = document.getElementById('securityCodeInput');
+        const memberInput = document.getElementById('securityMemberInput');
         if (input) {
             input.addEventListener('keydown', ev => {
+                if (ev.key === 'Enter') submitSecurityCode();
+            }, { once: true });
+        }
+        if (memberInput) {
+            memberInput.addEventListener('keydown', ev => {
                 if (ev.key === 'Enter') submitSecurityCode();
             }, { once: true });
         }
@@ -656,25 +762,33 @@
     }
 
     async function submitSecurityCode() {
+        loadMemberCodes();
+        const memberInput = document.getElementById('securityMemberInput');
         const input = document.getElementById('securityCodeInput');
         const hint = document.getElementById('securityHint');
+        const account = normalizeMemberAccount((memberInput && memberInput.value) || '');
         const code = String((input && input.value) || '').trim();
         if (!code) {
             if (hint) hint.innerText = '請先輸入存取碼';
             return;
         }
         const hashed = await hashTextSHA256(code);
-        if (hashed !== SECURITY_CONFIG.accessHash) {
+        const memberHash = account ? memberCodeMap[account] : '';
+        const isMemberLogin = !!memberHash;
+        const ok = isMemberLogin ? (hashed === memberHash) : (hashed === SECURITY_CONFIG.accessHash);
+        if (!ok) {
             if (hint) hint.innerText = '存取碼錯誤，請重試';
             if (input) input.value = '';
             return;
         }
         sessionStorage.setItem(SECURITY_UNLOCK_KEY, '1');
+        if (account) sessionStorage.setItem('bm_69:member', account);
         hideSecurityLock();
         if (hint) hint.innerText = '';
+        if (memberInput) memberInput.value = '';
         if (input) input.value = '';
         await startApp();
-        showToast('保護模式驗證成功');
+        showToast(isMemberLogin ? `會員「${account}」驗證成功` : '保護模式驗證成功');
     }
 
     async function initMaterialCatalog() {
@@ -704,10 +818,88 @@
         renderUnmatchedMaterialOptions();
         renderUnmatchedWizard();
         initUnitSelectors();
+        initMemberManager();
         loadAuditLogs();
         renderAuditTable();
         loadSnapshots();
         renderSnapshotTable();
+    }
+
+    function normalizeMemberAccount(account) {
+        return String(account || '').trim().toLowerCase();
+    }
+
+    function loadMemberCodes() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(MEMBER_CODES_STORAGE_KEY) || '{}');
+            memberCodeMap = parsed && typeof parsed === 'object' ? parsed : {};
+        } catch (_e) {
+            memberCodeMap = {};
+        }
+    }
+
+    function persistMemberCodes() {
+        localStorage.setItem(MEMBER_CODES_STORAGE_KEY, JSON.stringify(memberCodeMap));
+    }
+
+    function initMemberManager() {
+        loadMemberCodes();
+        renderMemberCodeTable();
+    }
+
+    function renderMemberCodeTable() {
+        const body = document.getElementById('memberCodeBody');
+        if (!body) return;
+        body.innerHTML = '';
+        const accounts = Object.keys(memberCodeMap).sort();
+        if (!accounts.length) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="2" style="color:#99b2c9;">尚無會員帳號</td>';
+            body.appendChild(tr);
+            return;
+        }
+        accounts.forEach(acc => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${escapeHTML(acc)}</td><td><button class="tool-btn" style="padding:4px 8px;" onclick="deleteMemberCode('${escapeHTML(acc)}')">刪除</button></td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    async function saveMemberCode() {
+        const accInput = document.getElementById('memberAccountInput');
+        const pwdInput = document.getElementById('memberPasswordInput');
+        const account = normalizeMemberAccount(accInput && accInput.value);
+        const password = String((pwdInput && pwdInput.value) || '').trim();
+        if (!account) return showToast('請輸入會員帳號');
+        if (!/^[a-z0-9_.-]{3,30}$/.test(account)) return showToast('會員帳號格式：3-30碼，可用英文/數字/._-');
+        if (password.length < 6) return showToast('會員密碼至少 6 碼');
+        const hashed = await hashTextSHA256(password);
+        memberCodeMap[account] = hashed;
+        persistMemberCodes();
+        renderMemberCodeTable();
+        if (accInput) accInput.value = account;
+        if (pwdInput) pwdInput.value = '';
+        addAuditLog('會員密碼更新', account);
+        showToast(`會員「${account}」密碼已更新`);
+    }
+
+    function deleteMemberCodeFromInput() {
+        const accInput = document.getElementById('memberAccountInput');
+        const account = normalizeMemberAccount(accInput && accInput.value);
+        if (!account) return showToast('請先輸入要刪除的會員帳號');
+        deleteMemberCode(account);
+    }
+
+    function deleteMemberCode(account) {
+        const acc = normalizeMemberAccount(account);
+        if (!acc) return showToast('會員帳號不可為空');
+        if (!memberCodeMap[acc]) return showToast('找不到此會員帳號');
+        if (!confirm(`確定刪除會員「${acc}」？`)) return;
+        delete memberCodeMap[acc];
+        persistMemberCodes();
+        renderMemberCodeTable();
+        addAuditLog('會員刪除', acc);
+        showToast(`已刪除會員「${acc}」`);
     }
 
     function loadAuditLogs() {
@@ -1806,6 +1998,222 @@
         wrapper.style.transform = `perspective(1300px) rotateX(${rotation3D.x}deg) rotateY(${rotation3D.y}deg)`;
     }
 
+    function updateGyroUI() {
+        const btn = document.getElementById('btnGyro');
+        const info = document.getElementById('gyroInfo');
+        if (btn) btn.innerText = gyroState.enabled ? '🧭 陀螺儀: 開' : '🧭 陀螺儀: 關';
+        if (!info) return;
+        if (!gyroState.enabled) info.innerText = '陀螺儀: 未啟用';
+        else if (!gyroState.ready) info.innerText = '陀螺儀: 啟用中（請稍候）';
+        else info.innerText = '陀螺儀: 追蹤中';
+    }
+
+    function updateMeasureAssistUI() {
+        const btn = document.getElementById('btnMeasureAssist');
+        const strictBtn = document.getElementById('btnMeasureStrict');
+        const info = document.getElementById('measureAssistInfo');
+        if (btn) btn.innerText = measureAssistState.enabled ? '📏 量圖輔助: 開' : '📏 量圖輔助: 關';
+        if (strictBtn) strictBtn.innerText = measureAssistState.strict ? '🛡 量圖嚴格: 開' : '🛡 量圖嚴格: 關';
+        if (!info) return;
+        if (!measureAssistState.enabled) info.innerText = '量圖輔助: 未啟用';
+        else if (measureAssistState.baselineBeta === null) info.innerText = '量圖輔助: 待校正';
+        else info.innerText = `量圖輔助: 傾斜 ${measureAssistState.tiltDeg.toFixed(1)}°${measureAssistState.strict ? '（嚴格）' : ''}`;
+    }
+
+    function resetMeasureQaStats() {
+        measureQaStats = {
+            startedAt: new Date().toISOString(),
+            calibrationStarts: 0,
+            calibrationSuccess: 0,
+            measureStarts: 0,
+            measureSuccess: 0,
+            tiltSamples: 0,
+            tiltSum: 0,
+            tiltMax: 0,
+            strictBlocks: 0
+        };
+    }
+
+    function updateMeasureQaFromTilt(tiltDeg) {
+        if (!Number.isFinite(tiltDeg)) return;
+        measureQaStats.tiltSamples += 1;
+        measureQaStats.tiltSum += tiltDeg;
+        measureQaStats.tiltMax = Math.max(measureQaStats.tiltMax, tiltDeg);
+    }
+
+    async function requestGyroPermission() {
+        try {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                const result = await DeviceOrientationEvent.requestPermission();
+                return result === 'granted';
+            }
+            return true;
+        } catch (_e) {
+            return false;
+        }
+    }
+
+    function handleDeviceOrientation(event) {
+        const beta = Number(event && event.beta);
+        const gamma = Number(event && event.gamma);
+        if (!Number.isFinite(beta) || !Number.isFinite(gamma)) return;
+
+        if (measureAssistState.enabled) {
+            if (measureAssistState.baselineBeta === null || measureAssistState.baselineGamma === null) {
+                measureAssistState.baselineBeta = beta;
+                measureAssistState.baselineGamma = gamma;
+                measureAssistState.warned = false;
+            } else {
+                const d1 = beta - measureAssistState.baselineBeta;
+                const d2 = gamma - measureAssistState.baselineGamma;
+                measureAssistState.tiltDeg = Math.sqrt(d1 * d1 + d2 * d2);
+                const activeMeasure = (drawMode === 'calibration' || drawMode === 'measure');
+                if (activeMeasure) updateMeasureQaFromTilt(measureAssistState.tiltDeg);
+                if (activeMeasure && measureAssistState.tiltDeg > 10 && !measureAssistState.warned) {
+                    measureAssistState.warned = true;
+                    showToast('量圖提醒：手機傾斜較大，建議先校正或保持穩定');
+                }
+                if (measureAssistState.tiltDeg <= 6) {
+                    measureAssistState.warned = false;
+                }
+            }
+            updateMeasureAssistUI();
+        }
+
+        if (!gyroState.enabled || !is3DView || is360Spinning) return;
+
+        if (gyroState.baselineBeta === null || gyroState.baselineGamma === null) {
+            gyroState.baselineBeta = beta;
+            gyroState.baselineGamma = gamma;
+            gyroState.ready = true;
+            updateGyroUI();
+            return;
+        }
+
+        const deltaX = Math.max(-45, Math.min(45, beta - gyroState.baselineBeta));
+        const deltaY = Math.max(-60, Math.min(60, gamma - gyroState.baselineGamma));
+        const targetX = -deltaX * 0.8;
+        const targetY = deltaY * 1.1;
+
+        // Exponential smoothing to reduce sensor jitter.
+        gyroState.smoothX += (targetX - gyroState.smoothX) * 0.18;
+        gyroState.smoothY += (targetY - gyroState.smoothY) * 0.18;
+        rotation3D.x = Math.max(-80, Math.min(80, gyroState.smoothX));
+        rotation3D.y = gyroState.smoothY;
+        apply3DTransform();
+    }
+
+    async function toggleMeasureAssist() {
+        const nextEnabled = !measureAssistState.enabled;
+        if (nextEnabled) {
+            const granted = await requestGyroPermission();
+            if (!granted) return showToast('未取得感測器權限，無法啟用量圖輔助');
+            measureAssistState.enabled = true;
+            measureAssistState.baselineBeta = null;
+            measureAssistState.baselineGamma = null;
+            measureAssistState.tiltDeg = 0;
+            measureAssistState.warned = false;
+            localStorage.setItem(MEASURE_ASSIST_KEY, '1');
+            updateMeasureAssistUI();
+            showToast('量圖輔助已啟用（定比例/測量時會提示傾斜）');
+            return;
+        }
+        measureAssistState.enabled = false;
+        measureAssistState.baselineBeta = null;
+        measureAssistState.baselineGamma = null;
+        measureAssistState.tiltDeg = 0;
+        measureAssistState.warned = false;
+        localStorage.setItem(MEASURE_ASSIST_KEY, '0');
+        updateMeasureAssistUI();
+        showToast('量圖輔助已關閉');
+    }
+
+    function calibrateMeasureAssist() {
+        if (!measureAssistState.enabled) return showToast('請先開啟量圖輔助');
+        measureAssistState.baselineBeta = null;
+        measureAssistState.baselineGamma = null;
+        measureAssistState.tiltDeg = 0;
+        measureAssistState.warned = false;
+        updateMeasureAssistUI();
+        showToast('量圖基準已重置，請保持手機短暫不動完成校正');
+    }
+
+    function toggleMeasureStrictMode() {
+        measureAssistState.strict = !measureAssistState.strict;
+        localStorage.setItem(MEASURE_STRICT_KEY, measureAssistState.strict ? '1' : '0');
+        updateMeasureAssistUI();
+        showToast(measureAssistState.strict ? '量圖嚴格模式已開啟（傾斜過大會暫停取點）' : '量圖嚴格模式已關閉');
+    }
+
+    function restoreMeasureAssistMode() {
+        measureAssistState.enabled = localStorage.getItem(MEASURE_ASSIST_KEY) === '1';
+        measureAssistState.strict = localStorage.getItem(MEASURE_STRICT_KEY) === '1';
+        measureAssistState.baselineBeta = null;
+        measureAssistState.baselineGamma = null;
+        measureAssistState.tiltDeg = 0;
+        measureAssistState.warned = false;
+        updateMeasureAssistUI();
+    }
+
+    async function startGyroMode(silent) {
+        if (!img.src) {
+            if (!silent) showToast('請先上傳圖紙，再啟用陀螺儀');
+            return;
+        }
+        const granted = await requestGyroPermission();
+        if (!granted) {
+            localStorage.setItem(GYRO_MODE_KEY, '0');
+            gyroState.enabled = false;
+            updateGyroUI();
+            if (!silent) showToast('陀螺儀權限未授權，無法啟用');
+            return;
+        }
+        if (!is3DView) is3DView = true;
+        stop360Spin();
+        gyroState.enabled = true;
+        gyroState.ready = false;
+        gyroState.baselineBeta = null;
+        gyroState.baselineGamma = null;
+        gyroState.smoothX = rotation3D.x;
+        gyroState.smoothY = rotation3D.y;
+        localStorage.setItem(GYRO_MODE_KEY, '1');
+        update3DButtons();
+        updateGyroUI();
+        apply3DTransform();
+        if (!silent) showToast('已啟用陀螺儀輔助（可按校正提高穩定度）');
+    }
+
+    function stopGyroMode(silent) {
+        gyroState.enabled = false;
+        gyroState.ready = false;
+        localStorage.setItem(GYRO_MODE_KEY, '0');
+        updateGyroUI();
+        if (!silent) showToast('已關閉陀螺儀輔助');
+    }
+
+    async function toggleGyroMode() {
+        if (!img.src) return showToast('請先上傳圖紙！');
+        if (gyroState.enabled) return stopGyroMode(false);
+        await startGyroMode(false);
+    }
+
+    function calibrateGyroBaseline() {
+        if (!gyroState.enabled) return showToast('請先啟用陀螺儀');
+        gyroState.baselineBeta = null;
+        gyroState.baselineGamma = null;
+        gyroState.ready = false;
+        updateGyroUI();
+        showToast('請保持手機 1 秒不動，正在重新校正陀螺儀');
+    }
+
+    function restoreGyroMode() {
+        updateGyroUI();
+        window.addEventListener('deviceorientation', handleDeviceOrientation, true);
+        if (localStorage.getItem(GYRO_MODE_KEY) === '1') {
+            startGyroMode(true);
+        }
+    }
+
     function toggle3DView() {
         if (!img.src) return showToast('請先上傳圖紙！');
         is3DView = !is3DView;
@@ -1814,6 +2222,7 @@
             clickPoints = [];
             showToast('🧊 3D 檢視開啟，可拖曳圖紙旋轉角度');
         } else {
+            if (gyroState.enabled) stopGyroMode(true);
             stop360Spin();
             rotation3D = { x: 0, y: 0 };
             showToast('已關閉 3D 檢視，回到平面模式');
@@ -1824,6 +2233,7 @@
 
     function toggle360Spin() {
         if (!img.src) return showToast('請先上傳圖紙！');
+        if (gyroState.enabled) return showToast('請先關閉陀螺儀，再使用 360 翻轉');
         if (!is3DView) {
             is3DView = true;
             showToast('已自動切到 3D 模式');
@@ -1857,6 +2267,8 @@
         is3DView = false;
         rotation3D = { x: 0, y: 0 };
         dragState3D = { active: false, x: 0, y: 0 };
+        gyroState.smoothX = 0;
+        gyroState.smoothY = 0;
         apply3DTransform();
         update3DButtons();
         if (!silent) showToast('視角已重設');
@@ -1903,11 +2315,15 @@
 
     function startCalibration() {
         if (is3DView) return showToast('請先關閉 3D 檢視再做定比例');
+        measureQaStats.calibrationStarts += 1;
+        if (measureAssistState.enabled) calibrateMeasureAssist();
         drawMode = 'calibration'; clickPoints = []; showToast('點擊圖面上已知長度的【起點】與【終點】');
     }
     function startMeasure() {
         if (is3DView) return showToast('請先關閉 3D 檢視再做量測');
         if (!scalePixelsPerUnit) return showToast('請先設定比例！');
+        measureQaStats.measureStarts += 1;
+        if (measureAssistState.enabled) calibrateMeasureAssist();
         drawMode = 'measure'; clickPoints = []; showToast('點擊你要測量的【起點】與【終點】');
     }
     function clearCanvas() { ctx.clearRect(0,0,canvas.width,canvas.height); clickPoints = []; drawMode = 'none'; showToast('🧽 畫布已擦乾淨！'); }
@@ -1941,6 +2357,7 @@
     window.addEventListener('touchend', end3DDrag);
 
     function begin3DDrag(e) {
+        if (gyroState.enabled) return;
         if (!is3DView || is360Spinning) return;
         const wrapper = document.getElementById('img-wrapper');
         if (!wrapper || !e.target.closest('#img-wrapper')) return;
@@ -1973,6 +2390,11 @@
 
     canvas.addEventListener('click', function(e) {
         if (drawMode === 'none') return;
+        const activeMeasure = (drawMode === 'calibration' || drawMode === 'measure');
+        if (activeMeasure && measureAssistState.enabled && measureAssistState.strict && measureAssistState.tiltDeg > MEASURE_STRICT_TILT_DEG) {
+            measureQaStats.strictBlocks += 1;
+            return showToast(`量圖已暫停：傾斜 ${measureAssistState.tiltDeg.toFixed(1)}°，請先校正或放穩手機`);
+        }
         const rect = canvas.getBoundingClientRect();
         const x = (e.clientX - rect.left) / zoomLevel;
         const y = (e.clientY - rect.top) / zoomLevel;
@@ -1989,11 +2411,13 @@
                 let actualLen = prompt("這條線實際是幾公尺？(m)", "1");
                 if (actualLen && !isNaN(actualLen) && actualLen > 0) {
                     scalePixelsPerUnit = dist / parseFloat(actualLen);
+                    measureQaStats.calibrationSuccess += 1;
                     document.getElementById('scale-info').innerText = '✅ 比例已設';
                     showToast('比例設定完成！可以開始測量了');
                 } else { showToast('比例設定取消或無效'); }
             } else if (drawMode === 'measure') {
                 let m = dist / scalePixelsPerUnit;
+                measureQaStats.measureSuccess += 1;
                 if (!document.getElementById('v2').value && document.getElementById('calcType').value.startsWith('R_')) {
                     document.getElementById('v2').value = m.toFixed(2);
                 } else if (!document.getElementById('v1').value) {
@@ -2224,6 +2648,7 @@
             document.getElementById('scale-info').innerText = '比例: 未設定'; scalePixelsPerUnit = 0; 
             document.getElementById('customName').value = ''; 
             document.getElementById('v1').value = ''; document.getElementById('v2').value = ''; document.getElementById('v3').value = '';
+            resetMeasureQaStats();
             addAuditLog('清空主清單', '全部清空');
             previewCalc(); showToast('黑洞已重置');
         } 
@@ -2239,22 +2664,160 @@
     }
 
     function initTouchCoach() {
+        applyCoachMode();
+        applyAiCoachMode();
         if (localStorage.getItem(COACH_DISABLED_KEY) === '1') return;
-        document.addEventListener('click', handleCoachInteraction, true);
-        document.addEventListener('touchstart', handleCoachInteraction, { passive: true, capture: true });
+        if (!coachBound) {
+            document.addEventListener('click', handleCoachInteraction, true);
+            document.addEventListener('touchstart', handleCoachInteraction, { passive: true, capture: true });
+            const aiInput = document.getElementById('coachAiInput');
+            if (aiInput) {
+                aiInput.addEventListener('keydown', ev => {
+                    if (ev.key === 'Enter') askAiCoachManual();
+                });
+            }
+            coachBound = true;
+        }
         setTimeout(() => {
             speakCoach('點任何功能框，我都會即時告訴你用途與下一步。');
         }, 550);
     }
 
+    function maybeStartCoachGuide() {
+        const disabled = localStorage.getItem(COACH_DISABLED_KEY) === '1';
+        const done = localStorage.getItem(COACH_GUIDE_DONE_KEY) === '1';
+        if (disabled || done) return;
+        setTimeout(() => startCoachGuide(false), 1000);
+    }
+
+    function getAiCoachConfig() {
+        return {
+            endpoint: localStorage.getItem(AI_COACH_ENDPOINT_KEY) || 'https://api.openai.com/v1/chat/completions',
+            model: localStorage.getItem(AI_COACH_MODEL_KEY) || 'gpt-4o-mini',
+            apiKey: localStorage.getItem(AI_COACH_API_KEY) || ''
+        };
+    }
+
+    function applyAiCoachMode() {
+        aiCoachState.enabled = localStorage.getItem(AI_COACH_ENABLED_KEY) === '1';
+        const btn = document.getElementById('aiCoachToggle');
+        const askBtn = document.getElementById('coachAiAskBtn');
+        const askInput = document.getElementById('coachAiInput');
+        if (btn) btn.innerText = aiCoachState.enabled ? 'AI解說: 開' : 'AI解說: 關';
+        if (askBtn) askBtn.disabled = !aiCoachState.enabled || aiCoachState.busy;
+        if (askInput) askInput.disabled = !aiCoachState.enabled;
+    }
+
+    async function toggleAiCoachMode() {
+        const next = !aiCoachState.enabled;
+        if (next) {
+            const config = getAiCoachConfig();
+            let apiKey = config.apiKey;
+            if (!apiKey) {
+                apiKey = prompt('請輸入 AI API Key（僅存本機）') || '';
+                apiKey = String(apiKey).trim();
+                if (!apiKey) return showToast('未輸入 API Key，AI 解說未啟用');
+                localStorage.setItem(AI_COACH_API_KEY, apiKey);
+            }
+            localStorage.setItem(AI_COACH_ENABLED_KEY, '1');
+            if (!localStorage.getItem(AI_COACH_MODEL_KEY)) localStorage.setItem(AI_COACH_MODEL_KEY, 'gpt-4o-mini');
+            applyAiCoachMode();
+            speakCoach('AI 解說員已開啟。你可直接在泡泡下方輸入問題。');
+            return showToast('AI 解說員已開啟');
+        }
+        localStorage.setItem(AI_COACH_ENABLED_KEY, '0');
+        applyAiCoachMode();
+        showToast('AI 解說員已關閉');
+    }
+
+    async function askAiCoach(promptText) {
+        const config = getAiCoachConfig();
+        if (!config.apiKey) throw new Error('缺少 API Key');
+        aiCoachState.busy = true;
+        applyAiCoachMode();
+        try {
+            const res = await fetch(config.endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${config.apiKey}`
+                },
+                body: JSON.stringify({
+                    model: config.model,
+                    temperature: 0.2,
+                    messages: [
+                        {
+                            role: 'system',
+                            content: '你是 BuildMaster 工程估算助手，請用繁體中文、短句、可操作步驟回答。'
+                        },
+                        {
+                            role: 'user',
+                            content: promptText
+                        }
+                    ]
+                })
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            const text = data && data.choices && data.choices[0] && data.choices[0].message
+                ? String(data.choices[0].message.content || '').trim()
+                : '';
+            if (!text) throw new Error('AI 回應為空');
+            return text;
+        } finally {
+            aiCoachState.busy = false;
+            applyAiCoachMode();
+        }
+    }
+
+    function getTargetBrief(target) {
+        const id = target.id ? `#${target.id}` : '';
+        const tag = String(target.tagName || '').toLowerCase();
+        const text = String((target.innerText || target.value || target.placeholder || '')).trim().slice(0, 40);
+        return `${tag}${id}${text ? ` (${text})` : ''}`;
+    }
+
+    async function askAiCoachFromTarget(target) {
+        if (!aiCoachState.enabled || aiCoachState.busy) return;
+        const brief = getTargetBrief(target);
+        const promptText = `使用者剛點擊介面元素：${brief}。請用 2~4 句說明用途、何時用、下一步。`;
+        speakCoach('AI 解說中，請稍候...');
+        try {
+            const answer = await askAiCoach(promptText);
+            speakCoach(answer);
+        } catch (e) {
+            console.warn('AI 解說失敗', e);
+            showToast('AI 解說暫時不可用（可先用內建解說）');
+        }
+    }
+
+    async function askAiCoachManual() {
+        if (!aiCoachState.enabled) return showToast('請先開啟 AI 解說員');
+        if (aiCoachState.busy) return showToast('AI 正在回覆中，請稍候');
+        const input = document.getElementById('coachAiInput');
+        const q = String((input && input.value) || '').trim();
+        if (!q) return showToast('請先輸入你想問的問題');
+        speakCoach('AI 回覆中...');
+        try {
+            const answer = await askAiCoach(`使用者問題：${q}`);
+            speakCoach(answer);
+            if (input) input.value = '';
+        } catch (e) {
+            console.warn('AI 手動提問失敗', e);
+            showToast('AI 回覆失敗，請檢查 API Key 或網路');
+        }
+    }
+
     function handleCoachInteraction(e) {
         if (localStorage.getItem(COACH_DISABLED_KEY) === '1') return;
+        if (coachGuideState.active) return;
         const target = e.target;
         if (!target || !target.closest) return;
         if (target.closest('#touchCoach')) return;
 
         const message = resolveCoachMessage(target);
-        if (message) speakCoach(message);
+        if (message) return speakCoach(message);
+        askAiCoachFromTarget(target);
     }
 
     function resolveCoachMessage(target) {
@@ -2294,6 +2857,13 @@
         if (target.closest('#fileInput')) return '這格是圖紙上傳框：先選圖片，再做定比例與量測。';
         if (target.closest('button[onclick="changeZoom(0.2)"]')) return '放大圖面，方便點更精準的位置。';
         if (target.closest('button[onclick="changeZoom(-0.2)"]')) return '縮小圖面，方便看整體配置。';
+        if (target.closest('button[onclick="toggleMeasureAssist()"]')) return '量圖輔助：只在定比例與測量時提示手機傾斜，幫你提高量圖穩定度。';
+        if (target.closest('button[onclick="calibrateMeasureAssist()"]')) return '量圖校正：開始量圖前先校正，可降低手持角度偏差。';
+        if (target.closest('button[onclick="toggleMeasureStrictMode()"]')) return '量圖嚴格模式：傾斜角超過門檻會暫停取點，避免誤測。';
+        if (target.closest('#measureAssistInfo')) return '這裡顯示量圖輔助狀態與目前傾斜角度。';
+        if (target.closest('button[onclick="toggleGyroMode()"]')) return '陀螺儀輔助：手機傾斜可控制 3D 視角，提升操作穩定度。';
+        if (target.closest('button[onclick="calibrateGyroBaseline()"]')) return '校正陀螺儀：啟用後先保持手機不動 1 秒，能降低漂移誤差。';
+        if (target.closest('#gyroInfo')) return '這裡顯示陀螺儀狀態：未啟用、啟用中或追蹤中。';
         if (target.closest('button[onclick="startCalibration()"]')) return '定比例功能：先點兩點，再輸入真實長度，系統就知道比例。';
         if (target.closest('button[onclick="startMeasure()"]')) return '量測功能：點起點和終點，距離會自動填入欄位。';
         if (target.closest('button[onclick="clearCanvas()"]')) return '清空目前標註線段與點位，不會刪掉你的清單資料。';
@@ -2301,6 +2871,16 @@
 
         if (target.closest('#project_name')) return '專案名稱欄：用來識別這次工程。';
         if (target.closest('#floor_tag')) return '樓層/分區欄：每筆項目會帶入這個位置標籤。';
+        if (target.closest('#memberAccountInput')) return '輸入會員帳號（英文/數字），可為不同使用者設定各自密碼。';
+        if (target.closest('#memberPasswordInput')) return '輸入會員密碼後按儲存，之後可用該帳號+密碼登入。';
+        if (target.closest('button[onclick="saveMemberCode()"]')) return '儲存會員密碼（本機），建立或更新會員登入資料。';
+        if (target.closest('button[onclick="deleteMemberCodeFromInput()"]')) return '刪除指定會員帳號，刪除後將不能用該帳號登入。';
+        if (target.closest('#memberCodeBody')) return '這裡是目前可登入的會員帳號清單（本機儲存）。';
+        if (target.closest('#coachToggle')) return '可在這裡一鍵開關解說員；開啟後點擊任何功能區都會出現說明。';
+        if (target.closest('#aiCoachToggle')) return 'AI 解說員：可在規則解說外補充更彈性的操作建議（需先設定 API Key）。';
+        if (target.closest('#coachAiInput')) return '你可以直接輸入問題，例如「這個按鈕怎麼用？」再按問AI。';
+        if (target.closest('#coachAiAskBtn')) return '送出你輸入的問題給 AI 解說員，回覆會顯示在氣泡中。';
+        if (target.closest('#coachGuideBtn')) return '點這裡可重跑新手導覽，系統會一步一步帶你操作。';
         if (target.closest('#calcType')) return '工種公式選擇區：不同工種會套不同計算公式。';
         if (target.closest('#customName')) return '自訂部位名稱：例如 C2柱、外牆A區。';
         if (target.closest('#v1')) return '尺寸欄 v1：通常是長度或規格。';
@@ -2313,6 +2893,7 @@
 
         if (target.closest('#listBody')) return '明細清單：可檢查每筆數量、單價與金額。';
         if (target.closest('.btn-export')) return '匯出按鈕：下載 Excel/CSV 報表。';
+        if (target.closest('button[onclick="exportMeasureQaReport()"]')) return '匯出量圖 QA 報告：包含平均傾斜角、最大傾斜與嚴格模式擋下次數。';
         if (target.closest('.btn-clear')) return '重置按鈕：清空所有資料並重新開始。';
         if (target.closest('.footer-bar')) return '底部總覽：顯示各工種加總與總預算。';
         if (target.closest('.drawing-panel')) return '左側是圖紙操作區：上傳、定比例、量測都在這裡。';
@@ -2321,7 +2902,7 @@
         return '';
     }
 
-    function speakCoach(message) {
+    function speakCoach(message, keepOpen) {
         const coach = document.getElementById('touchCoach');
         const coachText = document.getElementById('coachText');
         if (!coach || !coachText) return;
@@ -2329,15 +2910,113 @@
         coach.classList.remove('hide');
 
         if (coachTimer) clearTimeout(coachTimer);
-        coachTimer = setTimeout(() => {
-            coach.classList.add('hide');
-        }, 4600);
+        const shouldKeepOpen = !!keepOpen || coachGuideState.active;
+        if (!shouldKeepOpen) {
+            coachTimer = setTimeout(() => {
+                coach.classList.add('hide');
+            }, 4600);
+        }
     }
 
     function hideCoach(remember) {
         const coach = document.getElementById('touchCoach');
         if (coach) coach.classList.add('hide');
-        if (remember) localStorage.setItem(COACH_DISABLED_KEY, '1');
+        coachGuideState.active = false;
+        setCoachGuidePanelVisible(false);
+        if (remember) {
+            localStorage.setItem(COACH_DISABLED_KEY, '1');
+            applyCoachMode();
+        }
+    }
+
+    function applyCoachMode() {
+        const disabled = localStorage.getItem(COACH_DISABLED_KEY) === '1';
+        const btn = document.getElementById('coachToggle');
+        const guideBtn = document.getElementById('coachGuideBtn');
+        if (btn) btn.innerText = disabled ? '解說員: 關' : '解說員: 開';
+        if (guideBtn) guideBtn.disabled = disabled;
+        if (disabled) {
+            const coach = document.getElementById('touchCoach');
+            if (coach) coach.classList.add('hide');
+            coachGuideState.active = false;
+            setCoachGuidePanelVisible(false);
+        }
+    }
+
+    function toggleCoachMode() {
+        const disabled = localStorage.getItem(COACH_DISABLED_KEY) === '1';
+        localStorage.setItem(COACH_DISABLED_KEY, disabled ? '0' : '1');
+        applyCoachMode();
+        if (disabled) {
+            initTouchCoach();
+            speakCoach('解說員已開啟，點任一區塊可查看功能說明。');
+            showToast('解說員已開啟');
+        } else {
+            showToast('解說員已關閉');
+        }
+    }
+
+    function setCoachGuidePanelVisible(visible) {
+        const panel = document.getElementById('coachGuidePanel');
+        if (!panel) return;
+        panel.classList.toggle('hide', !visible);
+    }
+
+    function getCoachGuideTarget(stepIndex) {
+        const step = COACH_GUIDE_STEPS[stepIndex];
+        if (!step) return null;
+        return document.querySelector(step.selector);
+    }
+
+    function renderCoachGuideStep() {
+        const step = COACH_GUIDE_STEPS[coachGuideState.stepIndex];
+        if (!step) return;
+        const stepText = document.getElementById('coachGuideStep');
+        const prevBtn = document.getElementById('coachGuidePrev');
+        const nextBtn = document.getElementById('coachGuideNext');
+        const doneBtn = document.getElementById('coachGuideDone');
+        if (stepText) stepText.innerText = `新手導覽 ${coachGuideState.stepIndex + 1}/${COACH_GUIDE_STEPS.length}`;
+        if (prevBtn) prevBtn.disabled = coachGuideState.stepIndex <= 0;
+        if (nextBtn) nextBtn.disabled = coachGuideState.stepIndex >= COACH_GUIDE_STEPS.length - 1;
+        if (doneBtn) doneBtn.disabled = coachGuideState.stepIndex < COACH_GUIDE_STEPS.length - 1;
+
+        speakCoach(step.message, true);
+        const target = getCoachGuideTarget(coachGuideState.stepIndex);
+        if (target && target.scrollIntoView) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
+    function startCoachGuide(force) {
+        if (localStorage.getItem(COACH_DISABLED_KEY) === '1') {
+            if (force) showToast('請先開啟解說員，再啟動導覽');
+            return;
+        }
+        coachGuideState.active = true;
+        coachGuideState.stepIndex = 0;
+        setCoachGuidePanelVisible(true);
+        renderCoachGuideStep();
+        if (force) showToast('已啟動新手導覽');
+    }
+
+    function prevCoachGuideStep() {
+        if (!coachGuideState.active) return;
+        coachGuideState.stepIndex = Math.max(0, coachGuideState.stepIndex - 1);
+        renderCoachGuideStep();
+    }
+
+    function nextCoachGuideStep() {
+        if (!coachGuideState.active) return;
+        coachGuideState.stepIndex = Math.min(COACH_GUIDE_STEPS.length - 1, coachGuideState.stepIndex + 1);
+        renderCoachGuideStep();
+    }
+
+    function finishCoachGuide() {
+        coachGuideState.active = false;
+        setCoachGuidePanelVisible(false);
+        localStorage.setItem(COACH_GUIDE_DONE_KEY, '1');
+        speakCoach('導覽完成！之後可從右上角「新手導覽」隨時重跑。');
+        showToast('新手導覽已完成');
     }
 
     function applyContrastMode() {
@@ -2425,6 +3104,45 @@
         link.download = `BuildMaster_黑洞報表_${new Date().getTime()}.csv`;
         link.click();
         showToast('📥 報表已下載！');
+    }
+
+    function exportMeasureQaReport() {
+        const avgTilt = measureQaStats.tiltSamples > 0 ? (measureQaStats.tiltSum / measureQaStats.tiltSamples) : 0;
+        const projectName = (document.getElementById('project_name') && document.getElementById('project_name').value) || '未命名專案';
+        const reportRows = [
+            ['報告時間', new Date().toLocaleString('zh-TW')],
+            ['專案名稱', projectName],
+            ['量圖輔助', measureAssistState.enabled ? '開' : '關'],
+            ['量圖嚴格模式', measureAssistState.strict ? '開' : '關'],
+            ['嚴格模式門檻(度)', String(MEASURE_STRICT_TILT_DEG)],
+            ['定比例啟動次數', String(measureQaStats.calibrationStarts)],
+            ['定比例成功次數', String(measureQaStats.calibrationSuccess)],
+            ['測量啟動次數', String(measureQaStats.measureStarts)],
+            ['測量完成次數', String(measureQaStats.measureSuccess)],
+            ['傾斜樣本數', String(measureQaStats.tiltSamples)],
+            ['平均傾斜角(度)', avgTilt.toFixed(2)],
+            ['最大傾斜角(度)', measureQaStats.tiltMax.toFixed(2)],
+            ['嚴格模式擋下次數', String(measureQaStats.strictBlocks)],
+            ['目前傾斜角(度)', Number(measureAssistState.tiltDeg || 0).toFixed(2)],
+            ['統計起算時間', new Date(measureQaStats.startedAt).toLocaleString('zh-TW')]
+        ];
+
+        let csvContent = '\uFEFF項目,數值\n';
+        reportRows.forEach(([k, v]) => {
+            const sk = sanitizeCSVField(k);
+            const sv = sanitizeCSVField(v);
+            csvContent += `${sk},${sv}\n`;
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `BuildMaster_量圖QA報告_${new Date().getTime()}.csv`;
+        link.click();
+        if (typeof addAuditLog === 'function') {
+            addAuditLog('匯出量圖QA報告', `測量完成 ${measureQaStats.measureSuccess} 次 / 平均傾斜 ${avgTilt.toFixed(2)}°`);
+        }
+        showToast('🧪 量圖 QA 報告已匯出');
     }
 </script>
 </body>
