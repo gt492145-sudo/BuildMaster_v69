@@ -717,6 +717,8 @@
     const COACH_CLICK_THROTTLE_MS = 280;
     const COACH_TOUCH_TO_CLICK_GUARD_MS = 650;
     const COACH_DUPLICATE_TARGET_MS = 1200;
+    let canvasLastTouchAt = 0;
+    const CANVAS_TOUCH_CLICK_GUARD_MS = 700;
     let aiCoachState = { enabled: false, busy: false };
 
     window.onload = async function() {
@@ -2757,7 +2759,7 @@
         if (wrapper) wrapper.classList.remove('dragging');
     }
 
-    canvas.addEventListener('click', function(e) {
+    function handleCanvasPointInput(clientX, clientY) {
         if (drawMode === 'none') return;
         const activeMeasure = (drawMode === 'calibration' || drawMode === 'measure');
         if (activeMeasure && measureAssistState.enabled && measureAssistState.strict && measureAssistState.tiltDeg > MEASURE_STRICT_TILT_DEG) {
@@ -2765,8 +2767,8 @@
             return showToast(`量圖已暫停：傾斜 ${measureAssistState.tiltDeg.toFixed(1)}°，請先校正或放穩手機`);
         }
         const rect = canvas.getBoundingClientRect();
-        const x = (e.clientX - rect.left) / zoomLevel;
-        const y = (e.clientY - rect.top) / zoomLevel;
+        const x = (clientX - rect.left) / zoomLevel;
+        const y = (clientY - rect.top) / zoomLevel;
         
         clickPoints.push({x, y});
         ctx.fillStyle = 'orange'; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
@@ -2796,7 +2798,19 @@
             }
             clickPoints = []; drawMode = 'none';
         }
+    }
+
+    canvas.addEventListener('click', function(e) {
+        if (Date.now() - canvasLastTouchAt < CANVAS_TOUCH_CLICK_GUARD_MS) return;
+        handleCanvasPointInput(e.clientX, e.clientY);
     });
+
+    canvas.addEventListener('touchend', function(e) {
+        if (!e.changedTouches || !e.changedTouches.length) return;
+        canvasLastTouchAt = Date.now();
+        const t = e.changedTouches[0];
+        handleCanvasPointInput(t.clientX, t.clientY);
+    }, { passive: true });
 
     // --- 核心計算引擎 (統一公式) ---
     function getRebarDiameter(val) {
