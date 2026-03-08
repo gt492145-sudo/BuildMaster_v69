@@ -513,6 +513,7 @@
             <div id="materialCountChip" class="material-chip">資料筆數：<strong>0</strong></div>
             <div id="materialPriceChip" class="material-chip">目前單價：<strong>尚未選取</strong></div>
             <div id="materialRegionChip" class="material-chip">地區：<strong>全台共用</strong>（預設）</div>
+            <div id="materialSourceChip" class="material-chip">資料來源：<strong>未同步</strong></div>
             <button class="tool-btn" style="margin-left:auto;" onclick="applySelectedMaterialPrice()">📌 套用到單價欄</button>
         </div>
 
@@ -632,6 +633,7 @@
     let materialCatalog = [...DEFAULT_MATERIAL_CATALOG];
     let currentRegionLabel = '全台共用';
     let currentRegionMode = '預設';
+    let currentMaterialSourceMeta = { file: '內建預設', generatedAt: '' };
     let bimModelData = null;
     let bimEstimateRows = [];
     let bimLayoutPoints = [];
@@ -919,6 +921,7 @@
         renderMaterialOptions(materialCatalog);
         updateMaterialChips(materialCatalog.length, null);
         updateRegionChip();
+        updateMaterialSourceChip();
         initBimRuleEditor();
     }
 
@@ -2114,7 +2117,13 @@
                 const payload = await res.json();
                 const normalized = normalizeMaterialItems(payload);
                 if (normalized.length > 0) {
-                    loaded.push({ file, items: normalized });
+                    const sourceFile = String(
+                        (payload && typeof payload === 'object' && payload.source) ? payload.source : file
+                    ).trim() || file;
+                    const generatedAt = String(
+                        (payload && typeof payload === 'object' && payload.generated_at) ? payload.generated_at : ''
+                    ).trim();
+                    loaded.push({ file, items: normalized, sourceFile, generatedAt });
                 }
             } catch (e) {
                 console.warn(`載入 ${file} 失敗`, e);
@@ -2132,18 +2141,28 @@
                 const fallbackGlobal = loaded.find(entry => entry.file === PRICES_JSON_URL);
                 if (fallbackGlobal && fallbackGlobal.items.length > best.items.length) {
                     showToast(`偵測到地區單價僅 ${best.items.length} 筆，已改用全台完整價目 ${fallbackGlobal.items.length} 筆`);
+                    currentMaterialSourceMeta = {
+                        file: fallbackGlobal.sourceFile || fallbackGlobal.file,
+                        generatedAt: fallbackGlobal.generatedAt || ''
+                    };
                     return fallbackGlobal.items;
                 }
             }
 
+            currentMaterialSourceMeta = {
+                file: best.sourceFile || best.file,
+                generatedAt: best.generatedAt || ''
+            };
             showToast(`已同步${regionLabel}價格（${best.items.length} 筆）`);
             return best.items;
         }
 
         try {
+            currentMaterialSourceMeta = { file: '內建預設', generatedAt: '' };
             showToast(`使用內建單價（離線模式：${DEFAULT_MATERIAL_CATALOG.length} 筆）`);
             return [...DEFAULT_MATERIAL_CATALOG];
         } catch (_e) {
+            currentMaterialSourceMeta = { file: '內建預設', generatedAt: '' };
             return [...DEFAULT_MATERIAL_CATALOG];
         }
     }
@@ -2166,6 +2185,7 @@
         renderBimRuleMaterialOptions();
         updateMaterialChips(materialCatalog.length, null);
         updateRegionChip();
+        updateMaterialSourceChip();
         addAuditLog('切換地區價目', `${currentRegionLabel}（${currentRegionMode}）`);
     }
 
@@ -2180,6 +2200,15 @@
         const chip = document.getElementById('materialRegionChip');
         if (!chip) return;
         chip.innerHTML = `地區：<strong>${currentRegionLabel}</strong>（${currentRegionMode}）`;
+    }
+
+    function updateMaterialSourceChip() {
+        const chip = document.getElementById('materialSourceChip');
+        if (!chip) return;
+        const file = String(currentMaterialSourceMeta.file || '未同步');
+        const generatedAt = String(currentMaterialSourceMeta.generatedAt || '').trim();
+        const timeText = generatedAt ? ` / ${generatedAt}` : '';
+        chip.innerHTML = `資料來源：<strong>${file}</strong>${timeText}`;
     }
 
     function normalizeRegionName(name) {
