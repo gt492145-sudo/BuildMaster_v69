@@ -596,6 +596,8 @@
         accessHash: '78e098f0bd34f7c3246e9c0d0b91cc6f78b1fe0321bc7bfc5c58215d838dc663',
         allowedHosts: ['gt492145-sudo.github.io', 'localhost', '127.0.0.1']
     };
+    const SECURITY_PASSWORD_ENABLED = true;
+    const AI_API_ENABLED = true;
     let appBootstrapped = false;
     let scalePixelsPerUnit = 0;
     let drawMode = 'none';
@@ -709,6 +711,12 @@
     let coachTimer = null;
     let coachBound = false;
     let coachGuideState = { active: false, stepIndex: 0 };
+    let coachLastTouchAt = 0;
+    let coachLastInteractionAt = 0;
+    let coachLastTargetSig = '';
+    const COACH_CLICK_THROTTLE_MS = 280;
+    const COACH_TOUCH_TO_CLICK_GUARD_MS = 650;
+    const COACH_DUPLICATE_TARGET_MS = 1200;
     let aiCoachState = { enabled: false, busy: false };
 
     window.onload = async function() {
@@ -756,6 +764,7 @@
             if (!el) return;
             el.classList.toggle('active', !!active);
         });
+        applyAiCoachMode();
     }
 
     function setWorkMode(mode) {
@@ -848,6 +857,12 @@
         if (!hostAllowed) {
             showSecurityLock(`未授權網域：${location.hostname}`);
             return false;
+        }
+
+        if (!SECURITY_PASSWORD_ENABLED) {
+            sessionStorage.setItem(SECURITY_UNLOCK_KEY, '1');
+            hideSecurityLock();
+            return true;
         }
 
         const unlocked = sessionStorage.getItem(SECURITY_UNLOCK_KEY) === '1';
@@ -3052,17 +3067,38 @@
         };
     }
 
+    function isAiCoachAllowedForCurrentLevel() {
+        const level = localStorage.getItem(USER_LEVEL_KEY) || 'basic';
+        return level === 'standard' || level === 'pro';
+    }
+
     function applyAiCoachMode() {
-        aiCoachState.enabled = localStorage.getItem(AI_COACH_ENABLED_KEY) === '1';
+        const allowedForLevel = isAiCoachAllowedForCurrentLevel();
+        aiCoachState.enabled = AI_API_ENABLED && allowedForLevel && localStorage.getItem(AI_COACH_ENABLED_KEY) === '1';
         const btn = document.getElementById('aiCoachToggle');
         const askBtn = document.getElementById('coachAiAskBtn');
         const askInput = document.getElementById('coachAiInput');
-        if (btn) btn.innerText = aiCoachState.enabled ? 'AI解說: 開' : 'AI解說: 關';
+        if (btn) btn.innerText = !allowedForLevel
+            ? 'AI解說: 限頁2/3'
+            : (AI_API_ENABLED
+            ? (aiCoachState.enabled ? 'AI解說: 開' : 'AI解說: 關')
+            : 'AI解說: 停用');
         if (askBtn) askBtn.disabled = !aiCoachState.enabled || aiCoachState.busy;
         if (askInput) askInput.disabled = !aiCoachState.enabled;
     }
 
     async function toggleAiCoachMode() {
+        if (!isAiCoachAllowedForCurrentLevel()) {
+            aiCoachState.enabled = false;
+            applyAiCoachMode();
+            return showToast('AI 解說僅開放頁2/頁3使用');
+        }
+        if (!AI_API_ENABLED) {
+            localStorage.setItem(AI_COACH_ENABLED_KEY, '0');
+            aiCoachState.enabled = false;
+            applyAiCoachMode();
+            return showToast('AI API 已停用');
+        }
         const next = !aiCoachState.enabled;
         if (next) {
             const config = getAiCoachConfig();
@@ -3085,6 +3121,7 @@
     }
 
     async function askAiCoach(promptText) {
+        if (!AI_API_ENABLED) throw new Error('AI API disabled');
         const config = getAiCoachConfig();
         if (!config.apiKey) throw new Error('缺少 API Key');
         aiCoachState.busy = true;
@@ -3165,9 +3202,17 @@
     function handleCoachInteraction(e) {
         if (localStorage.getItem(COACH_DISABLED_KEY) === '1') return;
         if (coachGuideState.active) return;
+        const now = Date.now();
+        if (e.type === 'touchstart') coachLastTouchAt = now;
+        if (e.type === 'click' && now - coachLastTouchAt < COACH_TOUCH_TO_CLICK_GUARD_MS) return;
+        if (now - coachLastInteractionAt < COACH_CLICK_THROTTLE_MS) return;
         const target = e.target;
         if (!target || !target.closest) return;
         if (target.closest('#touchCoach')) return;
+        const targetSig = getTargetBrief(target);
+        if (targetSig && targetSig === coachLastTargetSig && now - coachLastInteractionAt < COACH_DUPLICATE_TARGET_MS) return;
+        coachLastInteractionAt = now;
+        coachLastTargetSig = targetSig;
 
         const message = resolveCoachMessage(target);
         if (message) return speakCoach(message);
@@ -3271,7 +3316,7 @@
         const coach = document.getElementById('touchCoach');
         const coachText = document.getElementById('coachText');
         if (!coach || !coachText) return;
-        coachText.innerText = message;
+        if (coachText.innerText !== message) coachText.innerText = message;
         coach.classList.remove('hide');
 
         if (coachTimer) clearTimeout(coachTimer);
