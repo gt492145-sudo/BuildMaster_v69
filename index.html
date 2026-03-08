@@ -15,9 +15,9 @@
 <style>
     /* ... 保留之前的 CSS 樣式，這裡為了精簡先省略，請沿用 V6.9 的黑洞版 CSS ... */
     :root { --bg-dark: #0b1220; --panel-bg: rgba(10, 18, 32, 0.34); --text-main: #ecf0f1; --highlight: #ff9800; --accent: #5ecbff; --money: #2ecc71; --line-soft: rgba(255,255,255,0.16); --text-subtle: #b8c7d9; }
-    html { font-size: 110%; }
-    body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; min-height: 100dvh; background-color: var(--bg-dark); background-image: linear-gradient(rgba(6, 10, 18, 0.26), rgba(6, 10, 18, 0.26)), url('app-wallpaper.jpg'); background-size: 100% 100%; background-position: center center; background-repeat: no-repeat; background-attachment: fixed; color: var(--text-main); }
-    header { background: rgba(10, 16, 30, 0.38); padding: 10px 20px; display: flex; align-items: center; border-bottom: 2px solid rgba(255,152,0,0.65); box-shadow: 0 4px 15px rgba(255,152,0,0.2); backdrop-filter: blur(8px) saturate(115%); }
+    html { font-size: 110%; width: 100%; overflow-x: hidden; }
+    body { font-family: sans-serif; margin: 0; width: 100%; max-width: 100%; overflow-x: hidden; display: flex; flex-direction: column; min-height: 100dvh; background-color: var(--bg-dark); background-image: linear-gradient(rgba(6, 10, 18, 0.26), rgba(6, 10, 18, 0.26)), url('app-wallpaper.jpg'); background-size: 100% 100%; background-position: center center; background-repeat: no-repeat; background-attachment: fixed; color: var(--text-main); }
+    header { background: rgba(10, 16, 30, 0.38); padding: 10px 20px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; border-bottom: 2px solid rgba(255,152,0,0.65); box-shadow: 0 4px 15px rgba(255,152,0,0.2); backdrop-filter: blur(8px) saturate(115%); }
     .logo-img { width: 70px; height: 70px; border-radius: 50%; border: 2px solid var(--highlight); margin-right: 15px; object-fit: cover; box-shadow: 0 0 10px var(--highlight); }
     .header-title { font-size: 1.4em; font-weight: bold; color: var(--highlight); letter-spacing: 2px; text-shadow: 0 0 10px rgba(255, 152, 0, 0.35); }
     .live-badge { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(222, 189, 255, 0.72); background: linear-gradient(135deg, rgba(108, 60, 188, 0.76), rgba(139, 92, 246, 0.76)); color: #f7ebff; font-size: 0.66em; letter-spacing: 0.8px; box-shadow: 0 0 12px rgba(163, 115, 255, 0.45); }
@@ -31,9 +31,9 @@
     .mode-btn { border: 1px solid rgba(255,255,255,0.35); border-radius: 999px; background: rgba(16, 29, 48, 0.62); color: #e8f5ff; font-weight: 700; padding: 8px 12px; cursor: pointer; transition: 0.2s; }
     .mode-btn:hover { background: rgba(36, 61, 92, 0.72); transform: translateY(-1px); }
     .mode-btn:active { transform: translateY(0); opacity: 0.92; }
-    .main-layout { display: flex; flex-direction: row; flex: 1; min-height: 0; overflow: hidden; padding: 10px; gap: 10px; border-radius: 14px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05), 0 12px 30px rgba(0,0,0,0.28); }
-    .drawing-panel { flex: 1.2; min-height: 0; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01)), var(--panel-bg); border: 1px solid var(--line-soft); display: flex; flex-direction: column; border-radius: 12px; backdrop-filter: blur(8px) saturate(115%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -20px 30px rgba(5,10,20,0.12), 0 10px 24px rgba(0,0,0,0.24); }
-    .calc-panel { flex: 1; min-height: 0; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01)), var(--panel-bg); border: 1px solid var(--line-soft); padding: 15px; overflow-y: auto; border-radius: 12px; backdrop-filter: blur(8px) saturate(115%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -20px 30px rgba(5,10,20,0.12), 0 10px 24px rgba(0,0,0,0.24); }
+    .main-layout { width: 100%; box-sizing: border-box; display: flex; flex-direction: row; flex: 1; min-height: 0; overflow: hidden; padding: 10px; gap: 10px; border-radius: 14px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05), 0 12px 30px rgba(0,0,0,0.28); }
+    .drawing-panel { flex: 1.2; min-width: 0; min-height: 0; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01)), var(--panel-bg); border: 1px solid var(--line-soft); display: flex; flex-direction: column; border-radius: 12px; backdrop-filter: blur(8px) saturate(115%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -20px 30px rgba(5,10,20,0.12), 0 10px 24px rgba(0,0,0,0.24); }
+    .calc-panel { flex: 1; min-width: 0; min-height: 0; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01)), var(--panel-bg); border: 1px solid var(--line-soft); padding: 15px; overflow-y: auto; border-radius: 12px; backdrop-filter: blur(8px) saturate(115%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -20px 30px rgba(5,10,20,0.12), 0 10px 24px rgba(0,0,0,0.24); }
     .tool-bar { display: flex; gap: 8px; padding: 10px; background: rgba(255,255,255,0.025); align-items: center; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; }
     .tool-btn { padding: 6px 12px; cursor: pointer; border: 1px solid rgba(255,255,255,0.22); border-radius: 6px; color: #e9f3ff; font-weight: bold; font-size: 0.85em; transition: 0.25s; background: linear-gradient(135deg, rgba(67, 102, 131, 0.55), rgba(55, 86, 113, 0.45)); }
     .tool-btn:hover { background: linear-gradient(135deg, rgba(106, 157, 198, 0.7), rgba(77, 120, 155, 0.6)); color: white; transform: translateY(-1px); box-shadow: 0 6px 14px rgba(0,0,0,0.25); }
@@ -161,7 +161,7 @@
     }
     @media (max-width: 992px) {
         body { background-attachment: scroll; }
-        .main-layout { flex-direction: column; overflow: auto; }
+        .main-layout { width: 100%; flex-direction: column; overflow: auto; }
         .drawing-panel { min-height: 42vh; }
         #canvas-container { min-height: 280px; }
         .calc-panel { overflow: visible; }
@@ -173,6 +173,7 @@
         .unit-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 768px) {
+        header { padding: 10px 12px; align-items: flex-start; }
         .header-actions { margin-left: 0; }
         .mode-btn { padding: 6px 10px; font-size: 0.8em; }
         .touch-coach { right: 10px; top: 74px; gap: 8px; }
