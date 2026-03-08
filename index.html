@@ -2067,14 +2067,39 @@
     }
 
     function normalizeMaterialItems(payload) {
-        const items = Array.isArray(payload && payload.items) ? payload.items : [];
+        const items = Array.isArray(payload)
+            ? payload
+            : (Array.isArray(payload && payload.items) ? payload.items : []);
+
+        const parsePrice = value => {
+            if (typeof value === 'number') return value;
+            const text = String(value ?? '').replace(/,/g, '').trim();
+            const parsed = Number(text);
+            return Number.isFinite(parsed) ? parsed : NaN;
+        };
+
         return items
-            .map(item => ({
-                name: String(item.name || '').trim(),
-                price: Number(item.price),
-                unit: String(item.unit || '').trim()
-            }))
-            .filter(item => item.name && Number.isFinite(item.price) && item.price > 0);
+            .map(item => {
+                if (!item || typeof item !== 'object') return null;
+                const name = String(
+                    item.name ??
+                    item.materialName ??
+                    item.material ??
+                    item['材料名稱'] ??
+                    item['名稱'] ??
+                    ''
+                ).trim();
+                const price = parsePrice(
+                    item.price ??
+                    item.unitPrice ??
+                    item['單價'] ??
+                    item['單價 (已取高標)'] ??
+                    item['單價(已取高標)']
+                );
+                const unit = String(item.unit ?? item['單位'] ?? '').trim();
+                return { name, price, unit };
+            })
+            .filter(item => item && item.name && Number.isFinite(item.price) && item.price > 0);
     }
 
     async function loadMaterialCatalog(regionLabel = '全台共用') {
@@ -2116,7 +2141,7 @@
         }
 
         try {
-            showToast('使用內建單價（離線模式：12 筆）');
+            showToast(`使用內建單價（離線模式：${DEFAULT_MATERIAL_CATALOG.length} 筆）`);
             return [...DEFAULT_MATERIAL_CATALOG];
         } catch (_e) {
             return [...DEFAULT_MATERIAL_CATALOG];
