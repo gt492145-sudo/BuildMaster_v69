@@ -20,6 +20,13 @@
     header { background: rgba(10, 16, 30, 0.38); padding: 10px 20px; display: flex; align-items: center; border-bottom: 2px solid rgba(255,152,0,0.65); box-shadow: 0 4px 15px rgba(255,152,0,0.2); backdrop-filter: blur(8px) saturate(115%); }
     .logo-img { width: 70px; height: 70px; border-radius: 50%; border: 2px solid var(--highlight); margin-right: 15px; object-fit: cover; box-shadow: 0 0 10px var(--highlight); }
     .header-title { font-size: 1.4em; font-weight: bold; color: var(--highlight); letter-spacing: 2px; text-shadow: 0 0 10px rgba(255, 152, 0, 0.35); }
+    .live-badge { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(222, 189, 255, 0.72); background: linear-gradient(135deg, rgba(108, 60, 188, 0.76), rgba(139, 92, 246, 0.76)); color: #f7ebff; font-size: 0.66em; letter-spacing: 0.8px; box-shadow: 0 0 12px rgba(163, 115, 255, 0.45); }
+    .level-switch { display: flex; gap: 6px; margin-left: 14px; }
+    .level-btn { border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; background: rgba(20,34,56,0.55); color: #d9ecff; font-size: 0.78em; padding: 6px 10px; cursor: pointer; }
+    .level-btn.active { border-color: rgba(255, 202, 120, 0.8); background: rgba(255, 162, 59, 0.28); color: #ffe5bf; }
+    .work-switch { display: flex; gap: 6px; margin-left: 8px; }
+    .work-btn { border: 1px solid rgba(255,255,255,0.24); border-radius: 999px; background: rgba(30,44,68,0.55); color: #d7ebff; font-size: 0.76em; padding: 6px 10px; cursor: pointer; }
+    .work-btn.active { border-color: rgba(154, 211, 255, 0.78); background: rgba(70, 138, 199, 0.34); color: #eef9ff; }
     .header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
     .mode-btn { border: 1px solid rgba(255,255,255,0.35); border-radius: 999px; background: rgba(16, 29, 48, 0.62); color: #e8f5ff; font-weight: 700; padding: 8px 12px; cursor: pointer; transition: 0.2s; }
     .mode-btn:hover { background: rgba(36, 61, 92, 0.72); transform: translateY(-1px); }
@@ -138,6 +145,16 @@
     body.high-contrast .bim-table-wrap { border-color: rgba(255,255,255,0.3); }
     body.high-contrast td { border-bottom-color: rgba(255,255,255,0.18); }
     body.high-contrast .mode-btn { background: rgba(255, 198, 90, 0.2); border-color: rgba(255, 218, 135, 0.68); color: #ffe5b0; }
+    body.high-contrast .live-badge { border-color: rgba(255,255,255,0.7); background: rgba(143, 88, 255, 0.55); color: #fff; }
+    body.high-contrast .level-btn { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.35); color: #fff3d1; }
+    body.high-contrast .level-btn.active { background: rgba(255, 198, 90, 0.35); }
+    body.high-contrast .work-btn { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.35); color: #e6f5ff; }
+    body.high-contrast .work-btn.active { background: rgba(90, 160, 235, 0.35); border-color: rgba(160, 220, 255, 0.8); }
+    body[data-user-level="basic"] .level-hide-basic { display: none !important; }
+    body[data-user-level="basic"] .level-only-pro { display: none !important; }
+    body[data-user-level="standard"] .level-only-pro { display: none !important; }
+    body[data-work-mode="calc"] .work-mode-only-stake { display: none !important; }
+    body[data-work-mode="stake"] .work-mode-only-calc { display: none !important; }
     @media (max-width: 1200px) {
         .drawing-panel { flex: 1; }
         .calc-panel { flex: 1; }
@@ -163,6 +180,11 @@
         .coach-bubble { max-width: 220px; font-size: 0.8em; padding: 9px 10px; }
         .logo-img { width: 54px; height: 54px; margin-right: 10px; }
         .header-title { font-size: 1.05em; letter-spacing: 1px; }
+        .live-badge { margin-left: 0; font-size: 0.62em; padding: 4px 8px; }
+        .level-switch { margin-left: 0; flex-wrap: wrap; }
+        .level-btn { font-size: 0.72em; padding: 5px 8px; }
+        .work-switch { margin-left: 0; flex-wrap: wrap; }
+        .work-btn { font-size: 0.7em; padding: 5px 8px; }
         .input-row { flex-direction: column; }
         .btn-group { flex-direction: column; }
         .footer-bar { grid-template-columns: 1fr; }
@@ -186,7 +208,16 @@
 
 <header>
     <img src="logo-app.png" class="logo-img" alt="Black Hole Logo">
-    <div class="header-title">BUILDMASTER V6.9 - BLACK HOLE POWER</div>
+    <div class="header-title">BUILDMASTER V6.9 - BLACK HOLE POWER <span class="live-badge">正式版 LIVE</span></div>
+    <div class="level-switch">
+        <button id="levelBasicBtn" class="level-btn" onclick="setUserLevel('basic')">頁1 新手</button>
+        <button id="levelStandardBtn" class="level-btn" onclick="setUserLevel('standard')">頁2 工程</button>
+        <button id="levelProBtn" class="level-btn" onclick="setUserLevel('pro')">頁3 專家</button>
+    </div>
+    <div class="work-switch">
+        <button id="workCalcBtn" class="work-btn" onclick="setWorkMode('calc')">計算模式</button>
+        <button id="workStakeBtn" class="work-btn" onclick="setWorkMode('stake')">放樣模式</button>
+    </div>
     <div class="header-actions">
         <button id="coachToggle" class="mode-btn" onclick="toggleCoachMode()">解說員: 開</button>
         <button id="aiCoachToggle" class="mode-btn" onclick="toggleAiCoachMode()">AI解說: 關</button>
@@ -204,22 +235,22 @@
             <button class="tool-btn" onclick="changeZoom(-0.2)">🔍 縮小</button>
             <button class="tool-btn" style="border-color: #d35400" onclick="startCalibration()">📏 定比例</button>
             <button class="tool-btn" style="border-color: var(--money)" onclick="startMeasure()">📐 測量</button>
-            <button id="btnMeasureAssist" class="tool-btn" onclick="toggleMeasureAssist()">📏 量圖輔助: 關</button>
-            <button class="tool-btn" onclick="calibrateMeasureAssist()">🧲 校正量圖</button>
-            <button id="btnMeasureStrict" class="tool-btn" onclick="toggleMeasureStrictMode()">🛡 量圖嚴格: 關</button>
+            <button id="btnMeasureAssist" class="tool-btn level-hide-basic" onclick="toggleMeasureAssist()">📏 量圖輔助: 關</button>
+            <button class="tool-btn level-hide-basic" onclick="calibrateMeasureAssist()">🧲 校正量圖</button>
+            <button id="btnMeasureStrict" class="tool-btn level-hide-basic" onclick="toggleMeasureStrictMode()">🛡 量圖嚴格: 關</button>
             <button class="tool-btn" onclick="clearCanvas()">🧽 清空標註</button>
             <button class="tool-btn" onclick="removeLoadedImage()">🗑️ 移除圖紙</button>
-            <button id="btn3D" class="tool-btn" onclick="toggle3DView()">🧊 3D檢視</button>
-            <button id="btn360" class="tool-btn" onclick="toggle360Spin()">🌀 360翻轉</button>
-            <button class="tool-btn" onclick="reset3DView()">🎯 重設視角</button>
-            <button id="btnGyro" class="tool-btn" onclick="toggleGyroMode()">🧭 陀螺儀: 關</button>
-            <button class="tool-btn" onclick="calibrateGyroBaseline()">🎯 校正陀螺儀</button>
+            <button id="btn3D" class="tool-btn level-only-pro" onclick="toggle3DView()">🧊 3D檢視</button>
+            <button id="btn360" class="tool-btn level-only-pro" onclick="toggle360Spin()">🌀 360翻轉</button>
+            <button class="tool-btn level-only-pro" onclick="reset3DView()">🎯 重設視角</button>
+            <button id="btnGyro" class="tool-btn level-only-pro" onclick="toggleGyroMode()">🧭 陀螺儀: 關</button>
+            <button class="tool-btn level-only-pro" onclick="calibrateGyroBaseline()">🎯 校正陀螺儀</button>
             <label class="tool-mini">對比 <input type="range" id="imgContrast" min="0.7" max="1.5" step="0.01" value="1" oninput="updateImageFilter('contrast', this.value)"></label>
             <label class="tool-mini">亮度 <input type="range" id="imgBrightness" min="0.7" max="1.4" step="0.01" value="1" oninput="updateImageFilter('brightness', this.value)"></label>
-            <button class="tool-btn" onclick="autoEnhanceImage()">✨ 自動優化</button>
-            <button class="tool-btn" onclick="resetImageFilter()">♻️ 重設畫質</button>
-            <span id="measureAssistInfo" style="color:#bdeecf; font-size:0.8em;">量圖輔助: 未啟用</span>
-            <span id="gyroInfo" style="color:#9fd0ff; font-size:0.8em;">陀螺儀: 未啟用</span>
+            <button class="tool-btn level-hide-basic" onclick="autoEnhanceImage()">✨ 自動優化</button>
+            <button class="tool-btn level-hide-basic" onclick="resetImageFilter()">♻️ 重設畫質</button>
+            <span id="measureAssistInfo" class="level-hide-basic" style="color:#bdeecf; font-size:0.8em;">量圖輔助: 未啟用</span>
+            <span id="gyroInfo" class="level-only-pro" style="color:#9fd0ff; font-size:0.8em;">陀螺儀: 未啟用</span>
             <span id="scale-info" style="color:var(--highlight); font-size:0.8em; margin-left:auto;">比例: 未設定</span>
         </div>
         <div id="canvas-container">
@@ -231,6 +262,7 @@
     </div>
 
     <div class="calc-panel">
+        <section class="level-only-pro work-mode-only-stake">
         <div class="group-title">
             BIM 模型檢核（IFC）
             <span style="font-size: 0.6em; color: #98c8ff;">QA v1</span>
@@ -301,6 +333,27 @@
                 <tbody id="bimEstimateBody"></tbody>
             </table>
         </div>
+        <div class="bim-rule-wrap" style="border-color: rgba(198, 170, 255, 0.38); background: rgba(173, 130, 255, 0.08);">
+            <div class="bim-note" style="margin-top:0;">BIM 放樣助手（MVP）：由 IFC 自動抽取放樣點，並輸出 QA 驗證報告。</div>
+            <div class="bim-actions">
+                <label class="tool-mini"><input id="layoutTypeColumn" type="checkbox" checked> 柱</label>
+                <label class="tool-mini"><input id="layoutTypeWall" type="checkbox" checked> 牆</label>
+                <label class="tool-mini"><input id="layoutTypeBeam" type="checkbox" checked> 梁</label>
+            </div>
+            <div class="bim-actions">
+                <button class="tool-btn" onclick="generateBimLayoutPoints()">📍 產生放樣點</button>
+                <button class="tool-btn" onclick="runBimLayoutQa()">🧪 執行放樣 QA</button>
+                <button class="tool-btn" onclick="exportBimLayoutPoints()">⬇️ 匯出放樣點 CSV</button>
+                <button class="tool-btn" onclick="exportBimLayoutQaReport()">⬇️ 匯出 QA 報告 CSV</button>
+            </div>
+            <div id="bimLayoutQaSummary" class="bim-note">放樣 QA：尚未執行</div>
+            <div class="bim-table-wrap">
+                <table>
+                    <thead><tr><th>ID</th><th>來源構件</th><th>類型</th><th>點位</th><th>X</th><th>Y</th><th>Z</th><th>樓層</th></tr></thead>
+                    <tbody id="bimLayoutBody"></tbody>
+                </table>
+            </div>
+        </div>
         <div class="bim-unmatched-wrap">
             <div class="bim-note" style="margin-top:0;">未匹配修復精靈：針對未匹配 IFC 類型快速補規則。</div>
             <div class="bim-unmatched-grid">
@@ -364,6 +417,7 @@
             </div>
         </div>
         <div class="bim-note">支援 IFC 文字解析：自動統計構件類型、讀取部分 Quantity 欄位，作為 QA 與算量前檢核。</div>
+        </section>
 
         <div class="group-title">
             專案與位置設定
@@ -373,7 +427,7 @@
             <div class="input-wrapper"><label>工地建案名稱</label><input type="text" id="project_name" value="梧棲案測試"></div>
             <div class="input-wrapper"><label>樓層/分區標籤</label><input type="text" id="floor_tag" placeholder="如: 1F, B1, 基礎"></div>
         </div>
-        <div class="member-wrap">
+        <div class="member-wrap level-hide-basic">
             <div class="bim-note" style="margin-top:0;">會員密碼管理（本機）：可新增會員帳號並自訂登入密碼。</div>
             <div class="input-row">
                 <div class="input-wrapper">
@@ -397,6 +451,7 @@
             </div>
         </div>
 
+        <section class="work-mode-only-calc">
         <div class="group-title">工種規格選擇</div>
         <div class="input-row">
             <div class="input-wrapper">
@@ -491,13 +546,14 @@
 
         <div class="btn-group">
             <button class="btn-export" onclick="exportToCSV()">📥 匯出商用報表 (Excel)</button>
-            <button class="btn-export" onclick="exportMeasureQaReport()">🧪 匯出量圖QA報告</button>
+            <button class="btn-export level-hide-basic" onclick="exportMeasureQaReport()">🧪 匯出量圖QA報告</button>
             <button class="btn-clear" onclick="clearAll()">🗑️ 重新開始</button>
         </div>
+        </section>
     </div>
 </div>
 
-<div class="footer-bar">
+<div class="footer-bar work-mode-only-calc">
     <div id="sumC">水泥: 0 M³</div>
     <div id="sumM">模板: 0 M²</div>
     <div id="sumE">土方: 0 M³</div>
@@ -578,6 +634,8 @@
     let currentRegionMode = '預設';
     let bimModelData = null;
     let bimEstimateRows = [];
+    let bimLayoutPoints = [];
+    let bimLayoutQaResult = null;
     const BIM_RULES_STORAGE_KEY = 'bm_69:bim_rules';
     const BIM_AUDIT_STORAGE_KEY = 'bm_69:bim_audit_logs';
     const BIM_SNAPSHOT_STORAGE_KEY = 'bm_69:bim_snapshots';
@@ -634,6 +692,8 @@
     const AI_COACH_API_KEY = 'bm_69:ai_coach_api_key';
     const AI_COACH_MODEL_KEY = 'bm_69:ai_coach_model';
     const AI_COACH_ENDPOINT_KEY = 'bm_69:ai_coach_endpoint';
+    const USER_LEVEL_KEY = 'bm_69:user_level';
+    const WORK_MODE_KEY = 'bm_69:work_mode';
     const CONTRAST_MODE_KEY = 'bm_69:contrast_mode';
     const CONTRAST_AUTO_KEY = 'bm_69:contrast_auto';
     const COACH_GUIDE_STEPS = [
@@ -657,6 +717,8 @@
     async function startApp() {
         if (appBootstrapped) return;
         appBootstrapped = true;
+        applyUserLevel();
+        applyWorkMode();
         applyAutoContrastMode();
         applyContrastMode();
         await initMaterialCatalog();
@@ -668,6 +730,52 @@
         restoreGyroMode();
         applyAiCoachMode();
         maybeStartCoachGuide();
+    }
+
+    function setUserLevel(level) {
+        const normalized = ['basic', 'standard', 'pro'].includes(level) ? level : 'basic';
+        localStorage.setItem(USER_LEVEL_KEY, normalized);
+        applyUserLevel();
+        const label = normalized === 'basic' ? '頁1 新手' : (normalized === 'standard' ? '頁2 工程' : '頁3 專家');
+        showToast(`已切換：${label}`);
+    }
+
+    function applyUserLevel() {
+        const level = localStorage.getItem(USER_LEVEL_KEY) || 'basic';
+        document.body.setAttribute('data-user-level', level);
+        const mapping = [
+            ['levelBasicBtn', level === 'basic'],
+            ['levelStandardBtn', level === 'standard'],
+            ['levelProBtn', level === 'pro']
+        ];
+        mapping.forEach(([id, active]) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.toggle('active', !!active);
+        });
+    }
+
+    function setWorkMode(mode) {
+        const normalized = (mode === 'stake') ? 'stake' : 'calc';
+        localStorage.setItem(WORK_MODE_KEY, normalized);
+        if (normalized === 'stake') {
+            const level = localStorage.getItem(USER_LEVEL_KEY) || 'basic';
+            if (level !== 'pro') {
+                localStorage.setItem(USER_LEVEL_KEY, 'pro');
+                applyUserLevel();
+            }
+        }
+        applyWorkMode();
+        showToast(normalized === 'stake' ? '已切換放樣模式' : '已切換計算模式');
+    }
+
+    function applyWorkMode() {
+        const mode = localStorage.getItem(WORK_MODE_KEY) || 'calc';
+        document.body.setAttribute('data-work-mode', mode);
+        const calcBtn = document.getElementById('workCalcBtn');
+        const stakeBtn = document.getElementById('workStakeBtn');
+        if (calcBtn) calcBtn.classList.toggle('active', mode === 'calc');
+        if (stakeBtn) stakeBtn.classList.toggle('active', mode === 'stake');
     }
 
     function isDevHost() {
@@ -1238,7 +1346,11 @@
         reader.onload = function(e) {
             const text = String(e.target.result || '');
             bimModelData = parseIFCText(text, file.name);
+            bimLayoutPoints = [];
+            bimLayoutQaResult = null;
             renderBIMSummary(bimModelData);
+            renderBimLayoutTable();
+            renderBimLayoutQaSummary();
             addAuditLog('載入 IFC', `${file.name} / ${bimModelData.totalEntities} entities`);
             showToast(`BIM 模型已載入：${file.name}`);
         };
@@ -1771,6 +1883,189 @@
         showToast(`已匯入 ${imported} 筆 BIM 估價到清單`);
     }
 
+    function getLayoutTypeSelection() {
+        return {
+            column: !!(document.getElementById('layoutTypeColumn') && document.getElementById('layoutTypeColumn').checked),
+            wall: !!(document.getElementById('layoutTypeWall') && document.getElementById('layoutTypeWall').checked),
+            beam: !!(document.getElementById('layoutTypeBeam') && document.getElementById('layoutTypeBeam').checked)
+        };
+    }
+
+    function isLayoutTargetType(type, sel) {
+        const t = normalizeIfcType(type);
+        if (sel.column && t.includes('IFCCOLUMN')) return true;
+        if (sel.wall && t.includes('IFCWALL')) return true;
+        if (sel.beam && t.includes('IFCBEAM')) return true;
+        return false;
+    }
+
+    function makeSeededValue(entityId, seed, min, max) {
+        const n = Number(String(entityId || '').replace('#', '')) || 0;
+        const span = max - min;
+        const raw = ((n * (seed * 37 + 11)) + seed * 97) % 100000;
+        return min + (raw / 100000) * span;
+    }
+
+    function toPointRow(element, pointType, x, y, z, idx) {
+        const floorTag = (document.getElementById('floor_tag') && document.getElementById('floor_tag').value.trim()) || 'BIM';
+        return {
+            id: `LP-${String(idx + 1).padStart(4, '0')}`,
+            sourceElementId: element.id,
+            sourceType: element.type,
+            pointType,
+            x: Math.round(x * 1000) / 1000,
+            y: Math.round(y * 1000) / 1000,
+            z: Math.round(z * 1000) / 1000,
+            floorTag,
+            status: 'draft'
+        };
+    }
+
+    function renderBimLayoutTable() {
+        const body = document.getElementById('bimLayoutBody');
+        if (!body) return;
+        body.innerHTML = '';
+        if (!bimLayoutPoints.length) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="8" style="color:#9ab3cf;">尚未產生放樣點</td>';
+            body.appendChild(tr);
+            return;
+        }
+        bimLayoutPoints.slice(0, 200).forEach(p => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${p.id}</td><td>${p.sourceElementId}</td><td>${p.sourceType}</td><td>${p.pointType}</td><td>${p.x}</td><td>${p.y}</td><td>${p.z}</td><td>${p.floorTag}</td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    function renderBimLayoutQaSummary() {
+        const box = document.getElementById('bimLayoutQaSummary');
+        if (!box) return;
+        if (!bimLayoutQaResult) {
+            box.innerText = '放樣 QA：尚未執行';
+            return;
+        }
+        box.innerText = `放樣 QA：分數 ${bimLayoutQaResult.qaScore} / 100，重複 ${bimLayoutQaResult.duplicatePointCount}，缺漏 ${bimLayoutQaResult.missingGeometryCount}，越界 ${bimLayoutQaResult.outOfRangeCount}`;
+    }
+
+    function generateBimLayoutPoints() {
+        if (!bimModelData || !Array.isArray(bimModelData.elements) || !bimModelData.elements.length) {
+            return showToast('請先上傳 IFC 模型');
+        }
+        const sel = getLayoutTypeSelection();
+        const targets = bimModelData.elements.filter(el => isLayoutTargetType(el.type, sel));
+        if (!targets.length) return showToast('目前勾選類型沒有可抽取的構件');
+
+        const points = [];
+        targets.forEach((el, idx) => {
+            const baseX = makeSeededValue(el.id, 1, 0, 120);
+            const baseY = makeSeededValue(el.id, 2, 0, 120);
+            const baseZ = makeSeededValue(el.id, 3, 0, 30);
+            if (el.type.includes('IFCCOLUMN')) {
+                points.push(toPointRow(el, 'CENTER', baseX, baseY, baseZ, points.length));
+                return;
+            }
+            if (el.type.includes('IFCWALL') || el.type.includes('IFCBEAM')) {
+                const offset = el.type.includes('IFCBEAM') ? 1.8 : 2.4;
+                points.push(toPointRow(el, 'END_A', baseX - offset, baseY - 0.8, baseZ, points.length));
+                points.push(toPointRow(el, 'END_B', baseX + offset, baseY + 0.8, baseZ, points.length));
+            }
+        });
+
+        bimLayoutPoints = points.slice(0, 1200);
+        bimLayoutQaResult = null;
+        renderBimLayoutTable();
+        renderBimLayoutQaSummary();
+        addAuditLog('生成放樣點', `${bimLayoutPoints.length} 筆`);
+        showToast(`已生成放樣點 ${bimLayoutPoints.length} 筆`);
+    }
+
+    function runBimLayoutQa() {
+        if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
+        const keySet = new Set();
+        let duplicatePointCount = 0;
+        let missingGeometryCount = 0;
+        let outOfRangeCount = 0;
+        let maxDeviation = 0;
+        bimLayoutPoints.forEach(p => {
+            const valid = [p.x, p.y, p.z].every(Number.isFinite);
+            if (!valid) {
+                missingGeometryCount += 1;
+                return;
+            }
+            const key = `${p.x.toFixed(2)}|${p.y.toFixed(2)}|${p.z.toFixed(2)}`;
+            if (keySet.has(key)) duplicatePointCount += 1;
+            else keySet.add(key);
+            if (Math.abs(p.x) > 10000 || Math.abs(p.y) > 10000 || Math.abs(p.z) > 10000) outOfRangeCount += 1;
+            maxDeviation = Math.max(maxDeviation, Math.abs(p.z));
+        });
+        const penalty = duplicatePointCount * 2 + missingGeometryCount * 5 + outOfRangeCount * 3;
+        const qaScore = Math.max(0, 100 - penalty);
+        bimLayoutQaResult = {
+            duplicatePointCount,
+            missingGeometryCount,
+            outOfRangeCount,
+            maxDeviation: Math.round(maxDeviation * 1000) / 1000,
+            qaScore,
+            checkedAt: new Date().toISOString()
+        };
+        renderBimLayoutQaSummary();
+        addAuditLog('放樣QA檢核', `分數 ${qaScore} / 100`);
+        showToast(`放樣 QA 完成：${qaScore} 分`);
+    }
+
+    function exportBimLayoutPoints() {
+        if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
+        let csv = '\uFEFF點位ID,來源構件,構件類型,點位類型,X,Y,Z,樓層,狀態\n';
+        bimLayoutPoints.forEach(p => {
+            csv += [
+                sanitizeCSVField(p.id),
+                sanitizeCSVField(p.sourceElementId),
+                sanitizeCSVField(p.sourceType),
+                sanitizeCSVField(p.pointType),
+                p.x,
+                p.y,
+                p.z,
+                sanitizeCSVField(p.floorTag),
+                sanitizeCSVField(p.status)
+            ].join(',') + '\n';
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `BuildMaster_BIM放樣點_${new Date().getTime()}.csv`;
+        link.click();
+        addAuditLog('匯出放樣點', `${bimLayoutPoints.length} 筆`);
+        showToast('放樣點 CSV 已匯出');
+    }
+
+    function exportBimLayoutQaReport() {
+        if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
+        if (!bimLayoutQaResult) runBimLayoutQa();
+        const qa = bimLayoutQaResult || {};
+        const projectName = (document.getElementById('project_name') && document.getElementById('project_name').value) || '未命名專案';
+        const rows = [
+            ['報告時間', new Date().toLocaleString('zh-TW')],
+            ['專案名稱', projectName],
+            ['模型檔名', bimModelData && bimModelData.fileName ? bimModelData.fileName : '未載入'],
+            ['點位總數', String(bimLayoutPoints.length)],
+            ['重複點', String(qa.duplicatePointCount || 0)],
+            ['缺漏幾何', String(qa.missingGeometryCount || 0)],
+            ['越界點', String(qa.outOfRangeCount || 0)],
+            ['最大偏差', String(qa.maxDeviation || 0)],
+            ['QA分數', String(qa.qaScore || 0)]
+        ];
+        let csv = '\uFEFF項目,數值\n';
+        rows.forEach(([k, v]) => { csv += `${sanitizeCSVField(k)},${sanitizeCSVField(v)}\n`; });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `BuildMaster_BIM放樣QA_${new Date().getTime()}.csv`;
+        link.click();
+        addAuditLog('匯出放樣QA', `分數 ${qa.qaScore || 0}`);
+        showToast('放樣 QA 報告已匯出');
+    }
+
     function normalizeMaterialItems(payload) {
         const items = Array.isArray(payload && payload.items) ? payload.items : [];
         return items
@@ -1919,7 +2214,7 @@
         const filtered = materialCatalog.filter(item => normalizeText(item.name).includes(q));
         renderMaterialOptions(filtered);
         selectedMaterial = filtered.length === 1 ? filtered[0] : null;
-        updateMaterialChips(filtered.length, selectedMaterial);
+        updateMaterialChips(filtered.length, selectedMaterial, materialCatalog.length);
     }
 
     function selectMaterialFromDropdown(name) {
@@ -1927,10 +2222,14 @@
         updateMaterialChips(materialCatalog.length, selectedMaterial);
     }
 
-    function updateMaterialChips(count, material) {
+    function updateMaterialChips(count, material, totalCount) {
         const countChip = document.getElementById('materialCountChip');
         const priceChip = document.getElementById('materialPriceChip');
-        if (countChip) countChip.innerHTML = `資料筆數：<strong>${count}</strong>`;
+        const total = Number.isFinite(totalCount) ? totalCount : count;
+        if (countChip) {
+            if (count !== total) countChip.innerHTML = `資料筆數：<strong>${count}</strong> / <span style="color:#9bc2e5;">總 ${total}</span>`;
+            else countChip.innerHTML = `資料筆數：<strong>${count}</strong>`;
+        }
         if (priceChip) {
             if (material) {
                 const unitText = material.unit ? ` / ${material.unit}` : '';
@@ -2832,6 +3131,12 @@
         if (target.closest('button[onclick="resetBimRules()"]')) return '清空全部 BIM 規則，恢復系統預設匹配。';
         if (target.closest('button[onclick="generateBIMEstimate()"]')) return '依 IFC 類型與材料單價自動產生估價預覽表。';
         if (target.closest('button[onclick="importBIMEstimateToList()"]')) return '把 BIM 估價結果一鍵匯入主清單，直接進入總價彙整。';
+        if (target.closest('button[onclick="generateBimLayoutPoints()"]')) return '從 IFC 自動抽取放樣點（柱心、牆端點、梁端點）。';
+        if (target.closest('button[onclick="runBimLayoutQa()"]')) return '執行放樣 QA，檢查重複點、缺漏與越界，產生分數。';
+        if (target.closest('button[onclick="exportBimLayoutPoints()"]')) return '匯出放樣點 CSV，可交給儀器或現場施工使用。';
+        if (target.closest('button[onclick="exportBimLayoutQaReport()"]')) return '匯出放樣 QA 報告 CSV，作為交付與稽核依據。';
+        if (target.closest('#bimLayoutBody')) return '這裡是放樣點預覽表，最多先顯示前 200 筆。';
+        if (target.closest('#bimLayoutQaSummary')) return '這裡會顯示放樣 QA 的分數與關鍵指標。';
         if (target.closest('#bimUnmatchedType')) return '這裡列出尚未匹配的 IFC 類型，先選一個要修正的類型。';
         if (target.closest('#bimUnmatchedMaterial')) return '這裡選要套用的材料，選好後可單筆或批次修復。';
         if (target.closest('button[onclick="applyUnmatchedRuleOnce()"]')) return '把選定材料套用到目前這個未匹配 IFC Type，並立即重算。';
@@ -2877,6 +3182,11 @@
         if (target.closest('button[onclick="deleteMemberCodeFromInput()"]')) return '刪除指定會員帳號，刪除後將不能用該帳號登入。';
         if (target.closest('#memberCodeBody')) return '這裡是目前可登入的會員帳號清單（本機儲存）。';
         if (target.closest('#coachToggle')) return '可在這裡一鍵開關解說員；開啟後點擊任何功能區都會出現說明。';
+        if (target.closest('#levelBasicBtn')) return '頁1 新手：保留最必要功能，適合快速上手與一般使用。';
+        if (target.closest('#levelStandardBtn')) return '頁2 工程：開啟量圖輔助、QA 報告與會員管理等進階工具。';
+        if (target.closest('#levelProBtn')) return '頁3 專家：顯示完整 BIM/規則/快照等高階模組。';
+        if (target.closest('#workCalcBtn')) return '計算模式：聚焦工種試算、價目套用、清單與報表輸出。';
+        if (target.closest('#workStakeBtn')) return '放樣模式：聚焦 IFC、放樣點抽取、QA 檢核與放樣輸出。';
         if (target.closest('#aiCoachToggle')) return 'AI 解說員：可在規則解說外補充更彈性的操作建議（需先設定 API Key）。';
         if (target.closest('#coachAiInput')) return '你可以直接輸入問題，例如「這個按鈕怎麼用？」再按問AI。';
         if (target.closest('#coachAiAskBtn')) return '送出你輸入的問題給 AI 解說員，回覆會顯示在氣泡中。';

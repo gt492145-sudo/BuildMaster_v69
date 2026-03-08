@@ -9,6 +9,7 @@
     :root { --bg: #1e272e; --panel: #2f3640; --text: #ecf0f1; --radar: #00ff00; --accent: #f39c12; --btn: #3498db; --danger: #e74c3c; }
     body { font-family: sans-serif; margin: 0; padding: 10px; background-color: var(--bg); color: var(--text); }
     header { background: #000; color: var(--accent); padding: 15px; text-align: center; font-size: 1.5em; font-weight: bold; border-bottom: 2px solid var(--accent); margin-bottom: 15px; }
+    .live-badge { display: inline-flex; align-items: center; margin-left: 10px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(222, 189, 255, 0.72); background: linear-gradient(135deg, rgba(108, 60, 188, 0.9), rgba(139, 92, 246, 0.9)); color: #f7ebff; font-size: 0.46em; letter-spacing: 0.8px; vertical-align: middle; }
     
     .global-settings { background: rgba(0,0,0,0.5); padding: 15px; border: 1px dashed var(--accent); border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; }
     .global-settings input { width: 120px; padding: 8px; background: #222; color: #fff; border: 1px solid #555; }
@@ -35,7 +36,7 @@
 </head>
 <body>
 
-<header>🏗️ BuildMaster 通用放樣精算系統 (V4.2 衛星制導版)</header>
+<header>🏗️ BuildMaster 通用放樣精算系統 (V4.2 衛星制導版)<span class="live-badge">正式版 LIVE</span></header>
 
 <div class="global-settings">
     <div style="width: 100%; color: var(--accent); font-weight: bold; margin-bottom: 5px;">📍 專案基準點設定 (Global Settings)</div>
