@@ -3818,6 +3818,10 @@
 
     function previewCalc() {
         const type = document.getElementById('calcType').value;
+        const typeSelector = document.getElementById('calcType');
+        const selectedType = typeSelector && typeSelector.options[typeSelector.selectedIndex]
+            ? String(typeSelector.options[typeSelector.selectedIndex].text || '')
+            : '';
         const v1 = readInputNumber('v1', 0);
         const v2 = readInputNumber('v2', 0);
         const v3 = readInputNumber('v3', 0);
@@ -3834,9 +3838,28 @@
         }
 
         const result = coreCalculate(type, v1, v2, v3, n, up);
-        
-        document.getElementById('prev_qty').innerText = result.res.toFixed(2);
-        document.getElementById('prev_unit').innerText = result.unit;
+
+        let resultDisplay = '';
+        let resultUnitDisplay = '';
+
+        if (type.startsWith('M_') || selectedType.includes('模板') || selectedType.includes('漆') || selectedType.includes('地磚')) {
+            const area = result.res;
+            const tsubo = area * 0.3025;
+            resultDisplay = `${area.toFixed(2)} M² (${tsubo.toFixed(2)} 坪)`;
+            resultUnitDisplay = '面積';
+        } else if (type.startsWith('R_') || selectedType.includes('鋼筋') || selectedType.includes('鐵')) {
+            const weightKg = result.res;
+            const tons = weightKg / 1000;
+            resultDisplay = `${weightKg.toFixed(2)} kg (${tons.toFixed(3)} t)`;
+            resultUnitDisplay = '重量';
+        } else {
+            const volume = result.res;
+            resultDisplay = `${volume.toFixed(2)} M³`;
+            resultUnitDisplay = '體積';
+        }
+
+        document.getElementById('prev_qty').innerText = resultDisplay;
+        document.getElementById('prev_unit').innerText = resultUnitDisplay;
         document.getElementById('prev_cost').innerText = "$ " + Math.round(result.totalCost).toLocaleString();
         updateAddButtonState(true);
     }
