@@ -1067,13 +1067,14 @@
     }
 
     function applyUserLevel() {
-        safeStorage.set(localStorage, USER_LEVEL_KEY, 'pro');
-        const level = 'pro';
-        document.body.setAttribute('data-user-level', level);
+        const level = safeStorage.get(localStorage, USER_LEVEL_KEY, 'basic');
+        const normalized = ['basic', 'standard', 'pro'].includes(level) ? level : 'basic';
+        safeStorage.set(localStorage, USER_LEVEL_KEY, normalized);
+        document.body.setAttribute('data-user-level', normalized);
         const mapping = [
-            ['levelBasicBtn', level === 'basic'],
-            ['levelStandardBtn', level === 'standard'],
-            ['levelProBtn', level === 'pro']
+            ['levelBasicBtn', normalized === 'basic'],
+            ['levelStandardBtn', normalized === 'standard'],
+            ['levelProBtn', normalized === 'pro']
         ];
         mapping.forEach(([id, active]) => {
             const el = document.getElementById(id);
