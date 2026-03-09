@@ -282,12 +282,15 @@
             <button id="btnCtrlVoice" class="tool-btn" onclick="toggleFeatureFlag('voice')">語音助理: 開</button>
             <button id="btnCtrlLaser" class="tool-btn" onclick="toggleFeatureFlag('laser')">雷射尺: 開</button>
             <button id="btnCtrlWarRoom" class="tool-btn" onclick="toggleFeatureFlag('warRoom')">戰情室: 開</button>
+            <button id="btnQaStress" class="tool-btn" style="border-color:#ffd166; color:#ffe4a1;" onclick="toggleQaStressTest()">QA 壓力測試: 關</button>
             <button class="tool-btn" style="border-color:#ff7675; color:#ffd0ce;" onclick="stopAllRealtimeFeatures()">⛔ 一鍵停止即時功能</button>
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
             <span id="laserModeChip" class="status-pill">雷射尺模式：模擬 / 停止</span>
+            <span id="laserChaosChip" class="status-pill">雷射災難計數：斷線 0 / 髒數據 0 / 成功 0</span>
             <span id="warRoomModeChip" class="status-pill">戰情室模式：模擬協作 / 離線</span>
             <button id="btnWarRoomRows" class="tool-btn" style="padding:4px 10px;" onclick="toggleWarRoomRows()">顯示雲端資料: 開</button>
+            <button class="tool-btn" style="padding:4px 10px;" onclick="resetLaserChaosStats()">重置雷射計數</button>
             <button class="tool-btn" style="padding:4px 10px; border-color:#00d2d3; color:#9ef3f3;" onclick="stopLaserRuler()">停止雷射模擬</button>
         </div>
         </section>
@@ -733,7 +736,7 @@
     // 載入資料並檢查版本 (降級策略)
     let list = [];
     try {
-        const storedData = localStorage.getItem(STORAGE_KEY);
+        const storedData = safeStorage.get(localStorage, STORAGE_KEY, '');
         if (storedData) {
             const parsed = JSON.parse(storedData);
             // 簡單的版本檢查，若結構大改可在此處寫轉換邏輯
@@ -802,6 +805,217 @@
     let showWarRoomRows = true;
     let demoModeEnabled = true;
     let warRoomList = [];
+    let resilienceGuardsBound = false;
+    const resilienceState = { globalErrors: 0, storageErrors: 0, networkErrors: 0, lastToastAt: 0 };
+    let watchdogTimer = null;
+    let lifecycleGuardsBound = false;
+    let watchdogLagStrikes = 0;
+    let watchdogLastTickAt = 0;
+    let safeModeActive = false;
+    let last3DMoveAt = 0;
+    let qaStressMode = false;
+    let qaStressRenderTimer = null;
+    let qaStressNetworkTimer = null;
+    let laserChaosStats = { disconnects: 0, dirtyBlocked: 0, successWrites: 0 };
+
+    function safeToast(message) {
+        const now = Date.now();
+        if (now - resilienceState.lastToastAt < 1200) return;
+        resilienceState.lastToastAt = now;
+        try {
+            if (typeof showToast === 'function') showToast(message);
+        } catch (_e) {}
+    }
+
+    function updateLaserChaosChip() {
+        const chip = document.getElementById('laserChaosChip');
+        if (!chip) return;
+        chip.innerText = `雷射災難計數：斷線 ${laserChaosStats.disconnects} / 髒數據 ${laserChaosStats.dirtyBlocked} / 成功 ${laserChaosStats.successWrites}`;
+    }
+
+    const safeStorage = {
+        get(storage, key, fallback = '') {
+            try {
+                const value = storage.getItem(key);
+                return value === null ? fallback : value;
+            } catch (error) {
+                resilienceState.storageErrors += 1;
+                console.warn('讀取儲存資料失敗', key, error);
+                return fallback;
+            }
+        },
+        set(storage, key, value) {
+            try {
+                storage.setItem(key, value);
+                return true;
+            } catch (error) {
+                resilienceState.storageErrors += 1;
+                console.warn('寫入儲存資料失敗', key, error);
+                safeToast('儲存空間不足或受限，已保留目前操作但暫無法寫入本機。');
+                return false;
+            }
+        },
+        remove(storage, key) {
+            try {
+                storage.removeItem(key);
+                return true;
+            } catch (error) {
+                resilienceState.storageErrors += 1;
+                console.warn('移除儲存資料失敗', key, error);
+                return false;
+            }
+        }
+    };
+
+    function initGlobalErrorGuards() {
+        if (resilienceGuardsBound) return;
+        resilienceGuardsBound = true;
+        window.addEventListener('error', event => {
+            resilienceState.globalErrors += 1;
+            console.error('全域錯誤', event.error || event.message || event);
+            safeToast('偵測到執行異常，已啟用保護模式。');
+        });
+        window.addEventListener('unhandledrejection', event => {
+            resilienceState.globalErrors += 1;
+            console.error('未處理的非同步錯誤', event.reason || event);
+            safeToast('偵測到非同步異常，已自動降級部分功能。');
+        });
+    }
+
+    async function fetchWithRetry(url, options = {}, retryOptions = {}) {
+        const retries = Number.isInteger(retryOptions.retries) ? retryOptions.retries : 2;
+        const baseDelayMs = Number.isFinite(retryOptions.baseDelayMs) ? retryOptions.baseDelayMs : 350;
+        const timeoutMs = Number.isFinite(retryOptions.timeoutMs) ? retryOptions.timeoutMs : 8000;
+        const retryOnStatuses = Array.isArray(retryOptions.retryOnStatuses)
+            ? retryOptions.retryOnStatuses
+            : [408, 425, 429, 500, 502, 503, 504];
+        const qaChaosEnabled = qaStressMode && retryOptions.enableQaChaos !== false;
+
+        let lastError = null;
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+            try {
+                if (qaChaosEnabled) {
+                    const jitter = 80 + Math.floor(Math.random() * 420);
+                    await new Promise(resolve => setTimeout(resolve, jitter));
+                    if (Math.random() < 0.16) throw new Error('QA injected network jitter failure');
+                }
+                const mergedOptions = controller
+                    ? { ...options, signal: controller.signal }
+                    : options;
+                const response = await fetch(url, mergedOptions);
+                if (!response.ok && attempt < retries && retryOnStatuses.includes(response.status)) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response;
+            } catch (error) {
+                lastError = error;
+                if (attempt >= retries) break;
+                const delay = baseDelayMs * Math.pow(2, attempt) + Math.floor(Math.random() * 120);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            } finally {
+                if (timeoutId) clearTimeout(timeoutId);
+            }
+        }
+
+        resilienceState.networkErrors += 1;
+        console.warn('網路請求重試後仍失敗', url, lastError);
+        throw lastError || new Error('Network request failed');
+    }
+
+    function enterSafeMode(reason) {
+        if (safeModeActive) return;
+        safeModeActive = true;
+        console.warn('進入安全模式:', reason);
+        stopQaStressTest(true);
+
+        stop360Spin();
+        stopGyroMode(true);
+        stopLaserRuler(false);
+        if (voiceGuardTimer) {
+            clearTimeout(voiceGuardTimer);
+            voiceGuardTimer = null;
+        }
+        if (voiceRecognition) {
+            try { voiceRecognition.stop(); } catch (_e) {}
+        }
+        if (warRoomConnectTimer) {
+            clearTimeout(warRoomConnectTimer);
+            warRoomConnectTimer = null;
+        }
+        if (warRoomTimer) {
+            clearInterval(warRoomTimer);
+            warRoomTimer = null;
+        }
+        if (isWarRoomActive) {
+            isWarRoomActive = false;
+            safeStorage.set(localStorage, WAR_ROOM_KEY, '0');
+            warRoomList = [];
+            renderTable();
+            applyWarRoomStatus();
+        }
+        if (typeof edgeAiVisionRunning !== 'undefined' && edgeAiVisionRunning) {
+            stopEdgeAIVision();
+        }
+        safeToast('偵測到卡頓風險，已自動降載並切換安全模式。');
+        applyFeatureControlStatus();
+    }
+
+    function startMainThreadWatchdog() {
+        if (watchdogTimer) return;
+        watchdogLastTickAt = Date.now();
+        watchdogLagStrikes = 0;
+        watchdogTimer = setInterval(() => {
+            const now = Date.now();
+            const drift = now - watchdogLastTickAt - 1500;
+            watchdogLastTickAt = now;
+            if (drift > 2200) {
+                watchdogLagStrikes += 1;
+                console.warn(`主執行緒卡頓偵測：${Math.round(drift)}ms`);
+            } else if (watchdogLagStrikes > 0) {
+                watchdogLagStrikes -= 1;
+            }
+            if (!safeModeActive && watchdogLagStrikes >= 2) {
+                enterSafeMode(`event-loop lag ${Math.round(drift)}ms`);
+            }
+        }, 1500);
+    }
+
+    function bindLifecycleResilience() {
+        if (lifecycleGuardsBound) return;
+        lifecycleGuardsBound = true;
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                applyWarRoomStatus();
+                return;
+            }
+            stop360Spin();
+            if (voiceRecognition) {
+                try { voiceRecognition.stop(); } catch (_e) {}
+            }
+            if (warRoomTimer) {
+                clearInterval(warRoomTimer);
+                warRoomTimer = null;
+            }
+            if (warRoomConnectTimer) {
+                clearTimeout(warRoomConnectTimer);
+                warRoomConnectTimer = null;
+            }
+        });
+        window.addEventListener('pagehide', () => {
+            stop360Spin();
+            stopLaserRuler(false);
+            if (voiceGuardTimer) {
+                clearTimeout(voiceGuardTimer);
+                voiceGuardTimer = null;
+            }
+            if (warRoomTimer) {
+                clearInterval(warRoomTimer);
+                warRoomTimer = null;
+            }
+        });
+    }
 
     window.onload = async function() {
         const canStart = await bootstrapSecurity();
@@ -812,6 +1026,9 @@
     async function startApp() {
         if (appBootstrapped) return;
         appBootstrapped = true;
+        initGlobalErrorGuards();
+        bindLifecycleResilience();
+        startMainThreadWatchdog();
         loadDemoMode();
         loadFeatureFlags();
         loadWarRoomRowVisibility();
@@ -835,22 +1052,23 @@
     }
 
     function loadDemoMode() {
-        if (localStorage.getItem(DEMO_MODE_KEY) === null) {
-            localStorage.setItem(DEMO_MODE_KEY, '1');
+        if (safeStorage.get(localStorage, DEMO_MODE_KEY, null) === null) {
+            safeStorage.set(localStorage, DEMO_MODE_KEY, '1');
         }
-        demoModeEnabled = localStorage.getItem(DEMO_MODE_KEY) === '1';
+        demoModeEnabled = safeStorage.get(localStorage, DEMO_MODE_KEY, '1') === '1';
     }
 
     function setUserLevel(level) {
         const normalized = ['basic', 'standard', 'pro'].includes(level) ? level : 'basic';
-        localStorage.setItem(USER_LEVEL_KEY, normalized);
+        safeStorage.set(localStorage, USER_LEVEL_KEY, normalized);
         applyUserLevel();
         const label = normalized === 'basic' ? '頁1 新手' : (normalized === 'standard' ? '頁2 工程' : '頁3 專家');
         showToast(`已切換：${label}`);
     }
 
     function applyUserLevel() {
-        const level = localStorage.getItem(USER_LEVEL_KEY) || 'basic';
+        safeStorage.set(localStorage, USER_LEVEL_KEY, 'pro');
+        const level = 'pro';
         document.body.setAttribute('data-user-level', level);
         const mapping = [
             ['levelBasicBtn', level === 'basic'],
@@ -936,10 +1154,17 @@
         });
         const laserChip = document.getElementById('laserModeChip');
         if (laserChip) laserChip.innerText = `雷射尺模式：${laserRulerMode === 'mock' ? '模擬資料流' : '真機'} / ${fakeLaserTimer ? '運行中' : '停止'}`;
+        updateLaserChaosChip();
         const warChip = document.getElementById('warRoomModeChip');
         if (warChip) warChip.innerText = `戰情室模式：模擬協作 / ${isWarRoomActive ? 'LIVE' : '離線'}`;
         const rowsBtn = document.getElementById('btnWarRoomRows');
         if (rowsBtn) rowsBtn.innerText = `顯示雲端資料: ${showWarRoomRows ? '開' : '關'}`;
+        const qaBtn = document.getElementById('btnQaStress');
+        if (qaBtn) {
+            qaBtn.innerText = `QA 壓力測試: ${qaStressMode ? '開' : '關'}`;
+            qaBtn.style.borderColor = qaStressMode ? '#ff7675' : '#ffd166';
+            qaBtn.style.color = qaStressMode ? '#ffd0ce' : '#ffe4a1';
+        }
     }
 
     function toggleFeatureFlag(key) {
@@ -990,8 +1215,66 @@
             voiceGuardTimer = null;
         }
         if (isWarRoomActive) toggleWarRoom();
+        stopQaStressTest(true);
         applyFeatureControlStatus();
         showToast('即時功能已全部停止');
+    }
+
+    async function runQaStressNetworkProbe() {
+        try {
+            await fetchWithRetry(
+                `${PRICES_JSON_URL}?qa_stress=${Date.now()}`,
+                { cache: 'no-store' },
+                { retries: 1, timeoutMs: 2400 }
+            );
+        } catch (_e) {
+            // 壓測模式預期可容忍失敗，僅記錄狀態，不中斷主流程。
+        }
+    }
+
+    function startQaStressTest() {
+        if (qaStressMode) return;
+        qaStressMode = true;
+        createDataSnapshot('QA壓力測試前', true);
+
+        qaStressRenderTimer = setInterval(() => {
+            if (!qaStressMode) return;
+            try {
+                renderTable();
+                previewCalc();
+                applyFeatureControlStatus();
+            } catch (err) {
+                console.warn('QA render stress tick failed', err);
+            }
+        }, 900);
+
+        qaStressNetworkTimer = setInterval(() => {
+            if (!qaStressMode) return;
+            runQaStressNetworkProbe();
+        }, 1800);
+
+        applyFeatureControlStatus();
+        showToast('QA 壓力測試已啟動（含網路抖動與高頻重繪）');
+    }
+
+    function stopQaStressTest(silent) {
+        if (qaStressRenderTimer) {
+            clearInterval(qaStressRenderTimer);
+            qaStressRenderTimer = null;
+        }
+        if (qaStressNetworkTimer) {
+            clearInterval(qaStressNetworkTimer);
+            qaStressNetworkTimer = null;
+        }
+        if (!qaStressMode) return;
+        qaStressMode = false;
+        applyFeatureControlStatus();
+        if (!silent) showToast('QA 壓力測試已停止');
+    }
+
+    function toggleQaStressTest() {
+        if (qaStressMode) return stopQaStressTest(false);
+        startQaStressTest();
     }
 
     function toggleWarRoomRows() {
@@ -1000,6 +1283,12 @@
         applyFeatureControlStatus();
         renderTable();
         showToast(showWarRoomRows ? '已顯示雲端資料' : '已隱藏雲端資料');
+    }
+
+    function resetLaserChaosStats() {
+        laserChaosStats = { disconnects: 0, dirtyBlocked: 0, successWrites: 0 };
+        updateLaserChaosChip();
+        showToast('雷射災難計數已重置');
     }
 
     function isDevHost() {
@@ -1121,6 +1410,10 @@
         }
         sessionStorage.setItem(SECURITY_UNLOCK_KEY, '1');
         if (account) sessionStorage.setItem('bm_69:member', account);
+        if (isMemberLogin) {
+            localStorage.setItem(USER_LEVEL_KEY, 'pro');
+            document.body.setAttribute('data-user-level', 'pro');
+        }
         hideSecurityLock();
         if (hint) hint.innerText = '';
         if (memberInput) memberInput.value = '';
@@ -2396,7 +2689,11 @@
 
         for (const file of candidateFiles) {
             try {
-                const res = await fetch(`${file}?v=${Date.now()}`, { cache: 'no-store' });
+                const res = await fetchWithRetry(
+                    `${file}?v=${Date.now()}`,
+                    { cache: 'no-store' },
+                    { retries: 2, timeoutMs: 6500 }
+                );
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const payload = await res.json();
                 const normalized = normalizeMaterialItems(payload);
@@ -2519,7 +2816,7 @@
             });
             const { latitude, longitude } = pos.coords;
             const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&accept-language=zh-TW`;
-            const res = await fetch(url);
+            const res = await fetchWithRetry(url, {}, { retries: 1, timeoutMs: 5000 });
             if (!res.ok) return '';
             const data = await res.json();
             const address = data.address || {};
@@ -2971,6 +3268,31 @@
             return showToast('雷射尺功能目前已停用（請先到總控開啟）');
         }
         if (laserConnectInProgress) return showToast('雷射尺連線中，請稍候');
+
+        // Demo 模式直接進入混沌防禦測試，不依賴 Web Bluetooth。
+        if (demoModeEnabled) {
+            showToast('🔗 啟動【極致防禦測試】：工地混沌猴子出動！');
+            laserRulerMode = 'mock';
+            if (fakeLaserTimer) clearInterval(fakeLaserTimer);
+            fakeLaserTimer = setInterval(() => {
+                const scenario = Math.random();
+                if (scenario < 0.2) {
+                    handleLaserData('DISCONNECT');
+                    return;
+                }
+                if (scenario < 0.4) {
+                    const dirtyData = ['3..45', 'ERROR_02', 'NaN', '-5.5', '測量失敗'];
+                    const randomDirty = dirtyData[Math.floor(Math.random() * dirtyData.length)];
+                    handleLaserData(randomDirty);
+                    return;
+                }
+                const normalDistance = (Math.random() * 5 + 1).toFixed(2);
+                handleLaserData(normalDistance);
+            }, 3500);
+            applyFeatureControlStatus();
+            return;
+        }
+
         // 1. 檢查瀏覽器是否支援
         if (!navigator.bluetooth) {
             return showToast('⚠️ 你的瀏覽器不支援藍牙 API（建議使用 Android Chrome）');
@@ -3010,16 +3332,41 @@
         }
     }
 
-    // 4. 接收數據並自動填入目前作用中的數值欄位
-    function handleLaserData(distance) {
+    // 4. 接收數據並自動填入目前作用中的數值欄位（含混沌防禦資料清洗）
+    function handleLaserData(rawData) {
         const activeInput = document.activeElement;
+
+        // 防禦 1：模擬斷線
+        if (rawData === 'DISCONNECT') {
+            if (fakeLaserTimer) {
+                clearInterval(fakeLaserTimer);
+                fakeLaserTimer = null;
+            }
+            laserChaosStats.disconnects += 1;
+            document.body.style.boxShadow = 'inset 0 0 40px rgba(255, 71, 87, 0.6)';
+            setTimeout(() => { document.body.style.boxShadow = 'none'; }, 800);
+            applyFeatureControlStatus();
+            return showToast('🚨 【模擬災難】藍牙訊號中斷！請重新連線');
+        }
+
+        // 防禦 2：資料清洗（僅接受正數）
+        const cleanMatch = String(rawData).match(/^-?\d+(\.\d+)?/);
+        const distance = cleanMatch ? parseFloat(cleanMatch[0]) : NaN;
+        if (Number.isNaN(distance) || distance <= 0) {
+            laserChaosStats.dirtyBlocked += 1;
+            updateLaserChaosChip();
+            return showToast(`⚠️ 【模擬災難】收到髒數據：「${rawData}」，系統已自動擋下！`);
+        }
+
         if (activeInput && activeInput.tagName === 'INPUT' && activeInput.type === 'number') {
             activeInput.value = distance;
-            showToast(`📐 雷射尺傳入數據：${distance}m`);
+            laserChaosStats.successWrites += 1;
+            updateLaserChaosChip();
+            showToast(`📏 成功寫入數據：${distance}m`);
             previewCalc();
             return;
         }
-        console.log(`收到雷射數據 ${distance}m，但游標未停留在數值輸入框`);
+        console.log(`收到有效雷射數據 ${distance}m，但游標未停留在數值輸入框`);
     }
 
     function stopLaserRuler(withToast = true) {
@@ -3315,6 +3662,9 @@
 
     function on3DDragMove(e) {
         if (!dragState3D.active || !is3DView || is360Spinning) return;
+        const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        if (now - last3DMoveAt < 16) return;
+        last3DMoveAt = now;
         if (e.cancelable) e.preventDefault();
         const p = e.touches ? e.touches[0] : e;
         const dx = p.clientX - dragState3D.x;
@@ -3636,7 +3986,8 @@
             data: list,
             timestamp: new Date().toISOString()
         };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); 
+        const ok = safeStorage.set(localStorage, STORAGE_KEY, JSON.stringify(payload));
+        if (!ok) console.warn('saveData: 已跳過本機儲存，維持記憶體中的最新資料。');
     }
 
     function initTouchCoach() {
@@ -3708,14 +4059,6 @@
         }
         const next = !aiCoachState.enabled;
         if (next) {
-            const config = getAiCoachConfig();
-            let apiKey = config.apiKey;
-            if (!apiKey) {
-                apiKey = prompt('請輸入 AI API Key（僅存本機）') || '';
-                apiKey = String(apiKey).trim();
-                if (!apiKey) return showToast('未輸入 API Key，AI 解說未啟用');
-                localStorage.setItem(AI_COACH_API_KEY, apiKey);
-            }
             localStorage.setItem(AI_COACH_ENABLED_KEY, '1');
             if (!localStorage.getItem(AI_COACH_MODEL_KEY)) localStorage.setItem(AI_COACH_MODEL_KEY, 'gpt-4o-mini');
             // 開啟 AI 時同步開啟解說員，避免「AI 開了但點擊無回應」的誤解。
@@ -3725,8 +4068,8 @@
                 initTouchCoach();
             }
             applyAiCoachMode();
-            speakCoach('AI 解說員已開啟。你可直接在泡泡下方輸入問題。');
-            return showToast('AI 解說員已開啟');
+            speakCoach('AI 解說員已開啟（免解鎖模式）。你可直接在泡泡下方輸入問題。');
+            return showToast('AI 解說員已開啟（免解鎖）');
         }
         localStorage.setItem(AI_COACH_ENABLED_KEY, '0');
         applyAiCoachMode();
@@ -3736,31 +4079,38 @@
     async function askAiCoach(promptText) {
         if (!AI_API_ENABLED) throw new Error('AI API disabled');
         const config = getAiCoachConfig();
-        if (!config.apiKey) throw new Error('缺少 API Key');
+        if (!config.apiKey) {
+            // 免解鎖模式：未設定 API Key 時，回退到本機提示，不阻斷操作流程。
+            return '目前為免解鎖模式（未設定 API Key）。已切換為本機解說：請先確認地區價目、再輸入尺寸與數量，最後檢查即時小計。';
+        }
         aiCoachState.busy = true;
         applyAiCoachMode();
         try {
-            const res = await fetch(config.endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${config.apiKey}`
+            const res = await fetchWithRetry(
+                config.endpoint,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${config.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: config.model,
+                        temperature: 0.2,
+                        messages: [
+                            {
+                                role: 'system',
+                                content: '你是 BuildMaster 工程估算助手，請用繁體中文、短句、可操作步驟回答。'
+                            },
+                            {
+                                role: 'user',
+                                content: promptText
+                            }
+                        ]
+                    })
                 },
-                body: JSON.stringify({
-                    model: config.model,
-                    temperature: 0.2,
-                    messages: [
-                        {
-                            role: 'system',
-                            content: '你是 BuildMaster 工程估算助手，請用繁體中文、短句、可操作步驟回答。'
-                        },
-                        {
-                            role: 'user',
-                            content: promptText
-                        }
-                    ]
-                })
-            });
+                { retries: 1, timeoutMs: 15000 }
+            );
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             const text = data && data.choices && data.choices[0] && data.choices[0].message
