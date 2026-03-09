@@ -286,12 +286,12 @@
             <button class="tool-btn" style="border-color:#ff7675; color:#ffd0ce;" onclick="stopAllRealtimeFeatures()">⛔ 一鍵停止即時功能</button>
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
-            <span id="laserModeChip" class="status-pill">雷射尺模式：模擬 / 停止</span>
-            <span id="laserChaosChip" class="status-pill">雷射災難計數：斷線 0 / 髒數據 0 / 成功 0</span>
+            <span id="laserModeChip" class="status-pill">雷射尺模式：真機 / 未連線</span>
+            <span id="laserChaosChip" class="status-pill">雷射資料計數：無效 0 / 成功 0</span>
             <span id="warRoomModeChip" class="status-pill">戰情室模式：模擬協作 / 離線</span>
             <button id="btnWarRoomRows" class="tool-btn" style="padding:4px 10px;" onclick="toggleWarRoomRows()">顯示雲端資料: 開</button>
             <button class="tool-btn" style="padding:4px 10px;" onclick="resetLaserChaosStats()">重置雷射計數</button>
-            <button class="tool-btn" style="padding:4px 10px; border-color:#00d2d3; color:#9ef3f3;" onclick="stopLaserRuler()">停止雷射模擬</button>
+            <button class="tool-btn" style="padding:4px 10px; border-color:#00d2d3; color:#9ef3f3;" onclick="stopLaserRuler()">中斷雷射連線</button>
         </div>
         </section>
 
@@ -794,7 +794,7 @@
     let bluetoothDevice = null;
     let fakeLaserTimer = null;
     let laserConnectInProgress = false;
-    let laserRulerMode = 'mock';
+    let laserRulerMode = 'real';
     let voiceAgentListening = false;
     let voiceRecognition = null;
     let voiceGuardTimer = null;
@@ -816,7 +816,7 @@
     let qaStressMode = false;
     let qaStressRenderTimer = null;
     let qaStressNetworkTimer = null;
-    let laserChaosStats = { disconnects: 0, dirtyBlocked: 0, successWrites: 0 };
+    let laserChaosStats = { dirtyBlocked: 0, successWrites: 0 };
 
     function safeToast(message) {
         const now = Date.now();
@@ -830,7 +830,7 @@
     function updateLaserChaosChip() {
         const chip = document.getElementById('laserChaosChip');
         if (!chip) return;
-        chip.innerText = `雷射災難計數：斷線 ${laserChaosStats.disconnects} / 髒數據 ${laserChaosStats.dirtyBlocked} / 成功 ${laserChaosStats.successWrites}`;
+        chip.innerText = `雷射資料計數：無效 ${laserChaosStats.dirtyBlocked} / 成功 ${laserChaosStats.successWrites}`;
     }
 
     const safeStorage = {
@@ -1049,6 +1049,73 @@
         restoreGyroMode();
         applyAiCoachMode();
         maybeStartCoachGuide();
+        hydrateInputFromUrlParam();
+    }
+
+    function getCurrentExpectedInput() {
+        const activeInput = document.activeElement;
+        const candidateIds = ['v1', 'v2', 'v3', 'qty'];
+
+        if (
+            activeInput &&
+            activeInput.tagName === 'INPUT' &&
+            activeInput.type === 'number' &&
+            candidateIds.includes(activeInput.id)
+        ) {
+            return activeInput;
+        }
+
+        for (const id of candidateIds) {
+            const el = document.getElementById(id);
+            if (!el || el.disabled || el.readOnly) continue;
+            if (String(el.value || '').trim() === '') return el;
+        }
+
+        return document.getElementById('v1');
+    }
+
+    function focusNextInputField(currentInputId) {
+        const nextMap = {
+            v1: 'v2',
+            v2: 'v3',
+            v3: 'qty',
+            qty: 'unitPrice'
+        };
+        const nextId = nextMap[currentInputId];
+        if (!nextId) return;
+        const nextInput = document.getElementById(nextId);
+        if (nextInput && !nextInput.disabled && !nextInput.readOnly) {
+            nextInput.focus();
+        }
+    }
+
+    function clearUrlParam(paramKey) {
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has(paramKey)) return;
+        url.searchParams.delete(paramKey);
+        const cleanUrl = `${url.pathname}${url.search}${url.hash}`;
+        history.replaceState({}, document.title, cleanUrl);
+    }
+
+    function hydrateInputFromUrlParam() {
+        const params = new URLSearchParams(window.location.search);
+        const rawVal = params.get('val');
+        if (rawVal === null) return;
+
+        const normalized = String(rawVal).trim();
+        const matched = normalized.match(/^-?\d+(\.\d+)?$/);
+        if (!matched) return;
+
+        const parsed = parseFloat(matched[0]);
+        if (!Number.isFinite(parsed)) return;
+
+        const targetInput = getCurrentExpectedInput();
+        if (!targetInput) return;
+
+        targetInput.value = String(parsed);
+        previewCalc();
+        clearUrlParam('val');
+        setTimeout(() => focusNextInputField(targetInput.id), 0);
     }
 
     function loadDemoMode() {
@@ -1087,15 +1154,17 @@
     function setWorkMode(mode) {
         const normalized = (mode === 'stake') ? 'stake' : 'calc';
         localStorage.setItem(WORK_MODE_KEY, normalized);
+        applyWorkMode();
         if (normalized === 'stake') {
             const level = localStorage.getItem(USER_LEVEL_KEY) || 'basic';
             if (level !== 'pro') {
-                localStorage.setItem(USER_LEVEL_KEY, 'pro');
-                applyUserLevel();
+                showToast('已切換放樣模式（部分進階功能需頁3 專家）');
+                return;
             }
+            showToast('已切換放樣模式');
+            return;
         }
-        applyWorkMode();
-        showToast(normalized === 'stake' ? '已切換放樣模式' : '已切換計算模式');
+        showToast('已切換計算模式');
     }
 
     function applyWorkMode() {
@@ -1154,7 +1223,10 @@
             el.disabled = blockedByDemo;
         });
         const laserChip = document.getElementById('laserModeChip');
-        if (laserChip) laserChip.innerText = `雷射尺模式：${laserRulerMode === 'mock' ? '模擬資料流' : '真機'} / ${fakeLaserTimer ? '運行中' : '停止'}`;
+        if (laserChip) {
+            const isConnected = !!(bluetoothDevice && bluetoothDevice.gatt && bluetoothDevice.gatt.connected);
+            laserChip.innerText = `雷射尺模式：${laserRulerMode === 'real' ? '真機' : '模擬'} / ${isConnected ? '已連線' : '未連線'}`;
+        }
         updateLaserChaosChip();
         const warChip = document.getElementById('warRoomModeChip');
         if (warChip) warChip.innerText = `戰情室模式：模擬協作 / ${isWarRoomActive ? 'LIVE' : '離線'}`;
@@ -1287,9 +1359,9 @@
     }
 
     function resetLaserChaosStats() {
-        laserChaosStats = { disconnects: 0, dirtyBlocked: 0, successWrites: 0 };
+        laserChaosStats = { dirtyBlocked: 0, successWrites: 0 };
         updateLaserChaosChip();
-        showToast('雷射災難計數已重置');
+        showToast('雷射資料計數已重置');
     }
 
     function isDevHost() {
@@ -3270,30 +3342,6 @@
         }
         if (laserConnectInProgress) return showToast('雷射尺連線中，請稍候');
 
-        // Demo 模式直接進入混沌防禦測試，不依賴 Web Bluetooth。
-        if (demoModeEnabled) {
-            showToast('🔗 啟動【極致防禦測試】：工地混沌猴子出動！');
-            laserRulerMode = 'mock';
-            if (fakeLaserTimer) clearInterval(fakeLaserTimer);
-            fakeLaserTimer = setInterval(() => {
-                const scenario = Math.random();
-                if (scenario < 0.2) {
-                    handleLaserData('DISCONNECT');
-                    return;
-                }
-                if (scenario < 0.4) {
-                    const dirtyData = ['3..45', 'ERROR_02', 'NaN', '-5.5', '測量失敗'];
-                    const randomDirty = dirtyData[Math.floor(Math.random() * dirtyData.length)];
-                    handleLaserData(randomDirty);
-                    return;
-                }
-                const normalDistance = (Math.random() * 5 + 1).toFixed(2);
-                handleLaserData(normalDistance);
-            }, 3500);
-            applyFeatureControlStatus();
-            return;
-        }
-
         // 1. 檢查瀏覽器是否支援
         if (!navigator.bluetooth) {
             return showToast('⚠️ 你的瀏覽器不支援藍牙 API（建議使用 Android Chrome）');
@@ -3310,20 +3358,9 @@
             });
 
             const deviceName = bluetoothDevice && bluetoothDevice.name ? bluetoothDevice.name : '未知設備';
-            if (!demoModeEnabled) {
-                laserRulerMode = 'real';
-                stopLaserRuler(false);
-                showToast(`🔗 已連線雷射尺：${deviceName}（真機模式待接通訊協定）`);
-            } else {
-                showToast(`🔗 連線成功：${deviceName}！（啟動模擬發射）`);
-                laserRulerMode = 'mock';
-                // 3. 【測試專用】模擬雷射尺每 4 秒送出距離值
-                if (fakeLaserTimer) clearInterval(fakeLaserTimer);
-                fakeLaserTimer = setInterval(() => {
-                    const fakeDistance = (Math.random() * 5 + 1).toFixed(2); // 1.00 ~ 6.00 m
-                    handleLaserData(fakeDistance);
-                }, 4000);
-            }
+            laserRulerMode = 'real';
+            stopLaserRuler(false);
+            showToast(`🔗 已連線雷射尺：${deviceName}（真機模式待接通訊協定）`);
             applyFeatureControlStatus();
         } catch (error) {
             console.error('藍牙連線錯誤:', error);
@@ -3333,30 +3370,16 @@
         }
     }
 
-    // 4. 接收數據並自動填入目前作用中的數值欄位（含混沌防禦資料清洗）
+    // 4. 接收數據並自動填入目前作用中的數值欄位（資料清洗）
     function handleLaserData(rawData) {
         const activeInput = document.activeElement;
-
-        // 防禦 1：模擬斷線
-        if (rawData === 'DISCONNECT') {
-            if (fakeLaserTimer) {
-                clearInterval(fakeLaserTimer);
-                fakeLaserTimer = null;
-            }
-            laserChaosStats.disconnects += 1;
-            document.body.style.boxShadow = 'inset 0 0 40px rgba(255, 71, 87, 0.6)';
-            setTimeout(() => { document.body.style.boxShadow = 'none'; }, 800);
-            applyFeatureControlStatus();
-            return showToast('🚨 【模擬災難】藍牙訊號中斷！請重新連線');
-        }
-
-        // 防禦 2：資料清洗（僅接受正數）
+        // 資料清洗（僅接受正數）
         const cleanMatch = String(rawData).match(/^-?\d+(\.\d+)?/);
         const distance = cleanMatch ? parseFloat(cleanMatch[0]) : NaN;
         if (Number.isNaN(distance) || distance <= 0) {
             laserChaosStats.dirtyBlocked += 1;
             updateLaserChaosChip();
-            return showToast(`⚠️ 【模擬災難】收到髒數據：「${rawData}」，系統已自動擋下！`);
+            return showToast(`⚠️ 收到無效雷射數據：「${rawData}」，系統已自動擋下`);
         }
 
         if (activeInput && activeInput.type === 'number') {
@@ -3367,16 +3390,13 @@
             previewCalc();
             setTimeout(() => {
                 if (activeInput.id === 'v1') {
-                    const next = document.getElementById('v2');
-                    if (next) next.focus();
+                    focusNextInputField('v1');
                     showToast('➡️ 自動切換至：寬度 (等候雷射數據...)');
                 } else if (activeInput.id === 'v2') {
-                    const next = document.getElementById('v3');
-                    if (next) next.focus();
+                    focusNextInputField('v2');
                     showToast('➡️ 自動切換至：高度 (等候雷射數據...)');
                 } else if (activeInput.id === 'v3') {
-                    const next = document.getElementById('qty');
-                    if (next) next.focus();
+                    focusNextInputField('v3');
                     showToast('➡️ 自動切換至：數量');
                 }
             }, 500);
@@ -3390,7 +3410,11 @@
             clearInterval(fakeLaserTimer);
             fakeLaserTimer = null;
         }
-        if (withToast) showToast('雷射尺資料流已停止');
+        if (bluetoothDevice && bluetoothDevice.gatt && bluetoothDevice.gatt.connected) {
+            try { bluetoothDevice.gatt.disconnect(); } catch (_e) {}
+        }
+        laserRulerMode = 'real';
+        if (withToast) showToast('雷射尺連線已中斷');
         applyFeatureControlStatus();
     }
 
@@ -3852,6 +3876,16 @@
             const tons = weightKg / 1000;
             resultDisplay = `${weightKg.toFixed(2)} kg (${tons.toFixed(3)} t)`;
             resultUnitDisplay = '重量';
+        } else if (selectedType.includes('混凝土') || selectedType.includes('水泥') || type.startsWith('C_')) {
+            const volume = result.res;
+            const trucks = Math.ceil(volume / 6);
+            resultDisplay = `${volume.toFixed(2)} M³ (約需 ${trucks} 台預拌車 🚚)`;
+            resultUnitDisplay = '體積';
+        } else if (selectedType.includes('土方') || selectedType.includes('開挖') || selectedType.includes('回填') || type.startsWith('E_')) {
+            const volume = result.res;
+            const trucks = Math.ceil(volume / 10);
+            resultDisplay = `${volume.toFixed(2)} M³ (約需 ${trucks} 台砂石車 🚛)`;
+            resultUnitDisplay = '體積';
         } else {
             const volume = result.res;
             resultDisplay = `${volume.toFixed(2)} M³`;
