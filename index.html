@@ -3358,12 +3358,27 @@
             return showToast(`⚠️ 【模擬災難】收到髒數據：「${rawData}」，系統已自動擋下！`);
         }
 
-        if (activeInput && activeInput.tagName === 'INPUT' && activeInput.type === 'number') {
+        if (activeInput && activeInput.type === 'number') {
             activeInput.value = distance;
             laserChaosStats.successWrites += 1;
             updateLaserChaosChip();
             showToast(`📏 成功寫入數據：${distance}m`);
             previewCalc();
+            setTimeout(() => {
+                if (activeInput.id === 'v1') {
+                    const next = document.getElementById('v2');
+                    if (next) next.focus();
+                    showToast('➡️ 自動切換至：寬度 (等候雷射數據...)');
+                } else if (activeInput.id === 'v2') {
+                    const next = document.getElementById('v3');
+                    if (next) next.focus();
+                    showToast('➡️ 自動切換至：高度 (等候雷射數據...)');
+                } else if (activeInput.id === 'v3') {
+                    const next = document.getElementById('qty');
+                    if (next) next.focus();
+                    showToast('➡️ 自動切換至：數量');
+                }
+            }, 500);
             return;
         }
         console.log(`收到有效雷射數據 ${distance}m，但游標未停留在數值輸入框`);
