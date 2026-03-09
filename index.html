@@ -40,12 +40,12 @@
     .tool-btn:active { transform: translateY(0); opacity: 0.93; }
     .tool-mini { display: inline-flex; align-items: center; gap: 6px; color: var(--text-subtle); font-size: 0.76em; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.15); border-radius: 999px; padding: 5px 8px; }
     .tool-mini input[type="range"] { width: 78px; accent-color: var(--highlight); }
-    #canvas-container { flex: 1; overflow: auto; background: rgba(3, 8, 18, 0.34); position: relative; }
+    #canvas-container { flex: 1; overflow: auto; background: rgba(3, 8, 18, 0.34); position: relative; -webkit-overflow-scrolling: touch; }
     #img-wrapper { position: relative; display: inline-block; transform-origin: center center; transform-style: preserve-3d; will-change: transform; transition: transform 0.15s linear; }
-    #img-wrapper.viewer-3d { cursor: grab; }
+    #img-wrapper.viewer-3d { cursor: grab; touch-action: none; }
     #img-wrapper.viewer-3d.dragging { cursor: grabbing; }
     #blueprint { display: block; pointer-events: none; }
-    #drawCanvas { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; }
+    #drawCanvas { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; touch-action: none; }
     .group-title { color: var(--highlight); font-weight: bold; margin-top: 15px; border-left: 4px solid var(--highlight); padding-left: 10px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
     .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
     .input-wrapper { flex: 1; }
@@ -2723,7 +2723,7 @@
     canvasContainer.addEventListener('mousedown', begin3DDrag);
     canvasContainer.addEventListener('touchstart', begin3DDrag, { passive: true });
     window.addEventListener('mousemove', on3DDragMove);
-    window.addEventListener('touchmove', on3DDragMove, { passive: true });
+    window.addEventListener('touchmove', on3DDragMove, { passive: false });
     window.addEventListener('mouseup', end3DDrag);
     window.addEventListener('touchend', end3DDrag);
 
@@ -2741,6 +2741,7 @@
 
     function on3DDragMove(e) {
         if (!dragState3D.active || !is3DView || is360Spinning) return;
+        if (e.cancelable) e.preventDefault();
         const p = e.touches ? e.touches[0] : e;
         const dx = p.clientX - dragState3D.x;
         const dy = p.clientY - dragState3D.y;
