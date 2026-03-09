@@ -736,7 +736,7 @@
     // 載入資料並檢查版本 (降級策略)
     let list = [];
     try {
-        const storedData = safeStorage.get(localStorage, STORAGE_KEY, '');
+        const storedData = localStorage.getItem(STORAGE_KEY);
         if (storedData) {
             const parsed = JSON.parse(storedData);
             // 簡單的版本檢查，若結構大改可在此處寫轉換邏輯
