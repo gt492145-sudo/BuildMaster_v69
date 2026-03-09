@@ -56,6 +56,8 @@
     .material-chip { padding: 7px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.05); color: #dce8f7; font-size: 0.8em; }
     .material-chip strong { color: #ffd08b; }
     .bim-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0 10px; }
+    .control-grid { display: grid; grid-template-columns: repeat(6, minmax(96px, 1fr)); gap: 8px; margin: 8px 0; }
+    .status-pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(255,255,255,0.2); border-radius: 999px; padding: 5px 10px; font-size: 0.76em; color: #cfe4f8; background: rgba(255,255,255,0.04); }
     .bim-card { border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.04); border-radius: 8px; padding: 8px; font-size: 0.78em; color: #d9e8f6; }
     .bim-card strong { display: block; font-size: 1.1em; color: #ffd287; margin-top: 4px; }
     .bim-note { font-size: 0.78em; color: var(--text-subtle); margin-top: 6px; }
@@ -151,8 +153,12 @@
     body.high-contrast .work-btn { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.35); color: #e6f5ff; }
     body.high-contrast .work-btn.active { background: rgba(90, 160, 235, 0.35); border-color: rgba(160, 220, 255, 0.8); }
     body[data-user-level="basic"] .level-hide-basic { display: none !important; }
+    body[data-user-level="basic"] .level-only-standard { display: none !important; }
     body[data-user-level="basic"] .level-only-pro { display: none !important; }
+    body[data-user-level="standard"] .level-only-basic { display: none !important; }
     body[data-user-level="standard"] .level-only-pro { display: none !important; }
+    body[data-user-level="pro"] .level-only-basic { display: none !important; }
+    body[data-user-level="pro"] .level-only-standard { display: none !important; }
     body[data-work-mode="calc"] .work-mode-only-stake { display: none !important; }
     body[data-work-mode="stake"] .work-mode-only-calc { display: none !important; }
     @media (max-width: 1200px) {
@@ -168,6 +174,7 @@
         .footer-bar { grid-template-columns: repeat(2, 1fr); }
         .total-budget { grid-column: span 2; }
         .bim-grid { grid-template-columns: repeat(2, 1fr); }
+        .control-grid { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
         .bim-rule-grid { grid-template-columns: 1fr; }
         .bim-unmatched-grid { grid-template-columns: 1fr; }
         .unit-grid { grid-template-columns: 1fr; }
@@ -190,6 +197,7 @@
         .btn-group { flex-direction: column; }
         .footer-bar { grid-template-columns: 1fr; }
         .total-budget { grid-column: span 1; }
+        .control-grid { grid-template-columns: 1fr; }
     }
 </style>
 </head>
@@ -221,7 +229,8 @@
     </div>
     <div class="header-actions">
         <button id="coachToggle" class="mode-btn" onclick="toggleCoachMode()">解說員: 開</button>
-        <button id="aiCoachToggle" class="mode-btn" onclick="toggleAiCoachMode()">AI解說: 關</button>
+        <button id="aiCoachToggle" class="mode-btn level-hide-basic" onclick="toggleAiCoachMode()">AI解說: 關</button>
+        <button id="btnWarRoom" class="mode-btn level-only-pro" style="border-color: #00e676; color: #00e676; font-weight: 900;" onclick="toggleWarRoom()">🌐 戰情室: 離線</button>
         <button id="coachGuideBtn" class="mode-btn" onclick="startCoachGuide(true)">新手導覽</button>
         <button id="contrastToggle" class="mode-btn" onclick="toggleContrastMode()">高對比: 關</button>
         <button id="contrastAutoToggle" class="mode-btn" onclick="toggleAutoContrastMode()">自動: 關</button>
@@ -236,6 +245,7 @@
             <button class="tool-btn" onclick="changeZoom(-0.2)">🔍 縮小</button>
             <button class="tool-btn" style="border-color: #d35400" onclick="startCalibration()">📏 定比例</button>
             <button class="tool-btn" style="border-color: var(--money)" onclick="startMeasure()">📐 測量</button>
+            <button class="tool-btn level-only-standard" style="border-color: #00d2d3; color: #00d2d3;" onclick="connectLaserRuler()">🔫 連線藍牙雷射尺</button>
             <button id="btnMeasureAssist" class="tool-btn level-hide-basic" onclick="toggleMeasureAssist()">📏 量圖輔助: 關</button>
             <button class="tool-btn level-hide-basic" onclick="calibrateMeasureAssist()">🧲 校正量圖</button>
             <button id="btnMeasureStrict" class="tool-btn level-hide-basic" onclick="toggleMeasureStrictMode()">🛡 量圖嚴格: 關</button>
@@ -246,6 +256,7 @@
             <button class="tool-btn level-only-pro" onclick="reset3DView()">🎯 重設視角</button>
             <button id="btnGyro" class="tool-btn level-only-pro" onclick="toggleGyroMode()">🧭 陀螺儀: 關</button>
             <button class="tool-btn level-only-pro" onclick="calibrateGyroBaseline()">🎯 校正陀螺儀</button>
+            <button class="tool-btn level-only-standard" onclick="startEdgeAIVision()">👁️ AI視覺點料</button>
             <label class="tool-mini">對比 <input type="range" id="imgContrast" min="0.7" max="1.5" step="0.01" value="1" oninput="updateImageFilter('contrast', this.value)"></label>
             <label class="tool-mini">亮度 <input type="range" id="imgBrightness" min="0.7" max="1.4" step="0.01" value="1" oninput="updateImageFilter('brightness', this.value)"></label>
             <button class="tool-btn level-hide-basic" onclick="autoEnhanceImage()">✨ 自動優化</button>
@@ -263,6 +274,35 @@
     </div>
 
     <div class="calc-panel">
+        <section class="level-only-pro">
+        <div class="group-title">即時功能總控</div>
+        <div class="control-grid">
+            <button id="btnDemoMode" class="tool-btn" onclick="toggleDemoMode()">Demo模式: 開</button>
+            <button id="btnCtrlAiVision" class="tool-btn" onclick="toggleFeatureFlag('aiVision')">AI盤點: 開</button>
+            <button id="btnCtrlVoice" class="tool-btn" onclick="toggleFeatureFlag('voice')">語音助理: 開</button>
+            <button id="btnCtrlLaser" class="tool-btn" onclick="toggleFeatureFlag('laser')">雷射尺: 開</button>
+            <button id="btnCtrlWarRoom" class="tool-btn" onclick="toggleFeatureFlag('warRoom')">戰情室: 開</button>
+            <button class="tool-btn" style="border-color:#ff7675; color:#ffd0ce;" onclick="stopAllRealtimeFeatures()">⛔ 一鍵停止即時功能</button>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+            <span id="laserModeChip" class="status-pill">雷射尺模式：模擬 / 停止</span>
+            <span id="warRoomModeChip" class="status-pill">戰情室模式：模擬協作 / 離線</span>
+            <button id="btnWarRoomRows" class="tool-btn" style="padding:4px 10px;" onclick="toggleWarRoomRows()">顯示雲端資料: 開</button>
+            <button class="tool-btn" style="padding:4px 10px; border-color:#00d2d3; color:#9ef3f3;" onclick="stopLaserRuler()">停止雷射模擬</button>
+        </div>
+        </section>
+
+        <section class="level-only-pro">
+        <div class="group-title">全域 QA 等級總覽</div>
+        <div class="bim-grid">
+            <div class="bim-card">BIM QA 等級<strong id="qaLevelBim">-</strong></div>
+            <div class="bim-card">放樣 QA 等級<strong id="qaLevelLayout">-</strong></div>
+            <div class="bim-card">量圖 QA 等級<strong id="qaLevelMeasure">-</strong></div>
+            <div class="bim-card">整體 QA 等級<strong id="qaLevelOverall">-</strong></div>
+        </div>
+        <div id="qaTopCauses" class="bim-note">QA 關鍵因子：尚未分析</div>
+        </section>
+
         <section class="level-only-pro work-mode-only-stake">
         <div class="group-title">
             BIM 模型檢核（IFC）
@@ -453,6 +493,9 @@
         </div>
 
         <section class="work-mode-only-calc">
+        <button class="tool-btn level-only-standard" style="width: 100%; margin-bottom: 15px; border-color: #e91e63; color: #ffb1c2; font-size: 1.1em; padding: 10px;" onclick="startVoiceAgent()">
+            🎙️ 呼叫工地語音助理 (點我說話)
+        </button>
         <div class="group-title">工種規格選擇</div>
         <div class="input-row">
             <div class="input-wrapper">
@@ -518,14 +561,33 @@
             <button class="tool-btn" style="margin-left:auto;" onclick="applySelectedMaterialPrice()">📌 套用到單價欄</button>
         </div>
 
-        <div class="group-title">尺寸與預算預覽</div>
+        <div class="group-title">
+            尺寸與預算預覽
+            <button class="tool-btn level-only-standard" style="margin-left:auto; border-color:#00d2d3; color:#00d2d3; font-size: 0.8em;" onclick="connectLaserRuler()">
+                🔫 連線雷射尺
+            </button>
+        </div>
         <div class="input-row">
             <div class="input-wrapper"><label id="lbl_v1">長 / 寬A (m)</label><input type="number" id="v1" step="0.01" min="0" oninput="previewCalc()"></div>
             <div class="input-wrapper"><label id="lbl_v2">寬 / 寬B (m)</label><input type="number" id="v2" step="0.01" min="0" oninput="previewCalc()"></div>
         </div>
         <div class="input-row">
             <div class="input-wrapper"><label id="lbl_v3">高 / 深 (m)</label><input type="number" id="v3" step="0.01" min="0" oninput="previewCalc()"></div>
-            <div class="input-wrapper"><label id="lbl_qty">數量 (N)</label><input type="number" id="qty" value="1" min="0" oninput="previewCalc()"></div>
+            <div class="input-wrapper">
+                <label id="lbl_qty">數量 (N)</label>
+                <div style="display: flex; gap: 5px;">
+                    <input type="number" id="qty" value="1" min="0" oninput="previewCalc()" style="flex: 1;">
+                    <button class="tool-btn level-only-standard" style="border-color: #9c27b0; color: #e1bee7; padding: 0 10px; font-weight: bold;" onclick="startEdgeAIVision()">
+                        👁️ AI 盤點
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="input-row">
+            <div class="input-wrapper">
+                <label>AI 盤點類別白名單（逗號分隔，留空=全部）</label>
+                <input type="text" id="aiVisionClassFilter" placeholder="例如: person,cell phone,bottle">
+            </div>
         </div>
         <div class="input-row" style="margin-top: 15px; border: 1px dashed var(--money); padding: 10px; border-radius: 6px;">
             <div class="input-wrapper">
@@ -676,10 +738,10 @@
             const parsed = JSON.parse(storedData);
             // 簡單的版本檢查，若結構大改可在此處寫轉換邏輯
             if (parsed.version && parsed.version.startsWith('6.9')) {
-                list = parsed.data || [];
+                list = (parsed.data || []).filter(item => item && item.source !== 'warroom');
             } else {
                 console.warn("偵測到舊版資料，嘗試載入...");
-                list = Array.isArray(parsed) ? parsed : [];
+                list = (Array.isArray(parsed) ? parsed : []).filter(item => item && item.source !== 'warroom');
             }
         }
     } catch (e) {
@@ -701,6 +763,12 @@
     const WORK_MODE_KEY = 'bm_69:work_mode';
     const CONTRAST_MODE_KEY = 'bm_69:contrast_mode';
     const CONTRAST_AUTO_KEY = 'bm_69:contrast_auto';
+    const WAR_ROOM_KEY = 'bm_69:war_room_enabled';
+    const FEATURE_FLAGS_KEY = 'bm_69:feature_flags';
+    const SHOW_WAR_ROOM_ROWS_KEY = 'bm_69:show_war_room_rows';
+    const DEMO_MODE_KEY = 'bm_69:demo_mode';
+    const EDGE_AI_MIN_SCORE = 0.5;
+    const EDGE_AI_ALLOWED_CLASSES = [];
     const COACH_GUIDE_STEPS = [
         { selector: '#regionSelect', message: '第 1 步：先選地區價目來源，確保抓到正確單價。' },
         { selector: '#materialSearch', message: '第 2 步：輸入關鍵字搜尋材料，例如模板、混凝土、鋼筋。' },
@@ -720,6 +788,20 @@
     let canvasLastTouchAt = 0;
     const CANVAS_TOUCH_CLICK_GUARD_MS = 700;
     let aiCoachState = { enabled: false, busy: false };
+    let bluetoothDevice = null;
+    let fakeLaserTimer = null;
+    let laserConnectInProgress = false;
+    let laserRulerMode = 'mock';
+    let voiceAgentListening = false;
+    let voiceRecognition = null;
+    let voiceGuardTimer = null;
+    let warRoomTimer = null;
+    let warRoomConnectTimer = null;
+    let isWarRoomActive = false;
+    let featureFlags = { aiVision: true, voice: true, laser: true, warRoom: true };
+    let showWarRoomRows = true;
+    let demoModeEnabled = true;
+    let warRoomList = [];
 
     window.onload = async function() {
         const canStart = await bootstrapSecurity();
@@ -730,10 +812,17 @@
     async function startApp() {
         if (appBootstrapped) return;
         appBootstrapped = true;
+        loadDemoMode();
+        loadFeatureFlags();
+        loadWarRoomRowVisibility();
         applyUserLevel();
         applyWorkMode();
         applyAutoContrastMode();
         applyContrastMode();
+        applyFeatureControlStatus();
+        applyWarRoomStatus();
+        window.addEventListener('online', applyWarRoomStatus);
+        window.addEventListener('offline', applyWarRoomStatus);
         await initMaterialCatalog();
         updateUI();
         renderTable();
@@ -743,6 +832,13 @@
         restoreGyroMode();
         applyAiCoachMode();
         maybeStartCoachGuide();
+    }
+
+    function loadDemoMode() {
+        if (localStorage.getItem(DEMO_MODE_KEY) === null) {
+            localStorage.setItem(DEMO_MODE_KEY, '1');
+        }
+        demoModeEnabled = localStorage.getItem(DEMO_MODE_KEY) === '1';
     }
 
     function setUserLevel(level) {
@@ -790,6 +886,120 @@
         const stakeBtn = document.getElementById('workStakeBtn');
         if (calcBtn) calcBtn.classList.toggle('active', mode === 'calc');
         if (stakeBtn) stakeBtn.classList.toggle('active', mode === 'stake');
+    }
+
+    function loadFeatureFlags() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(FEATURE_FLAGS_KEY) || '{}');
+            featureFlags = {
+                aiVision: parsed.aiVision !== false,
+                voice: parsed.voice !== false,
+                laser: parsed.laser !== false,
+                warRoom: parsed.warRoom !== false
+            };
+        } catch (_e) {
+            featureFlags = { aiVision: true, voice: true, laser: true, warRoom: true };
+        }
+    }
+
+    function saveFeatureFlags() {
+        localStorage.setItem(FEATURE_FLAGS_KEY, JSON.stringify(featureFlags));
+    }
+
+    function loadWarRoomRowVisibility() {
+        showWarRoomRows = localStorage.getItem(SHOW_WAR_ROOM_ROWS_KEY) !== '0';
+    }
+
+    function applyFeatureControlStatus() {
+        const demoBtn = document.getElementById('btnDemoMode');
+        if (demoBtn) {
+            demoBtn.innerText = `Demo模式: ${demoModeEnabled ? '開' : '關'}`;
+            demoBtn.style.borderColor = demoModeEnabled ? '#ffd166' : 'rgba(255,255,255,0.25)';
+            demoBtn.style.color = demoModeEnabled ? '#ffe4a1' : '#e8f5ff';
+        }
+
+        const map = [
+            ['btnCtrlAiVision', 'aiVision', 'AI盤點'],
+            ['btnCtrlVoice', 'voice', '語音助理'],
+            ['btnCtrlLaser', 'laser', '雷射尺'],
+            ['btnCtrlWarRoom', 'warRoom', '戰情室']
+        ];
+        map.forEach(([id, key, label]) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const enabled = !!featureFlags[key];
+            const blockedByDemo = !demoModeEnabled && (key === 'laser' || key === 'warRoom');
+            el.innerText = `${label}: ${enabled ? '開' : '關'}`;
+            el.style.borderColor = blockedByDemo ? '#8a8a8a' : (enabled ? 'rgba(255,255,255,0.3)' : '#ff7675');
+            el.style.color = blockedByDemo ? '#c8c8c8' : (enabled ? '#e8f5ff' : '#ffd0ce');
+            el.disabled = blockedByDemo;
+        });
+        const laserChip = document.getElementById('laserModeChip');
+        if (laserChip) laserChip.innerText = `雷射尺模式：${laserRulerMode === 'mock' ? '模擬資料流' : '真機'} / ${fakeLaserTimer ? '運行中' : '停止'}`;
+        const warChip = document.getElementById('warRoomModeChip');
+        if (warChip) warChip.innerText = `戰情室模式：模擬協作 / ${isWarRoomActive ? 'LIVE' : '離線'}`;
+        const rowsBtn = document.getElementById('btnWarRoomRows');
+        if (rowsBtn) rowsBtn.innerText = `顯示雲端資料: ${showWarRoomRows ? '開' : '關'}`;
+    }
+
+    function toggleFeatureFlag(key) {
+        if (!Object.prototype.hasOwnProperty.call(featureFlags, key)) return;
+        if (!demoModeEnabled && (key === 'laser' || key === 'warRoom')) {
+            return showToast('Demo 模式已關閉，模擬雷射/戰情室不可啟用');
+        }
+        featureFlags[key] = !featureFlags[key];
+        saveFeatureFlags();
+        if (!featureFlags[key]) {
+            if (key === 'aiVision') stopEdgeAIVision();
+            if (key === 'laser') stopLaserRuler();
+            if (key === 'warRoom' && isWarRoomActive) {
+                isWarRoomActive = false;
+                localStorage.setItem(WAR_ROOM_KEY, '0');
+                if (warRoomConnectTimer) clearTimeout(warRoomConnectTimer);
+                if (warRoomTimer) clearInterval(warRoomTimer);
+                warRoomConnectTimer = null;
+                warRoomTimer = null;
+            }
+        }
+        applyFeatureControlStatus();
+        applyWarRoomStatus();
+        const nameMap = { aiVision: 'AI盤點', voice: '語音助理', laser: '雷射尺', warRoom: '戰情室' };
+        showToast(`${nameMap[key] || key}功能已${featureFlags[key] ? '啟用' : '停用'}`);
+    }
+
+    function toggleDemoMode() {
+        demoModeEnabled = !demoModeEnabled;
+        localStorage.setItem(DEMO_MODE_KEY, demoModeEnabled ? '1' : '0');
+        if (!demoModeEnabled) {
+            stopLaserRuler();
+            if (isWarRoomActive) toggleWarRoom();
+        }
+        applyFeatureControlStatus();
+        showToast(demoModeEnabled ? 'Demo 模式已啟用' : 'Demo 模式已關閉');
+    }
+
+    function stopAllRealtimeFeatures() {
+        stopEdgeAIVision();
+        stopLaserRuler();
+        if (voiceRecognition && voiceAgentListening) {
+            try { voiceRecognition.stop(); } catch (_e) {}
+            voiceAgentListening = false;
+        }
+        if (voiceGuardTimer) {
+            clearTimeout(voiceGuardTimer);
+            voiceGuardTimer = null;
+        }
+        if (isWarRoomActive) toggleWarRoom();
+        applyFeatureControlStatus();
+        showToast('即時功能已全部停止');
+    }
+
+    function toggleWarRoomRows() {
+        showWarRoomRows = !showWarRoomRows;
+        localStorage.setItem(SHOW_WAR_ROOM_ROWS_KEY, showWarRoomRows ? '1' : '0');
+        applyFeatureControlStatus();
+        renderTable();
+        showToast(showWarRoomRows ? '已顯示雲端資料' : '已隱藏雲端資料');
     }
 
     function isDevHost() {
@@ -1466,10 +1676,12 @@
     }
 
     function renderBIMSummary(data) {
+        const bimQaScore = calcBIMQaScore(data);
+        const bimQaLevel = getQaLevelByScore(bimQaScore);
         document.getElementById('bimFileName').innerText = data.fileName || '未命名';
         document.getElementById('bimEntityCount').innerText = data.totalEntities.toLocaleString();
         document.getElementById('bimElementCount').innerText = data.totalElements.toLocaleString();
-        document.getElementById('bimQaScore').innerText = `${calcBIMQaScore(data)} / 100`;
+        document.getElementById('bimQaScore').innerText = `${bimQaLevel} / ${bimQaScore}`;
         document.getElementById('bimQtyLength').innerText = data.qtyLength.toFixed(2);
         document.getElementById('bimQtyArea').innerText = data.qtyArea.toFixed(2);
         document.getElementById('bimQtyVolume').innerText = data.qtyVolume.toFixed(2);
@@ -1487,7 +1699,8 @@
         const warnBox = document.getElementById('bimWarnings');
         warnBox.innerHTML = data.warnings.length
             ? data.warnings.map(w => `• ${w}`).join('<br>')
-            : 'QA 檢核：未發現明顯結構問題。';
+            : `QA 檢核：等級 ${bimQaLevel}，未發現明顯結構問題。`;
+        updateQaDashboard();
     }
 
     function searchIFCEntity(keyword) {
@@ -1959,14 +2172,64 @@
         });
     }
 
+    function getQaLevelByScore(score) {
+        const s = Number(score) || 0;
+        if (s >= 95) return 'S';
+        if (s >= 90) return 'A';
+        if (s >= 80) return 'B';
+        if (s >= 70) return 'C';
+        if (s >= 60) return 'D';
+        return 'E';
+    }
+
+    function updateQaDashboard() {
+        const bimScore = bimModelData ? calcBIMQaScore(bimModelData) : 0;
+        const layoutScore = bimLayoutQaResult ? Number(bimLayoutQaResult.qaScore || 0) : 0;
+        const measureScore = calcMeasureQaScore();
+        const activeScores = [bimScore, layoutScore, measureScore].filter(v => Number.isFinite(v) && v > 0);
+        const overallScore = activeScores.length ? Math.round(activeScores.reduce((a, b) => a + b, 0) / activeScores.length) : 0;
+
+        const setText = (id, text) => {
+            const el = document.getElementById(id);
+            if (el) el.innerText = text;
+        };
+        setText('qaLevelBim', bimModelData ? `${getQaLevelByScore(bimScore)} / ${bimScore}` : '-');
+        setText('qaLevelLayout', bimLayoutQaResult ? `${getQaLevelByScore(layoutScore)} / ${layoutScore}` : '-');
+        setText('qaLevelMeasure', measureQaStats.measureStarts > 0 ? `${getQaLevelByScore(measureScore)} / ${measureScore}` : '-');
+        setText('qaLevelOverall', overallScore > 0 ? `${getQaLevelByScore(overallScore)} / ${overallScore}` : '-');
+
+        const causes = [];
+        if (bimModelData && Array.isArray(bimModelData.warnings) && bimModelData.warnings.length) {
+            causes.push(`BIM: ${bimModelData.warnings[0]}`);
+        }
+        if (bimLayoutQaResult) {
+            if (bimLayoutQaResult.missingGeometryCount > 0) causes.push(`放樣: 缺漏幾何 ${bimLayoutQaResult.missingGeometryCount}`);
+            if (bimLayoutQaResult.duplicatePointCount > 0) causes.push(`放樣: 重複點 ${bimLayoutQaResult.duplicatePointCount}`);
+            if (bimLayoutQaResult.outOfRangeCount > 0) causes.push(`放樣: 越界點 ${bimLayoutQaResult.outOfRangeCount}`);
+        }
+        if (measureQaStats.measureStarts > 0) {
+            const starts = Math.max(1, measureQaStats.measureStarts);
+            const successRate = Math.round((measureQaStats.measureSuccess / starts) * 100);
+            if (successRate < 90) causes.push(`量圖: 成功率 ${successRate}%`);
+            if (measureQaStats.strictBlocks > 0) causes.push(`量圖: 嚴格模式擋下 ${measureQaStats.strictBlocks} 次`);
+        }
+        const causeBox = document.getElementById('qaTopCauses');
+        if (causeBox) {
+            causeBox.innerText = causes.length ? `QA 關鍵因子 TOP3：${causes.slice(0, 3).join(' / ')}` : 'QA 關鍵因子：目前無明顯風險';
+        }
+    }
+
     function renderBimLayoutQaSummary() {
         const box = document.getElementById('bimLayoutQaSummary');
         if (!box) return;
         if (!bimLayoutQaResult) {
             box.innerText = '放樣 QA：尚未執行';
+            updateQaDashboard();
             return;
         }
-        box.innerText = `放樣 QA：分數 ${bimLayoutQaResult.qaScore} / 100，重複 ${bimLayoutQaResult.duplicatePointCount}，缺漏 ${bimLayoutQaResult.missingGeometryCount}，越界 ${bimLayoutQaResult.outOfRangeCount}`;
+        const level = getQaLevelByScore(bimLayoutQaResult.qaScore);
+        box.innerText = `放樣 QA：等級 ${level}（${bimLayoutQaResult.qaScore} / 100），重複 ${bimLayoutQaResult.duplicatePointCount}，缺漏 ${bimLayoutQaResult.missingGeometryCount}，越界 ${bimLayoutQaResult.outOfRangeCount}`;
+        updateQaDashboard();
     }
 
     function generateBimLayoutPoints() {
@@ -2031,8 +2294,9 @@
             checkedAt: new Date().toISOString()
         };
         renderBimLayoutQaSummary();
-        addAuditLog('放樣QA檢核', `分數 ${qaScore} / 100`);
-        showToast(`放樣 QA 完成：${qaScore} 分`);
+        const qaLevel = getQaLevelByScore(qaScore);
+        addAuditLog('放樣QA檢核', `等級 ${qaLevel} / 分數 ${qaScore} / 100`);
+        showToast(`放樣 QA 完成：${qaLevel}（${qaScore} 分）`);
     }
 
     function exportBimLayoutPoints() {
@@ -2065,6 +2329,7 @@
         if (!bimLayoutQaResult) runBimLayoutQa();
         const qa = bimLayoutQaResult || {};
         const projectName = (document.getElementById('project_name') && document.getElementById('project_name').value) || '未命名專案';
+        const qaLevel = getQaLevelByScore(qa.qaScore || 0);
         const rows = [
             ['報告時間', new Date().toLocaleString('zh-TW')],
             ['專案名稱', projectName],
@@ -2074,7 +2339,8 @@
             ['缺漏幾何', String(qa.missingGeometryCount || 0)],
             ['越界點', String(qa.outOfRangeCount || 0)],
             ['最大偏差', String(qa.maxDeviation || 0)],
-            ['QA分數', String(qa.qaScore || 0)]
+            ['QA分數', String(qa.qaScore || 0)],
+            ['QA等級', qaLevel]
         ];
         let csv = '\uFEFF項目,數值\n';
         rows.forEach(([k, v]) => { csv += `${sanitizeCSVField(k)},${sanitizeCSVField(v)}\n`; });
@@ -2083,7 +2349,7 @@
         link.href = URL.createObjectURL(blob);
         link.download = `BuildMaster_BIM放樣QA_${new Date().getTime()}.csv`;
         link.click();
-        addAuditLog('匯出放樣QA', `分數 ${qa.qaScore || 0}`);
+        addAuditLog('匯出放樣QA', `等級 ${qaLevel} / 分數 ${qa.qaScore || 0}`);
         showToast('放樣 QA 報告已匯出');
     }
 
@@ -2403,6 +2669,7 @@
             tiltMax: 0,
             strictBlocks: 0
         };
+        updateQaDashboard();
     }
 
     function updateMeasureQaFromTilt(tiltDeg) {
@@ -2410,6 +2677,7 @@
         measureQaStats.tiltSamples += 1;
         measureQaStats.tiltSum += tiltDeg;
         measureQaStats.tiltMax = Math.max(measureQaStats.tiltMax, tiltDeg);
+        updateQaDashboard();
     }
 
     async function requestGyroPermission() {
@@ -2697,6 +2965,173 @@
         if (measureAssistState.enabled) calibrateMeasureAssist();
         drawMode = 'measure'; clickPoints = []; showToast('點擊你要測量的【起點】與【終點】');
     }
+
+    async function connectLaserRuler() {
+        if (!featureFlags.laser) {
+            return showToast('雷射尺功能目前已停用（請先到總控開啟）');
+        }
+        if (laserConnectInProgress) return showToast('雷射尺連線中，請稍候');
+        // 1. 檢查瀏覽器是否支援
+        if (!navigator.bluetooth) {
+            return showToast('⚠️ 你的瀏覽器不支援藍牙 API（建議使用 Android Chrome）');
+        }
+
+        try {
+            laserConnectInProgress = true;
+            showToast('🔍 尋找藍牙設備中...（請在彈出視窗選擇設備）');
+
+            // 2. 喚起藍牙配對視窗
+            bluetoothDevice = await navigator.bluetooth.requestDevice({
+                acceptAllDevices: true,
+                optionalServices: ['generic_access']
+            });
+
+            const deviceName = bluetoothDevice && bluetoothDevice.name ? bluetoothDevice.name : '未知設備';
+            if (!demoModeEnabled) {
+                laserRulerMode = 'real';
+                stopLaserRuler(false);
+                showToast(`🔗 已連線雷射尺：${deviceName}（真機模式待接通訊協定）`);
+            } else {
+                showToast(`🔗 連線成功：${deviceName}！（啟動模擬發射）`);
+                laserRulerMode = 'mock';
+                // 3. 【測試專用】模擬雷射尺每 4 秒送出距離值
+                if (fakeLaserTimer) clearInterval(fakeLaserTimer);
+                fakeLaserTimer = setInterval(() => {
+                    const fakeDistance = (Math.random() * 5 + 1).toFixed(2); // 1.00 ~ 6.00 m
+                    handleLaserData(fakeDistance);
+                }, 4000);
+            }
+            applyFeatureControlStatus();
+        } catch (error) {
+            console.error('藍牙連線錯誤:', error);
+            showToast('❌ 藍牙連線取消或失敗');
+        } finally {
+            laserConnectInProgress = false;
+        }
+    }
+
+    // 4. 接收數據並自動填入目前作用中的數值欄位
+    function handleLaserData(distance) {
+        const activeInput = document.activeElement;
+        if (activeInput && activeInput.tagName === 'INPUT' && activeInput.type === 'number') {
+            activeInput.value = distance;
+            showToast(`📐 雷射尺傳入數據：${distance}m`);
+            previewCalc();
+            return;
+        }
+        console.log(`收到雷射數據 ${distance}m，但游標未停留在數值輸入框`);
+    }
+
+    function stopLaserRuler(withToast = true) {
+        if (fakeLaserTimer) {
+            clearInterval(fakeLaserTimer);
+            fakeLaserTimer = null;
+        }
+        if (withToast) showToast('雷射尺資料流已停止');
+        applyFeatureControlStatus();
+    }
+
+    function startVoiceAgent() {
+        if (!featureFlags.voice) {
+            return showToast('語音助理目前已停用（請先到總控開啟）');
+        }
+        // 1. 喚醒瀏覽器語音辨識引擎
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            return showToast('⚠️ 你的瀏覽器不支援語音辨識（建議使用手機版 Chrome 或 Safari）');
+        }
+        if (voiceAgentListening) {
+            return showToast('🎙️ 語音助理正在聆聽中...');
+        }
+
+        if (!voiceRecognition) voiceRecognition = new SpeechRecognition();
+        const recognition = voiceRecognition;
+        recognition.lang = 'zh-TW';
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = function() {
+            voiceAgentListening = true;
+            showToast('🎙️ 助理聆聽中...（請說：長度 5 寬度 3 高度 2）');
+        };
+
+        // 2. 聽完後把句子交給 AI 幽靈之手
+        recognition.onresult = function(event) {
+            const speechResult = String(event && event.results && event.results[0] && event.results[0][0]
+                ? event.results[0][0].transcript
+                : '').trim();
+            if (!speechResult) return showToast('⚠️ 沒有辨識到語音內容');
+            showToast(`🗣️ 你說了：「${speechResult}」`);
+            parseSpeechToDimensions(speechResult);
+        };
+
+        recognition.onerror = function(event) {
+            showToast(`❌ 語音辨識錯誤：${event && event.error ? event.error : 'unknown'}`);
+        };
+
+        recognition.onend = function() {
+            voiceAgentListening = false;
+            if (voiceGuardTimer) {
+                clearTimeout(voiceGuardTimer);
+                voiceGuardTimer = null;
+            }
+        };
+
+        // 啟動麥克風
+        try {
+            recognition.start();
+            if (voiceGuardTimer) clearTimeout(voiceGuardTimer);
+            voiceGuardTimer = setTimeout(() => {
+                if (!voiceAgentListening) return;
+                try { recognition.stop(); } catch (_e) {}
+                voiceAgentListening = false;
+                showToast('⚠️ 語音聆聽逾時，請再試一次');
+            }, 12000);
+        } catch (_e) {
+            showToast('⚠️ 語音助理忙碌中，請稍候重試');
+        }
+    }
+
+    // 3. AI 幽靈之手：拆解語句並自動填入尺寸
+    function parseSpeechToDimensions(text) {
+        const speech = String(text || '');
+        const numbers = speech.match(/\d+(\.\d+)?/g) || [];
+        const extractByKeywords = (keys) => {
+            for (const key of keys) {
+                const match = speech.match(new RegExp(`${key}\\s*(\\d+(?:\\.\\d+)?)`, 'i'));
+                if (match && match[1]) return match[1];
+            }
+            return '';
+        };
+
+        const v1Value = extractByKeywords(['長', '長度', '長邊', 'A']);
+        const v2Value = extractByKeywords(['寬', '寬度', '短邊', '寬邊', 'B']);
+        const v3Value = extractByKeywords(['高', '高度', '深', '厚', '厚度', 'H']);
+        const qtyValue = extractByKeywords(['數量', '幾個', '幾支', '幾條', 'N']);
+
+        if (numbers.length >= 1 || v1Value || v2Value || v3Value || qtyValue) {
+            const v1 = document.getElementById('v1');
+            const v2 = document.getElementById('v2');
+            const v3 = document.getElementById('v3');
+            const qty = document.getElementById('qty');
+
+            // 優先採關鍵詞映射，沒有才依序回填
+            if (v1) v1.value = v1Value || numbers[0] || v1.value;
+            if (v2) v2.value = v2Value || numbers[1] || v2.value;
+            if (v3) v3.value = v3Value || numbers[2] || v3.value;
+            if (qty && qtyValue) qty.value = qtyValue;
+            setTimeout(() => {
+                showToast('✨ AI 代理已幫您填妥尺寸！');
+                previewCalc();
+            }, 800);
+            return;
+        }
+        setTimeout(() => {
+            showToast('⚠️ 聽不懂裡面的數字，請再試一次（例如：長度 3.5 寬 2）');
+        }, 800);
+    }
+
     function clearCanvas() { ctx.clearRect(0,0,canvas.width,canvas.height); clickPoints = []; drawMode = 'none'; showToast('🧽 畫布已擦乾淨！'); }
     function removeLoadedImage() {
         if (!img.src) return showToast('目前沒有已上傳圖紙');
@@ -2717,6 +3152,145 @@
         if (fileInput) fileInput.value = '';
         reset3DView(true);
         showToast('已移除上傳圖紙');
+    }
+
+    // ==========================================
+    // 👁️ 終極黑科技二：邊緣 AI 視覺自動點料 (TensorFlow.js)
+    // ==========================================
+    let edgeAiVisionRunning = false;
+    let edgeAiCocoModel = null;
+    let edgeAiDetectBusy = false;
+    let edgeAiSafetyTimer = null;
+
+    async function startEdgeAIVision() {
+        if (!featureFlags.aiVision) {
+            return showToast('AI 視覺盤點目前已停用（請先到總控開啟）');
+        }
+        if (edgeAiVisionRunning) return showToast('AI 視覺已啟動中');
+        edgeAiVisionRunning = true;
+        edgeAiDetectBusy = false;
+        showToast('⚙️ 正在呼叫 Google AI 視覺神經網路 (初次載入需數秒)...');
+
+        // 1. 動態將 TensorFlow.js 與 COCO-SSD 視覺模型注入到你的網頁中
+        try {
+            if (!window.cocoSsd) {
+                await loadExternalScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs');
+                await loadExternalScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd');
+            }
+
+            showToast('👁️ AI 模型就緒！正在啟動視覺掃描...');
+
+            // 2. 開啟手機後置鏡頭
+            const aiVideo = document.createElement('video');
+            aiVideo.id = 'aiVisionVideo';
+            aiVideo.setAttribute('playsinline', 'true');
+            aiVideo.autoplay = true;
+            aiVideo.muted = true;
+            aiVideo.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; object-fit:cover; z-index:99998;';
+            document.body.appendChild(aiVideo);
+
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+            aiVideo.srcObject = stream;
+            await aiVideo.play();
+
+            // 3. 建立科幻感十足的掃描 UI
+            const overlay = document.createElement('div');
+            overlay.id = 'aiVisionOverlay';
+            overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; background: rgba(156, 39, 176, 0.15); backdrop-filter: blur(2px);';
+            overlay.innerHTML = `
+                <div style="border: 3px dashed #e040fb; width: 80%; height: 50%; display:flex; align-items:center; justify-content:center; box-shadow: 0 0 30px #e040fb inset; position: relative;">
+                    <div style="position:absolute; top:-15px; background:#e040fb; color:#fff; padding:5px 15px; border-radius:10px; font-weight:bold; letter-spacing:1px;">AI 點料區域</div>
+                </div>
+                <button id="captureAIBtn" style="margin-top: 40px; padding: 15px 40px; background: #e040fb; color: #fff; font-size: 1.3em; border-radius: 50px; font-weight:900; border:none; box-shadow: 0 4px 20px rgba(224, 64, 251, 0.6);">📸 鎖定並盤點數量</button>
+                <button onclick="stopEdgeAIVision()" style="margin-top: 20px; padding: 10px 30px; background: rgba(0,0,0,0.6); color: white; border-radius: 50px; border:1px solid #fff;">取消</button>
+            `;
+            document.body.appendChild(overlay);
+
+            // 4. 喚醒 AI 模型
+            if (!edgeAiCocoModel) edgeAiCocoModel = await cocoSsd.load();
+
+            // 5. 按下拍照鈕，AI 瞬間運算
+            const captureBtn = document.getElementById('captureAIBtn');
+            if (captureBtn) {
+                captureBtn.onclick = async () => {
+                    if (edgeAiDetectBusy) return showToast('AI 盤點運算中，請稍候...');
+                    edgeAiDetectBusy = true;
+                    try {
+                        showToast('🧠 本機 AI 算力飆升中，分析畫面...');
+                        const predictions = await edgeAiCocoModel.detect(aiVideo);
+                        const classFilterInput = document.getElementById('aiVisionClassFilter');
+                        const classWhiteList = String(classFilterInput && classFilterInput.value ? classFilterInput.value : '')
+                            .split(',')
+                            .map(s => s.trim().toLowerCase())
+                            .filter(Boolean);
+
+                        // 統計畫面中的物件數量（信心門檻 + 可選白名單）
+                        const filtered = (Array.isArray(predictions) ? predictions : []).filter(p => {
+                            const okScore = Number(p && p.score) >= EDGE_AI_MIN_SCORE;
+                            if (!okScore) return false;
+                            if (!classWhiteList.length && !EDGE_AI_ALLOWED_CLASSES.length) return true;
+                            const cls = String(p.class || '').toLowerCase();
+                            const sourceList = classWhiteList.length ? classWhiteList : EDGE_AI_ALLOWED_CLASSES;
+                            return sourceList.includes(cls);
+                        });
+                        const objectCount = filtered.length;
+                        if (objectCount > 0) {
+                            showToast(`✅ AI 盤點完成：畫面中共有 ${objectCount} 個物件（門檻 ${EDGE_AI_MIN_SCORE}）！`);
+                            const qtyInput = document.getElementById('qty');
+                            if (qtyInput) qtyInput.value = objectCount;
+                            previewCalc();
+                            stopEdgeAIVision();
+                        } else {
+                            showToast('⚠️ 畫面中未偵測到明顯物件，請稍微拉遠或靠近重試');
+                        }
+                    } finally {
+                        edgeAiDetectBusy = false;
+                    }
+                };
+            }
+            if (edgeAiSafetyTimer) clearTimeout(edgeAiSafetyTimer);
+            edgeAiSafetyTimer = setTimeout(() => {
+                if (!edgeAiVisionRunning) return;
+                showToast('⚠️ AI 視覺逾時自動關閉，請重試');
+                stopEdgeAIVision();
+            }, 120000);
+        } catch (err) {
+            console.error('相機啟動失敗:', err);
+            showToast('❌ 無法啟動相機，請確認瀏覽器已允許相機權限');
+            stopEdgeAIVision();
+        }
+    }
+
+    // 關閉相機模組的清理程式
+    function stopEdgeAIVision() {
+        const video = document.getElementById('aiVisionVideo');
+        if (video && video.srcObject) {
+            const tracks = video.srcObject.getTracks ? video.srcObject.getTracks() : [];
+            tracks.forEach(t => t.stop());
+        }
+        if (video) video.remove();
+        const overlay = document.getElementById('aiVisionOverlay');
+        if (overlay) overlay.remove();
+        edgeAiVisionRunning = false;
+        edgeAiDetectBusy = false;
+        if (edgeAiSafetyTimer) {
+            clearTimeout(edgeAiSafetyTimer);
+            edgeAiSafetyTimer = null;
+        }
+    }
+
+    // 工具函數：動態載入外部腳本
+    function loadExternalScript(src) {
+        const existing = document.querySelector(`script[src="${src}"]`);
+        if (existing) return Promise.resolve();
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.async = true;
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
     }
 
     const canvasContainer = document.getElementById('canvas-container');
@@ -2784,12 +3358,14 @@
                 if (actualLen && !isNaN(actualLen) && actualLen > 0) {
                     scalePixelsPerUnit = dist / parseFloat(actualLen);
                     measureQaStats.calibrationSuccess += 1;
+                    updateQaDashboard();
                     document.getElementById('scale-info').innerText = '✅ 比例已設';
                     showToast('比例設定完成！可以開始測量了');
                 } else { showToast('比例設定取消或無效'); }
             } else if (drawMode === 'measure') {
                 let m = dist / scalePixelsPerUnit;
                 measureQaStats.measureSuccess += 1;
+                updateQaDashboard();
                 if (!document.getElementById('v2').value && document.getElementById('calcType').value.startsWith('R_')) {
                     document.getElementById('v2').value = m.toFixed(2);
                 } else if (!document.getElementById('v1').value) {
@@ -2998,20 +3574,31 @@
         const tbody = document.getElementById('listBody'); 
         tbody.innerHTML = '';
         let sums = { CEMENT: 0, MOLD: 0, EARTH: 0, STEEL: 0, total: 0 };
-        
-        list.forEach((item, idx) => {
+        const mergedList = [
+            ...list.map((item, idx) => ({ item, idx, source: 'local' })),
+            ...warRoomList.map((item, idx) => ({ item, idx, source: 'warroom' }))
+        ];
+        const visibleList = mergedList.filter(({ source }) => showWarRoomRows || source !== 'warroom');
+
+        visibleList.forEach(({ item, idx, source }) => {
             if (sums[item.cat] !== undefined) sums[item.cat] += item.res; 
             sums.total += item.totalCost;
-            
+            const cloudTag = source === 'warroom'
+                ? ' <span style="font-size:0.75em;color:#9ef3b5;">[雲端]</span>'
+                : '';
+            const removeBtn = source === 'warroom'
+                ? '<button style="width:auto; padding:4px 8px; margin:0; background:#4b6584; border:none; border-radius:4px; cursor:not-allowed;" title="雲端同步資料不可單筆刪除">鎖</button>'
+                : `<button style="width:auto; padding:4px 8px; margin:0; background:#e74c3c; border:none; border-radius:4px; cursor:pointer;" onclick="removeItem(${idx})">X</button>`;
+
             // 建立 DOM 元素以進一步防範 XSS
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${item.floor}</td>
-                <td style="color:${item.res < 0 ? '#ff4757' : 'white'}">${item.name}</td>
+                <td style="color:${item.res < 0 ? '#ff4757' : 'white'}">${item.name}${cloudTag}</td>
                 <td>${item.res.toFixed(2)} <span style="font-size:0.8em;color:#888;">${item.unit||''}</span></td>
                 <td>${item.up}</td>
                 <td style="color:var(--money); font-weight:bold;">${Math.round(item.totalCost).toLocaleString()}</td>
-                <td><button style="width:auto; padding:4px 8px; margin:0; background:#e74c3c; border:none; border-radius:4px; cursor:pointer;" onclick="removeItem(${idx})">X</button></td>
+                <td>${removeBtn}</td>
             `;
             tbody.appendChild(tr);
         });
@@ -3021,6 +3608,7 @@
         document.getElementById('sumE').innerText = `土方: ${sums.EARTH.toFixed(2)} M³`; 
         document.getElementById('sumS').innerText = `鋼筋: ${sums.STEEL.toFixed(2)} Kg`;
         document.getElementById('totalMoney').innerText = Math.round(sums.total).toLocaleString();
+        updateQaDashboard();
     }
 
     function removeItem(idx) { list.splice(idx, 1); saveData(); renderTable(); }
@@ -3028,7 +3616,11 @@
     function clearAll() { 
         if(confirm('⚠️ 確定要清空所有數據嗎?')) { 
             createDataSnapshot('清空清單前', true);
-            list = []; saveData(); renderTable(); ctx.clearRect(0,0,canvas.width,canvas.height); 
+            list = [];
+            warRoomList = [];
+            saveData();
+            renderTable();
+            ctx.clearRect(0,0,canvas.width,canvas.height); 
             document.getElementById('scale-info').innerText = '比例: 未設定'; scalePixelsPerUnit = 0; 
             document.getElementById('customName').value = ''; 
             document.getElementById('v1').value = ''; document.getElementById('v2').value = ''; document.getElementById('v3').value = '';
@@ -3493,6 +4085,116 @@
         showToast(autoEnabled ? '自動高對比已關閉' : '自動高對比已啟用（18:00-06:00）');
     }
 
+    function applyWarRoomStatus() {
+        const btn = document.getElementById('btnWarRoom');
+        if (!btn) return;
+        isWarRoomActive = localStorage.getItem(WAR_ROOM_KEY) === '1';
+        if (!demoModeEnabled) {
+            isWarRoomActive = false;
+            localStorage.setItem(WAR_ROOM_KEY, '0');
+        }
+        if (isWarRoomActive) {
+            btn.innerText = '🌐 戰情室: LIVE';
+            btn.style.color = '#fff';
+            btn.style.background = '#00c853';
+            btn.style.boxShadow = '0 0 15px #00e676';
+            if (!warRoomTimer) startMockRemoteDataStream();
+            return;
+        }
+        btn.innerText = '🌐 戰情室: 離線';
+        btn.style.background = '';
+        btn.style.color = '#00e676';
+        btn.style.boxShadow = 'none';
+        btn.style.borderColor = '#00e676';
+    }
+
+    function toggleWarRoom() {
+        if (!featureFlags.warRoom) {
+            return showToast('戰情室功能目前已停用（請先到總控開啟）');
+        }
+        if (!demoModeEnabled) {
+            return showToast('Demo 模式已關閉，戰情室模擬協作不可啟用');
+        }
+        isWarRoomActive = !isWarRoomActive;
+        localStorage.setItem(WAR_ROOM_KEY, isWarRoomActive ? '1' : '0');
+        const btn = document.getElementById('btnWarRoom');
+        if (!btn) return;
+
+        if (isWarRoomActive) {
+            btn.innerText = '🌐 連線中...';
+            btn.style.background = 'rgba(0, 230, 118, 0.2)';
+            btn.style.color = '#00e676';
+            btn.style.boxShadow = 'none';
+            showToast('🔗 正在建立 WebSocket 加密連線，連接總部伺服器...');
+
+            if (warRoomConnectTimer) clearTimeout(warRoomConnectTimer);
+            warRoomConnectTimer = setTimeout(() => {
+                if (!isWarRoomActive) return;
+                btn.innerText = '🌐 戰情室: LIVE';
+                btn.style.color = '#fff';
+                btn.style.background = '#00c853';
+                btn.style.boxShadow = '0 0 15px #00e676';
+                showToast('✅ 已進入數位雙生多人協作模式！等待遠端資料...');
+                startMockRemoteDataStream();
+                applyFeatureControlStatus();
+            }, 1500);
+            return;
+        }
+
+        if (warRoomConnectTimer) {
+            clearTimeout(warRoomConnectTimer);
+            warRoomConnectTimer = null;
+        }
+        if (warRoomTimer) {
+            clearInterval(warRoomTimer);
+            warRoomTimer = null;
+        }
+        warRoomList = [];
+        renderTable();
+        btn.innerText = '🌐 戰情室: 離線';
+        btn.style.background = '';
+        btn.style.color = '#00e676';
+        btn.style.boxShadow = 'none';
+        btn.style.borderColor = '#00e676';
+        applyFeatureControlStatus();
+        showToast('已中斷雲端連線，恢復單機模式');
+    }
+
+    function startMockRemoteDataStream() {
+        if (!featureFlags.warRoom || !demoModeEnabled) return;
+        if (warRoomTimer) clearInterval(warRoomTimer);
+
+        const colleagues = ['B1-機電組 老王', '2F-泥作組 陳主任', '總部-採購部', 'A棟-鋼筋班 阿明'];
+        const mockItems = ['預拌混凝土_3000psi', '竹節鋼筋(SD420W)', '模板工程(大樓)', '開挖土方'];
+
+        warRoomTimer = setInterval(() => {
+            if (!isWarRoomActive) return;
+
+            const colleague = colleagues[Math.floor(Math.random() * colleagues.length)];
+            const item = mockItems[Math.floor(Math.random() * mockItems.length)];
+            const qty = Math.floor(Math.random() * 50) + 10;
+            const price = Math.floor(Math.random() * 3000) + 500;
+
+            const pushData = {
+                floor: '☁️ 雲端',
+                name: `[${colleague}] ${item}`,
+                res: qty,
+                up: price,
+                totalCost: qty * price,
+                cat: inferCategoryFromName(item),
+                unit: 'M³/Kg',
+                source: 'warroom'
+            };
+
+            warRoomList.unshift(pushData);
+            renderTable();
+
+            document.body.style.boxShadow = 'inset 0 0 30px rgba(0, 230, 118, 0.4)';
+            setTimeout(() => { document.body.style.boxShadow = 'none'; }, 500);
+            showToast(`📡 【即時同步】${colleague} 剛剛新增了 ${qty} 單位 ${item}！`);
+        }, 6000);
+    }
+
     function showToast(m) { const t=document.getElementById("toast"); t.innerText=m; t.className="show"; setTimeout(()=>t.className="",3000); }
     
     // --- 安全防護：CSV 匯出注入處理 ---
@@ -3537,8 +4239,23 @@
         showToast('📥 報表已下載！');
     }
 
+    function calcMeasureQaScore() {
+        const starts = Math.max(1, measureQaStats.measureStarts || 0);
+        const successRate = (measureQaStats.measureSuccess || 0) / starts;
+        const avgTilt = measureQaStats.tiltSamples > 0 ? (measureQaStats.tiltSum / measureQaStats.tiltSamples) : 0;
+        const strictBlocks = Number(measureQaStats.strictBlocks || 0);
+
+        let score = 100;
+        score -= Math.max(0, Math.round((1 - successRate) * 40));
+        score -= Math.max(0, Math.round(Math.max(0, avgTilt - 5) * 3));
+        score -= Math.min(20, strictBlocks * 2);
+        return Math.max(0, Math.min(100, score));
+    }
+
     function exportMeasureQaReport() {
         const avgTilt = measureQaStats.tiltSamples > 0 ? (measureQaStats.tiltSum / measureQaStats.tiltSamples) : 0;
+        const qaScore = calcMeasureQaScore();
+        const qaLevel = getQaLevelByScore(qaScore);
         const projectName = (document.getElementById('project_name') && document.getElementById('project_name').value) || '未命名專案';
         const reportRows = [
             ['報告時間', new Date().toLocaleString('zh-TW')],
@@ -3554,6 +4271,8 @@
             ['平均傾斜角(度)', avgTilt.toFixed(2)],
             ['最大傾斜角(度)', measureQaStats.tiltMax.toFixed(2)],
             ['嚴格模式擋下次數', String(measureQaStats.strictBlocks)],
+            ['QA分數', String(qaScore)],
+            ['QA等級', qaLevel],
             ['目前傾斜角(度)', Number(measureAssistState.tiltDeg || 0).toFixed(2)],
             ['統計起算時間', new Date(measureQaStats.startedAt).toLocaleString('zh-TW')]
         ];
@@ -3571,9 +4290,9 @@
         link.download = `BuildMaster_量圖QA報告_${new Date().getTime()}.csv`;
         link.click();
         if (typeof addAuditLog === 'function') {
-            addAuditLog('匯出量圖QA報告', `測量完成 ${measureQaStats.measureSuccess} 次 / 平均傾斜 ${avgTilt.toFixed(2)}°`);
+            addAuditLog('匯出量圖QA報告', `等級 ${qaLevel} / 分數 ${qaScore} / 測量完成 ${measureQaStats.measureSuccess} 次`);
         }
-        showToast('🧪 量圖 QA 報告已匯出');
+        showToast(`🧪 量圖 QA 報告已匯出（${qaLevel} / ${qaScore}）`);
     }
 </script>
 </body>
