@@ -16,7 +16,9 @@
     /* ... 保留之前的 CSS 樣式，這裡為了精簡先省略，請沿用 V6.9 的黑洞版 CSS ... */
     :root { --bg-dark: #0b1220; --panel-bg: rgba(10, 18, 32, 0.34); --text-main: #ecf0f1; --highlight: #ff9800; --accent: #5ecbff; --money: #2ecc71; --line-soft: rgba(255,255,255,0.16); --text-subtle: #b8c7d9; }
     html { font-size: 110%; width: 100%; overflow-x: hidden; }
-    body { font-family: sans-serif; margin: 0; width: 100%; max-width: 100%; overflow-x: hidden; display: flex; flex-direction: column; min-height: 100dvh; background-color: var(--bg-dark); background-image: linear-gradient(rgba(6, 10, 18, 0.26), rgba(6, 10, 18, 0.26)), url('app-wallpaper.jpg'); background-size: 100% 100%; background-position: center center; background-repeat: no-repeat; background-attachment: fixed; color: var(--text-main); }
+    body { font-family: sans-serif; margin: 0; width: 100%; max-width: 100%; overflow-x: hidden; display: flex; flex-direction: column; min-height: 100dvh; background-color: var(--bg-dark); background-image: linear-gradient(rgba(6, 10, 18, 0.26), rgba(6, 10, 18, 0.26)); background-size: 100% 100%; background-position: center center; background-repeat: no-repeat; color: var(--text-main); }
+    body.bg-wallpaper { background-image: linear-gradient(rgba(6, 10, 18, 0.26), rgba(6, 10, 18, 0.26)), url('app-wallpaper.jpg'); background-attachment: fixed; }
+    body.network-lite { background-image: linear-gradient(rgba(6, 10, 18, 0.3), rgba(6, 10, 18, 0.3)); }
     header { background: rgba(10, 16, 30, 0.38); padding: 10px 20px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; border-bottom: 2px solid rgba(255,152,0,0.65); box-shadow: 0 4px 15px rgba(255,152,0,0.2); backdrop-filter: blur(8px) saturate(115%); }
     .logo-img { width: 70px; height: 70px; border-radius: 50%; border: 2px solid var(--highlight); margin-right: 15px; object-fit: cover; box-shadow: 0 0 10px var(--highlight); }
     .header-title { font-size: 1.4em; font-weight: bold; color: var(--highlight); letter-spacing: 2px; text-shadow: 0 0 10px rgba(255, 152, 0, 0.35); }
@@ -1017,7 +1019,35 @@
         });
     }
 
+    function applyNetworkLiteMode() {
+        const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        const saveData = !!(connection && connection.saveData);
+        const effectiveType = connection && typeof connection.effectiveType === 'string'
+            ? connection.effectiveType
+            : '';
+        const isSlowNetwork = saveData || effectiveType.includes('2g') || effectiveType === 'slow-2g';
+
+        document.body.classList.toggle('network-lite', isSlowNetwork);
+        document.body.classList.toggle('bg-wallpaper', !isSlowNetwork);
+    }
+
+    function registerServiceWorker() {
+        if (!('serviceWorker' in navigator)) return;
+        navigator.serviceWorker.register('./service-worker.js')
+            .catch(err => console.warn('Service worker 註冊失敗:', err));
+    }
+
+    function runWhenIdle(task, timeoutMs = 1200) {
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(() => task(), { timeout: timeoutMs });
+            return;
+        }
+        setTimeout(task, 0);
+    }
+
     window.onload = async function() {
+        applyNetworkLiteMode();
+        registerServiceWorker();
         const canStart = await bootstrapSecurity();
         if (!canStart) return;
         await startApp();
@@ -1043,13 +1073,22 @@
         await initMaterialCatalog();
         updateUI();
         renderTable();
-        initTouchCoach();
-        initUtilityWidgets();
-        restoreMeasureAssistMode();
-        restoreGyroMode();
         applyAiCoachMode();
-        maybeStartCoachGuide();
         hydrateInputFromUrlParam();
+        runDeferredBootTasks();
+    }
+
+    function runDeferredBootTasks() {
+        runWhenIdle(() => {
+            initTouchCoach();
+            initUtilityWidgets();
+        }, 800);
+
+        runWhenIdle(() => {
+            restoreMeasureAssistMode();
+            restoreGyroMode();
+            maybeStartCoachGuide();
+        }, 1500);
     }
 
     function getCurrentExpectedInput() {
