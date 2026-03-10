@@ -50,6 +50,12 @@ final class LiDARSessionManager: ObservableObject {
     @Published var overlayRotationDeg: Double = 0
     @Published var overlayScale: Double = 1
     @Published var rebarSpecText: String = "鋼筋規格：主筋 4｜箍筋 20cm｜保護層 4cm"
+    @Published var volumeAreaWidthMeters: Double = 2.0
+    @Published var volumeAreaLengthMeters: Double = 2.0
+    @Published var volumeGridSize: Int = 5
+    @Published var volumeEstimateM3: Double = 0
+    @Published var volumeSampleCount: Int = 0
+    @Published var volumeStatusText: String = "體積掃描：待命"
 
     private weak var arView: ARView?
     private var updateTimer: Timer?
@@ -67,6 +73,9 @@ final class LiDARSessionManager: ObservableObject {
     private let overlayOffsetYStorageKey = "lidar_rangefinder_overlay_offset_y_cm"
     private let overlayRotationStorageKey = "lidar_rangefinder_overlay_rotation_deg"
     private let overlayScaleStorageKey = "lidar_rangefinder_overlay_scale"
+    private let volumeAreaWidthStorageKey = "lidar_rangefinder_volume_area_width_m"
+    private let volumeAreaLengthStorageKey = "lidar_rangefinder_volume_area_length_m"
+    private let volumeGridSizeStorageKey = "lidar_rangefinder_volume_grid_size"
     private var aiIssue: AIQAIssueType = .none
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
@@ -117,6 +126,15 @@ final class LiDARSessionManager: ObservableObject {
         }
         if UserDefaults.standard.object(forKey: overlayScaleStorageKey) != nil {
             overlayScale = clampScale(UserDefaults.standard.double(forKey: overlayScaleStorageKey))
+        }
+        if UserDefaults.standard.object(forKey: volumeAreaWidthStorageKey) != nil {
+            volumeAreaWidthMeters = clampVolumeDimension(UserDefaults.standard.double(forKey: volumeAreaWidthStorageKey))
+        }
+        if UserDefaults.standard.object(forKey: volumeAreaLengthStorageKey) != nil {
+            volumeAreaLengthMeters = clampVolumeDimension(UserDefaults.standard.double(forKey: volumeAreaLengthStorageKey))
+        }
+        if UserDefaults.standard.object(forKey: volumeGridSizeStorageKey) != nil {
+            volumeGridSize = clampGridSize(UserDefaults.standard.integer(forKey: volumeGridSizeStorageKey))
         }
         refreshRebarSpecText()
         loadCorrectionHistory()
@@ -228,6 +246,45 @@ final class LiDARSessionManager: ObservableObject {
         UserDefaults.standard.set(overlayRotationDeg, forKey: overlayRotationStorageKey)
         UserDefaults.standard.set(overlayScale, forKey: overlayScaleStorageKey)
         invalidateOverlayAnchor()
+    }
+
+    func setVolumeAreaWidthMeters(_ value: Double) {
+        volumeAreaWidthMeters = clampVolumeDimension(value)
+        UserDefaults.standard.set(volumeAreaWidthMeters, forKey: volumeAreaWidthStorageKey)
+    }
+
+    func setVolumeAreaLengthMeters(_ value: Double) {
+        volumeAreaLengthMeters = clampVolumeDimension(value)
+        UserDefaults.standard.set(volumeAreaLengthMeters, forKey: volumeAreaLengthStorageKey)
+    }
+
+    func setVolumeGridSize(_ value: Int) {
+        volumeGridSize = clampGridSize(value)
+        UserDefaults.standard.set(volumeGridSize, forKey: volumeGridSizeStorageKey)
+    }
+
+    func runVolumeScanOnce() {
+        guard let arView, let frame = arView.session.currentFrame else {
+            volumeStatusText = "體積掃描：AR 畫面尚未就緒"
+            return
+        }
+
+        let samples = collectVolumeSamples(arView: arView, frame: frame, gridSize: volumeGridSize)
+        guard samples.count >= max(6, volumeGridSize) else {
+            volumeSampleCount = samples.count
+            volumeStatusText = "體積掃描：取樣不足（\(samples.count) 點），請對準平面重掃"
+            return
+        }
+
+        let avgDepth = samples.reduce(0, +) / Double(samples.count)
+        let area = volumeAreaWidthMeters * volumeAreaLengthMeters
+        volumeEstimateM3 = max(0, area * avgDepth)
+        volumeSampleCount = samples.count
+        volumeStatusText = String(
+            format: "體積掃描：完成（%d 點，平均深度 %.2fm）",
+            samples.count,
+            avgDepth
+        )
     }
 
     var aiCanAutoCorrect: Bool {
@@ -597,6 +654,34 @@ final class LiDARSessionManager: ObservableObject {
         )
     }
 
+    private func collectVolumeSamples(arView: ARView, frame: ARFrame, gridSize: Int) -> [Double] {
+        let size = max(3, gridSize)
+        let spread = min(arView.bounds.width, arView.bounds.height) * 0.28
+        let centerX = arView.bounds.midX
+        let centerY = arView.bounds.midY
+        var depths: [Double] = []
+
+        for row in 0..<size {
+            for col in 0..<size {
+                let nx = Double(col) / Double(max(1, size - 1))
+                let ny = Double(row) / Double(max(1, size - 1))
+                let x = centerX + CGFloat((nx - 0.5) * 2.0) * spread
+                let y = centerY + CGFloat((ny - 0.5) * 2.0) * spread
+                let p = CGPoint(x: x, y: y)
+                let result = arView.raycast(from: p, allowing: .estimatedPlane, alignment: .any).first
+                guard let result else { continue }
+                let world = result.worldTransform.columns.3
+                let camera = frame.camera.transform.columns.3
+                let dx = world.x - camera.x
+                let dy = world.y - camera.y
+                let dz = world.z - camera.z
+                let distance = Double(sqrt(dx * dx + dy * dy + dz * dz))
+                depths.append(distance)
+            }
+        }
+        return depths
+    }
+
     private func clampMainBarCount(_ value: Int) -> Int {
         min(12, max(2, value))
     }
@@ -611,6 +696,14 @@ final class LiDARSessionManager: ObservableObject {
 
     private func clampScale(_ value: Double) -> Double {
         min(2.5, max(0.5, value))
+    }
+
+    private func clampVolumeDimension(_ value: Double) -> Double {
+        min(20.0, max(0.2, value))
+    }
+
+    private func clampGridSize(_ value: Int) -> Int {
+        min(11, max(3, value))
     }
 
     private func appendRecentDistance(_ value: Double) {

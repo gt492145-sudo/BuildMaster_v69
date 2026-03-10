@@ -9,6 +9,7 @@ struct ContentView: View {
     @State private var showingCorrectionHistory = false
     @State private var showingAIAssistant = false
     @State private var showingRebarConfig = false
+    @State private var showingVolumeScan = false
     @State private var aiGoalInput = ""
     @State private var aiAPIKeyInput = ""
     @State private var selectedStatusPage: StatusPage = .measure
@@ -43,6 +44,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingRebarConfig) {
             rebarConfigView
+        }
+        .sheet(isPresented: $showingVolumeScan) {
+            volumeScanView
         }
     }
 
@@ -129,6 +133,12 @@ struct ContentView: View {
                     Text(sessionManager.arPOCStatusText)
                         .font(.caption2.bold())
                         .foregroundStyle(.cyan)
+                    Text(String(format: "體積估算：%.2f m³（%d 點）", sessionManager.volumeEstimateM3, sessionManager.volumeSampleCount))
+                        .font(.caption2.bold())
+                        .foregroundStyle(.mint)
+                    Text(sessionManager.volumeStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
                     Text("狀態: \(sessionManager.statusText)")
                         .font(.footnote)
                         .foregroundStyle(.white.opacity(0.8))
@@ -251,6 +261,13 @@ struct ContentView: View {
                         showingCorrectionHistory = true
                     }
                     .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
+
+                    Button("3D 體積掃描儀") {
+                        showingVolumeScan = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.teal)
                     .frame(maxWidth: .infinity)
                 }
             }
@@ -520,6 +537,60 @@ struct ContentView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") {
                         showingRebarConfig = false
+                    }
+                }
+            }
+        }
+    }
+
+    private var volumeScanView: some View {
+        NavigationStack {
+            Form {
+                Section("掃描區域設定") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(String(format: "寬度：%.1f m", sessionManager.volumeAreaWidthMeters))
+                        Slider(value: Binding(
+                            get: { sessionManager.volumeAreaWidthMeters },
+                            set: { sessionManager.setVolumeAreaWidthMeters($0) }
+                        ), in: 0.2...20, step: 0.1)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(String(format: "長度：%.1f m", sessionManager.volumeAreaLengthMeters))
+                        Slider(value: Binding(
+                            get: { sessionManager.volumeAreaLengthMeters },
+                            set: { sessionManager.setVolumeAreaLengthMeters($0) }
+                        ), in: 0.2...20, step: 0.1)
+                    }
+
+                    Stepper("取樣網格：\(sessionManager.volumeGridSize) x \(sessionManager.volumeGridSize)", value: Binding(
+                        get: { sessionManager.volumeGridSize },
+                        set: { sessionManager.setVolumeGridSize($0) }
+                    ), in: 3...11)
+                }
+
+                Section("掃描與結果") {
+                    Button("執行一次掃描") {
+                        sessionManager.runVolumeScanOnce()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .frame(maxWidth: .infinity)
+
+                    Text(String(format: "估算體積：%.2f m³", sessionManager.volumeEstimateM3))
+                        .font(.headline)
+                    Text("取樣點數：\(sessionManager.volumeSampleCount)")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text(sessionManager.volumeStatusText)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+            .navigationTitle("3D 體積掃描儀")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") {
+                        showingVolumeScan = false
                     }
                 }
             }
