@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var showingShareSheet = false
     @State private var showingCorrectionHistory = false
     private let minRecordScore = 60
+    private let minBlueprintScoreForRecord = 65
 
     var body: some View {
         ZStack {
@@ -15,6 +16,7 @@ struct ContentView: View {
                 .ignoresSafeArea()
 
             crosshair
+            lockFrameOverlay
 
             VStack {
                 topPanel
@@ -61,6 +63,18 @@ struct ContentView: View {
                 Text("Roll: \(sessionManager.rollText)")
             }
             .foregroundStyle(.white.opacity(0.9))
+            Text(sessionManager.blueprintLockText)
+                .font(.footnote.bold())
+                .foregroundStyle(sessionManager.blueprintLocked ? .green : .yellow)
+            Text("藍圖追蹤品質: \(sessionManager.blueprintTrackingScore) / 100")
+                .font(.footnote.bold())
+                .foregroundStyle(blueprintScoreColor(sessionManager.blueprintTrackingScore))
+            Text(sessionManager.blueprintGuidanceText)
+                .font(.caption)
+                .foregroundStyle(.orange)
+            Text(sessionManager.calibrationText)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             Text("QA 等級: \(sessionManager.qaLevelText)")
                 .font(.subheadline.bold())
                 .foregroundStyle(qaLevelColor(sessionManager.qaLevel))
@@ -102,6 +116,15 @@ struct ContentView: View {
 
     private var bottomPanel: some View {
         VStack(spacing: 10) {
+            Toggle(isOn: Binding(
+                get: { sessionManager.akiModeEnabled },
+                set: { sessionManager.setAkiModeEnabled($0) }
+            )) {
+                Text("阿基模式（藍圖標靶追蹤）")
+                    .font(.footnote.bold())
+            }
+            .tint(.cyan)
+
             Picker("QA 模式", selection: Binding(
                 get: { sessionManager.qaProfile },
                 set: { sessionManager.setQAProfile($0) }
@@ -146,7 +169,10 @@ struct ContentView: View {
                     roll: sessionManager.latestRollDegrees,
                     qaLevel: sessionManager.qaLevel,
                     qaProfile: sessionManager.qaProfile,
-                    qaScore: sessionManager.qaScore
+                    qaScore: sessionManager.qaScore,
+                    blueprintLocked: sessionManager.blueprintLocked,
+                    blueprintScore: sessionManager.blueprintTrackingScore,
+                    akiModeEnabled: sessionManager.akiModeEnabled
                 )
             }
             .buttonStyle(.borderedProminent)
@@ -154,10 +180,16 @@ struct ContentView: View {
             .disabled(!canRecordMeasurement)
 
             if !canRecordMeasurement {
-                Text("需達 \(minRecordScore) 分以上才能記錄（目前 \(sessionManager.qaScore) 分）")
+                Text(recordDisabledReason)
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
+
+            Button("快速校準（重置追蹤）") {
+                sessionManager.calibrateNow()
+            }
+            .buttonStyle(.bordered)
+            .frame(maxWidth: .infinity)
 
             HStack(spacing: 10) {
                 Button("截圖存相簿") {
@@ -205,6 +237,9 @@ struct ContentView: View {
                         Text("分數: \(item.qaScore) / 100")
                             .font(.footnote)
                             .foregroundStyle(qaScoreColor(item.qaScore))
+                        Text("標靶: \(item.blueprintLocked ? "已鎖定" : "未鎖定") | 標靶分數: \(item.blueprintScore) | 阿基模式: \(item.akiModeEnabled ? "開" : "關")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 2)
                 }
@@ -297,12 +332,44 @@ struct ContentView: View {
     }
 
     private var canRecordMeasurement: Bool {
-        sessionManager.latestDistanceMeters != nil && sessionManager.qaScore >= minRecordScore
+        guard sessionManager.latestDistanceMeters != nil else { return false }
+        guard sessionManager.qaScore >= minRecordScore else { return false }
+        if sessionManager.akiModeEnabled {
+            return sessionManager.blueprintTrackingScore >= minBlueprintScoreForRecord
+        }
+        return true
     }
 
     private func deltaScoreColor(_ delta: Int) -> Color {
         if delta > 0 { return .green }
         if delta < 0 { return .red }
         return .secondary
+    }
+
+    private func blueprintScoreColor(_ score: Int) -> Color {
+        if score >= 85 { return .green }
+        if score >= 65 { return .mint }
+        if score >= 40 { return .yellow }
+        return .red
+    }
+
+    private var recordDisabledReason: String {
+        if sessionManager.latestDistanceMeters == nil {
+            return "尚未量測到距離，請先鎖定可量測表面"
+        }
+        if sessionManager.qaScore < minRecordScore {
+            return "需達 \(minRecordScore) 分以上才能記錄（目前 \(sessionManager.qaScore) 分）"
+        }
+        if sessionManager.akiModeEnabled && sessionManager.blueprintTrackingScore < minBlueprintScoreForRecord {
+            return "阿基模式需標靶分數 >= \(minBlueprintScoreForRecord)（目前 \(sessionManager.blueprintTrackingScore)）"
+        }
+        return "目前條件不足，請重新量測"
+    }
+
+    private var lockFrameOverlay: some View {
+        RoundedRectangle(cornerRadius: 10)
+            .stroke(sessionManager.blueprintLocked ? .green : .yellow.opacity(0.85), lineWidth: 2)
+            .frame(width: 210, height: 210)
+            .opacity(sessionManager.akiModeEnabled ? 0.92 : 0)
     }
 }

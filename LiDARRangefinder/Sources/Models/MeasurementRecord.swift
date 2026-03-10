@@ -61,6 +61,9 @@ struct MeasurementRecord: Identifiable, Codable {
     let qaLevel: QAPrecisionLevel
     let qaProfile: QATuningProfile
     let qaScore: Int
+    let blueprintLocked: Bool
+    let blueprintScore: Int
+    let akiModeEnabled: Bool
 
     init(
         id: UUID = UUID(),
@@ -70,7 +73,10 @@ struct MeasurementRecord: Identifiable, Codable {
         rollDegrees: Double,
         qaLevel: QAPrecisionLevel,
         qaProfile: QATuningProfile,
-        qaScore: Int
+        qaScore: Int,
+        blueprintLocked: Bool,
+        blueprintScore: Int,
+        akiModeEnabled: Bool
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -80,6 +86,9 @@ struct MeasurementRecord: Identifiable, Codable {
         self.qaLevel = qaLevel
         self.qaProfile = qaProfile
         self.qaScore = qaScore
+        self.blueprintLocked = blueprintLocked
+        self.blueprintScore = blueprintScore
+        self.akiModeEnabled = akiModeEnabled
     }
 
     enum CodingKeys: String, CodingKey {
@@ -91,6 +100,9 @@ struct MeasurementRecord: Identifiable, Codable {
         case qaLevel
         case qaProfile
         case qaScore
+        case blueprintLocked
+        case blueprintScore
+        case akiModeEnabled
     }
 
     init(from decoder: Decoder) throws {
@@ -103,6 +115,9 @@ struct MeasurementRecord: Identifiable, Codable {
         qaLevel = try container.decodeIfPresent(QAPrecisionLevel.self, forKey: .qaLevel) ?? .normal
         qaProfile = try container.decodeIfPresent(QATuningProfile.self, forKey: .qaProfile) ?? .standard
         qaScore = try container.decodeIfPresent(Int.self, forKey: .qaScore) ?? 0
+        blueprintLocked = try container.decodeIfPresent(Bool.self, forKey: .blueprintLocked) ?? false
+        blueprintScore = try container.decodeIfPresent(Int.self, forKey: .blueprintScore) ?? 0
+        akiModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .akiModeEnabled) ?? true
     }
 }
 

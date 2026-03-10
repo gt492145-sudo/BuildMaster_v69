@@ -1,5 +1,6 @@
 import ARKit
 import Foundation
+import Combine
 import Photos
 import RealityKit
 import UIKit
@@ -34,16 +35,29 @@ final class LiDARSessionManager: ObservableObject {
     @Published var autoCorrectionEnabled: Bool = false
     @Published var autoCorrectionStatusText: String = "自動連續矯正：關"
     @Published var autoCorrectionStrategy: AIAutoCorrectionStrategy = .stableFirst
+    @Published var akiModeEnabled: Bool = true
+    @Published var blueprintLockText: String = "藍圖標靶：等待偵測"
+    @Published var blueprintLocked: Bool = false
+    @Published var blueprintTrackingScore: Int = 0
+    @Published var blueprintGuidanceText: String = "標靶建議：使用高對比、角點明顯、已設定實體寬度的藍圖圖像"
+    @Published var calibrationText: String = "姿態校準：未校準"
 
     private weak var arView: ARView?
     private var updateTimer: Timer?
     private var recentDistances: [Double] = []
+    private var recentRawDistances: [Double] = []
     private let qaProfileStorageKey = "lidar_rangefinder_qa_profile"
     private let aiCorrectionStorageKey = "lidar_rangefinder_ai_corrections"
     private let autoCorrectionStrategyStorageKey = "lidar_rangefinder_auto_correction_strategy"
+    private let akiModeStorageKey = "lidar_rangefinder_aki_mode_enabled"
     private var aiIssue: AIQAIssueType = .none
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
+    private var blueprintNoLockSince: Date?
+    private var blueprintLockedSince: Date?
+    private var autoSwitchedQaForBlueprintLock = false
+    private var pitchCalibrationOffset: Double = 0
+    private var rollCalibrationOffset: Double = 0
 
     init() {
         if let raw = UserDefaults.standard.string(forKey: qaProfileStorageKey),
@@ -54,9 +68,16 @@ final class LiDARSessionManager: ObservableObject {
            let strategy = AIAutoCorrectionStrategy(rawValue: raw) {
             autoCorrectionStrategy = strategy
         }
+        if UserDefaults.standard.object(forKey: akiModeStorageKey) != nil {
+            akiModeEnabled = UserDefaults.standard.bool(forKey: akiModeStorageKey)
+        }
         loadCorrectionHistory()
         refreshCorrectionTrend()
         refreshAutoCorrectionStatus()
+        if !akiModeEnabled {
+            blueprintLockText = "藍圖標靶：阿基模式已關閉"
+            blueprintGuidanceText = "阿基模式關閉中，僅執行一般 LiDAR 量測"
+        }
     }
 
     deinit {
@@ -168,6 +189,45 @@ final class LiDARSessionManager: ObservableObject {
         refreshCorrectionTrend()
     }
 
+    func setAkiModeEnabled(_ enabled: Bool) {
+        akiModeEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: akiModeStorageKey)
+        if enabled {
+            blueprintLockText = "藍圖標靶：等待偵測"
+            blueprintGuidanceText = "標靶建議：使用高對比、角點明顯、已設定實體寬度的藍圖圖像"
+            blueprintTrackingScore = 0
+            if let arView {
+                configureSession(on: arView)
+            }
+            return
+        }
+        blueprintLocked = false
+        blueprintLockText = "藍圖標靶：阿基模式已關閉"
+        blueprintGuidanceText = "阿基模式關閉中，僅執行一般 LiDAR 量測"
+        blueprintTrackingScore = 0
+        blueprintNoLockSince = nil
+        blueprintLockedSince = nil
+        autoSwitchedQaForBlueprintLock = false
+        if qaProfile == .strict {
+            qaProfile = .standard
+            UserDefaults.standard.set(qaProfile.rawValue, forKey: qaProfileStorageKey)
+        }
+        if let arView {
+            configureSession(on: arView)
+        }
+    }
+
+    func calibrateNow() {
+        pitchCalibrationOffset = latestPitchDegrees
+        rollCalibrationOffset = latestRollDegrees
+        calibrationText = String(
+            format: "姿態校準：已校準（P %.1f° / R %.1f°）",
+            pitchCalibrationOffset,
+            rollCalibrationOffset
+        )
+        recalibrateTracking()
+    }
+
     private func configureSession(on view: ARView) {
         guard ARWorldTrackingConfiguration.isSupported else {
             statusText = "此裝置不支援 ARWorldTracking"
@@ -182,6 +242,15 @@ final class LiDARSessionManager: ObservableObject {
         }
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
             configuration.frameSemantics.insert(.sceneDepth)
+        }
+        if akiModeEnabled {
+            if let referenceImages = ARReferenceImage.referenceImages(inGroupNamed: "ARBlueprints", bundle: nil) {
+                configuration.detectionImages = referenceImages
+                configuration.maximumNumberOfTrackedImages = 1
+                print("✅ 阿基系統回報：成功掛載 AR 藍圖標靶！")
+            } else {
+                print("❌ 阿基系統警告：找不到 ARBlueprints 彈藥庫！")
+            }
         }
 
         view.session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
@@ -200,6 +269,7 @@ final class LiDARSessionManager: ObservableObject {
 
     private func updateMeasurement() {
         guard let arView, let frame = arView.session.currentFrame else { return }
+        updateBlueprintLockStatus(from: frame)
 
         let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
         let results = arView.raycast(from: center, allowing: .estimatedPlane, alignment: .any)
@@ -210,15 +280,18 @@ final class LiDARSessionManager: ObservableObject {
             let dx = world.x - camera.x
             let dy = world.y - camera.y
             let dz = world.z - camera.z
-            let distance = sqrt(dx * dx + dy * dy + dz * dz)
-            latestDistanceMeters = Double(distance)
+            let rawDistance = Double(sqrt(dx * dx + dy * dy + dz * dz))
+            appendRawDistance(rawDistance)
+            let distance = smoothedDistance(rawDistance)
+            latestDistanceMeters = distance
             distanceText = String(format: "%.2f m", distance)
-            appendRecentDistance(Double(distance))
+            appendRecentDistance(distance)
             statusText = "已鎖定目標"
         } else {
             latestDistanceMeters = nil
             distanceText = "-- m"
             recentDistances.removeAll()
+            recentRawDistances.removeAll()
             qaLevel = .normal
             qaLevelText = qaLevel.displayName
             qaScore = 0
@@ -229,8 +302,8 @@ final class LiDARSessionManager: ObservableObject {
         }
 
         let euler = frame.camera.eulerAngles
-        latestPitchDegrees = radiansToDegrees(Double(euler.x))
-        latestRollDegrees = radiansToDegrees(Double(euler.z))
+        latestPitchDegrees = radiansToDegrees(Double(euler.x)) - pitchCalibrationOffset
+        latestRollDegrees = radiansToDegrees(Double(euler.z)) - rollCalibrationOffset
         pitchText = String(format: "%.1f°", latestPitchDegrees)
         rollText = String(format: "%.1f°", latestRollDegrees)
         refreshQALevel()
@@ -245,6 +318,23 @@ final class LiDARSessionManager: ObservableObject {
         if recentDistances.count > 8 {
             recentDistances.removeFirst(recentDistances.count - 8)
         }
+    }
+
+    private func appendRawDistance(_ value: Double) {
+        recentRawDistances.append(value)
+        if recentRawDistances.count > 7 {
+            recentRawDistances.removeFirst(recentRawDistances.count - 7)
+        }
+    }
+
+    private func smoothedDistance(_ fallback: Double) -> Double {
+        guard !recentRawDistances.isEmpty else { return fallback }
+        let sorted = recentRawDistances.sorted()
+        let mid = sorted.count / 2
+        if sorted.count % 2 == 1 {
+            return sorted[mid]
+        }
+        return (sorted[mid - 1] + sorted[mid]) / 2.0
     }
 
     private func refreshQALevel() {
@@ -487,6 +577,66 @@ final class LiDARSessionManager: ObservableObject {
             return
         }
         autoCorrectionStatusText = "自動連續矯正：關（\(autoCorrectionStrategy.displayName)）"
+    }
+
+    private func updateBlueprintLockStatus(from frame: ARFrame) {
+        guard akiModeEnabled else {
+            blueprintLocked = false
+            blueprintTrackingScore = 0
+            blueprintLockText = "藍圖標靶：阿基模式已關閉"
+            blueprintGuidanceText = "阿基模式關閉中，僅執行一般 LiDAR 量測"
+            return
+        }
+        if let imageAnchor = frame.anchors.compactMap({ $0 as? ARImageAnchor }).first {
+            blueprintLocked = true
+            let imageName = imageAnchor.referenceImage.name ?? "未命名標靶"
+            blueprintLockText = "藍圖標靶：已鎖定（\(imageName)）"
+            blueprintNoLockSince = nil
+            if blueprintLockedSince == nil {
+                blueprintLockedSince = Date()
+            }
+            let lockedSeconds = Date().timeIntervalSince(blueprintLockedSince ?? Date())
+            if qaProfile == .standard && !autoSwitchedQaForBlueprintLock {
+                qaProfile = .strict
+                autoSwitchedQaForBlueprintLock = true
+                UserDefaults.standard.set(qaProfile.rawValue, forKey: qaProfileStorageKey)
+                aiLastActionText = "AI QA：已因標靶鎖定自動切換為嚴格模式"
+            }
+            blueprintGuidanceText = "標靶已鎖定，請穩定手持並讓藍圖完整留在畫面中"
+            blueprintTrackingScore = computeBlueprintTrackingScore(lockedSeconds: lockedSeconds)
+            return
+        }
+
+        if blueprintLocked {
+            blueprintLockedSince = nil
+        }
+        blueprintLocked = false
+        blueprintLockText = "藍圖標靶：等待偵測"
+        if blueprintNoLockSince == nil {
+            blueprintNoLockSince = Date()
+        }
+        let noLockSeconds = Date().timeIntervalSince(blueprintNoLockSince ?? Date())
+        blueprintTrackingScore = max(0, 45 - Int(noLockSeconds * 10))
+        if noLockSeconds >= 3 {
+            blueprintGuidanceText = "超過 3 秒未鎖定：請補光、拉近鏡頭、避免反光並確認標靶寬度設定"
+        } else {
+            blueprintGuidanceText = "標靶建議：高對比、角點多、避免模糊與重複圖樣"
+        }
+        if autoSwitchedQaForBlueprintLock && qaProfile == .strict {
+            qaProfile = .standard
+            autoSwitchedQaForBlueprintLock = false
+            UserDefaults.standard.set(qaProfile.rawValue, forKey: qaProfileStorageKey)
+            aiLastActionText = "AI QA：標靶失鎖，已恢復標準模式"
+        }
+    }
+
+    private func computeBlueprintTrackingScore(lockedSeconds: Double) -> Int {
+        let pitchAbs = abs(latestPitchDegrees)
+        let rollAbs = abs(latestRollDegrees)
+        let anglePenalty = min(25.0, (pitchAbs + rollAbs) * 0.35)
+        let lockBonus = min(20.0, lockedSeconds * 8.0)
+        let base = 75.0 + lockBonus - anglePenalty
+        return Int(max(0, min(100, base)).rounded())
     }
 }
 

@@ -177,7 +177,14 @@ final class LiDARSessionManager: ObservableObject {
 
         let configuration = ARWorldTrackingConfiguration()
         configuration.planeDetection = [.horizontal, .vertical]
-
+        // 🚀 阿基的外掛晶片：讓雷達學會看藍圖
+                if let referenceImages = ARReferenceImage.referenceImages(inGroupNamed: "ARBlueprints", bundle: nil) {
+                    configuration.detectionImages = referenceImages
+                    configuration.maximumNumberOfTrackedImages = 1
+                    print("✅ 阿基系統回報：成功掛載 AR 藍圖標靶！")
+                } else {
+                    print("❌ 阿基系統警告：找不到 ARBlueprints 彈藥庫！")
+                }
         if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
             configuration.sceneReconstruction = .mesh
         }

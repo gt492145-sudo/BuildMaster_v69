@@ -18,7 +18,10 @@ final class MeasurementStore: ObservableObject {
         roll: Double,
         qaLevel: QAPrecisionLevel,
         qaProfile: QATuningProfile,
-        qaScore: Int
+        qaScore: Int,
+        blueprintLocked: Bool,
+        blueprintScore: Int,
+        akiModeEnabled: Bool
     ) {
         let record = MeasurementRecord(
             distanceMeters: distance,
@@ -26,7 +29,10 @@ final class MeasurementStore: ObservableObject {
             rollDegrees: roll,
             qaLevel: qaLevel,
             qaProfile: qaProfile,
-            qaScore: qaScore
+            qaScore: qaScore,
+            blueprintLocked: blueprintLocked,
+            blueprintScore: blueprintScore,
+            akiModeEnabled: akiModeEnabled
         )
         records.insert(record, at: 0)
         persist()
@@ -38,11 +44,11 @@ final class MeasurementStore: ObservableObject {
     }
 
     func csvString() -> String {
-        var rows = ["time,distance_m,pitch_deg,roll_deg,qa_level,qa_profile,qa_score"]
+        var rows = ["time,distance_m,pitch_deg,roll_deg,qa_level,qa_profile,qa_score,blueprint_locked,blueprint_score,aki_mode"]
         let formatter = ISO8601DateFormatter()
         for item in records {
             rows.append(
-                "\(formatter.string(from: item.createdAt)),\(item.distanceMeters),\(item.pitchDegrees),\(item.rollDegrees),\(item.qaLevel.rawValue),\(item.qaProfile.rawValue),\(item.qaScore)"
+                "\(formatter.string(from: item.createdAt)),\(item.distanceMeters),\(item.pitchDegrees),\(item.rollDegrees),\(item.qaLevel.rawValue),\(item.qaProfile.rawValue),\(item.qaScore),\(item.blueprintLocked),\(item.blueprintScore),\(item.akiModeEnabled)"
             )
         }
         return rows.joined(separator: "\n")
