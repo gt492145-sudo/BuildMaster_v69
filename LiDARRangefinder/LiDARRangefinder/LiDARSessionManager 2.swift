@@ -114,6 +114,13 @@ final class LiDARSessionManager: ObservableObject {
     @Published var quantumVoiceListening: Bool = false
     @Published var quantumVoiceTranscript: String = ""
     @Published var quantumHistory: [QuantumTacticRecord] = []
+    @Published var quantumIBMCloudEnabled: Bool = false
+    @Published var quantumIBMProviderText: String = "量子雲：本地模式"
+    @Published var quantumIBMJobText: String = "IBM Job：尚未送出"
+    @Published var quantumIBMResultText: String = "IBM Result：尚無資料"
+    @Published var quantumIBMBackend: String = "ibm_kyiv"
+    @Published var quantumIBMShots: Int = 128
+    @Published var quantumFusionStatusText: String = "量子融合：待命"
 
     private weak var arView: ARView?
     private var updateTimer: Timer?
@@ -137,6 +144,10 @@ final class LiDARSessionManager: ObservableObject {
     private let crackCalibrationStorageKey = "lidar_rangefinder_crack_cm_per_pixel"
     private let quantumModeStorageKey = "lidar_rangefinder_quantum_mode_enabled"
     private let quantumHistoryStorageKey = "lidar_rangefinder_quantum_history"
+    private let quantumIBMCloudEnabledStorageKey = "lidar_rangefinder_quantum_ibm_cloud_enabled"
+    private let quantumIBMAPIKeyStorageKey = "lidar_rangefinder_quantum_ibm_api_key"
+    private let quantumIBMBackendStorageKey = "lidar_rangefinder_quantum_ibm_backend"
+    private let quantumIBMShotsStorageKey = "lidar_rangefinder_quantum_ibm_shots"
     private var aiIssue: AIQAIssueType = .none
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
@@ -208,6 +219,15 @@ final class LiDARSessionManager: ObservableObject {
         if UserDefaults.standard.object(forKey: quantumModeStorageKey) != nil {
             quantumModeEnabled = UserDefaults.standard.bool(forKey: quantumModeStorageKey)
         }
+        if UserDefaults.standard.object(forKey: quantumIBMCloudEnabledStorageKey) != nil {
+            quantumIBMCloudEnabled = UserDefaults.standard.bool(forKey: quantumIBMCloudEnabledStorageKey)
+        }
+        if let backend = UserDefaults.standard.string(forKey: quantumIBMBackendStorageKey) {
+            quantumIBMBackend = clampIBMBackend(backend)
+        }
+        if UserDefaults.standard.object(forKey: quantumIBMShotsStorageKey) != nil {
+            quantumIBMShots = clampIBMShots(UserDefaults.standard.integer(forKey: quantumIBMShotsStorageKey))
+        }
         if quantumModeEnabled {
             highestModeLockEnabled = true
             qaProfile = .ultra
@@ -218,6 +238,7 @@ final class LiDARSessionManager: ObservableObject {
         loadQuantumHistory()
         refreshVolumeAreaM2()
         refreshRebarSpecText()
+        refreshQuantumProviderText()
         loadCorrectionHistory()
         refreshCorrectionTrend()
         refreshAutoCorrectionStatus()
@@ -441,7 +462,17 @@ final class LiDARSessionManager: ObservableObject {
         autoCorrectionRoundsDone = 0
         refreshAutoCorrectionStatus()
         maybeRunAutoCorrection()
-        quantumStatusText = "量子核心：已啟用，戰術增益上線"
+        refreshQuantumProviderText()
+        if quantumIBMCloudEnabled && hasIBMQuantumAPIKey {
+            quantumStatusText = "量子核心：已啟用，IBM 量子雲輔助上線"
+            Task {
+                await runIBMQuantumRuntimeJob()
+            }
+        } else if quantumIBMCloudEnabled {
+            quantumStatusText = "量子核心：已啟用，IBM Key 未設置，使用本地模式"
+        } else {
+            quantumStatusText = "量子核心：已啟用，戰術增益上線"
+        }
         refreshQuantumTelemetry()
         appendQuantumHistory(
             source: source,
@@ -472,6 +503,71 @@ final class LiDARSessionManager: ObservableObject {
     func clearQuantumHistory() {
         quantumHistory.removeAll()
         persistQuantumHistory()
+    }
+
+    func runQuantumFusionAutopilot() {
+        guard quantumModeEnabled else {
+            quantumStatusText = "量子核心：請先啟用後再執行融合補齊"
+            return
+        }
+
+        var steps: [String] = []
+        recalibrateTracking()
+        steps.append("雷射重校準")
+
+        runVolumeScanOnce()
+        steps.append("B 體積掃描")
+
+        if crackInputImage != nil {
+            runCrackDetection()
+            steps.append("C 裂縫分析")
+        } else {
+            steps.append("C 待選圖")
+        }
+
+        if !arPOCStatusText.contains("已在") && !arPOCStatusText.contains("建立") {
+            quantumSuggestionText = "戰術建議：請先完成 A 藍圖對位後再重跑融合"
+            steps.append("A 待對位")
+        }
+
+        quantumStatusText = "量子核心：融合補齊已執行（\(steps.joined(separator: "｜"))）"
+        refreshQuantumTelemetry()
+    }
+
+    func setQuantumIBMCloudEnabled(_ enabled: Bool) {
+        quantumIBMCloudEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: quantumIBMCloudEnabledStorageKey)
+        refreshQuantumProviderText()
+    }
+
+    func setIBMQuantumAPIKey(_ key: String) {
+        let sanitized = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        UserDefaults.standard.set(sanitized, forKey: quantumIBMAPIKeyStorageKey)
+        refreshQuantumProviderText()
+    }
+
+    func clearIBMQuantumAPIKey() {
+        UserDefaults.standard.removeObject(forKey: quantumIBMAPIKeyStorageKey)
+        refreshQuantumProviderText()
+    }
+
+    var hasIBMQuantumAPIKey: Bool {
+        guard let raw = UserDefaults.standard.string(forKey: quantumIBMAPIKeyStorageKey) else { return false }
+        return !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var availableIBMBackends: [String] {
+        ["ibm_kyiv", "ibm_sherbrooke", "ibm_brisbane", "ibm_osaka"]
+    }
+
+    func setIBMBackend(_ backend: String) {
+        quantumIBMBackend = clampIBMBackend(backend)
+        UserDefaults.standard.set(quantumIBMBackend, forKey: quantumIBMBackendStorageKey)
+    }
+
+    func setIBMShots(_ shots: Int) {
+        quantumIBMShots = clampIBMShots(shots)
+        UserDefaults.standard.set(quantumIBMShots, forKey: quantumIBMShotsStorageKey)
     }
 
     func startQuantumVoiceCommand() {
@@ -950,22 +1046,49 @@ final class LiDARSessionManager: ObservableObject {
     }
 
     private func refreshQuantumTelemetry() {
+        let hasLaserLock = latestDistanceMeters != nil
+        let blueprintReady = arPOCStatusText.contains("已在") || arPOCStatusText.contains("建立")
+        let volumeReady = volumeSampleCount >= max(6, volumeGridSize)
+        let crackReady = crackInputImage != nil
+        let crackRiskPenalty: Int
+        switch crackSeveritySummary {
+        case "高":
+            crackRiskPenalty = 20
+        case "中":
+            crackRiskPenalty = 10
+        default:
+            crackRiskPenalty = 0
+        }
+
+        let fusionParts = [
+            "雷射\(hasLaserLock ? "OK" : "待鎖定")",
+            "A藍圖\(blueprintReady ? "OK" : "待對位")",
+            "B體積\(volumeReady ? "OK" : "待掃描")",
+            "C裂縫\(crackReady ? "OK" : "待選圖")"
+        ]
+        quantumFusionStatusText = "量子融合：\(fusionParts.joined(separator: "｜"))"
+
         if !quantumModeEnabled {
             quantumCoreLevel = 0
+            refreshQuantumProviderText()
             if qaScore < 70 {
                 quantumSuggestionText = "戰術建議：QA 偏低，建議啟動量子核心"
             } else if crackSeveritySummary == "高" {
                 quantumSuggestionText = "戰術建議：裂縫高風險，建議啟動量子核心強化檢測"
+            } else if !volumeReady {
+                quantumSuggestionText = "戰術建議：可啟動量子核心後執行體積掃描強化"
             } else {
                 quantumSuggestionText = "戰術建議：目前無需啟動"
             }
             return
         }
         var score = Int((Double(qaScore) * 0.6).rounded())
-        if latestDistanceMeters != nil { score += 10 }
+        if hasLaserLock { score += 10 }
+        if blueprintReady { score += 10 }
+        if volumeReady { score += 10 }
+        if crackReady { score += 5 }
         if autoCorrectionEnabled { score += 10 }
-        if crackSeveritySummary == "高" { score -= 20 }
-        else if crackSeveritySummary == "中" { score -= 10 }
+        score -= crackRiskPenalty
         score = max(0, min(100, score))
         quantumCoreLevel = score
 
@@ -976,7 +1099,182 @@ final class LiDARSessionManager: ObservableObject {
         } else {
             quantumStatusText = "量子核心：能量不足，請先校準（\(score)%）"
         }
-        quantumSuggestionText = "戰術建議：量子核心已啟用，維持穩定掃描"
+        if !blueprintReady {
+            quantumSuggestionText = "戰術建議：先完成 A 藍圖對位，提高融合穩定度"
+        } else if !volumeReady {
+            quantumSuggestionText = "戰術建議：執行 B 體積掃描，補齊量子融合資料"
+        } else if !crackReady {
+            quantumSuggestionText = "戰術建議：載入 C 裂縫照片，完成三項融合"
+        } else if crackSeveritySummary == "高" {
+            quantumSuggestionText = "戰術建議：裂縫風險高，建議降低行進速度並重掃熱區"
+        } else {
+            quantumSuggestionText = "戰術建議：A/B/C 與雷射量測已融合，維持穩定掃描"
+        }
+    }
+
+    private func refreshQuantumProviderText() {
+        if quantumIBMCloudEnabled && hasIBMQuantumAPIKey {
+            quantumIBMProviderText = "量子雲：IBM Quantum API 已接入"
+        } else if quantumIBMCloudEnabled {
+            quantumIBMProviderText = "量子雲：已啟用（未設定 API Key，將回退本地）"
+        } else {
+            quantumIBMProviderText = "量子雲：本地模式"
+        }
+    }
+
+    private func runIBMQuantumRuntimeJob() async {
+        guard quantumModeEnabled, quantumIBMCloudEnabled else { return }
+        guard let apiKey = UserDefaults.standard.string(forKey: quantumIBMAPIKeyStorageKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !apiKey.isEmpty else {
+            quantumIBMJobText = "IBM Job：未設定 API Key"
+            quantumIBMResultText = "IBM Result：改用本地模式"
+            return
+        }
+
+        quantumIBMJobText = "IBM Job：送出中..."
+        quantumIBMResultText = "IBM Result：等待結果"
+
+        do {
+            let jobID = try await submitIBMRuntimeJob(
+                apiKey: apiKey,
+                backend: quantumIBMBackend,
+                shots: quantumIBMShots
+            )
+            quantumIBMJobText = "IBM Job：\(jobID)"
+
+            let status = try await pollIBMRuntimeJobStatus(apiKey: apiKey, jobID: jobID)
+            if status == "completed" {
+                let resultSummary = try await fetchIBMRuntimeResultSummary(apiKey: apiKey, jobID: jobID)
+                quantumIBMResultText = "IBM Result：\(resultSummary)"
+                quantumStatusText = "量子核心：IBM Job 完成，量子雲回饋已更新"
+            } else {
+                quantumIBMResultText = "IBM Result：Job 狀態 \(status)"
+            }
+        } catch {
+            quantumIBMJobText = "IBM Job：送出失敗"
+            quantumIBMResultText = "IBM Result：\(error.localizedDescription)"
+            quantumStatusText = "量子核心：IBM 連線失敗，已回退本地模式"
+        }
+    }
+
+    private func submitIBMRuntimeJob(apiKey: String, backend: String, shots: Int) async throws -> String {
+        let url = URL(string: "https://api.quantum-computing.ibm.com/runtime/jobs")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        let body: [String: Any] = [
+            "program_id": "sampler",
+            "backend": backend,
+            "params": [
+                "pubs": [["circuit": "bell", "shots": shots]]
+            ]
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        guard (200...299).contains(http.statusCode) else {
+            throw buildIBMHTTPError(statusCode: http.statusCode, data: data)
+        }
+        let payload = try parseJSONDictionary(data)
+        if let jobID = payload["id"] as? String, !jobID.isEmpty {
+            return jobID
+        }
+        if let jobID = payload["job_id"] as? String, !jobID.isEmpty {
+            return jobID
+        }
+        throw URLError(.cannotParseResponse)
+    }
+
+    private func pollIBMRuntimeJobStatus(apiKey: String, jobID: String) async throws -> String {
+        let terminalStates: Set<String> = ["completed", "done", "failed", "cancelled", "error"]
+        var lastStatus = "queued"
+
+        for _ in 0..<8 {
+            try await Task.sleep(nanoseconds: 1_200_000_000)
+            let url = URL(string: "https://api.quantum-computing.ibm.com/runtime/jobs/\(jobID)")!
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                throw URLError(.badServerResponse)
+            }
+            guard (200...299).contains(http.statusCode) else {
+                throw buildIBMHTTPError(statusCode: http.statusCode, data: data)
+            }
+            let payload = try parseJSONDictionary(data)
+            let status = ((payload["state"] as? String) ?? (payload["status"] as? String) ?? "queued").lowercased()
+            lastStatus = status
+            if terminalStates.contains(status) {
+                return status
+            }
+        }
+        return lastStatus
+    }
+
+    private func fetchIBMRuntimeResultSummary(apiKey: String, jobID: String) async throws -> String {
+        let url = URL(string: "https://api.quantum-computing.ibm.com/runtime/jobs/\(jobID)/results")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        guard (200...299).contains(http.statusCode) else {
+            throw buildIBMHTTPError(statusCode: http.statusCode, data: data)
+        }
+        if let payload = try? parseJSONDictionary(data) {
+            if let quasi = payload["quasi_dists"] {
+                return "quasi_dists=\(String(describing: quasi))"
+            }
+            if let result = payload["result"] {
+                return String(describing: result)
+            }
+            return "keys=\(payload.keys.sorted().joined(separator: ","))"
+        }
+        let raw = String(data: data, encoding: .utf8) ?? "non-utf8"
+        return String(raw.prefix(180))
+    }
+
+    private func parseJSONDictionary(_ data: Data) throws -> [String: Any] {
+        let json = try JSONSerialization.jsonObject(with: data)
+        guard let dictionary = json as? [String: Any] else {
+            throw URLError(.cannotParseResponse)
+        }
+        return dictionary
+    }
+
+    private func clampIBMBackend(_ backend: String) -> String {
+        let allowed = availableIBMBackends
+        return allowed.contains(backend) ? backend : "ibm_kyiv"
+    }
+
+    private func clampIBMShots(_ shots: Int) -> Int {
+        min(4096, max(32, shots))
+    }
+
+    private func buildIBMHTTPError(statusCode: Int, data: Data) -> IBMRuntimeError {
+        let message: String
+        switch statusCode {
+        case 401:
+            message = "401 Unauthorized（API Key 無效或過期）"
+        case 403:
+            message = "403 Forbidden（帳號權限不足或未授權 Runtime）"
+        case 429:
+            message = "429 Too Many Requests（請求過多，稍後再試）"
+        default:
+            let body = String(data: data, encoding: .utf8) ?? "無法解析回應"
+            message = "HTTP \(statusCode)：\(String(body.prefix(120)))"
+        }
+        return IBMRuntimeError(statusCode: statusCode, message: message)
     }
 
     private func beginSpeechSession() async {
@@ -1522,5 +1820,14 @@ private struct ChatCompletionsResponse: Decodable {
 
     struct Choice: Decodable {
         let message: ChatMessage
+    }
+}
+
+private struct IBMRuntimeError: LocalizedError {
+    let statusCode: Int
+    let message: String
+
+    var errorDescription: String? {
+        "IBM Runtime 錯誤 \(statusCode)：\(message)"
     }
 }

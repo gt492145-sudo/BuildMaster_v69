@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var showingQuantumMode = false
     @State private var crackPhotoItem: PhotosPickerItem?
     @State private var quantumCommandInput = ""
+    @State private var ibmQuantumAPIKeyInput = ""
     @State private var aiGoalInput = ""
     @State private var aiAPIKeyInput = ""
     @State private var selectedStatusPage: StatusPage = .measure
@@ -782,12 +783,35 @@ struct ContentView: View {
                     .buttonStyle(.bordered)
                     .tint(.secondary)
                     .frame(maxWidth: .infinity)
+
+                    Button("一鍵量子融合補齊") {
+                        sessionManager.runQuantumFusionAutopilot()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.mint)
+                    .frame(maxWidth: .infinity)
+                    .disabled(!sessionManager.quantumModeEnabled)
                 }
 
                 Section("核心狀態") {
                     Text(sessionManager.quantumStatusText)
                         .font(.headline)
                         .foregroundStyle(.purple)
+                    Text(sessionManager.quantumFusionStatusText)
+                        .font(.caption)
+                        .foregroundStyle(.mint)
+                    Text(sessionManager.quantumIBMProviderText)
+                        .font(.caption)
+                        .foregroundStyle(.cyan)
+                    Text(sessionManager.quantumIBMJobText)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(sessionManager.quantumIBMResultText)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text("Backend：\(sessionManager.quantumIBMBackend)｜Shots：\(sessionManager.quantumIBMShots)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                     Text("核心等級：\(sessionManager.quantumCoreLevel)%")
                         .font(.footnote)
                     if !sessionManager.quantumLastCommandText.isEmpty {
@@ -806,6 +830,54 @@ struct ContentView: View {
                     Text(sessionManager.quantumSuggestionText)
                         .font(.caption)
                         .foregroundStyle(.yellow)
+                }
+
+                Section("IBM Quantum API（需要就用）") {
+                    Toggle(isOn: Binding(
+                        get: { sessionManager.quantumIBMCloudEnabled },
+                        set: { sessionManager.setQuantumIBMCloudEnabled($0) }
+                    )) {
+                        Text("啟用 IBM Quantum API")
+                    }
+
+                    SecureField("貼上 IBM Quantum API Key", text: $ibmQuantumAPIKeyInput)
+
+                    HStack {
+                        Button("儲存 Key") {
+                            sessionManager.setIBMQuantumAPIKey(ibmQuantumAPIKeyInput)
+                            ibmQuantumAPIKeyInput = ""
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("清除 Key") {
+                            sessionManager.clearIBMQuantumAPIKey()
+                            ibmQuantumAPIKeyInput = ""
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    Text(sessionManager.hasIBMQuantumAPIKey ? "目前狀態：已設定 IBM API Key" : "目前狀態：未設定 IBM API Key")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Picker("Backend", selection: Binding(
+                        get: { sessionManager.quantumIBMBackend },
+                        set: { sessionManager.setIBMBackend($0) }
+                    )) {
+                        ForEach(sessionManager.availableIBMBackends, id: \.self) { backend in
+                            Text(backend).tag(backend)
+                        }
+                    }
+
+                    Stepper(
+                        "Shots：\(sessionManager.quantumIBMShots)",
+                        value: Binding(
+                            get: { sessionManager.quantumIBMShots },
+                            set: { sessionManager.setIBMShots($0) }
+                        ),
+                        in: 32...4096,
+                        step: 32
+                    )
                 }
 
                 Section("戰術記錄") {
