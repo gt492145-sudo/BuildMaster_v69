@@ -53,6 +53,7 @@ final class LiDARSessionManager: ObservableObject {
     @Published var volumeAreaWidthMeters: Double = 2.0
     @Published var volumeAreaLengthMeters: Double = 2.0
     @Published var volumeGridSize: Int = 5
+    @Published var volumeAreaM2: Double = 4.0
     @Published var volumeEstimateM3: Double = 0
     @Published var volumeSampleCount: Int = 0
     @Published var volumeStatusText: String = "體積掃描：待命"
@@ -136,6 +137,7 @@ final class LiDARSessionManager: ObservableObject {
         if UserDefaults.standard.object(forKey: volumeGridSizeStorageKey) != nil {
             volumeGridSize = clampGridSize(UserDefaults.standard.integer(forKey: volumeGridSizeStorageKey))
         }
+        refreshVolumeAreaM2()
         refreshRebarSpecText()
         loadCorrectionHistory()
         refreshCorrectionTrend()
@@ -251,11 +253,13 @@ final class LiDARSessionManager: ObservableObject {
     func setVolumeAreaWidthMeters(_ value: Double) {
         volumeAreaWidthMeters = clampVolumeDimension(value)
         UserDefaults.standard.set(volumeAreaWidthMeters, forKey: volumeAreaWidthStorageKey)
+        refreshVolumeAreaM2()
     }
 
     func setVolumeAreaLengthMeters(_ value: Double) {
         volumeAreaLengthMeters = clampVolumeDimension(value)
         UserDefaults.standard.set(volumeAreaLengthMeters, forKey: volumeAreaLengthStorageKey)
+        refreshVolumeAreaM2()
     }
 
     func setVolumeGridSize(_ value: Int) {
@@ -277,8 +281,8 @@ final class LiDARSessionManager: ObservableObject {
         }
 
         let avgDepth = samples.reduce(0, +) / Double(samples.count)
-        let area = volumeAreaWidthMeters * volumeAreaLengthMeters
-        volumeEstimateM3 = max(0, area * avgDepth)
+        refreshVolumeAreaM2()
+        volumeEstimateM3 = max(0, volumeAreaM2 * avgDepth)
         volumeSampleCount = samples.count
         volumeStatusText = String(
             format: "體積掃描：完成（%d 點，平均深度 %.2fm）",
@@ -704,6 +708,10 @@ final class LiDARSessionManager: ObservableObject {
 
     private func clampGridSize(_ value: Int) -> Int {
         min(11, max(3, value))
+    }
+
+    private func refreshVolumeAreaM2() {
+        volumeAreaM2 = max(0, volumeAreaWidthMeters * volumeAreaLengthMeters)
     }
 
     private func appendRecentDistance(_ value: Double) {

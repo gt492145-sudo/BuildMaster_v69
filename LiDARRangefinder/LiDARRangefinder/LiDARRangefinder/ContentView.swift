@@ -133,6 +133,9 @@ struct ContentView: View {
                     Text(sessionManager.arPOCStatusText)
                         .font(.caption2.bold())
                         .foregroundStyle(.cyan)
+                    Text(String(format: "掃描面積：%.2f m²", sessionManager.volumeAreaM2))
+                        .font(.caption2.bold())
+                        .foregroundStyle(.mint)
                     Text(String(format: "體積估算：%.2f m³（%d 點）", sessionManager.volumeEstimateM3, sessionManager.volumeSampleCount))
                         .font(.caption2.bold())
                         .foregroundStyle(.mint)
@@ -576,6 +579,8 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
                     .frame(maxWidth: .infinity)
 
+                    Text(String(format: "掃描面積：%.2f m²", sessionManager.volumeAreaM2))
+                        .font(.headline)
                     Text(String(format: "估算體積：%.2f m³", sessionManager.volumeEstimateM3))
                         .font(.headline)
                     Text("取樣點數：\(sessionManager.volumeSampleCount)")
