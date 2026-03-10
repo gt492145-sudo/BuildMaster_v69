@@ -35,6 +35,11 @@ final class LiDARSessionManager: ObservableObject {
     @Published var autoCorrectionEnabled: Bool = false
     @Published var autoCorrectionStatusText: String = "自動連續矯正：關"
     @Published var autoCorrectionStrategy: AIAutoCorrectionStrategy = .stableFirst
+    @Published var aiAssistantText: String = "AI 助手：待命"
+    @Published var aiAssistantSourceText: String = "來源：本地 AI"
+    @Published var aiAssistantApplyResultText: String = "尚未套用建議"
+    @Published var aiAssistantBusy: Bool = false
+    @Published var aiCloudEnabled: Bool = false
 
     private weak var arView: ARView?
     private var updateTimer: Timer?
@@ -42,6 +47,8 @@ final class LiDARSessionManager: ObservableObject {
     private let qaProfileStorageKey = "lidar_rangefinder_qa_profile"
     private let aiCorrectionStorageKey = "lidar_rangefinder_ai_corrections"
     private let autoCorrectionStrategyStorageKey = "lidar_rangefinder_auto_correction_strategy"
+    private let aiCloudEnabledStorageKey = "lidar_rangefinder_ai_cloud_enabled"
+    private let aiOpenAIKeyStorageKey = "lidar_rangefinder_ai_openai_key"
     private var aiIssue: AIQAIssueType = .none
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
@@ -54,6 +61,9 @@ final class LiDARSessionManager: ObservableObject {
         if let raw = UserDefaults.standard.string(forKey: autoCorrectionStrategyStorageKey),
            let strategy = AIAutoCorrectionStrategy(rawValue: raw) {
             autoCorrectionStrategy = strategy
+        }
+        if UserDefaults.standard.object(forKey: aiCloudEnabledStorageKey) != nil {
+            aiCloudEnabled = UserDefaults.standard.bool(forKey: aiCloudEnabledStorageKey)
         }
         loadCorrectionHistory()
         refreshCorrectionTrend()
@@ -161,6 +171,85 @@ final class LiDARSessionManager: ObservableObject {
         autoCorrectionStrategy = strategy
         UserDefaults.standard.set(strategy.rawValue, forKey: autoCorrectionStrategyStorageKey)
         refreshAutoCorrectionStatus()
+    }
+
+    func setAICloudEnabled(_ enabled: Bool) {
+        aiCloudEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: aiCloudEnabledStorageKey)
+    }
+
+    func setOpenAIKey(_ key: String) {
+        let sanitized = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        UserDefaults.standard.set(sanitized, forKey: aiOpenAIKeyStorageKey)
+    }
+
+    func clearOpenAIKey() {
+        UserDefaults.standard.removeObject(forKey: aiOpenAIKeyStorageKey)
+    }
+
+    var hasOpenAIKey: Bool {
+        guard let raw = UserDefaults.standard.string(forKey: aiOpenAIKeyStorageKey) else { return false }
+        return !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    func runAIAssistant(userGoal: String) {
+        aiAssistantBusy = true
+        aiAssistantText = "AI 助手：分析中..."
+
+        let cloudKey = aiCloudEnabled ? UserDefaults.standard.string(forKey: aiOpenAIKeyStorageKey) : nil
+        let context = AIAdvisorContext(
+            distanceMeters: latestDistanceMeters,
+            pitchDegrees: latestPitchDegrees,
+            rollDegrees: latestRollDegrees,
+            qaLevelText: qaLevelText,
+            qaProfileText: qaProfile.displayName,
+            qaScore: qaScore,
+            aiDiagnosisText: aiDiagnosisText
+        )
+
+        Task {
+            let result = await generateAIAdvice(context: context, userGoal: userGoal, openAIKey: cloudKey)
+            aiAssistantText = result.text
+            aiAssistantSourceText = "來源：\(result.source)"
+            aiAssistantApplyResultText = "建議已更新，尚未套用"
+            aiAssistantBusy = false
+        }
+    }
+
+    func applyAIAssistantRecommendation() {
+        var actions: [String] = []
+        let text = aiAssistantText
+
+        // Prefer explicit mode instructions if the AI output mentions one.
+        if text.contains("超嚴格"), qaProfile != .ultra {
+            setQAProfile(.ultra)
+            actions.append("QA 模式切換為超嚴格")
+        } else if text.contains("嚴格"), qaProfile != .strict {
+            setQAProfile(.strict)
+            actions.append("QA 模式切換為嚴格")
+        } else if text.contains("標準"), qaProfile != .standard {
+            setQAProfile(.standard)
+            actions.append("QA 模式切換為標準")
+        }
+
+        if text.contains("校準") || text.contains("重置追蹤") {
+            recalibrateTracking()
+            actions.append("已重置追蹤")
+        }
+
+        if aiIssue != .none {
+            applyAIQACorrection()
+            actions.append("已執行 AI QA 一鍵矯正")
+        } else if actions.isEmpty {
+            if qaScore < 60 {
+                applyAIQACorrection()
+                actions.append("分數偏低，已執行 AI QA 一鍵矯正")
+            } else {
+                actions.append("目前品質穩定，無需自動調整")
+            }
+        }
+
+        aiAssistantApplyResultText = "套用結果：\(actions.joined(separator: "、"))"
     }
 
     func clearCorrectionHistory() {
@@ -496,6 +585,92 @@ final class LiDARSessionManager: ObservableObject {
         }
         autoCorrectionStatusText = "自動連續矯正：關（\(autoCorrectionStrategy.displayName)）"
     }
+
+    private func generateAIAdvice(
+        context: AIAdvisorContext,
+        userGoal: String,
+        openAIKey: String?
+    ) async -> (text: String, source: String) {
+        guard let key = openAIKey, !key.isEmpty else {
+            return (localAIAdvice(context: context, userGoal: userGoal), "本地 AI")
+        }
+
+        do {
+            let cloud = try await fetchOpenAIAdvice(context: context, userGoal: userGoal, apiKey: key)
+            return (cloud, "雲端 AI")
+        } catch {
+            return (localAIAdvice(context: context, userGoal: userGoal), "本地 AI（雲端失敗已回退）")
+        }
+    }
+
+    private func localAIAdvice(context: AIAdvisorContext, userGoal: String) -> String {
+        var lines: [String] = []
+        if !userGoal.isEmpty {
+            lines.append("目標：\(userGoal)")
+        }
+        if context.distanceMeters == nil {
+            lines.append("先對準牆面或地面，讓準星穩定 1 秒再取樣。")
+        }
+        if context.qaScore < 60 {
+            lines.append("QA 偏低，建議先按一次 AI QA 矯正，並降低手部抖動。")
+        } else if context.qaScore < 80 {
+            lines.append("QA 可用，建議再穩定 1-2 秒可提升可信度。")
+        } else {
+            lines.append("QA 穩定，可進行正式記錄與匯出。")
+        }
+        let angleAbs = abs(context.pitchDegrees) + abs(context.rollDegrees)
+        if angleAbs > 6 {
+            lines.append("目前角度偏移較大，請讓 Pitch/Roll 接近 0°。")
+        }
+        lines.append("診斷：\(context.aiDiagnosisText)")
+        return lines.joined(separator: "\n")
+    }
+
+    private func fetchOpenAIAdvice(
+        context: AIAdvisorContext,
+        userGoal: String,
+        apiKey: String
+    ) async throws -> String {
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        let systemPrompt = "你是工地 LiDAR 量測 QA 助手。請用繁體中文，回覆 3-6 行可執行建議。"
+        let userPrompt = """
+        使用者目標: \(userGoal.isEmpty ? "未提供" : userGoal)
+        距離: \(context.distanceMeters.map { String(format: "%.2f m", $0) } ?? "--")
+        Pitch: \(String(format: "%.1f", context.pitchDegrees))°
+        Roll: \(String(format: "%.1f", context.rollDegrees))°
+        QA 等級: \(context.qaLevelText)
+        QA 模式: \(context.qaProfileText)
+        QA 分數: \(context.qaScore)
+        診斷: \(context.aiDiagnosisText)
+        請回覆下一步操作建議。
+        """
+
+        let body = ChatCompletionsRequest(
+            model: "gpt-4o-mini",
+            messages: [
+                .init(role: "system", content: systemPrompt),
+                .init(role: "user", content: userPrompt)
+            ],
+            temperature: 0.2
+        )
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        let decoded = try JSONDecoder().decode(ChatCompletionsResponse.self, from: data)
+        let output = decoded.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if output.isEmpty {
+            throw URLError(.cannotParseResponse)
+        }
+        return output
+    }
 }
 
 private struct PendingCorrectionEvaluation {
@@ -505,4 +680,33 @@ private struct PendingCorrectionEvaluation {
     let beforeLevel: QAPrecisionLevel
     let beforeProfile: QATuningProfile
     var remainingCycles: Int
+}
+
+private struct AIAdvisorContext {
+    let distanceMeters: Double?
+    let pitchDegrees: Double
+    let rollDegrees: Double
+    let qaLevelText: String
+    let qaProfileText: String
+    let qaScore: Int
+    let aiDiagnosisText: String
+}
+
+private struct ChatCompletionsRequest: Encodable {
+    let model: String
+    let messages: [ChatMessage]
+    let temperature: Double
+}
+
+private struct ChatMessage: Codable {
+    let role: String
+    let content: String
+}
+
+private struct ChatCompletionsResponse: Decodable {
+    let choices: [Choice]
+
+    struct Choice: Decodable {
+        let message: ChatMessage
+    }
 }

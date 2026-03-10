@@ -35,6 +35,10 @@ final class LiDARSessionManager: ObservableObject {
     @Published var autoCorrectionEnabled: Bool = false
     @Published var autoCorrectionStatusText: String = "自動連續矯正：關"
     @Published var autoCorrectionStrategy: AIAutoCorrectionStrategy = .stableFirst
+    @Published var aiAssistantText: String = "AI 助手：待命"
+    @Published var aiAssistantSourceText: String = "來源：本地 AI"
+    @Published var aiAssistantBusy: Bool = false
+    @Published var aiCloudEnabled: Bool = false
     @Published var akiModeEnabled: Bool = true
     @Published var blueprintLockText: String = "藍圖標靶：等待偵測"
     @Published var blueprintLocked: Bool = false
@@ -50,6 +54,8 @@ final class LiDARSessionManager: ObservableObject {
     private let aiCorrectionStorageKey = "lidar_rangefinder_ai_corrections"
     private let autoCorrectionStrategyStorageKey = "lidar_rangefinder_auto_correction_strategy"
     private let akiModeStorageKey = "lidar_rangefinder_aki_mode_enabled"
+    private let aiCloudEnabledStorageKey = "lidar_rangefinder_ai_cloud_enabled"
+    private let aiOpenAIKeyStorageKey = "lidar_rangefinder_ai_openai_key"
     private var aiIssue: AIQAIssueType = .none
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
@@ -58,6 +64,7 @@ final class LiDARSessionManager: ObservableObject {
     private var autoSwitchedQaForBlueprintLock = false
     private var pitchCalibrationOffset: Double = 0
     private var rollCalibrationOffset: Double = 0
+    private let aiAdvisor = AIAdvisorService()
 
     init() {
         if let raw = UserDefaults.standard.string(forKey: qaProfileStorageKey),
@@ -70,6 +77,9 @@ final class LiDARSessionManager: ObservableObject {
         }
         if UserDefaults.standard.object(forKey: akiModeStorageKey) != nil {
             akiModeEnabled = UserDefaults.standard.bool(forKey: akiModeStorageKey)
+        }
+        if UserDefaults.standard.object(forKey: aiCloudEnabledStorageKey) != nil {
+            aiCloudEnabled = UserDefaults.standard.bool(forKey: aiCloudEnabledStorageKey)
         }
         loadCorrectionHistory()
         refreshCorrectionTrend()
@@ -181,6 +191,55 @@ final class LiDARSessionManager: ObservableObject {
         autoCorrectionStrategy = strategy
         UserDefaults.standard.set(strategy.rawValue, forKey: autoCorrectionStrategyStorageKey)
         refreshAutoCorrectionStatus()
+    }
+
+    func setAICloudEnabled(_ enabled: Bool) {
+        aiCloudEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: aiCloudEnabledStorageKey)
+    }
+
+    func setOpenAIKey(_ key: String) {
+        let sanitized = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        UserDefaults.standard.set(sanitized, forKey: aiOpenAIKeyStorageKey)
+    }
+
+    func clearOpenAIKey() {
+        UserDefaults.standard.removeObject(forKey: aiOpenAIKeyStorageKey)
+    }
+
+    var hasOpenAIKey: Bool {
+        guard let raw = UserDefaults.standard.string(forKey: aiOpenAIKeyStorageKey) else { return false }
+        return !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    func runAIAssistant(userGoal: String) {
+        let context = AIMeasurementContext(
+            distanceMeters: latestDistanceMeters,
+            pitchDegrees: latestPitchDegrees,
+            rollDegrees: latestRollDegrees,
+            qaLevelText: qaLevelText,
+            qaProfileText: qaProfile.displayName,
+            qaScore: qaScore,
+            blueprintLocked: blueprintLocked,
+            blueprintScore: blueprintTrackingScore,
+            akiModeEnabled: akiModeEnabled,
+            aiDiagnosisText: aiDiagnosisText
+        )
+        let cloudKey = aiCloudEnabled ? UserDefaults.standard.string(forKey: aiOpenAIKeyStorageKey) : nil
+
+        aiAssistantBusy = true
+        aiAssistantText = "AI 助手：分析中..."
+
+        Task {
+            let result = await aiAdvisor.generateAdvice(
+                context: context,
+                userGoal: userGoal,
+                openAIKey: cloudKey
+            )
+            aiAssistantText = result.text
+            aiAssistantSourceText = "來源：\(result.source)"
+            aiAssistantBusy = false
+        }
     }
 
     func clearCorrectionHistory() {

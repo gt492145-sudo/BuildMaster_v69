@@ -7,6 +7,9 @@ struct ContentView: View {
     @State private var showingRecords = false
     @State private var showingShareSheet = false
     @State private var showingCorrectionHistory = false
+    @State private var showingAIAssistant = false
+    @State private var aiGoalInput = ""
+    @State private var aiAPIKeyInput = ""
     private let minRecordScore = 60
     private let minBlueprintScoreForRecord = 65
 
@@ -33,6 +36,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingCorrectionHistory) {
             correctionHistoryView
+        }
+        .sheet(isPresented: $showingAIAssistant) {
+            aiAssistantView
         }
     }
 
@@ -104,6 +110,12 @@ struct ContentView: View {
             Text(sessionManager.autoCorrectionStatusText)
                 .font(.caption2)
                 .foregroundStyle(sessionManager.autoCorrectionEnabled ? .mint : .secondary)
+            Text(sessionManager.aiAssistantSourceText)
+                .font(.caption2)
+                .foregroundStyle(.cyan)
+            Text(sessionManager.aiAssistantText)
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.9))
             Text("狀態: \(sessionManager.statusText)")
                 .font(.footnote)
                 .foregroundStyle(.white.opacity(0.8))
@@ -209,6 +221,13 @@ struct ContentView: View {
                 showingCorrectionHistory = true
             }
             .buttonStyle(.bordered)
+            .frame(maxWidth: .infinity)
+
+            Button("AI 助手版（現場建議）") {
+                showingAIAssistant = true
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.purple)
             .frame(maxWidth: .infinity)
         }
         .padding(12)
@@ -371,5 +390,65 @@ struct ContentView: View {
             .stroke(sessionManager.blueprintLocked ? .green : .yellow.opacity(0.85), lineWidth: 2)
             .frame(width: 210, height: 210)
             .opacity(sessionManager.akiModeEnabled ? 0.92 : 0)
+    }
+
+    private var aiAssistantView: some View {
+        NavigationStack {
+            Form {
+                Section("分析目標（可選）") {
+                    TextField("例如：要穩定量 2m 牆距", text: $aiGoalInput)
+                    Button(sessionManager.aiAssistantBusy ? "分析中..." : "執行 AI 分析") {
+                        sessionManager.runAIAssistant(userGoal: aiGoalInput)
+                    }
+                    .disabled(sessionManager.aiAssistantBusy)
+                }
+
+                Section("雲端 AI（OpenAI，可選）") {
+                    Toggle(isOn: Binding(
+                        get: { sessionManager.aiCloudEnabled },
+                        set: { sessionManager.setAICloudEnabled($0) }
+                    )) {
+                        Text("啟用雲端建議")
+                    }
+
+                    SecureField("貼上 OpenAI API Key（sk-...）", text: $aiAPIKeyInput)
+
+                    HStack {
+                        Button("儲存 Key") {
+                            sessionManager.setOpenAIKey(aiAPIKeyInput)
+                            aiAPIKeyInput = ""
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("清除 Key") {
+                            sessionManager.clearOpenAIKey()
+                            aiAPIKeyInput = ""
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    Text(sessionManager.hasOpenAIKey ? "目前狀態：已設定 API Key" : "目前狀態：未設定 API Key")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("AI 建議輸出") {
+                    Text(sessionManager.aiAssistantSourceText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(sessionManager.aiAssistantText)
+                        .font(.body)
+                        .textSelection(.enabled)
+                }
+            }
+            .navigationTitle("AI 助手版")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("關閉") {
+                        showingAIAssistant = false
+                    }
+                }
+            }
+        }
     }
 }
