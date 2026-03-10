@@ -1449,7 +1449,7 @@ final class LiDARSessionManager: ObservableObject {
         persistQuantumHistory()
     }
 
-    private static func detectCracks(
+    nonisolated private static func detectCracks(
         cgImage: CGImage,
         calibrationCmPerPixel: Double
     ) -> Result<[CrackFinding], Error> {
@@ -1517,7 +1517,7 @@ final class LiDARSessionManager: ObservableObject {
         }
     }
 
-    private static func flattenContours(from contours: [VNContour]) -> [VNContour] {
+    nonisolated private static func flattenContours(from contours: [VNContour]) -> [VNContour] {
         var result: [VNContour] = []
         var queue = contours
         while !queue.isEmpty {
@@ -1528,7 +1528,7 @@ final class LiDARSessionManager: ObservableObject {
         return result
     }
 
-    private static func severityRank(_ severity: String) -> Int {
+    nonisolated private static func severityRank(_ severity: String) -> Int {
         switch severity {
         case "高": return 3
         case "中": return 2
