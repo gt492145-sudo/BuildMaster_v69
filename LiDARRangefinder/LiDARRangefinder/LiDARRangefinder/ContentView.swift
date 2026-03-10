@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var showingShareSheet = false
     @State private var showingCorrectionHistory = false
     @State private var showingAIAssistant = false
+    @State private var showingRebarConfig = false
     @State private var aiGoalInput = ""
     @State private var aiAPIKeyInput = ""
     @State private var selectedStatusPage: StatusPage = .measure
@@ -39,6 +40,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingAIAssistant) {
             aiAssistantView
+        }
+        .sheet(isPresented: $showingRebarConfig) {
+            rebarConfigView
         }
     }
 
@@ -91,6 +95,9 @@ struct ContentView: View {
                     Text("QA 分數: \(sessionManager.qaScore) / 100")
                         .font(.subheadline.bold())
                         .foregroundStyle(qaScoreColor(sessionManager.qaScore))
+                    Text(sessionManager.rebarSpecText)
+                        .font(.caption2)
+                        .foregroundStyle(.cyan)
                     Text(qaHintText(sessionManager.qaScore))
                         .font(.footnote.bold())
                         .foregroundStyle(qaHintColor(sessionManager.qaScore))
@@ -187,6 +194,12 @@ struct ContentView: View {
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
+
+                    Button("鋼筋透視參數") {
+                        showingRebarConfig = true
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
                 case .ai:
                     Button("AI QA 一鍵矯正") {
                         sessionManager.applyAIQACorrection()
@@ -432,6 +445,81 @@ struct ContentView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("關閉") {
                         showingAIAssistant = false
+                    }
+                }
+            }
+        }
+    }
+
+    private var rebarConfigView: some View {
+        NavigationStack {
+            Form {
+                Section("鋼筋配置") {
+                    Stepper("主筋數：\(sessionManager.rebarMainBarCount)", value: Binding(
+                        get: { sessionManager.rebarMainBarCount },
+                        set: { sessionManager.setRebarMainBarCount($0) }
+                    ), in: 2...12)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(String(format: "箍筋間距：%.0f cm", sessionManager.rebarStirrupSpacingCm))
+                        Slider(value: Binding(
+                            get: { sessionManager.rebarStirrupSpacingCm },
+                            set: { sessionManager.setRebarStirrupSpacingCm($0) }
+                        ), in: 5...60, step: 1)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(String(format: "保護層：%.1f cm", sessionManager.rebarCoverCm))
+                        Slider(value: Binding(
+                            get: { sessionManager.rebarCoverCm },
+                            set: { sessionManager.setRebarCoverCm($0) }
+                        ), in: 1...10, step: 0.5)
+                    }
+                }
+
+                Section("AR 對位微調") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(String(format: "平移 X：%.1f cm", sessionManager.overlayOffsetXcm))
+                        Slider(value: Binding(
+                            get: { sessionManager.overlayOffsetXcm },
+                            set: { sessionManager.setOverlayOffsetXcm($0) }
+                        ), in: -20...20, step: 0.5)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(String(format: "平移 Y：%.1f cm", sessionManager.overlayOffsetYcm))
+                        Slider(value: Binding(
+                            get: { sessionManager.overlayOffsetYcm },
+                            set: { sessionManager.setOverlayOffsetYcm($0) }
+                        ), in: -20...20, step: 0.5)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(String(format: "旋轉：%.0f°", sessionManager.overlayRotationDeg))
+                        Slider(value: Binding(
+                            get: { sessionManager.overlayRotationDeg },
+                            set: { sessionManager.setOverlayRotationDeg($0) }
+                        ), in: -30...30, step: 1)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(String(format: "縮放：%.2f", sessionManager.overlayScale))
+                        Slider(value: Binding(
+                            get: { sessionManager.overlayScale },
+                            set: { sessionManager.setOverlayScale($0) }
+                        ), in: 0.5...2.5, step: 0.05)
+                    }
+
+                    Button("重置微調") {
+                        sessionManager.resetOverlayAdjustment()
+                    }
+                }
+            }
+            .navigationTitle("鋼筋透視參數")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") {
+                        showingRebarConfig = false
                     }
                 }
             }

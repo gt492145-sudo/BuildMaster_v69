@@ -42,6 +42,14 @@ final class LiDARSessionManager: ObservableObject {
     @Published var aiCloudEnabled: Bool = false
     @Published var arPOCStatusText: String = "AR POC：等待影像錨點"
     @Published var highestModeLockEnabled: Bool = false
+    @Published var rebarMainBarCount: Int = 4
+    @Published var rebarStirrupSpacingCm: Double = 20
+    @Published var rebarCoverCm: Double = 4
+    @Published var overlayOffsetXcm: Double = 0
+    @Published var overlayOffsetYcm: Double = 0
+    @Published var overlayRotationDeg: Double = 0
+    @Published var overlayScale: Double = 1
+    @Published var rebarSpecText: String = "鋼筋規格：主筋 4｜箍筋 20cm｜保護層 4cm"
 
     private weak var arView: ARView?
     private var updateTimer: Timer?
@@ -52,11 +60,19 @@ final class LiDARSessionManager: ObservableObject {
     private let aiCloudEnabledStorageKey = "lidar_rangefinder_ai_cloud_enabled"
     private let aiOpenAIKeyStorageKey = "lidar_rangefinder_ai_openai_key"
     private let highestModeLockStorageKey = "lidar_rangefinder_highest_mode_lock"
+    private let rebarMainBarCountStorageKey = "lidar_rangefinder_rebar_main_bar_count"
+    private let rebarStirrupSpacingStorageKey = "lidar_rangefinder_rebar_stirrup_spacing_cm"
+    private let rebarCoverStorageKey = "lidar_rangefinder_rebar_cover_cm"
+    private let overlayOffsetXStorageKey = "lidar_rangefinder_overlay_offset_x_cm"
+    private let overlayOffsetYStorageKey = "lidar_rangefinder_overlay_offset_y_cm"
+    private let overlayRotationStorageKey = "lidar_rangefinder_overlay_rotation_deg"
+    private let overlayScaleStorageKey = "lidar_rangefinder_overlay_scale"
     private var aiIssue: AIQAIssueType = .none
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
     private var overlayAnchorEntity: AnchorEntity?
     private var overlayImageName: String?
+    private var overlayConfigSignature: String = ""
 
     init() {
         if let raw = UserDefaults.standard.string(forKey: qaProfileStorageKey),
@@ -81,6 +97,28 @@ final class LiDARSessionManager: ObservableObject {
             qaProfile = .ultra
             UserDefaults.standard.set(qaProfile.rawValue, forKey: qaProfileStorageKey)
         }
+        if UserDefaults.standard.object(forKey: rebarMainBarCountStorageKey) != nil {
+            rebarMainBarCount = clampMainBarCount(UserDefaults.standard.integer(forKey: rebarMainBarCountStorageKey))
+        }
+        if UserDefaults.standard.object(forKey: rebarStirrupSpacingStorageKey) != nil {
+            rebarStirrupSpacingCm = clampSpacing(UserDefaults.standard.double(forKey: rebarStirrupSpacingStorageKey))
+        }
+        if UserDefaults.standard.object(forKey: rebarCoverStorageKey) != nil {
+            rebarCoverCm = clampCover(UserDefaults.standard.double(forKey: rebarCoverStorageKey))
+        }
+        if UserDefaults.standard.object(forKey: overlayOffsetXStorageKey) != nil {
+            overlayOffsetXcm = UserDefaults.standard.double(forKey: overlayOffsetXStorageKey)
+        }
+        if UserDefaults.standard.object(forKey: overlayOffsetYStorageKey) != nil {
+            overlayOffsetYcm = UserDefaults.standard.double(forKey: overlayOffsetYStorageKey)
+        }
+        if UserDefaults.standard.object(forKey: overlayRotationStorageKey) != nil {
+            overlayRotationDeg = UserDefaults.standard.double(forKey: overlayRotationStorageKey)
+        }
+        if UserDefaults.standard.object(forKey: overlayScaleStorageKey) != nil {
+            overlayScale = clampScale(UserDefaults.standard.double(forKey: overlayScaleStorageKey))
+        }
+        refreshRebarSpecText()
         loadCorrectionHistory()
         refreshCorrectionTrend()
         refreshAutoCorrectionStatus()
@@ -133,6 +171,63 @@ final class LiDARSessionManager: ObservableObject {
         } else {
             aiLastActionText = "最高等級鎖定：已關閉（可手動切換模式）"
         }
+    }
+
+    func setRebarMainBarCount(_ value: Int) {
+        rebarMainBarCount = clampMainBarCount(value)
+        UserDefaults.standard.set(rebarMainBarCount, forKey: rebarMainBarCountStorageKey)
+        refreshRebarSpecText()
+        invalidateOverlayAnchor()
+    }
+
+    func setRebarStirrupSpacingCm(_ value: Double) {
+        rebarStirrupSpacingCm = clampSpacing(value)
+        UserDefaults.standard.set(rebarStirrupSpacingCm, forKey: rebarStirrupSpacingStorageKey)
+        refreshRebarSpecText()
+        invalidateOverlayAnchor()
+    }
+
+    func setRebarCoverCm(_ value: Double) {
+        rebarCoverCm = clampCover(value)
+        UserDefaults.standard.set(rebarCoverCm, forKey: rebarCoverStorageKey)
+        refreshRebarSpecText()
+        invalidateOverlayAnchor()
+    }
+
+    func setOverlayOffsetXcm(_ value: Double) {
+        overlayOffsetXcm = value
+        UserDefaults.standard.set(value, forKey: overlayOffsetXStorageKey)
+        invalidateOverlayAnchor()
+    }
+
+    func setOverlayOffsetYcm(_ value: Double) {
+        overlayOffsetYcm = value
+        UserDefaults.standard.set(value, forKey: overlayOffsetYStorageKey)
+        invalidateOverlayAnchor()
+    }
+
+    func setOverlayRotationDeg(_ value: Double) {
+        overlayRotationDeg = value
+        UserDefaults.standard.set(value, forKey: overlayRotationStorageKey)
+        invalidateOverlayAnchor()
+    }
+
+    func setOverlayScale(_ value: Double) {
+        overlayScale = clampScale(value)
+        UserDefaults.standard.set(overlayScale, forKey: overlayScaleStorageKey)
+        invalidateOverlayAnchor()
+    }
+
+    func resetOverlayAdjustment() {
+        overlayOffsetXcm = 0
+        overlayOffsetYcm = 0
+        overlayRotationDeg = 0
+        overlayScale = 1
+        UserDefaults.standard.set(overlayOffsetXcm, forKey: overlayOffsetXStorageKey)
+        UserDefaults.standard.set(overlayOffsetYcm, forKey: overlayOffsetYStorageKey)
+        UserDefaults.standard.set(overlayRotationDeg, forKey: overlayRotationStorageKey)
+        UserDefaults.standard.set(overlayScale, forKey: overlayScaleStorageKey)
+        invalidateOverlayAnchor()
     }
 
     var aiCanAutoCorrect: Bool {
@@ -392,68 +487,130 @@ final class LiDARSessionManager: ObservableObject {
                 overlayAnchorEntity?.removeFromParent()
                 overlayAnchorEntity = nil
                 overlayImageName = nil
+                overlayConfigSignature = ""
                 arPOCStatusText = "AR POC：影像暫時失鎖，等待重新對位"
             }
             return
         }
 
         let imageName = imageAnchor.referenceImage.name ?? "未命名圖紙"
-        if overlayAnchorEntity == nil || overlayImageName != imageName {
+        let signature = currentOverlaySignature(imageName: imageName)
+        if overlayAnchorEntity == nil || overlayImageName != imageName || overlayConfigSignature != signature {
             overlayAnchorEntity?.removeFromParent()
             let anchor = buildPOCRebarAnchor(from: imageAnchor)
             arView.scene.addAnchor(anchor)
             overlayAnchorEntity = anchor
             overlayImageName = imageName
+            overlayConfigSignature = signature
             arPOCStatusText = "AR POC：已在 \(imageName) 上建立 3D 鋼筋錨點"
         }
     }
 
     private func buildPOCRebarAnchor(from imageAnchor: ARImageAnchor) -> AnchorEntity {
         let anchor = AnchorEntity(world: imageAnchor.transform)
+        let root = Entity()
+        let offsetX = Float(overlayOffsetXcm / 100.0)
+        let offsetY = Float(overlayOffsetYcm / 100.0)
+        let rotationRad = Float(overlayRotationDeg * .pi / 180.0)
+        let scale = Float(overlayScale)
+        root.position = [offsetX, offsetY, 0]
+        root.orientation = simd_quatf(angle: rotationRad, axis: [0, 0, 1])
+        root.scale = [scale, scale, scale]
+        anchor.addChild(root)
 
         let imageWidth = max(0.12, Float(imageAnchor.referenceImage.physicalSize.width))
         let imageHeight = max(0.12, Float(imageAnchor.referenceImage.physicalSize.height))
+        let coverMeters = Float(rebarCoverCm / 100.0)
+        let usableWidth = max(0.04, imageWidth - coverMeters * 2)
+        let usableHeight = max(0.04, imageHeight - coverMeters * 2)
         let barDepth: Float = 0.006
         let barThickness: Float = 0.004
         let zLift: Float = 0.012
 
         // Semi-transparent base plane for POC alignment feedback.
-        let planeMesh = MeshResource.generatePlane(width: imageWidth * 0.9, depth: imageHeight * 0.9)
+        let planeMesh = MeshResource.generatePlane(width: usableWidth, depth: usableHeight)
         let planeMat = SimpleMaterial(color: UIColor.systemTeal.withAlphaComponent(0.25), isMetallic: false)
         let plane = ModelEntity(mesh: planeMesh, materials: [planeMat])
         plane.position = [0, 0, 0.001]
         plane.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
-        anchor.addChild(plane)
+        root.addChild(plane)
 
         // Vertical rebars.
         let verticalMesh = MeshResource.generateBox(
             width: barThickness,
-            height: imageHeight * 0.82,
+            height: usableHeight,
             depth: barDepth
         )
         let verticalMat = SimpleMaterial(color: .systemRed, roughness: 0.2, isMetallic: true)
-        let verticalOffsets: [Float] = [-0.28, -0.09, 0.09, 0.28]
-        for factor in verticalOffsets {
+        let mainBarCount = max(2, rebarMainBarCount)
+        for index in 0..<mainBarCount {
+            let normalized = Float(index) / Float(max(1, mainBarCount - 1))
+            let x = (-usableWidth / 2) + (usableWidth * normalized)
             let bar = ModelEntity(mesh: verticalMesh, materials: [verticalMat])
-            bar.position = [imageWidth * factor, 0, zLift]
-            anchor.addChild(bar)
+            bar.position = [x, 0, zLift]
+            root.addChild(bar)
         }
 
         // Horizontal stirrups.
         let horizontalMesh = MeshResource.generateBox(
-            width: imageWidth * 0.64,
+            width: usableWidth,
             height: barThickness,
             depth: barDepth
         )
         let horizontalMat = SimpleMaterial(color: .systemOrange, roughness: 0.25, isMetallic: true)
-        let horizontalOffsets: [Float] = [-0.30, -0.10, 0.10, 0.30]
-        for factor in horizontalOffsets {
+        let spacingMeters = Float(rebarStirrupSpacingCm / 100.0)
+        let stirrupCount = max(2, Int((usableHeight / spacingMeters).rounded()) + 1)
+        for index in 0..<stirrupCount {
+            let normalized = Float(index) / Float(max(1, stirrupCount - 1))
+            let y = (-usableHeight / 2) + (usableHeight * normalized)
             let stirrup = ModelEntity(mesh: horizontalMesh, materials: [horizontalMat])
-            stirrup.position = [0, imageHeight * factor, zLift]
-            anchor.addChild(stirrup)
+            stirrup.position = [0, y, zLift]
+            root.addChild(stirrup)
         }
 
         return anchor
+    }
+
+    private func invalidateOverlayAnchor() {
+        overlayConfigSignature = ""
+    }
+
+    private func currentOverlaySignature(imageName: String) -> String {
+        [
+            imageName,
+            "\(rebarMainBarCount)",
+            String(format: "%.2f", rebarStirrupSpacingCm),
+            String(format: "%.2f", rebarCoverCm),
+            String(format: "%.2f", overlayOffsetXcm),
+            String(format: "%.2f", overlayOffsetYcm),
+            String(format: "%.2f", overlayRotationDeg),
+            String(format: "%.2f", overlayScale)
+        ].joined(separator: "|")
+    }
+
+    private func refreshRebarSpecText() {
+        rebarSpecText = String(
+            format: "鋼筋規格：主筋 %d｜箍筋 %.0fcm｜保護層 %.1fcm",
+            rebarMainBarCount,
+            rebarStirrupSpacingCm,
+            rebarCoverCm
+        )
+    }
+
+    private func clampMainBarCount(_ value: Int) -> Int {
+        min(12, max(2, value))
+    }
+
+    private func clampSpacing(_ value: Double) -> Double {
+        min(60, max(5, value))
+    }
+
+    private func clampCover(_ value: Double) -> Double {
+        min(10, max(1, value))
+    }
+
+    private func clampScale(_ value: Double) -> Double {
+        min(2.5, max(0.5, value))
     }
 
     private func appendRecentDistance(_ value: Double) {
