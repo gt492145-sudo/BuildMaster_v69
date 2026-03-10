@@ -10,7 +10,9 @@ struct ContentView: View {
     @State private var showingAIAssistant = false
     @State private var aiGoalInput = ""
     @State private var aiAPIKeyInput = ""
-    private let minRecordScore = 60
+    @State private var selectedStatusPage: StatusPage = .measure
+    @State private var selectedControlPage: ControlPage = .measure
+    private let minRecordScore = 85
 
     var body: some View {
         ZStack {
@@ -67,47 +69,64 @@ struct ContentView: View {
                 Text("Roll: \(sessionManager.rollText)")
             }
             .foregroundStyle(.white.opacity(0.9))
-            Text("QA 等級: \(sessionManager.qaLevelText)")
-                .font(.subheadline.bold())
-                .foregroundStyle(qaLevelColor(sessionManager.qaLevel))
-            Text("QA 模式: \(sessionManager.qaProfile.displayName)")
-                .font(.footnote)
-                .foregroundStyle(.white.opacity(0.85))
-            Text("QA 分數: \(sessionManager.qaScore) / 100")
-                .font(.subheadline.bold())
-                .foregroundStyle(qaScoreColor(sessionManager.qaScore))
-            Text(qaHintText(sessionManager.qaScore))
-                .font(.footnote.bold())
-                .foregroundStyle(qaHintColor(sessionManager.qaScore))
-            Text(sessionManager.aiDiagnosisText)
-                .font(.footnote.bold())
-                .foregroundStyle(.white)
-            Text(sessionManager.aiCorrectionText)
-                .font(.caption)
-                .foregroundStyle(.orange)
-            if !sessionManager.aiLastActionText.isEmpty {
-                Text(sessionManager.aiLastActionText)
-                    .font(.caption2)
-                    .foregroundStyle(.mint)
+            Picker("狀態分頁", selection: $selectedStatusPage) {
+                ForEach(StatusPage.allCases) { page in
+                    Text(page.title).tag(page)
+                }
             }
-            Text(sessionManager.correctionTrendText)
-                .font(.caption2)
-                .foregroundStyle(.cyan)
-            Text(sessionManager.autoCorrectionStatusText)
-                .font(.caption2)
-                .foregroundStyle(sessionManager.autoCorrectionEnabled ? .mint : .secondary)
-            Text(sessionManager.aiAssistantSourceText)
-                .font(.caption2)
-                .foregroundStyle(.cyan)
-            Text(sessionManager.aiAssistantText)
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.9))
-            Text(sessionManager.arPOCStatusText)
-                .font(.caption2.bold())
-                .foregroundStyle(.cyan)
-            Text("狀態: \(sessionManager.statusText)")
-                .font(.footnote)
-                .foregroundStyle(.white.opacity(0.8))
+            .pickerStyle(.segmented)
+
+            Group {
+                switch selectedStatusPage {
+                case .measure:
+                    Text("QA 等級: \(sessionManager.qaLevelText)")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(qaLevelColor(sessionManager.qaLevel))
+                    Text("QA 模式: \(sessionManager.qaProfile.displayName)")
+                        .font(.footnote)
+                        .foregroundStyle(.white.opacity(0.85))
+                    Text(sessionManager.highestModeLockEnabled ? "模式鎖定：最高等級" : "模式鎖定：關")
+                        .font(.caption2)
+                        .foregroundStyle(sessionManager.highestModeLockEnabled ? .yellow : .secondary)
+                    Text("QA 分數: \(sessionManager.qaScore) / 100")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(qaScoreColor(sessionManager.qaScore))
+                    Text(qaHintText(sessionManager.qaScore))
+                        .font(.footnote.bold())
+                        .foregroundStyle(qaHintColor(sessionManager.qaScore))
+                case .ai:
+                    Text(sessionManager.aiDiagnosisText)
+                        .font(.footnote.bold())
+                        .foregroundStyle(.white)
+                    Text(sessionManager.aiCorrectionText)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    if !sessionManager.aiLastActionText.isEmpty {
+                        Text(sessionManager.aiLastActionText)
+                            .font(.caption2)
+                            .foregroundStyle(.mint)
+                    }
+                    Text(sessionManager.correctionTrendText)
+                        .font(.caption2)
+                        .foregroundStyle(.cyan)
+                    Text(sessionManager.autoCorrectionStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(sessionManager.autoCorrectionEnabled ? .mint : .secondary)
+                case .system:
+                    Text(sessionManager.aiAssistantSourceText)
+                        .font(.caption2)
+                        .foregroundStyle(.cyan)
+                    Text(sessionManager.aiAssistantText)
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.9))
+                    Text(sessionManager.arPOCStatusText)
+                        .font(.caption2.bold())
+                        .foregroundStyle(.cyan)
+                    Text("狀態: \(sessionManager.statusText)")
+                        .font(.footnote)
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -117,89 +136,111 @@ struct ContentView: View {
 
     private var bottomPanel: some View {
         VStack(spacing: 10) {
-            Picker("QA 模式", selection: Binding(
-                get: { sessionManager.qaProfile },
-                set: { sessionManager.setQAProfile($0) }
-            )) {
-                ForEach(QATuningProfile.allCases) { mode in
-                    Text(mode.displayName).tag(mode)
+            Picker("功能分頁", selection: $selectedControlPage) {
+                ForEach(ControlPage.allCases) { page in
+                    Text(page.title).tag(page)
                 }
             }
             .pickerStyle(.segmented)
-            .tint(.blue)
 
-            Button("AI QA 一鍵矯正") {
-                sessionManager.applyAIQACorrection()
-            }
-            .buttonStyle(.bordered)
-            .frame(maxWidth: .infinity)
-            .disabled(!sessionManager.aiCanAutoCorrect)
+            Group {
+                switch selectedControlPage {
+                case .measure:
+                    Toggle(isOn: Binding(
+                        get: { sessionManager.highestModeLockEnabled },
+                        set: { sessionManager.setHighestModeLockEnabled($0) }
+                    )) {
+                        Text("最高等級鎖定（固定超嚴格）")
+                            .font(.footnote.bold())
+                    }
+                    .tint(.yellow)
 
-            Button(sessionManager.autoCorrectionEnabled ? "停止自動連續矯正" : "啟動自動連續矯正") {
-                sessionManager.toggleAutoCorrection()
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(sessionManager.autoCorrectionEnabled ? .red : .blue)
-            .frame(maxWidth: .infinity)
+                    Picker("QA 模式", selection: Binding(
+                        get: { sessionManager.qaProfile },
+                        set: { sessionManager.setQAProfile($0) }
+                    )) {
+                        ForEach(QATuningProfile.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .tint(.blue)
+                    .disabled(sessionManager.highestModeLockEnabled)
 
-            Picker("自動矯正策略", selection: Binding(
-                get: { sessionManager.autoCorrectionStrategy },
-                set: { sessionManager.setAutoCorrectionStrategy($0) }
-            )) {
-                ForEach(AIAutoCorrectionStrategy.allCases) { strategy in
-                    Text(strategy.displayName).tag(strategy)
+                    Button("記錄量測") {
+                        guard let distance = sessionManager.latestDistanceMeters else { return }
+                        measurementStore.add(
+                            distance: distance,
+                            pitch: sessionManager.latestPitchDegrees,
+                            roll: sessionManager.latestRollDegrees,
+                            qaLevel: sessionManager.qaLevel,
+                            qaProfile: sessionManager.qaProfile,
+                            qaScore: sessionManager.qaScore
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .frame(maxWidth: .infinity)
+                    .disabled(!canRecordMeasurement)
+
+                    if !canRecordMeasurement {
+                        Text("需達 \(minRecordScore) 分以上才能記錄（目前 \(sessionManager.qaScore) 分）")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                case .ai:
+                    Button("AI QA 一鍵矯正") {
+                        sessionManager.applyAIQACorrection()
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
+                    .disabled(!sessionManager.aiCanAutoCorrect)
+
+                    Button(sessionManager.autoCorrectionEnabled ? "停止自動連續矯正" : "啟動自動連續矯正") {
+                        sessionManager.toggleAutoCorrection()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(sessionManager.autoCorrectionEnabled ? .red : .blue)
+                    .frame(maxWidth: .infinity)
+
+                    Picker("自動矯正策略", selection: Binding(
+                        get: { sessionManager.autoCorrectionStrategy },
+                        set: { sessionManager.setAutoCorrectionStrategy($0) }
+                    )) {
+                        ForEach(AIAutoCorrectionStrategy.allCases) { strategy in
+                            Text(strategy.displayName).tag(strategy)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .tint(.indigo)
+
+                    Button("AI 助手版（現場建議）") {
+                        showingAIAssistant = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.purple)
+                    .frame(maxWidth: .infinity)
+                case .tools:
+                    HStack(spacing: 10) {
+                        Button("截圖存相簿") {
+                            sessionManager.capturePhotoToLibrary()
+                        }
+                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
+
+                        Button("量測紀錄") {
+                            showingRecords = true
+                        }
+                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
+                    }
+
+                    Button("AI 矯正比對歷史") {
+                        showingCorrectionHistory = true
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
                 }
             }
-            .pickerStyle(.segmented)
-            .tint(.indigo)
-
-            Button("記錄量測") {
-                guard let distance = sessionManager.latestDistanceMeters else { return }
-                measurementStore.add(
-                    distance: distance,
-                    pitch: sessionManager.latestPitchDegrees,
-                    roll: sessionManager.latestRollDegrees,
-                    qaLevel: sessionManager.qaLevel,
-                    qaProfile: sessionManager.qaProfile,
-                    qaScore: sessionManager.qaScore
-                )
-            }
-            .buttonStyle(.borderedProminent)
-            .frame(maxWidth: .infinity)
-            .disabled(!canRecordMeasurement)
-
-            if !canRecordMeasurement {
-                Text("需達 \(minRecordScore) 分以上才能記錄（目前 \(sessionManager.qaScore) 分）")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-
-            HStack(spacing: 10) {
-                Button("截圖存相簿") {
-                    sessionManager.capturePhotoToLibrary()
-                }
-                .buttonStyle(.bordered)
-                .frame(maxWidth: .infinity)
-
-                Button("量測紀錄") {
-                    showingRecords = true
-                }
-                .buttonStyle(.bordered)
-                .frame(maxWidth: .infinity)
-            }
-
-            Button("AI 矯正比對歷史") {
-                showingCorrectionHistory = true
-            }
-            .buttonStyle(.bordered)
-            .frame(maxWidth: .infinity)
-
-            Button("AI 助手版（現場建議）") {
-                showingAIAssistant = true
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.purple)
-            .frame(maxWidth: .infinity)
         }
         .padding(12)
         .background(.black.opacity(0.42))
@@ -393,6 +434,36 @@ struct ContentView: View {
                         showingAIAssistant = false
                     }
                 }
+            }
+        }
+    }
+
+    private enum StatusPage: String, CaseIterable, Identifiable {
+        case measure
+        case ai
+        case system
+
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .measure: return "量測"
+            case .ai: return "AI"
+            case .system: return "系統"
+            }
+        }
+    }
+
+    private enum ControlPage: String, CaseIterable, Identifiable {
+        case measure
+        case ai
+        case tools
+
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .measure: return "量測"
+            case .ai: return "AI"
+            case .tools: return "工具"
             }
         }
     }

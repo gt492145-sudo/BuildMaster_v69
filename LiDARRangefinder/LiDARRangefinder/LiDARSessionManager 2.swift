@@ -25,7 +25,7 @@ final class LiDARSessionManager: ObservableObject {
     @Published var latestRollDegrees: Double = 0
     @Published var qaLevel: QAPrecisionLevel = .normal
     @Published var qaLevelText: String = "一般"
-    @Published var qaProfile: QATuningProfile = .standard
+    @Published var qaProfile: QATuningProfile = .ultra
     @Published var qaScore: Int = 0
     @Published var aiDiagnosisText: String = "AI QA：初始化中"
     @Published var aiCorrectionText: String = "建議：請先鎖定量測目標"
@@ -41,6 +41,7 @@ final class LiDARSessionManager: ObservableObject {
     @Published var aiAssistantBusy: Bool = false
     @Published var aiCloudEnabled: Bool = false
     @Published var arPOCStatusText: String = "AR POC：等待影像錨點"
+    @Published var highestModeLockEnabled: Bool = false
 
     private weak var arView: ARView?
     private var updateTimer: Timer?
@@ -50,6 +51,7 @@ final class LiDARSessionManager: ObservableObject {
     private let autoCorrectionStrategyStorageKey = "lidar_rangefinder_auto_correction_strategy"
     private let aiCloudEnabledStorageKey = "lidar_rangefinder_ai_cloud_enabled"
     private let aiOpenAIKeyStorageKey = "lidar_rangefinder_ai_openai_key"
+    private let highestModeLockStorageKey = "lidar_rangefinder_highest_mode_lock"
     private var aiIssue: AIQAIssueType = .none
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
@@ -60,6 +62,10 @@ final class LiDARSessionManager: ObservableObject {
         if let raw = UserDefaults.standard.string(forKey: qaProfileStorageKey),
            let profile = QATuningProfile(rawValue: raw) {
             qaProfile = profile
+        } else {
+            // Default to highest precision mode for first-time users.
+            qaProfile = .ultra
+            UserDefaults.standard.set(qaProfile.rawValue, forKey: qaProfileStorageKey)
         }
         if let raw = UserDefaults.standard.string(forKey: autoCorrectionStrategyStorageKey),
            let strategy = AIAutoCorrectionStrategy(rawValue: raw) {
@@ -67,6 +73,13 @@ final class LiDARSessionManager: ObservableObject {
         }
         if UserDefaults.standard.object(forKey: aiCloudEnabledStorageKey) != nil {
             aiCloudEnabled = UserDefaults.standard.bool(forKey: aiCloudEnabledStorageKey)
+        }
+        if UserDefaults.standard.object(forKey: highestModeLockStorageKey) != nil {
+            highestModeLockEnabled = UserDefaults.standard.bool(forKey: highestModeLockStorageKey)
+        }
+        if highestModeLockEnabled {
+            qaProfile = .ultra
+            UserDefaults.standard.set(qaProfile.rawValue, forKey: qaProfileStorageKey)
         }
         loadCorrectionHistory()
         refreshCorrectionTrend()
@@ -100,9 +113,26 @@ final class LiDARSessionManager: ObservableObject {
     }
 
     func setQAProfile(_ profile: QATuningProfile) {
-        qaProfile = profile
-        UserDefaults.standard.set(profile.rawValue, forKey: qaProfileStorageKey)
+        if highestModeLockEnabled {
+            qaProfile = .ultra
+        } else {
+            qaProfile = profile
+        }
+        UserDefaults.standard.set(qaProfile.rawValue, forKey: qaProfileStorageKey)
         refreshQALevel()
+    }
+
+    func setHighestModeLockEnabled(_ enabled: Bool) {
+        highestModeLockEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: highestModeLockStorageKey)
+        if enabled {
+            qaProfile = .ultra
+            UserDefaults.standard.set(qaProfile.rawValue, forKey: qaProfileStorageKey)
+            aiLastActionText = "最高等級鎖定：已啟用（固定超嚴格）"
+            refreshQALevel()
+        } else {
+            aiLastActionText = "最高等級鎖定：已關閉（可手動切換模式）"
+        }
     }
 
     var aiCanAutoCorrect: Bool {
@@ -660,9 +690,9 @@ final class LiDARSessionManager: ObservableObject {
     private var autoCorrectionConfig: (targetScore: Int, maxRounds: Int, minExpectedDelta: Int) {
         switch autoCorrectionStrategy {
         case .stableFirst:
-            return (90, 4, 1)
+            return (95, 6, 1)
         case .speedFirst:
-            return (80, 2, 0)
+            return (85, 3, 0)
         }
     }
 
