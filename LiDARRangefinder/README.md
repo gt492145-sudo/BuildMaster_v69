@@ -1,5 +1,11 @@
 # LiDAR 雷射測距鏡 (Native iOS App)
 
+## 版本公告
+
+- `v69` 已正式納入量子更新主線
+- 量子核心已整合雷射量測 + 任務 A/B/C 融合狀態
+- 支援 IBM Quantum API 可選接入（backend/shots/錯誤碼提示）
+
 這是一個安全用途的 Native iOS App 範本，使用 `SwiftUI + ARKit + RealityKit` 提供:
 
 - 中央準星即時測距
@@ -22,6 +28,8 @@
 - 鎖定框 Overlay（中心追蹤框即時顯示鎖定狀態）
 - 量測結果紀錄
 - AR 畫面截圖
+- 量子核心戰術模式（語音/手動啟動、融合評分、一鍵量子融合補齊）
+- IBM Quantum Runtime 接入（可切換 backend、調整 shots、顯示 401/403/429 診斷）
 
 ## 開發環境
 

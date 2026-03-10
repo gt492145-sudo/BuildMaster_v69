@@ -121,10 +121,13 @@ final class LiDARSessionManager: ObservableObject {
     @Published var quantumIBMBackend: String = "ibm_kyiv"
     @Published var quantumIBMShots: Int = 128
     @Published var quantumFusionStatusText: String = "量子融合：待命"
+    @Published var highPrecisionContinuousModeEnabled: Bool = true
+    @Published var highPrecisionStatusText: String = "高精度連續模式：待命"
 
     private weak var arView: ARView?
     private var updateTimer: Timer?
     private var recentDistances: [Double] = []
+    private var recentRawDistances: [Double] = []
     private let qaProfileStorageKey = "lidar_rangefinder_qa_profile"
     private let aiCorrectionStorageKey = "lidar_rangefinder_ai_corrections"
     private let autoCorrectionStrategyStorageKey = "lidar_rangefinder_auto_correction_strategy"
@@ -148,6 +151,7 @@ final class LiDARSessionManager: ObservableObject {
     private let quantumIBMAPIKeyStorageKey = "lidar_rangefinder_quantum_ibm_api_key"
     private let quantumIBMBackendStorageKey = "lidar_rangefinder_quantum_ibm_backend"
     private let quantumIBMShotsStorageKey = "lidar_rangefinder_quantum_ibm_shots"
+    private let highPrecisionContinuousModeStorageKey = "lidar_rangefinder_high_precision_continuous_mode"
     private var aiIssue: AIQAIssueType = .none
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
@@ -227,6 +231,9 @@ final class LiDARSessionManager: ObservableObject {
         }
         if UserDefaults.standard.object(forKey: quantumIBMShotsStorageKey) != nil {
             quantumIBMShots = clampIBMShots(UserDefaults.standard.integer(forKey: quantumIBMShotsStorageKey))
+        }
+        if UserDefaults.standard.object(forKey: highPrecisionContinuousModeStorageKey) != nil {
+            highPrecisionContinuousModeEnabled = UserDefaults.standard.bool(forKey: highPrecisionContinuousModeStorageKey)
         }
         if quantumModeEnabled {
             highestModeLockEnabled = true
@@ -379,21 +386,23 @@ final class LiDARSessionManager: ObservableObject {
             return
         }
 
-        let samples = collectVolumeSamples(arView: arView, frame: frame, gridSize: volumeGridSize)
-        guard samples.count >= max(6, volumeGridSize) else {
+        let firstPass = collectVolumeSamples(arView: arView, frame: frame, gridSize: volumeGridSize)
+        let secondPass = collectVolumeSamples(arView: arView, frame: frame, gridSize: volumeGridSize)
+        let samples = firstPass + secondPass
+        guard samples.count >= max(12, volumeGridSize * 2) else {
             volumeSampleCount = samples.count
             volumeStatusText = "體積掃描：取樣不足（\(samples.count) 點），請對準平面重掃"
             return
         }
 
-        let avgDepth = samples.reduce(0, +) / Double(samples.count)
+        let depth = robustDepthEstimate(samples)
         refreshVolumeAreaM2()
-        volumeEstimateM3 = max(0, volumeAreaM2 * avgDepth)
+        volumeEstimateM3 = max(0, volumeAreaM2 * depth)
         volumeSampleCount = samples.count
         volumeStatusText = String(
-            format: "體積掃描：完成（%d 點，平均深度 %.2fm）",
+            format: "體積掃描：完成（%d 點，穩健深度 %.2fm）",
             samples.count,
-            avgDepth
+            depth
         )
     }
 
@@ -568,6 +577,65 @@ final class LiDARSessionManager: ObservableObject {
     func setIBMShots(_ shots: Int) {
         quantumIBMShots = clampIBMShots(shots)
         UserDefaults.standard.set(quantumIBMShots, forKey: quantumIBMShotsStorageKey)
+    }
+
+    func setHighPrecisionContinuousModeEnabled(_ enabled: Bool) {
+        highPrecisionContinuousModeEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: highPrecisionContinuousModeStorageKey)
+        highPrecisionStatusText = enabled ? "高精度連續模式：已啟用" : "高精度連續模式：已關閉"
+    }
+
+    func prepareDistanceForRecording() -> Double? {
+        guard let rawDistance = latestDistanceMeters else {
+            highPrecisionStatusText = "高精度連續模式：尚未鎖定量測距離"
+            return nil
+        }
+        guard highPrecisionContinuousModeEnabled else {
+            highPrecisionStatusText = "高精度連續模式：使用即時距離記錄"
+            return rawDistance
+        }
+
+        guard let arView else {
+            highPrecisionStatusText = "高精度連續模式：AR 畫面未就緒"
+            return nil
+        }
+
+        let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
+        var distances: [Double] = []
+        for _ in 0..<3 {
+            let results = arView.raycast(from: center, allowing: .estimatedPlane, alignment: .any)
+            guard let first = results.first, let frame = arView.session.currentFrame else { continue }
+            let world = first.worldTransform.columns.3
+            let camera = frame.camera.transform.columns.3
+            let dx = world.x - camera.x
+            let dy = world.y - camera.y
+            let dz = world.z - camera.z
+            distances.append(Double(sqrt(dx * dx + dy * dy + dz * dz)))
+        }
+
+        guard distances.count == 3 else {
+            highPrecisionStatusText = "高精度連續模式：3 次取樣不足，請穩定後重試"
+            return nil
+        }
+
+        let median = medianValue(distances)
+        let maxDeviation = distances.map { abs($0 - median) }.max() ?? 0
+        if maxDeviation > 0.015 {
+            highPrecisionStatusText = String(
+                format: "高精度連續模式：波動偏高（±%.3fm），請重測",
+                maxDeviation
+            )
+            return nil
+        }
+
+        latestDistanceMeters = median
+        distanceText = String(format: "%.2f m", median)
+        appendRecentDistance(median)
+        highPrecisionStatusText = String(
+            format: "高精度連續模式：已取中位數 %.2fm（3 次）",
+            median
+        )
+        return median
     }
 
     func startQuantumVoiceCommand() {
@@ -821,15 +889,18 @@ final class LiDARSessionManager: ObservableObject {
             let dx = world.x - camera.x
             let dy = world.y - camera.y
             let dz = world.z - camera.z
-            let distance = sqrt(dx * dx + dy * dy + dz * dz)
-            latestDistanceMeters = Double(distance)
+            let rawDistance = Double(sqrt(dx * dx + dy * dy + dz * dz))
+            appendRawDistance(rawDistance)
+            let distance = smoothedDistance(rawDistance)
+            latestDistanceMeters = distance
             distanceText = String(format: "%.2f m", distance)
-            appendRecentDistance(Double(distance))
+            appendRecentDistance(distance)
             statusText = "已鎖定目標"
         } else {
             latestDistanceMeters = nil
             distanceText = "-- m"
             recentDistances.removeAll()
+            recentRawDistances.removeAll()
             qaLevel = .normal
             qaLevelText = qaLevel.displayName
             qaScore = 0
@@ -995,6 +1066,27 @@ final class LiDARSessionManager: ObservableObject {
             }
         }
         return depths
+    }
+
+    private func robustDepthEstimate(_ values: [Double]) -> Double {
+        guard !values.isEmpty else { return 0 }
+        let sorted = values.sorted()
+        let trim = max(0, Int(Double(sorted.count) * 0.15))
+        let kept = sorted.dropFirst(trim).dropLast(trim)
+        guard !kept.isEmpty else {
+            return sorted.reduce(0, +) / Double(sorted.count)
+        }
+        return kept.reduce(0, +) / Double(kept.count)
+    }
+
+    private func medianValue(_ values: [Double]) -> Double {
+        guard !values.isEmpty else { return 0 }
+        let sorted = values.sorted()
+        let mid = sorted.count / 2
+        if sorted.count % 2 == 1 {
+            return sorted[mid]
+        }
+        return (sorted[mid - 1] + sorted[mid]) / 2.0
     }
 
     private func clampMainBarCount(_ value: Int) -> Int {
@@ -1456,6 +1548,23 @@ final class LiDARSessionManager: ObservableObject {
         }
     }
 
+    private func appendRawDistance(_ value: Double) {
+        recentRawDistances.append(value)
+        if recentRawDistances.count > 7 {
+            recentRawDistances.removeFirst(recentRawDistances.count - 7)
+        }
+    }
+
+    private func smoothedDistance(_ fallback: Double) -> Double {
+        guard !recentRawDistances.isEmpty else { return fallback }
+        let sorted = recentRawDistances.sorted()
+        let mid = sorted.count / 2
+        if sorted.count % 2 == 1 {
+            return sorted[mid]
+        }
+        return (sorted[mid - 1] + sorted[mid]) / 2.0
+    }
+
     private func refreshQALevel() {
         guard latestDistanceMeters != nil else { return }
         let pitchAbs = abs(latestPitchDegrees)
@@ -1579,6 +1688,7 @@ final class LiDARSessionManager: ObservableObject {
     private func recalibrateTracking() {
         guard let arView else { return }
         recentDistances.removeAll()
+        recentRawDistances.removeAll()
         configureSession(on: arView)
     }
 

@@ -219,7 +219,7 @@
 
 <header>
     <img src="logo-app.png" class="logo-img" alt="Black Hole Logo">
-    <div class="header-title">BUILDMASTER V6.9 - BLACK HOLE POWER <span class="live-badge">正式版 LIVE</span></div>
+    <div class="header-title">BUILDMASTER V6.9 - BLACK HOLE POWER <span class="live-badge">正式版 LIVE</span> <span class="live-badge">v69 量子更新</span></div>
     <div class="level-switch">
         <button id="levelBasicBtn" class="level-btn" onclick="setUserLevel('basic')">頁1 新手</button>
         <button id="levelStandardBtn" class="level-btn" onclick="setUserLevel('standard')">頁2 工程</button>
@@ -385,9 +385,13 @@
                 <label class="tool-mini"><input id="layoutTypeColumn" type="checkbox" checked> 柱</label>
                 <label class="tool-mini"><input id="layoutTypeWall" type="checkbox" checked> 牆</label>
                 <label class="tool-mini"><input id="layoutTypeBeam" type="checkbox" checked> 梁</label>
+                <label class="tool-mini"><input id="layoutHighPrecisionToggle" type="checkbox" checked> 放樣高精度</label>
             </div>
             <div class="bim-actions">
+                <button class="tool-btn" style="border-color:#b388ff; color:#e8d9ff;" onclick="runQuantumAutoStakeLayout()">⚛️ 量子自進放樣</button>
                 <button class="tool-btn" onclick="generateBimLayoutPoints()">📍 產生放樣點</button>
+                <button class="tool-btn" onclick="optimizeBimLayoutPointsForPrecision()">🎯 高精度修正</button>
+                <button class="tool-btn" onclick="groupBimLayoutPointsForQa()">🧩 自動分群 QA</button>
                 <button class="tool-btn" onclick="runBimLayoutQa()">🧪 執行放樣 QA</button>
                 <button class="tool-btn" onclick="exportBimLayoutPoints()">⬇️ 匯出放樣點 CSV</button>
                 <button class="tool-btn" onclick="exportBimLayoutQaReport()">⬇️ 匯出 QA 報告 CSV</button>
@@ -395,7 +399,7 @@
             <div id="bimLayoutQaSummary" class="bim-note">放樣 QA：尚未執行</div>
             <div class="bim-table-wrap">
                 <table>
-                    <thead><tr><th>ID</th><th>來源構件</th><th>類型</th><th>點位</th><th>X</th><th>Y</th><th>Z</th><th>樓層</th></tr></thead>
+                    <thead><tr><th>ID</th><th>來源構件</th><th>類型</th><th>點位</th><th>X</th><th>Y</th><th>Z</th><th>樓層</th><th>群組</th></tr></thead>
                     <tbody id="bimLayoutBody"></tbody>
                 </table>
             </div>
@@ -708,6 +712,8 @@
     let bimEstimateRows = [];
     let bimLayoutPoints = [];
     let bimLayoutQaResult = null;
+    let bimLayoutPrecisionPass = 0;
+    let quantumStakeAutoRuns = 0;
     const BIM_RULES_STORAGE_KEY = 'bm_69:bim_rules';
     const BIM_AUDIT_STORAGE_KEY = 'bm_69:bim_audit_logs';
     const BIM_SNAPSHOT_STORAGE_KEY = 'bm_69:bim_snapshots';
@@ -2566,13 +2572,13 @@
         body.innerHTML = '';
         if (!bimLayoutPoints.length) {
             const tr = document.createElement('tr');
-            tr.innerHTML = '<td colspan="8" style="color:#9ab3cf;">尚未產生放樣點</td>';
+            tr.innerHTML = '<td colspan="9" style="color:#9ab3cf;">尚未產生放樣點</td>';
             body.appendChild(tr);
             return;
         }
         bimLayoutPoints.slice(0, 200).forEach(p => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${p.id}</td><td>${p.sourceElementId}</td><td>${p.sourceType}</td><td>${p.pointType}</td><td>${p.x}</td><td>${p.y}</td><td>${p.z}</td><td>${p.floorTag}</td>`;
+            tr.innerHTML = `<td>${p.id}</td><td>${p.sourceElementId}</td><td>${p.sourceType}</td><td>${p.pointType}</td><td>${p.x}</td><td>${p.y}</td><td>${p.z}</td><td>${p.floorTag}</td><td>${p.layoutGroup || '-'}</td>`;
             body.appendChild(tr);
         });
     }
@@ -2633,8 +2639,99 @@
             return;
         }
         const level = getQaLevelByScore(bimLayoutQaResult.qaScore);
-        box.innerText = `放樣 QA：等級 ${level}（${bimLayoutQaResult.qaScore} / 100），重複 ${bimLayoutQaResult.duplicatePointCount}，缺漏 ${bimLayoutQaResult.missingGeometryCount}，越界 ${bimLayoutQaResult.outOfRangeCount}`;
+        box.innerText = `放樣 QA：等級 ${level}（${bimLayoutQaResult.qaScore} / 100），重複 ${bimLayoutQaResult.duplicatePointCount}，缺漏 ${bimLayoutQaResult.missingGeometryCount}，越界 ${bimLayoutQaResult.outOfRangeCount}，點距穩定度 ${bimLayoutQaResult.spacingStabilityScore || 0}，分群穩定度 ${bimLayoutQaResult.groupStabilityScore || 0}（${bimLayoutQaResult.groupCount || 0} 組），高精度修正 ${bimLayoutPrecisionPass} 次，量子自進 ${quantumStakeAutoRuns} 次`;
         updateQaDashboard();
+    }
+
+    function normalizePointPrecision(value, step = 0.005) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return NaN;
+        return Math.round(n / step) * step;
+    }
+
+    function optimizeBimLayoutPointsForPrecision() {
+        if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
+        const highPrecisionToggle = document.getElementById('layoutHighPrecisionToggle');
+        const precisionEnabled = !(highPrecisionToggle && !highPrecisionToggle.checked);
+        if (!precisionEnabled) {
+            return showToast('放樣高精度未啟用，請先勾選「放樣高精度」');
+        }
+
+        const deduped = [];
+        const keySet = new Set();
+        const toleranceStep = 0.005; // 5mm grid snap
+        bimLayoutPoints.forEach((p, idx) => {
+            const nx = normalizePointPrecision(p.x, toleranceStep);
+            const ny = normalizePointPrecision(p.y, toleranceStep);
+            const nz = normalizePointPrecision(p.z, toleranceStep);
+            if (![nx, ny, nz].every(Number.isFinite)) return;
+            const key = `${nx.toFixed(3)}|${ny.toFixed(3)}|${nz.toFixed(3)}|${p.pointType}`;
+            if (keySet.has(key)) return;
+            keySet.add(key);
+            deduped.push({
+                ...p,
+                id: `LP-${String(deduped.length + 1).padStart(4, '0')}`,
+                x: Math.round(nx * 1000) / 1000,
+                y: Math.round(ny * 1000) / 1000,
+                z: Math.round(nz * 1000) / 1000,
+                status: 'precision'
+            });
+        });
+
+        bimLayoutPoints = deduped;
+        bimLayoutPrecisionPass += 1;
+        bimLayoutQaResult = null;
+        renderBimLayoutTable();
+        renderBimLayoutQaSummary();
+        addAuditLog('放樣高精度修正', `保留 ${bimLayoutPoints.length} 筆 / 第 ${bimLayoutPrecisionPass} 次`);
+        showToast(`放樣高精度修正完成：${bimLayoutPoints.length} 筆`);
+    }
+
+    function groupBimLayoutPointsForQa() {
+        if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
+        const result = assignLayoutGroups(bimLayoutPoints);
+        bimLayoutPoints = result.points;
+        bimLayoutQaResult = null;
+        renderBimLayoutTable();
+        renderBimLayoutQaSummary();
+        addAuditLog('放樣點自動分群', `分群 ${result.groupCount} 組`);
+        showToast(`放樣分群完成：共 ${result.groupCount} 組`);
+    }
+
+    function runQuantumAutoStakeLayout() {
+        if (!bimModelData || !Array.isArray(bimModelData.elements) || !bimModelData.elements.length) {
+            return showToast('量子自進放樣：請先上傳 IFC 模型');
+        }
+        setWorkMode('stake');
+        generateBimLayoutPoints();
+        if (!bimLayoutPoints.length) return;
+
+        const highPrecisionToggle = document.getElementById('layoutHighPrecisionToggle');
+        const precisionEnabled = !(highPrecisionToggle && !highPrecisionToggle.checked);
+        if (precisionEnabled) optimizeBimLayoutPointsForPrecision();
+        groupBimLayoutPointsForQa();
+        runBimLayoutQa();
+        quantumStakeAutoRuns += 1;
+        renderBimLayoutQaSummary();
+        addAuditLog('量子自進放樣', `第 ${quantumStakeAutoRuns} 次 / 點位 ${bimLayoutPoints.length}`);
+        showToast(`量子自進放樣完成：第 ${quantumStakeAutoRuns} 次`);
+    }
+
+    function assignLayoutGroups(points) {
+        const groups = new Map();
+        const groupedPoints = points.map(p => {
+            const xBucket = Math.floor((Number(p.x) || 0) / 10);
+            const yBucket = Math.floor((Number(p.y) || 0) / 10);
+            const floor = String(p.floorTag || 'BIM').trim() || 'BIM';
+            const key = `${floor}|${xBucket}|${yBucket}`;
+            const count = (groups.get(key) || 0) + 1;
+            groups.set(key, count);
+            return {
+                ...p,
+                layoutGroup: `G-${floor}-${xBucket}_${yBucket}`
+            };
+        });
+        return { points: groupedPoints, groupCount: groups.size };
     }
 
     function generateBimLayoutPoints() {
@@ -2661,52 +2758,123 @@
             }
         });
 
-        bimLayoutPoints = points.slice(0, 1200);
+        const seededPoints = points.slice(0, 1200);
+        const grouped = assignLayoutGroups(seededPoints);
+        bimLayoutPoints = grouped.points;
         bimLayoutQaResult = null;
         renderBimLayoutTable();
         renderBimLayoutQaSummary();
         addAuditLog('生成放樣點', `${bimLayoutPoints.length} 筆`);
-        showToast(`已生成放樣點 ${bimLayoutPoints.length} 筆`);
+        showToast(`已生成放樣點 ${bimLayoutPoints.length} 筆（${grouped.groupCount} 組）`);
     }
 
     function runBimLayoutQa() {
         if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
+        const highPrecisionToggle = document.getElementById('layoutHighPrecisionToggle');
+        const precisionEnabled = !(highPrecisionToggle && !highPrecisionToggle.checked);
         const keySet = new Set();
         let duplicatePointCount = 0;
         let missingGeometryCount = 0;
         let outOfRangeCount = 0;
         let maxDeviation = 0;
+        const validPoints = [];
         bimLayoutPoints.forEach(p => {
             const valid = [p.x, p.y, p.z].every(Number.isFinite);
             if (!valid) {
                 missingGeometryCount += 1;
                 return;
             }
+            validPoints.push(p);
             const key = `${p.x.toFixed(2)}|${p.y.toFixed(2)}|${p.z.toFixed(2)}`;
             if (keySet.has(key)) duplicatePointCount += 1;
             else keySet.add(key);
             if (Math.abs(p.x) > 10000 || Math.abs(p.y) > 10000 || Math.abs(p.z) > 10000) outOfRangeCount += 1;
             maxDeviation = Math.max(maxDeviation, Math.abs(p.z));
         });
-        const penalty = duplicatePointCount * 2 + missingGeometryCount * 5 + outOfRangeCount * 3;
+        const nearestDistances = [];
+        for (let i = 0; i < validPoints.length; i += 1) {
+            let nearest = Infinity;
+            for (let j = 0; j < validPoints.length; j += 1) {
+                if (i === j) continue;
+                const dx = validPoints[i].x - validPoints[j].x;
+                const dy = validPoints[i].y - validPoints[j].y;
+                const dz = validPoints[i].z - validPoints[j].z;
+                const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (d < nearest) nearest = d;
+            }
+            if (Number.isFinite(nearest) && nearest < Infinity) nearestDistances.push(nearest);
+        }
+        const meanDist = nearestDistances.length ? (nearestDistances.reduce((a, b) => a + b, 0) / nearestDistances.length) : 0;
+        const varianceDist = nearestDistances.length
+            ? (nearestDistances.reduce((acc, d) => {
+                const diff = d - meanDist;
+                return acc + diff * diff;
+            }, 0) / nearestDistances.length)
+            : 0;
+        const stdDist = Math.sqrt(varianceDist);
+        const cv = meanDist > 0 ? (stdDist / meanDist) : 1;
+        const spacingStabilityScore = Math.max(0, Math.min(100, Math.round((1 - cv) * 100)));
+        const groupStats = evaluateGroupStability(validPoints);
+
+        const penalty = duplicatePointCount * 2
+            + missingGeometryCount * 5
+            + outOfRangeCount * 3
+            + Math.max(0, 70 - spacingStabilityScore)
+            + Math.max(0, 75 - groupStats.groupStabilityScore);
         const qaScore = Math.max(0, 100 - penalty);
         bimLayoutQaResult = {
             duplicatePointCount,
             missingGeometryCount,
             outOfRangeCount,
             maxDeviation: Math.round(maxDeviation * 1000) / 1000,
+            spacingStabilityScore,
+            groupStabilityScore: groupStats.groupStabilityScore,
+            groupCount: groupStats.groupCount,
+            precisionEnabled,
             qaScore,
             checkedAt: new Date().toISOString()
         };
         renderBimLayoutQaSummary();
         const qaLevel = getQaLevelByScore(qaScore);
         addAuditLog('放樣QA檢核', `等級 ${qaLevel} / 分數 ${qaScore} / 100`);
-        showToast(`放樣 QA 完成：${qaLevel}（${qaScore} 分）`);
+        showToast(`放樣 QA 完成：${qaLevel}（${qaScore} 分，群組穩定度 ${groupStats.groupStabilityScore}）`);
+    }
+
+    function evaluateGroupStability(points) {
+        const groupMap = new Map();
+        points.forEach(p => {
+            const group = p.layoutGroup || 'UNGROUPED';
+            if (!groupMap.has(group)) groupMap.set(group, []);
+            groupMap.get(group).push(p);
+        });
+        const groupScores = [];
+        groupMap.forEach(items => {
+            if (items.length < 2) {
+                groupScores.push(85);
+                return;
+            }
+            const zValues = items.map(i => Number(i.z) || 0);
+            const mean = zValues.reduce((a, b) => a + b, 0) / zValues.length;
+            const variance = zValues.reduce((acc, z) => {
+                const diff = z - mean;
+                return acc + diff * diff;
+            }, 0) / zValues.length;
+            const std = Math.sqrt(variance);
+            const score = Math.max(0, Math.min(100, Math.round(100 - std * 50)));
+            groupScores.push(score);
+        });
+        const groupStabilityScore = groupScores.length
+            ? Math.round(groupScores.reduce((a, b) => a + b, 0) / groupScores.length)
+            : 0;
+        return {
+            groupStabilityScore,
+            groupCount: groupMap.size
+        };
     }
 
     function exportBimLayoutPoints() {
         if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
-        let csv = '\uFEFF點位ID,來源構件,構件類型,點位類型,X,Y,Z,樓層,狀態\n';
+        let csv = '\uFEFF點位ID,來源構件,構件類型,點位類型,X,Y,Z,樓層,群組,狀態\n';
         bimLayoutPoints.forEach(p => {
             csv += [
                 sanitizeCSVField(p.id),
@@ -2717,6 +2885,7 @@
                 p.y,
                 p.z,
                 sanitizeCSVField(p.floorTag),
+                sanitizeCSVField(p.layoutGroup || ''),
                 sanitizeCSVField(p.status)
             ].join(',') + '\n';
         });
@@ -2744,6 +2913,9 @@
             ['缺漏幾何', String(qa.missingGeometryCount || 0)],
             ['越界點', String(qa.outOfRangeCount || 0)],
             ['最大偏差', String(qa.maxDeviation || 0)],
+            ['點距穩定度', String(qa.spacingStabilityScore || 0)],
+            ['分群穩定度', String(qa.groupStabilityScore || 0)],
+            ['分群數', String(qa.groupCount || 0)],
             ['QA分數', String(qa.qaScore || 0)],
             ['QA等級', qaLevel]
         ];
@@ -4306,6 +4478,7 @@
         if (target.closest('button[onclick="resetBimRules()"]')) return '清空全部 BIM 規則，恢復系統預設匹配。';
         if (target.closest('button[onclick="generateBIMEstimate()"]')) return '依 IFC 類型與材料單價自動產生估價預覽表。';
         if (target.closest('button[onclick="importBIMEstimateToList()"]')) return '把 BIM 估價結果一鍵匯入主清單，直接進入總價彙整。';
+        if (target.closest('button[onclick="runQuantumAutoStakeLayout()"]')) return '量子自進放樣：自動執行生成點位、高精度修正、分群 QA 與放樣 QA。';
         if (target.closest('button[onclick="generateBimLayoutPoints()"]')) return '從 IFC 自動抽取放樣點（柱心、牆端點、梁端點）。';
         if (target.closest('button[onclick="runBimLayoutQa()"]')) return '執行放樣 QA，檢查重複點、缺漏與越界，產生分數。';
         if (target.closest('button[onclick="exportBimLayoutPoints()"]')) return '匯出放樣點 CSV，可交給儀器或現場施工使用。';

@@ -204,6 +204,15 @@ struct ContentView: View {
                 switch selectedControlPage {
                 case .measure:
                     Toggle(isOn: Binding(
+                        get: { sessionManager.highPrecisionContinuousModeEnabled },
+                        set: { sessionManager.setHighPrecisionContinuousModeEnabled($0) }
+                    )) {
+                        Text("高精度連續模式（記錄前 3 次取中位數）")
+                            .font(.footnote.bold())
+                    }
+                    .tint(.green)
+
+                    Toggle(isOn: Binding(
                         get: { sessionManager.highestModeLockEnabled },
                         set: { sessionManager.setHighestModeLockEnabled($0) }
                     )) {
@@ -225,7 +234,7 @@ struct ContentView: View {
                     .disabled(sessionManager.highestModeLockEnabled)
 
                     Button("記錄量測") {
-                        guard let distance = sessionManager.latestDistanceMeters else { return }
+                        guard let distance = sessionManager.prepareDistanceForRecording() else { return }
                         measurementStore.add(
                             distance: distance,
                             pitch: sessionManager.latestPitchDegrees,
@@ -244,6 +253,9 @@ struct ContentView: View {
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
+                    Text(sessionManager.highPrecisionStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.mint)
 
                     Button("鋼筋透視參數") {
                         showingRebarConfig = true
