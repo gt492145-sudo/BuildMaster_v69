@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct ContentView: View {
     @EnvironmentObject private var sessionManager: LiDARSessionManager
@@ -10,6 +11,8 @@ struct ContentView: View {
     @State private var showingAIAssistant = false
     @State private var showingRebarConfig = false
     @State private var showingVolumeScan = false
+    @State private var showingCrackInspector = false
+    @State private var crackPhotoItem: PhotosPickerItem?
     @State private var aiGoalInput = ""
     @State private var aiAPIKeyInput = ""
     @State private var selectedStatusPage: StatusPage = .measure
@@ -47,6 +50,19 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingVolumeScan) {
             volumeScanView
+        }
+        .sheet(isPresented: $showingCrackInspector) {
+            crackInspectorView
+        }
+        .onChange(of: crackPhotoItem) {
+            guard let crackPhotoItem else { return }
+            Task {
+                guard let data = try? await crackPhotoItem.loadTransferable(type: Data.self),
+                      let image = UIImage(data: data) else { return }
+                await MainActor.run {
+                    sessionManager.setCrackInputImage(image)
+                }
+            }
         }
     }
 
@@ -140,6 +156,12 @@ struct ContentView: View {
                         .font(.caption2.bold())
                         .foregroundStyle(.mint)
                     Text(sessionManager.volumeStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                    Text(String(format: "裂縫最長：%.1f cm｜等級：%@", sessionManager.crackMaxLengthCm, sessionManager.crackSeveritySummary))
+                        .font(.caption2.bold())
+                        .foregroundStyle(.red)
+                    Text(sessionManager.crackStatusText)
                         .font(.caption2)
                         .foregroundStyle(.orange)
                     Text("狀態: \(sessionManager.statusText)")
@@ -271,6 +293,13 @@ struct ContentView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.teal)
+                    .frame(maxWidth: .infinity)
+
+                    Button("AI 裂縫抓漏") {
+                        showingCrackInspector = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
                     .frame(maxWidth: .infinity)
                 }
             }
@@ -600,6 +629,104 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    private var crackInspectorView: some View {
+        NavigationStack {
+            Form {
+                Section("影像來源") {
+                    PhotosPicker(selection: $crackPhotoItem, matching: .images) {
+                        Text("選擇裂縫照片")
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(String(format: "校正比例：1 px = %.3f cm", sessionManager.crackCalibrationCmPerPixel))
+                        Slider(value: Binding(
+                            get: { sessionManager.crackCalibrationCmPerPixel },
+                            set: { sessionManager.setCrackCalibrationCmPerPixel($0) }
+                        ), in: 0.005...1.0, step: 0.005)
+                    }
+
+                    Button("開始裂縫分析") {
+                        sessionManager.runCrackDetection()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                    .disabled(sessionManager.crackInputImage == nil)
+                }
+
+                Section("分析結果") {
+                    Text(sessionManager.crackStatusText)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Text(String(format: "最長裂縫：%.1f cm", sessionManager.crackMaxLengthCm))
+                        .font(.footnote.bold())
+                    Text("嚴重度：\(sessionManager.crackSeveritySummary)")
+                        .font(.footnote.bold())
+                        .foregroundStyle(
+                            sessionManager.crackSeveritySummary == "高" ? .red :
+                                (sessionManager.crackSeveritySummary == "中" ? .orange : .yellow)
+                        )
+                }
+
+                if let image = sessionManager.crackInputImage {
+                    Section("裂縫標記") {
+                        crackOverlayPreview(image: image, findings: sessionManager.crackFindings)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+            .navigationTitle("AI 裂縫抓漏")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") {
+                        showingCrackInspector = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func crackOverlayPreview(image: UIImage, findings: [CrackFinding]) -> some View {
+        GeometryReader { geo in
+            let imageSize = image.size
+            let fitted = aspectFitRect(imageSize: imageSize, in: geo.size)
+
+            ZStack(alignment: .topLeading) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: geo.size.width, height: geo.size.height)
+
+                ForEach(findings) { finding in
+                    let rect = rectForNormalizedBox(finding.box, in: fitted)
+                    Rectangle()
+                        .stroke(finding.severity == "高" ? .red : (finding.severity == "中" ? .orange : .yellow), lineWidth: 2)
+                        .frame(width: rect.width, height: rect.height)
+                        .position(x: rect.midX, y: rect.midY)
+                }
+            }
+        }
+        .frame(height: 260)
+    }
+
+    private func aspectFitRect(imageSize: CGSize, in container: CGSize) -> CGRect {
+        guard imageSize.width > 0, imageSize.height > 0 else { return .zero }
+        let scale = min(container.width / imageSize.width, container.height / imageSize.height)
+        let width = imageSize.width * scale
+        let height = imageSize.height * scale
+        let x = (container.width - width) / 2
+        let y = (container.height - height) / 2
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    private func rectForNormalizedBox(_ box: CGRect, in fittedImageRect: CGRect) -> CGRect {
+        let x = fittedImageRect.minX + box.minX * fittedImageRect.width
+        // Vision normalized box origin is bottom-left, SwiftUI is top-left.
+        let y = fittedImageRect.minY + (1 - box.maxY) * fittedImageRect.height
+        let w = box.width * fittedImageRect.width
+        let h = box.height * fittedImageRect.height
+        return CGRect(x: x, y: y, width: w, height: h)
     }
 
     private enum StatusPage: String, CaseIterable, Identifiable {

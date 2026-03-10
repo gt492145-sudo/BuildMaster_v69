@@ -1,10 +1,12 @@
 import ARKit
+import CoreImage
 import Foundation
 import Photos
 import RealityKit
 import UIKit
 import SwiftUI
 import Combine
+import Vision
 private enum AIQAIssueType {
     case none
     case noSurface
@@ -12,6 +14,14 @@ private enum AIQAIssueType {
     case tilt
     case insufficientSamples
     case lowScore
+}
+
+struct CrackFinding: Identifiable {
+    let id = UUID()
+    let box: CGRect
+    let confidence: Double
+    let lengthCm: Double
+    let severity: String
 }
 
 @MainActor
@@ -57,6 +67,12 @@ final class LiDARSessionManager: ObservableObject {
     @Published var volumeEstimateM3: Double = 0
     @Published var volumeSampleCount: Int = 0
     @Published var volumeStatusText: String = "體積掃描：待命"
+    @Published var crackInputImage: UIImage?
+    @Published var crackFindings: [CrackFinding] = []
+    @Published var crackStatusText: String = "裂縫檢測：待命"
+    @Published var crackCalibrationCmPerPixel: Double = 0.08
+    @Published var crackMaxLengthCm: Double = 0
+    @Published var crackSeveritySummary: String = "無"
 
     private weak var arView: ARView?
     private var updateTimer: Timer?
@@ -77,6 +93,7 @@ final class LiDARSessionManager: ObservableObject {
     private let volumeAreaWidthStorageKey = "lidar_rangefinder_volume_area_width_m"
     private let volumeAreaLengthStorageKey = "lidar_rangefinder_volume_area_length_m"
     private let volumeGridSizeStorageKey = "lidar_rangefinder_volume_grid_size"
+    private let crackCalibrationStorageKey = "lidar_rangefinder_crack_cm_per_pixel"
     private var aiIssue: AIQAIssueType = .none
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
@@ -136,6 +153,9 @@ final class LiDARSessionManager: ObservableObject {
         }
         if UserDefaults.standard.object(forKey: volumeGridSizeStorageKey) != nil {
             volumeGridSize = clampGridSize(UserDefaults.standard.integer(forKey: volumeGridSizeStorageKey))
+        }
+        if UserDefaults.standard.object(forKey: crackCalibrationStorageKey) != nil {
+            crackCalibrationCmPerPixel = clampCrackCalibration(UserDefaults.standard.double(forKey: crackCalibrationStorageKey))
         }
         refreshVolumeAreaM2()
         refreshRebarSpecText()
@@ -289,6 +309,55 @@ final class LiDARSessionManager: ObservableObject {
             samples.count,
             avgDepth
         )
+    }
+
+    func setCrackInputImage(_ image: UIImage) {
+        crackInputImage = image
+        crackFindings = []
+        crackMaxLengthCm = 0
+        crackSeveritySummary = "待分析"
+        crackStatusText = "裂縫檢測：已載入影像，請開始分析"
+    }
+
+    func setCrackCalibrationCmPerPixel(_ value: Double) {
+        crackCalibrationCmPerPixel = clampCrackCalibration(value)
+        UserDefaults.standard.set(crackCalibrationCmPerPixel, forKey: crackCalibrationStorageKey)
+    }
+
+    func runCrackDetection() {
+        guard let image = crackInputImage else {
+            crackStatusText = "裂縫檢測：尚未選擇影像"
+            return
+        }
+        guard let cgImage = image.cgImage else {
+            crackStatusText = "裂縫檢測：影像格式不支援"
+            return
+        }
+
+        crackStatusText = "裂縫檢測：分析中..."
+        let calibration = crackCalibrationCmPerPixel
+
+        Task.detached(priority: .userInitiated) {
+            let result = Self.detectCracks(cgImage: cgImage, calibrationCmPerPixel: calibration)
+            await MainActor.run {
+                switch result {
+                case .success(let findings):
+                    self.crackFindings = findings
+                    self.crackMaxLengthCm = findings.map(\.lengthCm).max() ?? 0
+                    self.crackSeveritySummary = self.summarizeSeverity(findings)
+                    if findings.isEmpty {
+                        self.crackStatusText = "裂縫檢測：未找到明顯裂縫"
+                    } else {
+                        self.crackStatusText = "裂縫檢測：完成（\(findings.count) 條疑似裂縫）"
+                    }
+                case .failure:
+                    self.crackFindings = []
+                    self.crackMaxLengthCm = 0
+                    self.crackSeveritySummary = "無"
+                    self.crackStatusText = "裂縫檢測：分析失敗，請換清晰照片重試"
+                }
+            }
+        }
     }
 
     var aiCanAutoCorrect: Bool {
@@ -708,6 +777,105 @@ final class LiDARSessionManager: ObservableObject {
 
     private func clampGridSize(_ value: Int) -> Int {
         min(11, max(3, value))
+    }
+
+    private func clampCrackCalibration(_ value: Double) -> Double {
+        min(1.0, max(0.005, value))
+    }
+
+    private func summarizeSeverity(_ findings: [CrackFinding]) -> String {
+        if findings.contains(where: { $0.severity == "高" }) { return "高" }
+        if findings.contains(where: { $0.severity == "中" }) { return "中" }
+        if findings.contains(where: { $0.severity == "低" }) { return "低" }
+        return "無"
+    }
+
+    private static func detectCracks(
+        cgImage: CGImage,
+        calibrationCmPerPixel: Double
+    ) -> Result<[CrackFinding], Error> {
+        let request = VNDetectContoursRequest()
+        request.contrastAdjustment = 1.0
+        request.detectsDarkOnLight = false
+        request.maximumImageDimension = 1024
+
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        do {
+            try handler.perform([request])
+            guard let observation = request.results?.first else {
+                return .success([])
+            }
+
+            let imageW = Double(cgImage.width)
+            let imageH = Double(cgImage.height)
+            let diagonal = max(imageW, imageH)
+            var candidates: [CrackFinding] = []
+
+            for contour in flattenContours(from: observation.topLevelContours) {
+                let box = contour.normalizedPath.boundingBox.standardized
+                let area = box.width * box.height
+                if area < 0.00008 { continue }
+                let minSide = max(0.00001, min(box.width, box.height))
+                let maxSide = max(box.width, box.height)
+                let elongation = maxSide / minSide
+                if elongation < 3.2 { continue }
+
+                let lengthPx = maxSide * diagonal
+                if lengthPx < 16 { continue }
+                let lengthCm = lengthPx * calibrationCmPerPixel
+                let severity: String
+                if lengthCm >= 25 {
+                    severity = "高"
+                } else if lengthCm >= 8 {
+                    severity = "中"
+                } else {
+                    severity = "低"
+                }
+
+                let confidence = min(0.99, max(0.2, (elongation / 10.0) + (lengthPx / 600.0)))
+                candidates.append(
+                    CrackFinding(
+                        box: box,
+                        confidence: confidence,
+                        lengthCm: lengthCm,
+                        severity: severity
+                    )
+                )
+            }
+
+            let findings = candidates
+                .sorted { lhs, rhs in
+                    if lhs.severity == rhs.severity {
+                        return lhs.lengthCm > rhs.lengthCm
+                    }
+                    return severityRank(lhs.severity) > severityRank(rhs.severity)
+                }
+                .prefix(10)
+
+            return .success(Array(findings))
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    private static func flattenContours(from contours: [VNContour]) -> [VNContour] {
+        var result: [VNContour] = []
+        var queue = contours
+        while !queue.isEmpty {
+            let contour = queue.removeFirst()
+            result.append(contour)
+            queue.append(contentsOf: contour.childContours)
+        }
+        return result
+    }
+
+    private static func severityRank(_ severity: String) -> Int {
+        switch severity {
+        case "高": return 3
+        case "中": return 2
+        case "低": return 1
+        default: return 0
+        }
     }
 
     private func refreshVolumeAreaM2() {
