@@ -40,6 +40,7 @@ final class LiDARSessionManager: ObservableObject {
     @Published var aiAssistantApplyResultText: String = "尚未套用建議"
     @Published var aiAssistantBusy: Bool = false
     @Published var aiCloudEnabled: Bool = false
+    @Published var arPOCStatusText: String = "AR POC：等待影像錨點"
 
     private weak var arView: ARView?
     private var updateTimer: Timer?
@@ -52,6 +53,8 @@ final class LiDARSessionManager: ObservableObject {
     private var aiIssue: AIQAIssueType = .none
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
+    private var overlayAnchorEntity: AnchorEntity?
+    private var overlayImageName: String?
 
     init() {
         if let raw = UserDefaults.standard.string(forKey: qaProfileStorageKey),
@@ -76,8 +79,13 @@ final class LiDARSessionManager: ObservableObject {
 
     func attachARView(_ view: ARView) {
         arView = view
-        configureSession(on: view)
-        beginPolling()
+        // Defer session setup to the next run loop cycle to avoid
+        // "Publishing changes from within view updates" runtime warnings.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.configureSession(on: view)
+            self.beginPolling()
+        }
     }
 
     func capturePhotoToLibrary() {
@@ -266,14 +274,23 @@ final class LiDARSessionManager: ObservableObject {
 
         let configuration = ARWorldTrackingConfiguration()
         configuration.planeDetection = [.horizontal, .vertical]
-        // 🚀 阿基的外掛晶片：讓雷達學會看藍圖
-                if let referenceImages = ARReferenceImage.referenceImages(inGroupNamed: "ARBlueprints", bundle: nil) {
-                    configuration.detectionImages = referenceImages
-                    configuration.maximumNumberOfTrackedImages = 1
-                    print("✅ 阿基系統回報：成功掛載 AR 藍圖標靶！")
-                } else {
-                    print("❌ 阿基系統警告：找不到 ARBlueprints 彈藥庫！")
-                }
+        // Try both group names for backward compatibility.
+        let primaryReferenceImages = ARReferenceImage.referenceImages(
+            inGroupNamed: "ARBlueprints",
+            bundle: nil
+        )
+        let fallbackReferenceImages = ARReferenceImage.referenceImages(
+            inGroupNamed: "ARBIueprints",
+            bundle: nil
+        )
+        let referenceImages = primaryReferenceImages ?? fallbackReferenceImages
+        if let images = referenceImages {
+            configuration.detectionImages = images
+            configuration.maximumNumberOfTrackedImages = 1
+            print("✅ 阿基系統回報：成功掛載 AR 藍圖標靶！")
+        } else {
+            print("❌ 阿基系統警告：找不到 AR 藍圖標靶資源群組！")
+        }
         if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
             configuration.sceneReconstruction = .mesh
         }
@@ -297,6 +314,7 @@ final class LiDARSessionManager: ObservableObject {
 
     private func updateMeasurement() {
         guard let arView, let frame = arView.session.currentFrame else { return }
+        updateARImagePOCOverlay(from: frame)
 
         let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
         let results = arView.raycast(from: center, allowing: .estimatedPlane, alignment: .any)
@@ -335,6 +353,77 @@ final class LiDARSessionManager: ObservableObject {
 
     private func radiansToDegrees(_ value: Double) -> Double {
         value * 180.0 / .pi
+    }
+
+    private func updateARImagePOCOverlay(from frame: ARFrame) {
+        guard let arView else { return }
+        guard let imageAnchor = frame.anchors.compactMap({ $0 as? ARImageAnchor }).first else {
+            if overlayAnchorEntity != nil {
+                overlayAnchorEntity?.removeFromParent()
+                overlayAnchorEntity = nil
+                overlayImageName = nil
+                arPOCStatusText = "AR POC：影像暫時失鎖，等待重新對位"
+            }
+            return
+        }
+
+        let imageName = imageAnchor.referenceImage.name ?? "未命名圖紙"
+        if overlayAnchorEntity == nil || overlayImageName != imageName {
+            overlayAnchorEntity?.removeFromParent()
+            let anchor = buildPOCRebarAnchor(from: imageAnchor)
+            arView.scene.addAnchor(anchor)
+            overlayAnchorEntity = anchor
+            overlayImageName = imageName
+            arPOCStatusText = "AR POC：已在 \(imageName) 上建立 3D 鋼筋錨點"
+        }
+    }
+
+    private func buildPOCRebarAnchor(from imageAnchor: ARImageAnchor) -> AnchorEntity {
+        let anchor = AnchorEntity(world: imageAnchor.transform)
+
+        let imageWidth = max(0.12, Float(imageAnchor.referenceImage.physicalSize.width))
+        let imageHeight = max(0.12, Float(imageAnchor.referenceImage.physicalSize.height))
+        let barDepth: Float = 0.006
+        let barThickness: Float = 0.004
+        let zLift: Float = 0.012
+
+        // Semi-transparent base plane for POC alignment feedback.
+        let planeMesh = MeshResource.generatePlane(width: imageWidth * 0.9, depth: imageHeight * 0.9)
+        let planeMat = SimpleMaterial(color: UIColor.systemTeal.withAlphaComponent(0.25), isMetallic: false)
+        let plane = ModelEntity(mesh: planeMesh, materials: [planeMat])
+        plane.position = [0, 0, 0.001]
+        plane.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+        anchor.addChild(plane)
+
+        // Vertical rebars.
+        let verticalMesh = MeshResource.generateBox(
+            width: barThickness,
+            height: imageHeight * 0.82,
+            depth: barDepth
+        )
+        let verticalMat = SimpleMaterial(color: .systemRed, roughness: 0.2, isMetallic: true)
+        let verticalOffsets: [Float] = [-0.28, -0.09, 0.09, 0.28]
+        for factor in verticalOffsets {
+            let bar = ModelEntity(mesh: verticalMesh, materials: [verticalMat])
+            bar.position = [imageWidth * factor, 0, zLift]
+            anchor.addChild(bar)
+        }
+
+        // Horizontal stirrups.
+        let horizontalMesh = MeshResource.generateBox(
+            width: imageWidth * 0.64,
+            height: barThickness,
+            depth: barDepth
+        )
+        let horizontalMat = SimpleMaterial(color: .systemOrange, roughness: 0.25, isMetallic: true)
+        let horizontalOffsets: [Float] = [-0.30, -0.10, 0.10, 0.30]
+        for factor in horizontalOffsets {
+            let stirrup = ModelEntity(mesh: horizontalMesh, materials: [horizontalMat])
+            stirrup.position = [0, imageHeight * factor, zLift]
+            anchor.addChild(stirrup)
+        }
+
+        return anchor
     }
 
     private func appendRecentDistance(_ value: Double) {
