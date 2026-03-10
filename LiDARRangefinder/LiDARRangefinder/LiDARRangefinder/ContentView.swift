@@ -12,7 +12,9 @@ struct ContentView: View {
     @State private var showingRebarConfig = false
     @State private var showingVolumeScan = false
     @State private var showingCrackInspector = false
+    @State private var showingQuantumMode = false
     @State private var crackPhotoItem: PhotosPickerItem?
+    @State private var quantumCommandInput = ""
     @State private var aiGoalInput = ""
     @State private var aiAPIKeyInput = ""
     @State private var selectedStatusPage: StatusPage = .measure
@@ -53,6 +55,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingCrackInspector) {
             crackInspectorView
+        }
+        .sheet(isPresented: $showingQuantumMode) {
+            quantumModeView
         }
         .onChange(of: crackPhotoItem) {
             guard let crackPhotoItem else { return }
@@ -164,6 +169,15 @@ struct ContentView: View {
                     Text(sessionManager.crackStatusText)
                         .font(.caption2)
                         .foregroundStyle(.orange)
+                    Text(sessionManager.quantumStatusText)
+                        .font(.caption2.bold())
+                        .foregroundStyle(.purple)
+                    Text("量子核心等級：\(sessionManager.quantumCoreLevel)%")
+                        .font(.caption2)
+                        .foregroundStyle(.purple.opacity(0.9))
+                    Text(sessionManager.quantumSuggestionText)
+                        .font(.caption2)
+                        .foregroundStyle(.yellow)
                     Text("狀態: \(sessionManager.statusText)")
                         .font(.footnote)
                         .foregroundStyle(.white.opacity(0.8))
@@ -300,6 +314,13 @@ struct ContentView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
+                    .frame(maxWidth: .infinity)
+
+                    Button(sessionManager.quantumModeEnabled ? "量子核心（運行中）" : "量子核心戰術模式") {
+                        showingQuantumMode = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.purple)
                     .frame(maxWidth: .infinity)
                 }
             }
@@ -727,6 +748,98 @@ struct ContentView: View {
         let w = box.width * fittedImageRect.width
         let h = box.height * fittedImageRect.height
         return CGRect(x: x, y: y, width: w, height: h)
+    }
+
+    private var quantumModeView: some View {
+        NavigationStack {
+            Form {
+                Section("戰術口令") {
+                    TextField("輸入口令（例如：量子核心啟動）", text: $quantumCommandInput)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+
+                    Button("啟動量子核心") {
+                        sessionManager.activateQuantumMode(command: quantumCommandInput)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.purple)
+                    .frame(maxWidth: .infinity)
+
+                    Button(sessionManager.quantumVoiceListening ? "停止語音口令" : "語音口令啟動") {
+                        if sessionManager.quantumVoiceListening {
+                            sessionManager.stopQuantumVoiceCommand()
+                        } else {
+                            sessionManager.startQuantumVoiceCommand()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.indigo)
+                    .frame(maxWidth: .infinity)
+
+                    Button("解除量子核心") {
+                        sessionManager.deactivateQuantumMode()
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.secondary)
+                    .frame(maxWidth: .infinity)
+                }
+
+                Section("核心狀態") {
+                    Text(sessionManager.quantumStatusText)
+                        .font(.headline)
+                        .foregroundStyle(.purple)
+                    Text("核心等級：\(sessionManager.quantumCoreLevel)%")
+                        .font(.footnote)
+                    if !sessionManager.quantumLastCommandText.isEmpty {
+                        Text("最近口令：\(sessionManager.quantumLastCommandText)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if !sessionManager.quantumVoiceTranscript.isEmpty {
+                        Text("語音轉寫：\(sessionManager.quantumVoiceTranscript)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(sessionManager.quantumModeEnabled ? "模式：已啟用" : "模式：待命")
+                        .font(.caption)
+                        .foregroundStyle(sessionManager.quantumModeEnabled ? .mint : .secondary)
+                    Text(sessionManager.quantumSuggestionText)
+                        .font(.caption)
+                        .foregroundStyle(.yellow)
+                }
+
+                Section("戰術記錄") {
+                    if sessionManager.quantumHistory.isEmpty {
+                        Text("尚無戰術記錄")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(sessionManager.quantumHistory.prefix(8)) { item in
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(item.createdAt.formatted(date: .abbreviated, time: .standard))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text("[\(item.source)] \(item.command)")
+                                    .font(.footnote)
+                                Text("分數 \(item.beforeScore) -> \(item.afterScore)｜核心 \(item.coreLevelAfter)%")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    Button("清空戰術記錄") {
+                        sessionManager.clearQuantumHistory()
+                    }
+                }
+            }
+            .navigationTitle("量子核心戰術模式")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") {
+                        showingQuantumMode = false
+                    }
+                }
+            }
+        }
     }
 
     private enum StatusPage: String, CaseIterable, Identifiable {

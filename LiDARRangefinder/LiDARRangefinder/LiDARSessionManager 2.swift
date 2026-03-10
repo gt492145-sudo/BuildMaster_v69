@@ -1,8 +1,10 @@
 import ARKit
+import AVFoundation
 import CoreImage
 import Foundation
 import Photos
 import RealityKit
+import Speech
 import UIKit
 import SwiftUI
 import Combine
@@ -22,6 +24,37 @@ struct CrackFinding: Identifiable {
     let confidence: Double
     let lengthCm: Double
     let severity: String
+}
+
+struct QuantumTacticRecord: Identifiable, Codable {
+    let id: UUID
+    let createdAt: Date
+    let source: String
+    let command: String
+    let beforeScore: Int
+    let afterScore: Int
+    let coreLevelAfter: Int
+    let status: String
+
+    init(
+        id: UUID = UUID(),
+        createdAt: Date = Date(),
+        source: String,
+        command: String,
+        beforeScore: Int,
+        afterScore: Int,
+        coreLevelAfter: Int,
+        status: String
+    ) {
+        self.id = id
+        self.createdAt = createdAt
+        self.source = source
+        self.command = command
+        self.beforeScore = beforeScore
+        self.afterScore = afterScore
+        self.coreLevelAfter = coreLevelAfter
+        self.status = status
+    }
 }
 
 @MainActor
@@ -73,6 +106,14 @@ final class LiDARSessionManager: ObservableObject {
     @Published var crackCalibrationCmPerPixel: Double = 0.08
     @Published var crackMaxLengthCm: Double = 0
     @Published var crackSeveritySummary: String = "無"
+    @Published var quantumModeEnabled: Bool = false
+    @Published var quantumCoreLevel: Int = 0
+    @Published var quantumStatusText: String = "量子核心：待命"
+    @Published var quantumLastCommandText: String = ""
+    @Published var quantumSuggestionText: String = "戰術建議：目前無需啟動"
+    @Published var quantumVoiceListening: Bool = false
+    @Published var quantumVoiceTranscript: String = ""
+    @Published var quantumHistory: [QuantumTacticRecord] = []
 
     private weak var arView: ARView?
     private var updateTimer: Timer?
@@ -94,12 +135,19 @@ final class LiDARSessionManager: ObservableObject {
     private let volumeAreaLengthStorageKey = "lidar_rangefinder_volume_area_length_m"
     private let volumeGridSizeStorageKey = "lidar_rangefinder_volume_grid_size"
     private let crackCalibrationStorageKey = "lidar_rangefinder_crack_cm_per_pixel"
+    private let quantumModeStorageKey = "lidar_rangefinder_quantum_mode_enabled"
+    private let quantumHistoryStorageKey = "lidar_rangefinder_quantum_history"
     private var aiIssue: AIQAIssueType = .none
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
     private var overlayAnchorEntity: AnchorEntity?
     private var overlayImageName: String?
     private var overlayConfigSignature: String = ""
+    private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "zh-TW")) ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+    private let audioEngine = AVAudioEngine()
+    private var speechRequest: SFSpeechAudioBufferRecognitionRequest?
+    private var speechTask: SFSpeechRecognitionTask?
+    private var speechTapInstalled = false
 
     init() {
         if let raw = UserDefaults.standard.string(forKey: qaProfileStorageKey),
@@ -157,6 +205,17 @@ final class LiDARSessionManager: ObservableObject {
         if UserDefaults.standard.object(forKey: crackCalibrationStorageKey) != nil {
             crackCalibrationCmPerPixel = clampCrackCalibration(UserDefaults.standard.double(forKey: crackCalibrationStorageKey))
         }
+        if UserDefaults.standard.object(forKey: quantumModeStorageKey) != nil {
+            quantumModeEnabled = UserDefaults.standard.bool(forKey: quantumModeStorageKey)
+        }
+        if quantumModeEnabled {
+            highestModeLockEnabled = true
+            qaProfile = .ultra
+            UserDefaults.standard.set(true, forKey: highestModeLockStorageKey)
+            UserDefaults.standard.set(qaProfile.rawValue, forKey: qaProfileStorageKey)
+            quantumStatusText = "量子核心：戰術模式已啟用"
+        }
+        loadQuantumHistory()
         refreshVolumeAreaM2()
         refreshRebarSpecText()
         loadCorrectionHistory()
@@ -203,6 +262,12 @@ final class LiDARSessionManager: ObservableObject {
     func setHighestModeLockEnabled(_ enabled: Bool) {
         highestModeLockEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: highestModeLockStorageKey)
+        if !enabled && quantumModeEnabled {
+            quantumModeEnabled = false
+            UserDefaults.standard.set(false, forKey: quantumModeStorageKey)
+            quantumStatusText = "量子核心：已因解除最高鎖定而關閉"
+            quantumCoreLevel = 0
+        }
         if enabled {
             qaProfile = .ultra
             UserDefaults.standard.set(qaProfile.rawValue, forKey: qaProfileStorageKey)
@@ -357,6 +422,86 @@ final class LiDARSessionManager: ObservableObject {
                     self.crackStatusText = "裂縫檢測：分析失敗，請換清晰照片重試"
                 }
             }
+        }
+    }
+
+    func activateQuantumMode(command: String, source: String = "manual") {
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        quantumLastCommandText = trimmed
+        guard isQuantumCommandValid(trimmed) else {
+            quantumStatusText = "量子核心：口令不符，請使用授權口令"
+            return
+        }
+        quantumModeEnabled = true
+        UserDefaults.standard.set(true, forKey: quantumModeStorageKey)
+        if !highestModeLockEnabled {
+            setHighestModeLockEnabled(true)
+        }
+        autoCorrectionEnabled = true
+        autoCorrectionRoundsDone = 0
+        refreshAutoCorrectionStatus()
+        maybeRunAutoCorrection()
+        quantumStatusText = "量子核心：已啟用，戰術增益上線"
+        refreshQuantumTelemetry()
+        appendQuantumHistory(
+            source: source,
+            command: trimmed,
+            beforeScore: qaScore,
+            afterScore: qaScore,
+            status: quantumStatusText
+        )
+    }
+
+    func deactivateQuantumMode(source: String = "manual-off") {
+        quantumModeEnabled = false
+        UserDefaults.standard.set(false, forKey: quantumModeStorageKey)
+        autoCorrectionEnabled = false
+        autoCorrectionStatusText = "自動連續矯正：關"
+        quantumCoreLevel = 0
+        quantumStatusText = "量子核心：已解除"
+        stopQuantumVoiceCommand()
+        appendQuantumHistory(
+            source: source,
+            command: "deactivate",
+            beforeScore: qaScore,
+            afterScore: qaScore,
+            status: quantumStatusText
+        )
+    }
+
+    func clearQuantumHistory() {
+        quantumHistory.removeAll()
+        persistQuantumHistory()
+    }
+
+    func startQuantumVoiceCommand() {
+        guard !quantumVoiceListening else { return }
+        SFSpeechRecognizer.requestAuthorization { [weak self] auth in
+            Task { @MainActor in
+                guard let self else { return }
+                guard auth == .authorized else {
+                    self.quantumStatusText = "量子核心：語音權限未開啟"
+                    return
+                }
+                await self.beginSpeechSession()
+            }
+        }
+    }
+
+    func stopQuantumVoiceCommand() {
+        audioEngine.stop()
+        if speechTapInstalled {
+            audioEngine.inputNode.removeTap(onBus: 0)
+            speechTapInstalled = false
+        }
+        speechRequest?.endAudio()
+        speechTask?.cancel()
+        speechTask = nil
+        speechRequest = nil
+        let wasListening = quantumVoiceListening
+        quantumVoiceListening = false
+        if wasListening && quantumStatusText.contains("語音監聽中") {
+            quantumStatusText = "量子核心：語音監聽已停止"
         }
     }
 
@@ -604,6 +749,7 @@ final class LiDARSessionManager: ObservableObject {
         pitchText = String(format: "%.1f°", latestPitchDegrees)
         rollText = String(format: "%.1f°", latestRollDegrees)
         refreshQALevel()
+        refreshQuantumTelemetry()
     }
 
     private func radiansToDegrees(_ value: Double) -> Double {
@@ -788,6 +934,129 @@ final class LiDARSessionManager: ObservableObject {
         if findings.contains(where: { $0.severity == "中" }) { return "中" }
         if findings.contains(where: { $0.severity == "低" }) { return "低" }
         return "無"
+    }
+
+    private func isQuantumCommandValid(_ command: String) -> Bool {
+        guard !command.isEmpty else { return false }
+        let normalized = command.lowercased()
+        let allowed = [
+            "quantum core",
+            "quantum on",
+            "量子核心",
+            "量子核心啟動",
+            "戰術模式啟動"
+        ]
+        return allowed.contains(where: { normalized.contains($0.lowercased()) })
+    }
+
+    private func refreshQuantumTelemetry() {
+        if !quantumModeEnabled {
+            quantumCoreLevel = 0
+            if qaScore < 70 {
+                quantumSuggestionText = "戰術建議：QA 偏低，建議啟動量子核心"
+            } else if crackSeveritySummary == "高" {
+                quantumSuggestionText = "戰術建議：裂縫高風險，建議啟動量子核心強化檢測"
+            } else {
+                quantumSuggestionText = "戰術建議：目前無需啟動"
+            }
+            return
+        }
+        var score = Int((Double(qaScore) * 0.6).rounded())
+        if latestDistanceMeters != nil { score += 10 }
+        if autoCorrectionEnabled { score += 10 }
+        if crackSeveritySummary == "高" { score -= 20 }
+        else if crackSeveritySummary == "中" { score -= 10 }
+        score = max(0, min(100, score))
+        quantumCoreLevel = score
+
+        if score >= 85 {
+            quantumStatusText = "量子核心：火力全開（\(score)%）"
+        } else if score >= 60 {
+            quantumStatusText = "量子核心：穩定作戰（\(score)%）"
+        } else {
+            quantumStatusText = "量子核心：能量不足，請先校準（\(score)%）"
+        }
+        quantumSuggestionText = "戰術建議：量子核心已啟用，維持穩定掃描"
+    }
+
+    private func beginSpeechSession() async {
+        stopQuantumVoiceCommand()
+        let request = SFSpeechAudioBufferRecognitionRequest()
+        request.shouldReportPartialResults = true
+        speechRequest = request
+
+        let inputNode = audioEngine.inputNode
+        let format = inputNode.outputFormat(forBus: 0)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+            self?.speechRequest?.append(buffer)
+        }
+        speechTapInstalled = true
+
+        do {
+            audioEngine.prepare()
+            try audioEngine.start()
+        } catch {
+            quantumStatusText = "量子核心：語音引擎啟動失敗"
+            stopQuantumVoiceCommand()
+            return
+        }
+
+        quantumVoiceListening = true
+        quantumVoiceTranscript = ""
+        quantumStatusText = "量子核心：語音監聽中..."
+
+        speechTask = speechRecognizer?.recognitionTask(with: request) { [weak self] result, error in
+            guard let self else { return }
+            Task { @MainActor in
+                if let result {
+                    let text = result.bestTranscription.formattedString
+                    self.quantumVoiceTranscript = text
+                    if result.isFinal {
+                        self.activateQuantumMode(command: text, source: "voice")
+                        self.stopQuantumVoiceCommand()
+                    }
+                }
+                if error != nil {
+                    self.quantumStatusText = "量子核心：語音辨識中斷"
+                    self.stopQuantumVoiceCommand()
+                }
+            }
+        }
+    }
+
+    private func loadQuantumHistory() {
+        guard let data = UserDefaults.standard.data(forKey: quantumHistoryStorageKey) else { return }
+        if let decoded = try? JSONDecoder().decode([QuantumTacticRecord].self, from: data) {
+            quantumHistory = decoded
+        }
+    }
+
+    private func persistQuantumHistory() {
+        if let data = try? JSONEncoder().encode(quantumHistory) {
+            UserDefaults.standard.set(data, forKey: quantumHistoryStorageKey)
+        }
+    }
+
+    private func appendQuantumHistory(
+        source: String,
+        command: String,
+        beforeScore: Int,
+        afterScore: Int,
+        status: String
+    ) {
+        let item = QuantumTacticRecord(
+            source: source,
+            command: command,
+            beforeScore: beforeScore,
+            afterScore: afterScore,
+            coreLevelAfter: quantumCoreLevel,
+            status: status
+        )
+        quantumHistory.insert(item, at: 0)
+        if quantumHistory.count > 30 {
+            quantumHistory.removeLast(quantumHistory.count - 30)
+        }
+        persistQuantumHistory()
     }
 
     private static func detectCracks(
