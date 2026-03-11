@@ -27,23 +27,32 @@ struct ContentView: View {
 
     var body: some View {
         GeometryReader { proxy in
+            let isLandscape = proxy.size.width > proxy.size.height
             ZStack {
                 ARViewContainer()
                     .ignoresSafeArea()
 
                 crosshair
 
-                VStack {
-                    mainPagePicker
-                    topPanel
-                    Spacer()
-                    bottomPanel
+                if isLandscape {
+                    landscapeCombatOverlay
+                        .padding(.top, 12)
+                        .padding(.leading, 12)
+                        .padding(.trailing, trailingInset(for: proxy.size))
+                        .padding(.bottom, 12)
+                } else {
+                    VStack {
+                        mainPagePicker
+                        topPanel
+                        Spacer()
+                        bottomPanel
+                    }
+                    .padding(.top, 10)
+                    .padding(.leading, 10)
+                    .padding(.bottom, 10)
+                    .padding(.trailing, trailingInset(for: proxy.size))
+                    .animation(.easeInOut(duration: 0.2), value: isTacticalMenuOpen)
                 }
-                .padding(.top, 10)
-                .padding(.leading, 10)
-                .padding(.bottom, 10)
-                .padding(.trailing, trailingInset(for: proxy.size))
-                .animation(.easeInOut(duration: 0.2), value: isTacticalMenuOpen)
 
                 tacticalMenuDrawer(viewportHeight: proxy.size.height)
             }
@@ -415,6 +424,54 @@ struct ContentView: View {
                 .stroke(.white.opacity(0.15), lineWidth: 1)
         )
         .shadow(color: .cyan.opacity(0.25), radius: 12, x: 0, y: 6)
+    }
+
+    private var landscapeCombatOverlay: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("距離: \(sessionManager.distanceText)")
+                    .font(.title2.bold())
+                    .foregroundStyle(.green)
+                Text("穩定度: \(sessionManager.qaScore)分")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.95))
+                Text("Pitch: \(sessionManager.pitchText) | Roll: \(sessionManager.rollText)")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.85))
+                Spacer(minLength: 0)
+            }
+            .padding(10)
+            .frame(width: 220, alignment: .topLeading)
+            .background(.black.opacity(0.6))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            Spacer()
+
+            VStack {
+                Spacer()
+                Button {
+                    performRecordMeasurement()
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(.black.opacity(0.3))
+                            .frame(width: 86, height: 86)
+                        Circle()
+                            .stroke(.green, lineWidth: 4)
+                            .frame(width: 80, height: 80)
+                        Circle()
+                            .fill(.green.opacity(canRecordMeasurement ? 0.8 : 0.3))
+                            .frame(width: 66, height: 66)
+                        Image(systemName: "camera.metering.center.weighted")
+                            .font(.title2)
+                            .foregroundStyle(.white)
+                    }
+                }
+                .disabled(!canRecordMeasurement)
+                Spacer()
+            }
+            .padding(.trailing, 40)
+        }
     }
 
     private func tacticalMenuDrawer(viewportHeight: CGFloat) -> some View {
