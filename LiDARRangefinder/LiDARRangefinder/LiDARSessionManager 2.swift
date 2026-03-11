@@ -84,6 +84,8 @@ final class LiDARSessionManager: ObservableObject {
     @Published var aiAssistantBusy: Bool = false
     @Published var aiCloudEnabled: Bool = false
     @Published var arPOCStatusText: String = "AR POC：等待影像錨點"
+    @Published var arMismatchSummaryText: String = "AR 偏位檢核：待命"
+    @Published var arMismatchAlerts: [String] = []
     @Published var highestModeLockEnabled: Bool = false
     @Published var rebarMainBarCount: Int = 4
     @Published var rebarStirrupSpacingCm: Double = 20
@@ -123,8 +125,13 @@ final class LiDARSessionManager: ObservableObject {
     @Published var quantumFusionStatusText: String = "量子融合：待命"
     @Published var highPrecisionContinuousModeEnabled: Bool = true
     @Published var highPrecisionStatusText: String = "高精度連續模式：待命"
+    @Published var designTargetDistanceMeters: Double = 2.0
+    @Published var deviationToleranceCm: Double = 3.0
+    @Published var deviationValueCm: Double = 0
+    @Published var deviationStatusText: String = "偏差檢核：待命"
 
     private weak var arView: ARView?
+    private let ciContext = CIContext()
     private var updateTimer: Timer?
     private var recentDistances: [Double] = []
     private var recentRawDistances: [Double] = []
@@ -152,12 +159,22 @@ final class LiDARSessionManager: ObservableObject {
     private let quantumIBMBackendStorageKey = "lidar_rangefinder_quantum_ibm_backend"
     private let quantumIBMShotsStorageKey = "lidar_rangefinder_quantum_ibm_shots"
     private let highPrecisionContinuousModeStorageKey = "lidar_rangefinder_high_precision_continuous_mode"
+    private let designTargetDistanceStorageKey = "lidar_rangefinder_design_target_distance_m"
+    private let deviationToleranceStorageKey = "lidar_rangefinder_deviation_tolerance_cm"
     private var aiIssue: AIQAIssueType = .none
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
     private var overlayAnchorEntity: AnchorEntity?
     private var overlayImageName: String?
     private var overlayConfigSignature: String = ""
+    private var overlayLostSince: TimeInterval?
+    private var overlayLastUpdateTime: TimeInterval = 0
+    private let overlayLostDebounceSec: TimeInterval = 0.4
+    private let overlayUpdateIntervalSec: TimeInterval = 0.1
+    private var lastQuantumTriggerImageName: String?
+    private var lastQuantumTriggerAt: TimeInterval = 0
+    private let quantumTriggerCooldownSec: TimeInterval = 10
+    private var isBlueprintQuantumJobRunning = false
     private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "zh-TW")) ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
     private let audioEngine = AVAudioEngine()
     private var speechRequest: SFSpeechAudioBufferRecognitionRequest?
@@ -235,6 +252,12 @@ final class LiDARSessionManager: ObservableObject {
         if UserDefaults.standard.object(forKey: highPrecisionContinuousModeStorageKey) != nil {
             highPrecisionContinuousModeEnabled = UserDefaults.standard.bool(forKey: highPrecisionContinuousModeStorageKey)
         }
+        if UserDefaults.standard.object(forKey: designTargetDistanceStorageKey) != nil {
+            designTargetDistanceMeters = clampDesignTarget(UserDefaults.standard.double(forKey: designTargetDistanceStorageKey))
+        }
+        if UserDefaults.standard.object(forKey: deviationToleranceStorageKey) != nil {
+            deviationToleranceCm = clampDeviationToleranceCm(UserDefaults.standard.double(forKey: deviationToleranceStorageKey))
+        }
         if quantumModeEnabled {
             highestModeLockEnabled = true
             qaProfile = .ultra
@@ -246,6 +269,7 @@ final class LiDARSessionManager: ObservableObject {
         refreshVolumeAreaM2()
         refreshRebarSpecText()
         refreshQuantumProviderText()
+        refreshDeviationStatus()
         loadCorrectionHistory()
         refreshCorrectionTrend()
         refreshAutoCorrectionStatus()
@@ -275,6 +299,45 @@ final class LiDARSessionManager: ObservableObject {
                 UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
             }
         }
+    }
+
+    func placeConcreteBlock(atScreenPoint point: CGPoint) {
+        guard let arView else { return }
+        let result = arView
+            .raycast(from: point, allowing: .estimatedPlane, alignment: .horizontal)
+            .first ?? arView.raycast(from: point, allowing: .estimatedPlane, alignment: .any).first
+        guard let firstResult = result else {
+            volumeStatusText = "體積掃描：未命中平面，請對準地面後重試"
+            return
+        }
+
+        let width: Float = 0.5
+        let height: Float = 0.5
+        let depth: Float = 0.5
+        let footprintAreaM2 = width * depth
+        let volumeM3 = width * height * depth
+
+        let mesh = MeshResource.generateBox(size: [width, height, depth])
+        let material = SimpleMaterial(
+            color: UIColor.systemYellow.withAlphaComponent(0.55),
+            roughness: 0.25,
+            isMetallic: false
+        )
+        let concreteBlock = ModelEntity(mesh: mesh, materials: [material])
+        concreteBlock.position = [0, height / 2, 0]
+
+        let anchor = AnchorEntity(world: firstResult.worldTransform)
+        anchor.addChild(concreteBlock)
+        arView.scene.addAnchor(anchor)
+
+        volumeAreaM2 = Double(footprintAreaM2)
+        volumeEstimateM3 = Double(volumeM3)
+        volumeSampleCount = 1
+        volumeStatusText = String(
+            format: "體積掃描：已放置模塊（面積 %.2f m²｜體積 %.2f m³）",
+            footprintAreaM2,
+            volumeM3
+        )
     }
 
     func setQAProfile(_ profile: QATuningProfile) {
@@ -420,17 +483,20 @@ final class LiDARSessionManager: ObservableObject {
     }
 
     func runCrackDetection() {
-        guard let image = crackInputImage else {
-            crackStatusText = "裂縫檢測：尚未選擇影像"
-            return
-        }
-        guard let cgImage = image.cgImage else {
-            crackStatusText = "裂縫檢測：影像格式不支援"
+        let source: (image: UIImage, cgImage: CGImage, label: String)
+        if let liveSource = captureCurrentFrameForCrackDetection() {
+            source = (liveSource.image, liveSource.cgImage, "鏡頭即時")
+        } else if let image = crackInputImage, let cgImage = image.cgImage {
+            source = (image, cgImage, "備援照片")
+        } else {
+            crackStatusText = "裂縫檢測：鏡頭畫面未就緒，請先對準牆面裂縫"
             return
         }
 
-        crackStatusText = "裂縫檢測：分析中..."
+        crackInputImage = source.image
+        crackStatusText = "裂縫檢測：\(source.label)分析中..."
         let calibration = crackCalibrationCmPerPixel
+        let cgImage = source.cgImage
 
         Task.detached(priority: .userInitiated) {
             let result = Self.detectCracks(cgImage: cgImage, calibrationCmPerPixel: calibration)
@@ -449,14 +515,30 @@ final class LiDARSessionManager: ObservableObject {
                     self.crackFindings = []
                     self.crackMaxLengthCm = 0
                     self.crackSeveritySummary = "無"
-                    self.crackStatusText = "裂縫檢測：分析失敗，請換清晰照片重試"
+                    self.crackStatusText = "裂縫檢測：分析失敗，請提高照明後重試"
                 }
             }
         }
     }
 
+    private func captureCurrentFrameForCrackDetection() -> (image: UIImage, cgImage: CGImage)? {
+        guard let frame = arView?.session.currentFrame else { return nil }
+        let pixelBuffer = frame.capturedImage
+        let width = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+        let rect = CGRect(x: 0, y: 0, width: width, height: height)
+        guard let cgImage = ciContext.createCGImage(ciImage, from: rect) else { return nil }
+        let uiImage = UIImage(cgImage: cgImage)
+        return (uiImage, cgImage)
+    }
+
     func activateQuantumMode(command: String, source: String = "manual") {
-        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        var trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        if source == "manual" && trimmed.isEmpty {
+            // Allow manual button to work without requiring text input.
+            trimmed = "量子核心啟動"
+        }
         quantumLastCommandText = trimmed
         guard isQuantumCommandValid(trimmed) else {
             quantumStatusText = "量子核心：口令不符，請使用授權口令"
@@ -527,11 +609,11 @@ final class LiDARSessionManager: ObservableObject {
         runVolumeScanOnce()
         steps.append("B 體積掃描")
 
-        if crackInputImage != nil {
+        if crackInputImage != nil || arView?.session.currentFrame != nil {
             runCrackDetection()
-            steps.append("C 裂縫分析")
+            steps.append("C 即時裂縫分析")
         } else {
-            steps.append("C 待選圖")
+            steps.append("C 待鏡頭")
         }
 
         if !arPOCStatusText.contains("已在") && !arPOCStatusText.contains("建立") {
@@ -583,6 +665,18 @@ final class LiDARSessionManager: ObservableObject {
         highPrecisionContinuousModeEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: highPrecisionContinuousModeStorageKey)
         highPrecisionStatusText = enabled ? "高精度連續模式：已啟用" : "高精度連續模式：已關閉"
+    }
+
+    func setDesignTargetDistanceMeters(_ value: Double) {
+        designTargetDistanceMeters = clampDesignTarget(value)
+        UserDefaults.standard.set(designTargetDistanceMeters, forKey: designTargetDistanceStorageKey)
+        refreshDeviationStatus()
+    }
+
+    func setDeviationToleranceCm(_ value: Double) {
+        deviationToleranceCm = clampDeviationToleranceCm(value)
+        UserDefaults.standard.set(deviationToleranceCm, forKey: deviationToleranceStorageKey)
+        refreshDeviationStatus()
     }
 
     func prepareDistanceForRecording() -> Double? {
@@ -857,6 +951,11 @@ final class LiDARSessionManager: ObservableObject {
         }
         if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
             configuration.sceneReconstruction = .mesh
+            #if DEBUG
+            view.debugOptions.insert(.showSceneUnderstanding)
+            #else
+            view.debugOptions.remove(.showSceneUnderstanding)
+            #endif
         }
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
             configuration.frameSemantics.insert(.sceneDepth)
@@ -915,6 +1014,7 @@ final class LiDARSessionManager: ObservableObject {
         latestRollDegrees = radiansToDegrees(Double(euler.z))
         pitchText = String(format: "%.1f°", latestPitchDegrees)
         rollText = String(format: "%.1f°", latestRollDegrees)
+        refreshDeviationStatus()
         refreshQALevel()
         refreshQuantumTelemetry()
     }
@@ -925,27 +1025,82 @@ final class LiDARSessionManager: ObservableObject {
 
     private func updateARImagePOCOverlay(from frame: ARFrame) {
         guard let arView else { return }
+        let now = Date().timeIntervalSinceReferenceDate
         guard let imageAnchor = frame.anchors.compactMap({ $0 as? ARImageAnchor }).first else {
-            if overlayAnchorEntity != nil {
+            if overlayLostSince == nil {
+                overlayLostSince = now
+            }
+            if let lostSince = overlayLostSince,
+               now - lostSince >= overlayLostDebounceSec,
+               overlayAnchorEntity != nil {
                 overlayAnchorEntity?.removeFromParent()
                 overlayAnchorEntity = nil
                 overlayImageName = nil
                 overlayConfigSignature = ""
                 arPOCStatusText = "AR POC：影像暫時失鎖，等待重新對位"
+                arMismatchSummaryText = "AR 偏位檢核：標靶失鎖"
+                arMismatchAlerts = ["請重新對準藍圖標靶"]
             }
             return
         }
+        overlayLostSince = nil
 
         let imageName = imageAnchor.referenceImage.name ?? "未命名圖紙"
         let signature = currentOverlaySignature(imageName: imageName)
-        if overlayAnchorEntity == nil || overlayImageName != imageName || overlayConfigSignature != signature {
+        let needsRebuild = overlayAnchorEntity == nil || overlayImageName != imageName || overlayConfigSignature != signature
+        if needsRebuild {
             overlayAnchorEntity?.removeFromParent()
             let anchor = buildPOCRebarAnchor(from: imageAnchor)
             arView.scene.addAnchor(anchor)
             overlayAnchorEntity = anchor
             overlayImageName = imageName
             overlayConfigSignature = signature
-            arPOCStatusText = "AR POC：已在 \(imageName) 上建立 3D 鋼筋錨點"
+            overlayLastUpdateTime = now
+            arPOCStatusText = "AR POC：已在 \(imageName) 上建立 3D 鋼筋/管線/牆面錨點"
+            triggerQuantumRunOnBlueprintLockIfNeeded(imageName: imageName, now: now)
+        } else if now - overlayLastUpdateTime < overlayUpdateIntervalSec {
+            return
+        } else {
+            overlayLastUpdateTime = now
+        }
+        refreshARMismatchDiagnostics(from: imageAnchor)
+    }
+
+    private func triggerQuantumRunOnBlueprintLockIfNeeded(imageName: String, now: TimeInterval) {
+        guard quantumModeEnabled, quantumIBMCloudEnabled, hasIBMQuantumAPIKey else { return }
+        if isBlueprintQuantumJobRunning {
+            quantumIBMJobText = "IBM Job：藍圖量子任務進行中，等待上一筆完成"
+            return
+        }
+        if lastQuantumTriggerImageName == imageName, now - lastQuantumTriggerAt < quantumTriggerCooldownSec {
+            return
+        }
+        if quantumIBMJobText.contains("送出中") {
+            return
+        }
+
+        lastQuantumTriggerImageName = imageName
+        lastQuantumTriggerAt = now
+        isBlueprintQuantumJobRunning = true
+        quantumIBMJobText = "IBM Job：藍圖 \(imageName) 鎖定，觸發量子最佳化..."
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let summary = try await QuantumManager.shared.optimizeBlueprint(blueprintName: imageName)
+                await MainActor.run {
+                    self.isBlueprintQuantumJobRunning = false
+                    self.quantumIBMJobText = "IBM Job：藍圖 \(imageName) 量子最佳化完成"
+                    self.quantumIBMResultText = "IBM Result：\(summary)"
+                    self.quantumStatusText = "量子核心：藍圖鎖定已觸發量子最佳化"
+                }
+            } catch {
+                await MainActor.run {
+                    self.isBlueprintQuantumJobRunning = false
+                    self.quantumIBMJobText = "IBM Job：藍圖 \(imageName) 最佳化失敗"
+                    self.quantumIBMResultText = "IBM Result：\(error.localizedDescription)"
+                    self.quantumStatusText = "量子核心：藍圖量子最佳化失敗，已維持本地模式"
+                }
+            }
         }
     }
 
@@ -977,6 +1132,39 @@ final class LiDARSessionManager: ObservableObject {
         plane.position = [0, 0, 0.001]
         plane.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
         root.addChild(plane)
+
+        // Virtual wall overlay for on-site alignment check.
+        let wallMesh = MeshResource.generatePlane(width: usableWidth, depth: usableHeight * 0.95)
+        let wallMat = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.22), isMetallic: false)
+        let wall = ModelEntity(mesh: wallMesh, materials: [wallMat])
+        wall.position = [0, 0, zLift + 0.002]
+        wall.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+        root.addChild(wall)
+
+        // High-visibility debug hologram block (user requested "red 3D box on blueprint").
+        let blockWidth = min(usableWidth * 0.38, 0.10)
+        let blockDepth = min(usableHeight * 0.38, 0.10)
+        let blockHeight: Float = 0.05
+        let blockMesh = MeshResource.generateBox(size: [blockWidth, blockHeight, blockDepth])
+        let blockMaterial = SimpleMaterial(color: .systemRed, roughness: 0.08, isMetallic: true)
+        let hologramBlock = ModelEntity(mesh: blockMesh, materials: [blockMaterial])
+        hologramBlock.position = [0, 0, zLift + (blockHeight / 2) + 0.012]
+        root.addChild(hologramBlock)
+
+        // Virtual pipeline overlays (two lines) for deviation spotting.
+        let pipeMesh = MeshResource.generateCylinder(height: usableWidth * 0.92, radius: 0.006)
+        let pipeMatA = SimpleMaterial(color: .systemGreen, roughness: 0.15, isMetallic: true)
+        let pipeMatB = SimpleMaterial(color: .systemYellow, roughness: 0.15, isMetallic: true)
+        let pipeY = usableHeight * 0.24
+        let pipeA = ModelEntity(mesh: pipeMesh, materials: [pipeMatA])
+        pipeA.orientation = simd_quatf(angle: .pi / 2, axis: [0, 0, 1])
+        pipeA.position = [0, pipeY, zLift + 0.01]
+        root.addChild(pipeA)
+
+        let pipeB = ModelEntity(mesh: pipeMesh, materials: [pipeMatB])
+        pipeB.orientation = simd_quatf(angle: .pi / 2, axis: [0, 0, 1])
+        pipeB.position = [0, -pipeY, zLift + 0.01]
+        root.addChild(pipeB)
 
         // Vertical rebars.
         let verticalMesh = MeshResource.generateBox(
@@ -1031,6 +1219,38 @@ final class LiDARSessionManager: ObservableObject {
         ].joined(separator: "|")
     }
 
+    private func refreshARMismatchDiagnostics(from imageAnchor: ARImageAnchor) {
+        var alerts: [String] = []
+        if !imageAnchor.isTracked {
+            alerts.append("標靶追蹤不穩，請保持畫面完整且補光")
+        }
+
+        let absOffsetX = abs(overlayOffsetXcm)
+        if absOffsetX > 4 {
+            alerts.append(String(format: "管線疑似偏移：X 偏 %.1f cm", overlayOffsetXcm))
+        }
+        let absOffsetY = abs(overlayOffsetYcm)
+        if absOffsetY > 4 {
+            alerts.append(String(format: "管線疑似高程偏移：Y 偏 %.1f cm", overlayOffsetYcm))
+        }
+        let absRotate = abs(overlayRotationDeg)
+        if absRotate > 4 {
+            alerts.append(String(format: "牆面方向疑似偏差：旋轉 %.1f°", overlayRotationDeg))
+        }
+
+        let absDeltaCm = abs(deviationValueCm)
+        if absDeltaCm > deviationToleranceCm {
+            alerts.append(String(format: "牆面距離超差：%+.1f cm", deviationValueCm))
+        }
+
+        arMismatchAlerts = alerts
+        if alerts.isEmpty {
+            arMismatchSummaryText = "AR 偏位檢核：未檢出明顯偏位"
+        } else {
+            arMismatchSummaryText = "AR 偏位檢核：檢出 \(alerts.count) 項偏差"
+        }
+    }
+
     private func refreshRebarSpecText() {
         rebarSpecText = String(
             format: "鋼筋規格：主筋 %d｜箍筋 %.0fcm｜保護層 %.1fcm",
@@ -1077,6 +1297,36 @@ final class LiDARSessionManager: ObservableObject {
             return sorted.reduce(0, +) / Double(sorted.count)
         }
         return kept.reduce(0, +) / Double(kept.count)
+    }
+
+    private func refreshDeviationStatus() {
+        guard let distance = latestDistanceMeters else {
+            deviationValueCm = 0
+            deviationStatusText = "偏差檢核：尚未鎖定實測距離"
+            return
+        }
+        let deltaCm = (distance - designTargetDistanceMeters) * 100.0
+        deviationValueCm = deltaCm
+        let absDelta = abs(deltaCm)
+        if absDelta <= deviationToleranceCm {
+            deviationStatusText = String(
+                format: "偏差檢核：合格（偏差 %+0.1f cm / 容差 ±%.1f cm）",
+                deltaCm,
+                deviationToleranceCm
+            )
+        } else if absDelta <= (deviationToleranceCm * 1.6) {
+            deviationStatusText = String(
+                format: "偏差檢核：接近超限（偏差 %+0.1f cm / 容差 ±%.1f cm）",
+                deltaCm,
+                deviationToleranceCm
+            )
+        } else {
+            deviationStatusText = String(
+                format: "偏差檢核：超限（偏差 %+0.1f cm / 容差 ±%.1f cm）",
+                deltaCm,
+                deviationToleranceCm
+            )
+        }
     }
 
     private func medianValue(_ values: [Double]) -> Double {
@@ -1141,7 +1391,7 @@ final class LiDARSessionManager: ObservableObject {
         let hasLaserLock = latestDistanceMeters != nil
         let blueprintReady = arPOCStatusText.contains("已在") || arPOCStatusText.contains("建立")
         let volumeReady = volumeSampleCount >= max(6, volumeGridSize)
-        let crackReady = crackInputImage != nil
+        let crackReady = crackInputImage != nil || arView?.session.currentFrame != nil
         let crackRiskPenalty: Int
         switch crackSeveritySummary {
         case "高":
@@ -1156,7 +1406,7 @@ final class LiDARSessionManager: ObservableObject {
             "雷射\(hasLaserLock ? "OK" : "待鎖定")",
             "A藍圖\(blueprintReady ? "OK" : "待對位")",
             "B體積\(volumeReady ? "OK" : "待掃描")",
-            "C裂縫\(crackReady ? "OK" : "待選圖")"
+            "C裂縫\(crackReady ? "OK" : "待鏡頭")"
         ]
         quantumFusionStatusText = "量子融合：\(fusionParts.joined(separator: "｜"))"
 
@@ -1196,7 +1446,7 @@ final class LiDARSessionManager: ObservableObject {
         } else if !volumeReady {
             quantumSuggestionText = "戰術建議：執行 B 體積掃描，補齊量子融合資料"
         } else if !crackReady {
-            quantumSuggestionText = "戰術建議：載入 C 裂縫照片，完成三項融合"
+            quantumSuggestionText = "戰術建議：對準裂縫後執行 C 即時分析，完成三項融合"
         } else if crackSeveritySummary == "高" {
             quantumSuggestionText = "戰術建議：裂縫風險高，建議降低行進速度並重掃熱區"
         } else {
@@ -1351,6 +1601,14 @@ final class LiDARSessionManager: ObservableObject {
 
     private func clampIBMShots(_ shots: Int) -> Int {
         min(4096, max(32, shots))
+    }
+
+    private func clampDesignTarget(_ value: Double) -> Double {
+        min(20.0, max(0.2, value))
+    }
+
+    private func clampDeviationToleranceCm(_ value: Double) -> Double {
+        min(20.0, max(0.5, value))
     }
 
     private func buildIBMHTTPError(statusCode: Int, data: Data) -> IBMRuntimeError {

@@ -11,6 +11,7 @@
 		51B353492F5F9DEA009CC3D8 /* MeasurementRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B353482F5F9DEA009CC3D8 /* MeasurementRecord.swift */; };
 		51B353502F5F9E5C009CC3D8 /* ARViewContainer 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B3534E2F5F9E5C009CC3D8 /* ARViewContainer 2.swift */; };
 		51B353512F5F9E5C009CC3D8 /* LiDARSessionManager 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B3534F2F5F9E5C009CC3D8 /* LiDARSessionManager 2.swift */; };
+		51B353582F5FA100009CC3D8 /* QuantumManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B353572F5FA100009CC3D8 /* QuantumManager.swift */; };
 		51B353532F5F9E99009CC3D8 /* Contents.json in Resources */ = {isa = PBXBuildFile; fileRef = 51B353522F5F9E99009CC3D8 /* Contents.json */; };
 		51B353562F5F9EBC009CC3D8 /* MeasurementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B353552F5F9EBC009CC3D8 /* MeasurementStore.swift */; };
 /* End PBXBuildFile section */
@@ -21,6 +22,7 @@
 		51B353482F5F9DEA009CC3D8 /* MeasurementRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasurementRecord.swift; sourceTree = "<group>"; };
 		51B3534E2F5F9E5C009CC3D8 /* ARViewContainer 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ARViewContainer 2.swift"; sourceTree = "<group>"; };
 		51B3534F2F5F9E5C009CC3D8 /* LiDARSessionManager 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LiDARSessionManager 2.swift"; sourceTree = "<group>"; };
+		51B353572F5FA100009CC3D8 /* QuantumManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuantumManager.swift; sourceTree = "<group>"; };
 		51B353522F5F9E99009CC3D8 /* Contents.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Contents.json; sourceTree = "<group>"; };
 		51B353552F5F9EBC009CC3D8 /* MeasurementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasurementStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -53,6 +55,7 @@
 				51B353482F5F9DEA009CC3D8 /* MeasurementRecord.swift */,
 				51B3534E2F5F9E5C009CC3D8 /* ARViewContainer 2.swift */,
 				51B3534F2F5F9E5C009CC3D8 /* LiDARSessionManager 2.swift */,
+				51B353572F5FA100009CC3D8 /* QuantumManager.swift */,
 				51B353522F5F9E99009CC3D8 /* Contents.json */,
 				51B353552F5F9EBC009CC3D8 /* MeasurementStore.swift */,
 			);
@@ -145,6 +148,7 @@
 				51B353562F5F9EBC009CC3D8 /* MeasurementStore.swift in Sources */,
 				51B353502F5F9E5C009CC3D8 /* ARViewContainer 2.swift in Sources */,
 				51B353512F5F9E5C009CC3D8 /* LiDARSessionManager 2.swift in Sources */,
+				51B353582F5FA100009CC3D8 /* QuantumManager.swift in Sources */,
 				51B353472F5F9DC7009CC3D8 /* ShareSheet.swift in Sources */,
 				51B353492F5F9DEA009CC3D8 /* MeasurementRecord.swift in Sources */,
 			);

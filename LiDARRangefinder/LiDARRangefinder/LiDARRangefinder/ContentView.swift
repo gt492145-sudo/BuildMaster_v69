@@ -1,5 +1,4 @@
 import SwiftUI
-import PhotosUI
 
 struct ContentView: View {
     @EnvironmentObject private var sessionManager: LiDARSessionManager
@@ -13,13 +12,14 @@ struct ContentView: View {
     @State private var showingVolumeScan = false
     @State private var showingCrackInspector = false
     @State private var showingQuantumMode = false
-    @State private var crackPhotoItem: PhotosPickerItem?
     @State private var quantumCommandInput = ""
     @State private var ibmQuantumAPIKeyInput = ""
     @State private var aiGoalInput = ""
     @State private var aiAPIKeyInput = ""
+    @State private var selectedMainPage: MainPage = .page1
     @State private var selectedStatusPage: StatusPage = .measure
     @State private var selectedControlPage: ControlPage = .measure
+    @State private var isTopPanelExpanded = false
     private let minRecordScore = 85
 
     var body: some View {
@@ -30,6 +30,7 @@ struct ContentView: View {
             crosshair
 
             VStack {
+                mainPagePicker
                 topPanel
                 Spacer()
                 bottomPanel
@@ -53,6 +54,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingVolumeScan) {
             volumeScanView
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled)
         }
         .sheet(isPresented: $showingCrackInspector) {
             crackInspectorView
@@ -60,16 +64,26 @@ struct ContentView: View {
         .sheet(isPresented: $showingQuantumMode) {
             quantumModeView
         }
-        .onChange(of: crackPhotoItem) {
-            guard let crackPhotoItem else { return }
-            Task {
-                guard let data = try? await crackPhotoItem.loadTransferable(type: Data.self),
-                      let image = UIImage(data: data) else { return }
-                await MainActor.run {
-                    sessionManager.setCrackInputImage(image)
-                }
+        .onChange(of: selectedMainPage) {
+            switch selectedMainPage {
+            case .page1:
+                selectedStatusPage = .measure
+                selectedControlPage = .measure
+            case .page2:
+                selectedStatusPage = .system
+                selectedControlPage = .tools
             }
         }
+    }
+
+    private var mainPagePicker: some View {
+        Picker("畫面分頁", selection: $selectedMainPage) {
+            ForEach(MainPage.allCases) { page in
+                Text(page.title).tag(page)
+            }
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 2)
     }
 
     private var crosshair: some View {
@@ -88,107 +102,143 @@ struct ContentView: View {
 
     private var topPanel: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("LiDAR 雷射測距鏡")
-                .font(.headline)
-                .foregroundStyle(.white)
-            Text("距離: \(sessionManager.distanceText)")
-                .font(.title2.bold())
-                .foregroundStyle(.green)
             HStack {
-                Text("Pitch: \(sessionManager.pitchText)")
-                Text("Roll: \(sessionManager.rollText)")
-            }
-            .foregroundStyle(.white.opacity(0.9))
-            Picker("狀態分頁", selection: $selectedStatusPage) {
-                ForEach(StatusPage.allCases) { page in
-                    Text(page.title).tag(page)
+                Text("LiDAR 雷射測距鏡")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Spacer()
+                Button(isTopPanelExpanded ? "收合" : "展開") {
+                    isTopPanelExpanded.toggle()
                 }
+                .buttonStyle(.bordered)
+                .tint(.cyan)
+                .font(.caption2.bold())
             }
-            .pickerStyle(.segmented)
-
-            Group {
-                switch selectedStatusPage {
-                case .measure:
-                    Text("QA 等級: \(sessionManager.qaLevelText)")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(qaLevelColor(sessionManager.qaLevel))
-                    Text("QA 模式: \(sessionManager.qaProfile.displayName)")
-                        .font(.footnote)
-                        .foregroundStyle(.white.opacity(0.85))
-                    Text(sessionManager.highestModeLockEnabled ? "模式鎖定：最高等級" : "模式鎖定：關")
-                        .font(.caption2)
-                        .foregroundStyle(sessionManager.highestModeLockEnabled ? .yellow : .secondary)
-                    Text("QA 分數: \(sessionManager.qaScore) / 100")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(qaScoreColor(sessionManager.qaScore))
-                    Text(sessionManager.rebarSpecText)
-                        .font(.caption2)
-                        .foregroundStyle(.cyan)
-                    Text(qaHintText(sessionManager.qaScore))
-                        .font(.footnote.bold())
-                        .foregroundStyle(qaHintColor(sessionManager.qaScore))
-                case .ai:
-                    Text(sessionManager.aiDiagnosisText)
-                        .font(.footnote.bold())
-                        .foregroundStyle(.white)
-                    Text(sessionManager.aiCorrectionText)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                    if !sessionManager.aiLastActionText.isEmpty {
-                        Text(sessionManager.aiLastActionText)
-                            .font(.caption2)
-                            .foregroundStyle(.mint)
+            ScrollView(showsIndicators: isTopPanelExpanded) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("距離: \(sessionManager.distanceText)")
+                        .font(.title2.bold())
+                        .foregroundStyle(.green)
+                    HStack {
+                        Text("Pitch: \(sessionManager.pitchText)")
+                        Text("Roll: \(sessionManager.rollText)")
                     }
-                    Text(sessionManager.correctionTrendText)
-                        .font(.caption2)
-                        .foregroundStyle(.cyan)
-                    Text(sessionManager.autoCorrectionStatusText)
-                        .font(.caption2)
-                        .foregroundStyle(sessionManager.autoCorrectionEnabled ? .mint : .secondary)
-                case .system:
-                    Text(sessionManager.aiAssistantSourceText)
-                        .font(.caption2)
-                        .foregroundStyle(.cyan)
-                    Text(sessionManager.aiAssistantText)
-                        .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.9))
-                    Text(sessionManager.arPOCStatusText)
-                        .font(.caption2.bold())
-                        .foregroundStyle(.cyan)
-                    Text(String(format: "掃描面積：%.2f m²", sessionManager.volumeAreaM2))
-                        .font(.caption2.bold())
-                        .foregroundStyle(.mint)
-                    Text(String(format: "體積估算：%.2f m³（%d 點）", sessionManager.volumeEstimateM3, sessionManager.volumeSampleCount))
-                        .font(.caption2.bold())
-                        .foregroundStyle(.mint)
-                    Text(sessionManager.volumeStatusText)
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                    Text(String(format: "裂縫最長：%.1f cm｜等級：%@", sessionManager.crackMaxLengthCm, sessionManager.crackSeveritySummary))
-                        .font(.caption2.bold())
-                        .foregroundStyle(.red)
-                    Text(sessionManager.crackStatusText)
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                    Text(sessionManager.quantumStatusText)
-                        .font(.caption2.bold())
-                        .foregroundStyle(.purple)
-                    Text("量子核心等級：\(sessionManager.quantumCoreLevel)%")
-                        .font(.caption2)
-                        .foregroundStyle(.purple.opacity(0.9))
-                    Text(sessionManager.quantumSuggestionText)
-                        .font(.caption2)
-                        .foregroundStyle(.yellow)
-                    Text("狀態: \(sessionManager.statusText)")
-                        .font(.footnote)
-                        .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(.white.opacity(0.9))
+                    Picker("狀態分頁", selection: $selectedStatusPage) {
+                        ForEach(StatusPage.allCases) { page in
+                            Text(page.title).tag(page)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Group {
+                        switch selectedStatusPage {
+                        case .measure:
+                            Text("QA 等級: \(sessionManager.qaLevelText)")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(qaLevelColor(sessionManager.qaLevel))
+                            Text("QA 模式: \(sessionManager.qaProfile.displayName)")
+                                .font(.footnote)
+                                .foregroundStyle(.white.opacity(0.85))
+                            Text(sessionManager.highestModeLockEnabled ? "模式鎖定：最高等級" : "模式鎖定：關")
+                                .font(.caption2)
+                                .foregroundStyle(sessionManager.highestModeLockEnabled ? .yellow : .secondary)
+                            Text("QA 分數: \(sessionManager.qaScore) / 100")
+                                .font(.subheadline.bold())
+                                .foregroundStyle(qaScoreColor(sessionManager.qaScore))
+                            Text(sessionManager.rebarSpecText)
+                                .font(.caption2)
+                                .foregroundStyle(.cyan)
+                            Text(String(format: "設計距離：%.2f m｜偏差：%+.1f cm", sessionManager.designTargetDistanceMeters, sessionManager.deviationValueCm))
+                                .font(.caption2.bold())
+                                .foregroundStyle(abs(sessionManager.deviationValueCm) <= sessionManager.deviationToleranceCm ? .green : .orange)
+                            Text(sessionManager.deviationStatusText)
+                                .font(.caption2)
+                                .foregroundStyle(abs(sessionManager.deviationValueCm) <= sessionManager.deviationToleranceCm ? .mint : .red)
+                            deviationGaugeView
+                            Text(qaHintText(sessionManager.qaScore))
+                                .font(.footnote.bold())
+                                .foregroundStyle(qaHintColor(sessionManager.qaScore))
+                        case .ai:
+                            Text(sessionManager.aiDiagnosisText)
+                                .font(.footnote.bold())
+                                .foregroundStyle(.white)
+                            Text(sessionManager.aiCorrectionText)
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                            if !sessionManager.aiLastActionText.isEmpty {
+                                Text(sessionManager.aiLastActionText)
+                                    .font(.caption2)
+                                    .foregroundStyle(.mint)
+                            }
+                            Text(sessionManager.correctionTrendText)
+                                .font(.caption2)
+                                .foregroundStyle(.cyan)
+                            Text(sessionManager.autoCorrectionStatusText)
+                                .font(.caption2)
+                                .foregroundStyle(sessionManager.autoCorrectionEnabled ? .mint : .secondary)
+                        case .system:
+                            Text(sessionManager.aiAssistantSourceText)
+                                .font(.caption2)
+                                .foregroundStyle(.cyan)
+                            Text(sessionManager.aiAssistantText)
+                                .font(.caption2)
+                                .foregroundStyle(.white.opacity(0.9))
+                            Text(sessionManager.arPOCStatusText)
+                                .font(.caption2.bold())
+                                .foregroundStyle(.cyan)
+                            Text(sessionManager.arMismatchSummaryText)
+                                .font(.caption2.bold())
+                                .foregroundStyle(sessionManager.arMismatchAlerts.isEmpty ? .green : .red)
+                            if !sessionManager.arMismatchAlerts.isEmpty {
+                                ForEach(sessionManager.arMismatchAlerts.prefix(3), id: \.self) { alert in
+                                    Text("• \(alert)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.orange)
+                                }
+                            }
+                            Text(String(format: "掃描面積：%.2f m²", sessionManager.volumeAreaM2))
+                                .font(.caption2.bold())
+                                .foregroundStyle(.mint)
+                            Text(String(format: "體積估算：%.2f m³（%d 點）", sessionManager.volumeEstimateM3, sessionManager.volumeSampleCount))
+                                .font(.caption2.bold())
+                                .foregroundStyle(.mint)
+                            Text(sessionManager.volumeStatusText)
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                            Text(String(format: "裂縫最長：%.1f cm｜等級：%@", sessionManager.crackMaxLengthCm, sessionManager.crackSeveritySummary))
+                                .font(.caption2.bold())
+                                .foregroundStyle(.red)
+                            Text(sessionManager.crackStatusText)
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                            Text(sessionManager.quantumStatusText)
+                                .font(.caption2.bold())
+                                .foregroundStyle(.purple)
+                            Text("量子核心等級：\(sessionManager.quantumCoreLevel)%")
+                                .font(.caption2)
+                                .foregroundStyle(.purple.opacity(0.9))
+                            Text(sessionManager.quantumSuggestionText)
+                                .font(.caption2)
+                                .foregroundStyle(.yellow)
+                            Text("狀態: \(sessionManager.statusText)")
+                                .font(.footnote)
+                                .foregroundStyle(.white.opacity(0.8))
+                        }
+                    }
                 }
             }
         }
+        .frame(maxHeight: isTopPanelExpanded ? 320 : 150, alignment: .top)
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.black.opacity(0.42))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(.white.opacity(0.15), lineWidth: 1)
+        )
+        .shadow(color: .cyan.opacity(0.25), radius: 12, x: 0, y: 6)
     }
 
     private var bottomPanel: some View {
@@ -203,6 +253,22 @@ struct ContentView: View {
             Group {
                 switch selectedControlPage {
                 case .measure:
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(String(format: "設計距離：%.2f m", sessionManager.designTargetDistanceMeters))
+                        Slider(value: Binding(
+                            get: { sessionManager.designTargetDistanceMeters },
+                            set: { sessionManager.setDesignTargetDistanceMeters($0) }
+                        ), in: 0.2...20, step: 0.05)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(String(format: "偏差容差：±%.1f cm", sessionManager.deviationToleranceCm))
+                        Slider(value: Binding(
+                            get: { sessionManager.deviationToleranceCm },
+                            set: { sessionManager.setDeviationToleranceCm($0) }
+                        ), in: 0.5...20, step: 0.5)
+                    }
+
                     Toggle(isOn: Binding(
                         get: { sessionManager.highPrecisionContinuousModeEnabled },
                         set: { sessionManager.setHighPrecisionContinuousModeEnabled($0) }
@@ -249,7 +315,7 @@ struct ContentView: View {
                     .disabled(!canRecordMeasurement)
 
                     if !canRecordMeasurement {
-                        Text("需達 \(minRecordScore) 分以上才能記錄（目前 \(sessionManager.qaScore) 分）")
+                        Text(recordBlockReasonText)
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
@@ -339,8 +405,13 @@ struct ContentView: View {
             }
         }
         .padding(12)
-        .background(.black.opacity(0.42))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(.white.opacity(0.15), lineWidth: 1)
+        )
+        .shadow(color: .cyan.opacity(0.25), radius: 12, x: 0, y: 6)
     }
 
     private var recordsView: some View {
@@ -455,8 +526,72 @@ struct ContentView: View {
         return .red
     }
 
+    private var deviationGaugeView: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text("偏差可視化")
+                    .font(.caption2.bold())
+                    .foregroundStyle(.white.opacity(0.9))
+                if isDeviationOverLimit {
+                    Text("⚠️ 超限")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.red)
+                }
+            }
+            GeometryReader { geo in
+                let fullWidth = max(1, geo.size.width)
+                let fillWidth = fullWidth * deviationGaugeFillRatio
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(.white.opacity(0.16))
+                    Capsule()
+                        .fill(deviationGaugeColor)
+                        .frame(width: fillWidth)
+                }
+            }
+            .frame(height: 8)
+        }
+    }
+
+    private var isDeviationOverLimit: Bool {
+        abs(sessionManager.deviationValueCm) > sessionManager.deviationToleranceCm
+    }
+
+    private var deviationGaugeColor: Color {
+        let absDelta = abs(sessionManager.deviationValueCm)
+        if absDelta <= sessionManager.deviationToleranceCm { return .green }
+        if absDelta <= sessionManager.deviationToleranceCm * 1.6 { return .yellow }
+        return .red
+    }
+
+    private var deviationGaugeFillRatio: CGFloat {
+        let base = max(0.5, sessionManager.deviationToleranceCm * 2.0)
+        let raw = abs(sessionManager.deviationValueCm) / base
+        return CGFloat(min(1.0, max(0.0, raw)))
+    }
+
     private var canRecordMeasurement: Bool {
-        sessionManager.latestDistanceMeters != nil && sessionManager.qaScore >= minRecordScore
+        guard sessionManager.latestDistanceMeters != nil else { return false }
+        guard sessionManager.qaScore >= minRecordScore else { return false }
+        guard abs(sessionManager.deviationValueCm) <= sessionManager.deviationToleranceCm else { return false }
+        return true
+    }
+
+    private var recordBlockReasonText: String {
+        if sessionManager.latestDistanceMeters == nil {
+            return "尚未鎖定量測距離，請先對準目標"
+        }
+        if sessionManager.qaScore < minRecordScore {
+            return "需達 \(minRecordScore) 分以上才能記錄（目前 \(sessionManager.qaScore) 分）"
+        }
+        if abs(sessionManager.deviationValueCm) > sessionManager.deviationToleranceCm {
+            return String(
+                format: "偏差超限（%+.1f cm），需在 ±%.1f cm 內才可記錄",
+                sessionManager.deviationValueCm,
+                sessionManager.deviationToleranceCm
+            )
+        }
+        return "目前不符合記錄條件"
     }
 
     private func deltaScoreColor(_ delta: Int) -> Color {
@@ -668,11 +803,10 @@ struct ContentView: View {
     private var crackInspectorView: some View {
         NavigationStack {
             Form {
-                Section("影像來源") {
-                    PhotosPicker(selection: $crackPhotoItem, matching: .images) {
-                        Text("選擇裂縫照片")
-                    }
-
+                Section("影像來源（鏡頭即時）") {
+                    Text("系統將直接使用 AR 鏡頭畫面做裂縫 AI 偵測")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 6) {
                         Text(String(format: "校正比例：1 px = %.3f cm", sessionManager.crackCalibrationCmPerPixel))
                         Slider(value: Binding(
@@ -681,12 +815,11 @@ struct ContentView: View {
                         ), in: 0.005...1.0, step: 0.005)
                     }
 
-                    Button("開始裂縫分析") {
+                    Button("鏡頭即時裂縫分析") {
                         sessionManager.runCrackDetection()
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
-                    .disabled(sessionManager.crackInputImage == nil)
                 }
 
                 Section("分析結果") {
@@ -952,6 +1085,19 @@ struct ContentView: View {
             case .measure: return "量測"
             case .ai: return "AI"
             case .tools: return "工具"
+            }
+        }
+    }
+
+    private enum MainPage: String, CaseIterable, Identifiable {
+        case page1
+        case page2
+
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .page1: return "第1頁"
+            case .page2: return "第2頁"
             }
         }
     }
