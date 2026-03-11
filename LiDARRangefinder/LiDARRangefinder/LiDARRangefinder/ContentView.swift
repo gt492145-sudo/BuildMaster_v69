@@ -20,7 +20,10 @@ struct ContentView: View {
     @State private var selectedStatusPage: StatusPage = .measure
     @State private var selectedControlPage: ControlPage = .measure
     @State private var isTopPanelExpanded = false
+    @State private var isTacticalMenuOpen = false
+    @State private var tacticalMenuDragOffset: CGFloat = 0
     private let minRecordScore = 85
+    private let tacticalMenuWidth: CGFloat = 230
 
     var body: some View {
         ZStack {
@@ -36,6 +39,8 @@ struct ContentView: View {
                 bottomPanel
             }
             .padding()
+
+            tacticalMenuDrawer
         }
         .sheet(isPresented: $showingRecords) {
             recordsView
@@ -300,15 +305,7 @@ struct ContentView: View {
                     .disabled(sessionManager.highestModeLockEnabled)
 
                     Button("記錄量測") {
-                        guard let distance = sessionManager.prepareDistanceForRecording() else { return }
-                        measurementStore.add(
-                            distance: distance,
-                            pitch: sessionManager.latestPitchDegrees,
-                            roll: sessionManager.latestRollDegrees,
-                            qaLevel: sessionManager.qaLevel,
-                            qaProfile: sessionManager.qaProfile,
-                            qaScore: sessionManager.qaScore
-                        )
+                        performRecordMeasurement()
                     }
                     .buttonStyle(.borderedProminent)
                     .frame(maxWidth: .infinity)
@@ -412,6 +409,112 @@ struct ContentView: View {
                 .stroke(.white.opacity(0.15), lineWidth: 1)
         )
         .shadow(color: .cyan.opacity(0.25), radius: 12, x: 0, y: 6)
+    }
+
+    private var tacticalMenuDrawer: some View {
+        HStack(spacing: 0) {
+            Spacer()
+
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    isTacticalMenuOpen.toggle()
+                }
+            } label: {
+                Image(systemName: isTacticalMenuOpen ? "chevron.right" : "chevron.left")
+                    .font(.title3.bold())
+                    .foregroundStyle(.white)
+                    .frame(width: 34, height: 88)
+                    .background(.black.opacity(0.72))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: .cyan.opacity(0.35), radius: 8, x: -3, y: 0)
+            }
+
+            VStack(spacing: 14) {
+                Text("作戰選單")
+                    .font(.headline)
+                    .foregroundStyle(.mint)
+
+                Button {
+                    performRecordMeasurement()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        isTacticalMenuOpen = false
+                    }
+                } label: {
+                    Text("📸 記錄量測")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(.green.opacity(0.85))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .disabled(!canRecordMeasurement)
+
+                Button {
+                    sessionManager.applyAIQACorrection()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        isTacticalMenuOpen = false
+                    }
+                } label: {
+                    Text("🤖 一鍵矯正")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(.blue.opacity(0.85))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+
+                Button {
+                    showingAIAssistant = true
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        isTacticalMenuOpen = false
+                    }
+                } label: {
+                    Text("✨ AI 建議")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(.purple.opacity(0.85))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(.white)
+            .padding(14)
+            .frame(width: tacticalMenuWidth, height: UIScreen.main.bounds.height * 0.58)
+            .background(.black.opacity(0.85))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .offset(x: isTacticalMenuOpen ? tacticalMenuDragOffset : tacticalMenuWidth + tacticalMenuDragOffset)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    if isTacticalMenuOpen {
+                        tacticalMenuDragOffset = max(0, value.translation.width)
+                    } else {
+                        tacticalMenuDragOffset = min(0, value.translation.width)
+                    }
+                }
+                .onEnded { value in
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        if isTacticalMenuOpen, value.translation.width > 50 {
+                            isTacticalMenuOpen = false
+                        } else if !isTacticalMenuOpen, value.translation.width < -50 {
+                            isTacticalMenuOpen = true
+                        }
+                        tacticalMenuDragOffset = 0
+                    }
+                }
+        )
+    }
+
+    private func performRecordMeasurement() {
+        guard let distance = sessionManager.prepareDistanceForRecording() else { return }
+        measurementStore.add(
+            distance: distance,
+            pitch: sessionManager.latestPitchDegrees,
+            roll: sessionManager.latestRollDegrees,
+            qaLevel: sessionManager.qaLevel,
+            qaProfile: sessionManager.qaProfile,
+            qaScore: sessionManager.qaScore
+        )
     }
 
     private var recordsView: some View {

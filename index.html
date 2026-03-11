@@ -370,6 +370,7 @@
     <button id="mobileFuncTab" class="mobile-func-tab" type="button" onclick="toggleMobileFuncDrawer()">功能</button>
     <div class="mobile-func-panel">
         <button id="mobileFocusBtn" class="mobile-func-btn" type="button" data-mobile-action="toggle-focus">🧲 釋放畫面：關</button>
+        <button id="mobileChaosBtn" class="mobile-func-btn" type="button" data-mobile-action="toggle-chaos">🐒 混沌猴子：關</button>
         <button class="mobile-func-btn" type="button" data-mobile-action="measure">📐 立即測量</button>
         <button class="mobile-func-btn" type="button" data-mobile-action="scale">📏 啟動定比例</button>
         <button class="mobile-func-btn" type="button" data-mobile-action="clear">🧽 清空標註</button>
@@ -438,6 +439,7 @@
             <button id="btnCtrlLaser" class="tool-btn" onclick="toggleFeatureFlag('laser')">雷射尺: 開</button>
             <button id="btnCtrlWarRoom" class="tool-btn" onclick="toggleFeatureFlag('warRoom')">戰情室: 開</button>
             <button id="btnQaStress" class="tool-btn" style="border-color:#ffd166; color:#ffe4a1;" onclick="toggleQaStressTest()">QA 壓力測試: 關</button>
+            <button id="btnChaosMonkey" class="tool-btn" style="border-color:#ff9f43; color:#ffd6aa;" onclick="toggleChaosMonkey()">🐒 混沌猴子: 關</button>
             <button class="tool-btn" style="border-color:#ff7675; color:#ffd0ce;" onclick="stopAllRealtimeFeatures()">⛔ 一鍵停止即時功能</button>
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
@@ -988,6 +990,9 @@
     let qaStressMode = false;
     let qaStressRenderTimer = null;
     let qaStressNetworkTimer = null;
+    let chaosMonkeyMode = false;
+    let chaosMonkeyTimer = null;
+    let chaosMonkeyTickCount = 0;
     let laserChaosStats = { dirtyBlocked: 0, successWrites: 0 };
 
     function safeToast(message) {
@@ -1447,6 +1452,13 @@
             qaBtn.style.borderColor = qaStressMode ? '#ff7675' : '#ffd166';
             qaBtn.style.color = qaStressMode ? '#ffd0ce' : '#ffe4a1';
         }
+        const chaosBtn = document.getElementById('btnChaosMonkey');
+        if (chaosBtn) {
+            chaosBtn.innerText = `🐒 混沌猴子: ${chaosMonkeyMode ? '開' : '關'}`;
+            chaosBtn.style.borderColor = chaosMonkeyMode ? '#ff7675' : '#ff9f43';
+            chaosBtn.style.color = chaosMonkeyMode ? '#ffd0ce' : '#ffd6aa';
+        }
+        updateMobileChaosLabel();
     }
 
     function toggleFeatureFlag(key) {
@@ -1498,6 +1510,7 @@
         }
         if (isWarRoomActive) toggleWarRoom();
         stopQaStressTest(true);
+        stopChaosMonkey(true);
         applyFeatureControlStatus();
         showToast('即時功能已全部停止');
     }
@@ -1557,6 +1570,67 @@
     function toggleQaStressTest() {
         if (qaStressMode) return stopQaStressTest(false);
         startQaStressTest();
+    }
+
+    function runChaosMonkeyTick() {
+        if (!chaosMonkeyMode) return;
+        const actions = [
+            {
+                name: '開始量測',
+                run: () => {
+                    if (!scalePixelsPerUnit) return startCalibration();
+                    return startMeasure();
+                }
+            },
+            { name: '定比例', run: () => startCalibration() },
+            { name: '清空標註', run: () => clearCanvas() },
+            { name: '自動優化圖面', run: () => autoEnhanceImage() },
+            {
+                name: '切換工作模式',
+                run: () => setWorkMode(document.body.dataset.workMode === 'calc' ? 'stake' : 'calc')
+            },
+            {
+                name: '切換3D檢視',
+                run: () => {
+                    if (!img.src) return;
+                    toggle3DView();
+                }
+            }
+        ];
+        const selected = actions[Math.floor(Math.random() * actions.length)];
+        chaosMonkeyTickCount += 1;
+        appendMobileTestLog(`猴子動作 #${chaosMonkeyTickCount}: ${selected.name}`);
+        try {
+            selected.run();
+        } catch (error) {
+            console.warn('Chaos monkey action failed', error);
+            appendMobileTestLog(`猴子動作失敗: ${selected.name}`);
+        }
+    }
+
+    function startChaosMonkey() {
+        if (chaosMonkeyMode) return;
+        chaosMonkeyMode = true;
+        chaosMonkeyTickCount = 0;
+        chaosMonkeyTimer = setInterval(runChaosMonkeyTick, 2600);
+        applyFeatureControlStatus();
+        showToast('🐒 混沌猴子已放出（每 2.6 秒隨機壓測）');
+    }
+
+    function stopChaosMonkey(silent) {
+        if (chaosMonkeyTimer) {
+            clearInterval(chaosMonkeyTimer);
+            chaosMonkeyTimer = null;
+        }
+        if (!chaosMonkeyMode) return;
+        chaosMonkeyMode = false;
+        applyFeatureControlStatus();
+        if (!silent) showToast('🐒 混沌猴子已收回');
+    }
+
+    function toggleChaosMonkey() {
+        if (chaosMonkeyMode) return stopChaosMonkey(false);
+        startChaosMonkey();
     }
 
     function toggleWarRoomRows() {
@@ -5294,6 +5368,12 @@
         btn.textContent = `🧲 釋放畫面：${on ? '開' : '關'}`;
     }
 
+    function updateMobileChaosLabel() {
+        const btn = document.getElementById('mobileChaosBtn');
+        if (!btn) return;
+        btn.textContent = `🐒 混沌猴子：${chaosMonkeyMode ? '開' : '關'}`;
+    }
+
     function runMobileQuickAction(action) {
         appendMobileTestLog(`觸發功能: ${action}`);
         switch (action) {
@@ -5301,6 +5381,9 @@
             document.body.classList.toggle('mobile-focus-mode');
             updateMobileFocusLabel();
             appendMobileTestLog(`釋放畫面: ${document.body.classList.contains('mobile-focus-mode') ? '開' : '關'}`);
+            break;
+        case 'toggle-chaos':
+            toggleChaosMonkey();
             break;
         case 'measure':
             if (typeof startMeasure === 'function') startMeasure();
