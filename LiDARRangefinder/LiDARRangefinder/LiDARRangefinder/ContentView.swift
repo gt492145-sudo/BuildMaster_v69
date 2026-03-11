@@ -39,7 +39,11 @@ struct ContentView: View {
                     Spacer()
                     bottomPanel
                 }
-                .padding()
+                .padding(.top, 10)
+                .padding(.leading, 10)
+                .padding(.bottom, 10)
+                .padding(.trailing, trailingInset(for: proxy.size))
+                .animation(.easeInOut(duration: 0.2), value: isTacticalMenuOpen)
 
                 tacticalMenuDrawer(viewportHeight: proxy.size.height)
             }
@@ -508,6 +512,12 @@ struct ContentView: View {
                     }
                 }
         )
+    }
+
+    private func trailingInset(for size: CGSize) -> CGFloat {
+        let isLandscape = size.width > size.height
+        if !isLandscape { return 10 }
+        return isTacticalMenuOpen ? tacticalMenuWidth + 12 : 44
     }
 
     private func performRecordMeasurement() {
