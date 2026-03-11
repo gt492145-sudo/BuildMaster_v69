@@ -219,6 +219,115 @@
         .total-budget { grid-column: span 1; }
         .control-grid { grid-template-columns: 1fr; }
     }
+    .mobile-func-drawer { display: none; }
+    .mobile-test-log { display: none; }
+    @media (max-width: 768px) {
+        .mobile-func-drawer {
+            display: block;
+            position: fixed;
+            right: -210px;
+            top: 52%;
+            transform: translateY(-50%);
+            width: 210px;
+            z-index: 2200;
+            transition: right 0.24s ease;
+        }
+        .mobile-func-drawer.open { right: 0; }
+        .mobile-func-tab {
+            position: absolute;
+            left: -44px;
+            top: 28px;
+            width: 44px;
+            padding: 10px 8px;
+            border-radius: 10px 0 0 10px;
+            border: 1px solid rgba(126, 200, 255, 0.72);
+            background: rgba(13, 28, 46, 0.88);
+            color: #bfe7ff;
+            font-size: 0.78em;
+            font-weight: 800;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            letter-spacing: 2px;
+        }
+        .mobile-func-panel {
+            border-radius: 12px 0 0 12px;
+            border: 1px solid rgba(154, 211, 255, 0.52);
+            background: rgba(8, 17, 31, 0.94);
+            backdrop-filter: blur(8px);
+            padding: 10px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            display: grid;
+            gap: 8px;
+        }
+        .mobile-func-btn {
+            border: 1px solid rgba(255,255,255,0.26);
+            border-radius: 8px;
+            background: rgba(40, 66, 96, 0.5);
+            color: #ecf7ff;
+            font-size: 0.82em;
+            font-weight: 700;
+            padding: 8px 10px;
+            text-align: left;
+        }
+        body.mobile-focus-mode header,
+        body.mobile-focus-mode .calc-panel {
+            display: none !important;
+        }
+        body.mobile-focus-mode .main-layout {
+            padding: 6px;
+            gap: 6px;
+        }
+        body.mobile-focus-mode .drawing-panel {
+            min-height: calc(100dvh - 14px);
+        }
+        .mobile-test-log {
+            display: block;
+            position: fixed;
+            left: 8px;
+            right: 8px;
+            bottom: 8px;
+            z-index: 2300;
+            border: 1px solid rgba(140, 212, 255, 0.52);
+            border-radius: 10px;
+            background: rgba(9, 18, 30, 0.92);
+            box-shadow: 0 10px 24px rgba(0,0,0,0.45);
+            backdrop-filter: blur(7px);
+        }
+        .mobile-test-log.collapsed .mobile-test-log-body { display: none; }
+        .mobile-test-log-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 8px 10px;
+            color: #bfe7ff;
+            font-size: 0.8em;
+            font-weight: 800;
+        }
+        .mobile-test-log-actions { display: flex; gap: 6px; }
+        .mobile-test-log-btn {
+            border: 1px solid rgba(255,255,255,0.24);
+            border-radius: 7px;
+            background: rgba(41, 67, 98, 0.54);
+            color: #e8f7ff;
+            font-size: 0.75em;
+            font-weight: 700;
+            padding: 4px 8px;
+        }
+        .mobile-test-log-body {
+            max-height: 150px;
+            overflow-y: auto;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding: 6px 8px 8px 8px;
+        }
+        .mobile-test-log-item {
+            color: #d9ecff;
+            font-size: 0.74em;
+            line-height: 1.38;
+            padding: 3px 0;
+            border-bottom: 1px dashed rgba(255,255,255,0.08);
+        }
+    }
 </style>
 </head>
 <body>
@@ -256,6 +365,30 @@
         <button id="contrastAutoToggle" class="mode-btn" onclick="toggleAutoContrastMode()">自動: 關</button>
     </div>
 </header>
+
+<div id="mobileFuncDrawer" class="mobile-func-drawer" aria-hidden="true">
+    <button id="mobileFuncTab" class="mobile-func-tab" type="button" onclick="toggleMobileFuncDrawer()">功能</button>
+    <div class="mobile-func-panel">
+        <button id="mobileFocusBtn" class="mobile-func-btn" type="button" data-mobile-action="toggle-focus">🧲 釋放畫面：關</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="measure">📐 立即測量</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="scale">📏 啟動定比例</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="clear">🧽 清空標註</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="mode-calc">🧮 計算模式</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="mode-stake">📍 放樣模式</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="top">⬆️ 回到上方</button>
+    </div>
+</div>
+
+<div id="mobileTestLog" class="mobile-test-log collapsed" aria-live="polite">
+    <div class="mobile-test-log-head">
+        <span>🧪 手機測試紀錄</span>
+        <div class="mobile-test-log-actions">
+            <button class="mobile-test-log-btn" type="button" onclick="toggleMobileTestLog()">展開</button>
+            <button class="mobile-test-log-btn" type="button" onclick="clearMobileTestLog()">清除</button>
+        </div>
+    </div>
+    <div id="mobileTestLogBody" class="mobile-test-log-body"></div>
+</div>
 
 <div class="main-layout">
     <div class="drawing-panel">
@@ -5007,7 +5140,42 @@
         }, 6000);
     }
 
-    function showToast(m) { const t=document.getElementById("toast"); t.innerText=m; t.className="show"; setTimeout(()=>t.className="",3000); }
+    function appendMobileTestLog(message) {
+        if (!isMobileViewport()) return;
+        const body = document.getElementById('mobileTestLogBody');
+        if (!body) return;
+        const row = document.createElement('div');
+        row.className = 'mobile-test-log-item';
+        const stamp = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+        row.textContent = `[${stamp}] ${message}`;
+        body.prepend(row);
+        while (body.children.length > 24) {
+            body.removeChild(body.lastChild);
+        }
+    }
+
+    function toggleMobileTestLog() {
+        const box = document.getElementById('mobileTestLog');
+        if (!box) return;
+        box.classList.toggle('collapsed');
+        const btn = box.querySelector('.mobile-test-log-actions .mobile-test-log-btn');
+        if (btn) btn.textContent = box.classList.contains('collapsed') ? '展開' : '收合';
+    }
+
+    function clearMobileTestLog() {
+        const body = document.getElementById('mobileTestLogBody');
+        if (!body) return;
+        body.innerHTML = '';
+        appendMobileTestLog('已清除測試紀錄');
+    }
+
+    function showToast(m) {
+        const t = document.getElementById("toast");
+        t.innerText = m;
+        t.className = "show";
+        appendMobileTestLog(`Toast: ${m}`);
+        setTimeout(() => t.className = "", 3000);
+    }
     
     // --- 安全防護：CSV 匯出注入處理 ---
     function sanitizeCSVField(field) {
@@ -5106,6 +5274,85 @@
         }
         showToast(`🧪 量圖 QA 報告已匯出（${qaLevel} / ${qaScore}）`);
     }
+
+    function isMobileViewport() {
+        return window.matchMedia('(max-width: 768px)').matches;
+    }
+
+    function toggleMobileFuncDrawer(forceOpen) {
+        const drawer = document.getElementById('mobileFuncDrawer');
+        if (!drawer || !isMobileViewport()) return;
+        const next = typeof forceOpen === 'boolean' ? forceOpen : !drawer.classList.contains('open');
+        drawer.classList.toggle('open', next);
+        drawer.setAttribute('aria-hidden', next ? 'false' : 'true');
+    }
+
+    function updateMobileFocusLabel() {
+        const btn = document.getElementById('mobileFocusBtn');
+        if (!btn) return;
+        const on = document.body.classList.contains('mobile-focus-mode');
+        btn.textContent = `🧲 釋放畫面：${on ? '開' : '關'}`;
+    }
+
+    function runMobileQuickAction(action) {
+        appendMobileTestLog(`觸發功能: ${action}`);
+        switch (action) {
+        case 'toggle-focus':
+            document.body.classList.toggle('mobile-focus-mode');
+            updateMobileFocusLabel();
+            appendMobileTestLog(`釋放畫面: ${document.body.classList.contains('mobile-focus-mode') ? '開' : '關'}`);
+            break;
+        case 'measure':
+            if (typeof startMeasure === 'function') startMeasure();
+            break;
+        case 'scale':
+            if (typeof startCalibration === 'function') startCalibration();
+            break;
+        case 'clear':
+            if (typeof clearCanvas === 'function') clearCanvas();
+            break;
+        case 'mode-calc':
+            window.location.href = 'index.html';
+            return;
+        case 'mode-stake':
+            window.location.href = 'stake.html';
+            return;
+        case 'top':
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            break;
+        default:
+            break;
+        }
+        toggleMobileFuncDrawer(false);
+    }
+
+    function initMobileFuncDrawer() {
+        const drawer = document.getElementById('mobileFuncDrawer');
+        if (!drawer) return;
+        drawer.addEventListener('click', (event) => {
+            const target = event.target.closest('[data-mobile-action]');
+            if (!target) return;
+            const action = target.getAttribute('data-mobile-action');
+            runMobileQuickAction(action);
+        });
+        document.addEventListener('click', (event) => {
+            if (!isMobileViewport()) return;
+            if (!drawer.classList.contains('open')) return;
+            if (event.target.closest('#mobileFuncDrawer')) return;
+            toggleMobileFuncDrawer(false);
+        });
+        window.addEventListener('resize', () => {
+            if (!isMobileViewport()) {
+                toggleMobileFuncDrawer(false);
+                document.body.classList.remove('mobile-focus-mode');
+            }
+            updateMobileFocusLabel();
+        });
+        updateMobileFocusLabel();
+        appendMobileTestLog('手機測試紀錄面板已啟用');
+    }
+
+    initMobileFuncDrawer();
 </script>
 </body>
 </html>

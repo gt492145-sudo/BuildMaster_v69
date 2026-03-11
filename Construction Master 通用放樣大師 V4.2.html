@@ -20,12 +20,64 @@
     .status-pill.accent { border-color: rgba(255, 184, 114, 0.65); color: #ffd8a7; }
     .status-pill.info { border-color: rgba(112, 213, 255, 0.65); color: #d7f4ff; }
     .live-badge { display: inline-flex; align-items: center; margin-left: 10px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(222, 189, 255, 0.72); background: linear-gradient(135deg, rgba(108, 60, 188, 0.9), rgba(139, 92, 246, 0.9)); color: #f7ebff; font-size: 0.46em; letter-spacing: 0.8px; vertical-align: middle; }
+    .mobile-func-drawer { display: none; }
     @media (max-width: 900px) {
         header { padding: 10px 12px; }
         .logo-img { width: 52px; height: 52px; }
         .header-title { font-size: 1.05em; }
         .header-sub { font-size: 0.72em; }
         .header-right { width: 100%; margin-left: 0; justify-content: flex-start; }
+        .mobile-func-drawer {
+            display: block;
+            position: fixed;
+            right: -195px;
+            top: 52%;
+            transform: translateY(-50%);
+            width: 195px;
+            z-index: 2200;
+            transition: right 0.24s ease;
+        }
+        .mobile-func-drawer.open { right: 0; }
+        .mobile-func-tab {
+            position: absolute;
+            left: -42px;
+            top: 22px;
+            width: 42px;
+            padding: 9px 7px;
+            border-radius: 10px 0 0 10px;
+            border: 1px solid rgba(126, 200, 255, 0.72);
+            background: rgba(13, 28, 46, 0.9);
+            color: #bfe7ff;
+            font-size: 0.76em;
+            font-weight: 800;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            letter-spacing: 2px;
+        }
+        .mobile-func-panel {
+            border-radius: 12px 0 0 12px;
+            border: 1px solid rgba(154, 211, 255, 0.52);
+            background: rgba(8, 17, 31, 0.95);
+            padding: 9px;
+            display: grid;
+            gap: 7px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+        }
+        .mobile-func-btn {
+            border: 1px solid rgba(255,255,255,0.22);
+            border-radius: 8px;
+            background: rgba(40, 66, 96, 0.52);
+            color: #ecf7ff;
+            font-size: 0.8em;
+            font-weight: 700;
+            padding: 8px 9px;
+            text-align: left;
+        }
+        body.mobile-focus-mode header,
+        body.mobile-focus-mode .global-settings {
+            display: none !important;
+        }
+        body.mobile-focus-mode { padding-top: 4px; }
     }
     
     .global-settings { background: rgba(0,0,0,0.5); padding: 15px; border: 1px dashed var(--accent); border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; }
@@ -70,6 +122,19 @@
     </div>
 </header>
 
+<div id="mobileFuncDrawer" class="mobile-func-drawer" aria-hidden="true">
+    <button class="mobile-func-tab" type="button" onclick="toggleMobileFuncDrawer()">功能</button>
+    <div class="mobile-func-panel">
+        <button id="mobileFocusBtn" class="mobile-func-btn" type="button" data-mobile-action="toggle-focus">🧲 釋放畫面：關</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="mode-calc">🧮 計算模式</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="mode-stake">📍 放樣模式</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="tab-radar">🌐 3D雷達轉換</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="tab-offset">🚧 支距避障</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="tab-area">🥾 鞋帶面積</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="tab-slope">💧 坡度高程</button>
+    </div>
+</div>
+
 <div class="global-settings">
     <div style="width: 100%; color: var(--accent); font-weight: bold; margin-bottom: 5px;">📍 專案基準點設定 (Global Settings)</div>
     <div><label>政府座標 E: </label><input type="number" id="gE" value="204000" step="0.001"></div>
@@ -79,10 +144,10 @@
 </div>
 
 <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab(event, 'tab-radar')">🌐 3D雷達轉換</button>
-    <button class="tab-btn" onclick="switchTab(event, 'tab-offset')">🚧 支距避障</button>
-    <button class="tab-btn" onclick="switchTab(event, 'tab-area')">🥾 鞋帶面積</button>
-    <button class="tab-btn" onclick="switchTab(event, 'tab-slope')">💧 坡度高程</button>
+    <button id="tabBtnRadar" class="tab-btn active" onclick="switchTab(event, 'tab-radar')">🌐 3D雷達轉換</button>
+    <button id="tabBtnOffset" class="tab-btn" onclick="switchTab(event, 'tab-offset')">🚧 支距避障</button>
+    <button id="tabBtnArea" class="tab-btn" onclick="switchTab(event, 'tab-area')">🥾 鞋帶面積</button>
+    <button id="tabBtnSlope" class="tab-btn" onclick="switchTab(event, 'tab-slope')">💧 坡度高程</button>
 </div>
 
 <div id="tab-radar" class="tab-content active">
@@ -146,6 +211,21 @@
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById(tabId).classList.add('active');
         evt.currentTarget.classList.add('active');
+    }
+
+    function activateStakeTab(tabId) {
+        const map = {
+            'tab-radar': 'tabBtnRadar',
+            'tab-offset': 'tabBtnOffset',
+            'tab-area': 'tabBtnArea',
+            'tab-slope': 'tabBtnSlope'
+        };
+        const targetBtn = document.getElementById(map[tabId]);
+        if (!targetBtn) return;
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        targetBtn.classList.add('active');
     }
 
     function getConfig() {
@@ -305,6 +385,72 @@
         const h = parseFloat(document.getElementById('sH').value)||0, d = parseFloat(document.getElementById('sD').value)||0, s = parseFloat(document.getElementById('sS').value)||0;
         document.getElementById('resSlope').innerHTML = `目標高程: <span style="color:#fff">${(h + d*(s/100)).toFixed(3)} m</span>`;
     }
+
+    function isMobileViewport() {
+        return window.matchMedia('(max-width: 900px)').matches;
+    }
+
+    function toggleMobileFuncDrawer(forceOpen) {
+        const drawer = document.getElementById('mobileFuncDrawer');
+        if (!drawer || !isMobileViewport()) return;
+        const next = typeof forceOpen === 'boolean' ? forceOpen : !drawer.classList.contains('open');
+        drawer.classList.toggle('open', next);
+        drawer.setAttribute('aria-hidden', next ? 'false' : 'true');
+    }
+
+    function updateMobileFocusLabel() {
+        const btn = document.getElementById('mobileFocusBtn');
+        if (!btn) return;
+        const on = document.body.classList.contains('mobile-focus-mode');
+        btn.textContent = `🧲 釋放畫面：${on ? '開' : '關'}`;
+    }
+
+    function runMobileQuickAction(action) {
+        if (action === 'toggle-focus') {
+            document.body.classList.toggle('mobile-focus-mode');
+            updateMobileFocusLabel();
+            toggleMobileFuncDrawer(false);
+            return;
+        }
+        if (action === 'mode-calc') {
+            window.location.href = 'index.html';
+            return;
+        }
+        if (action === 'mode-stake') {
+            window.location.href = 'stake.html';
+            return;
+        }
+        if (action.startsWith('tab-')) {
+            activateStakeTab(action);
+            toggleMobileFuncDrawer(false);
+        }
+    }
+
+    function initMobileFuncDrawer() {
+        const drawer = document.getElementById('mobileFuncDrawer');
+        if (!drawer) return;
+        drawer.addEventListener('click', (event) => {
+            const target = event.target.closest('[data-mobile-action]');
+            if (!target) return;
+            runMobileQuickAction(target.getAttribute('data-mobile-action'));
+        });
+        document.addEventListener('click', (event) => {
+            if (!isMobileViewport()) return;
+            if (!drawer.classList.contains('open')) return;
+            if (event.target.closest('#mobileFuncDrawer')) return;
+            toggleMobileFuncDrawer(false);
+        });
+        window.addEventListener('resize', () => {
+            if (!isMobileViewport()) {
+                toggleMobileFuncDrawer(false);
+                document.body.classList.remove('mobile-focus-mode');
+            }
+            updateMobileFocusLabel();
+        });
+        updateMobileFocusLabel();
+    }
+
+    initMobileFuncDrawer();
     updateRadarUI();
 </script>
 </body>
