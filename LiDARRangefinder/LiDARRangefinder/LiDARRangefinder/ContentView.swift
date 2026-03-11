@@ -26,21 +26,23 @@ struct ContentView: View {
     private let tacticalMenuWidth: CGFloat = 230
 
     var body: some View {
-        ZStack {
-            ARViewContainer()
-                .ignoresSafeArea()
+        GeometryReader { proxy in
+            ZStack {
+                ARViewContainer()
+                    .ignoresSafeArea()
 
-            crosshair
+                crosshair
 
-            VStack {
-                mainPagePicker
-                topPanel
-                Spacer()
-                bottomPanel
+                VStack {
+                    mainPagePicker
+                    topPanel
+                    Spacer()
+                    bottomPanel
+                }
+                .padding()
+
+                tacticalMenuDrawer(viewportHeight: proxy.size.height)
             }
-            .padding()
-
-            tacticalMenuDrawer
         }
         .sheet(isPresented: $showingRecords) {
             recordsView
@@ -411,7 +413,7 @@ struct ContentView: View {
         .shadow(color: .cyan.opacity(0.25), radius: 12, x: 0, y: 6)
     }
 
-    private var tacticalMenuDrawer: some View {
+    private func tacticalMenuDrawer(viewportHeight: CGFloat) -> some View {
         HStack(spacing: 0) {
             Spacer()
 
@@ -478,7 +480,10 @@ struct ContentView: View {
             }
             .foregroundStyle(.white)
             .padding(14)
-            .frame(width: tacticalMenuWidth, height: UIScreen.main.bounds.height * 0.58)
+            .frame(
+                width: tacticalMenuWidth,
+                height: min(max(260, viewportHeight * 0.58), 520)
+            )
             .background(.black.opacity(0.85))
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
