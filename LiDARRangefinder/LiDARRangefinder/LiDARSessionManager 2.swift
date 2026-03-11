@@ -110,19 +110,19 @@ final class LiDARSessionManager: ObservableObject {
     @Published var crackSeveritySummary: String = "無"
     @Published var quantumModeEnabled: Bool = false
     @Published var quantumCoreLevel: Int = 0
-    @Published var quantumStatusText: String = "量子核心：待命"
+    @Published var quantumStatusText: String = "核心引擎：待命"
     @Published var quantumLastCommandText: String = ""
     @Published var quantumSuggestionText: String = "戰術建議：目前無需啟動"
     @Published var quantumVoiceListening: Bool = false
     @Published var quantumVoiceTranscript: String = ""
     @Published var quantumHistory: [QuantumTacticRecord] = []
     @Published var quantumIBMCloudEnabled: Bool = false
-    @Published var quantumIBMProviderText: String = "量子雲：本地模式"
+    @Published var quantumIBMProviderText: String = "雲端：本地模式"
     @Published var quantumIBMJobText: String = "IBM Job：尚未送出"
     @Published var quantumIBMResultText: String = "IBM Result：尚無資料"
     @Published var quantumIBMBackend: String = "ibm_kyiv"
     @Published var quantumIBMShots: Int = 128
-    @Published var quantumFusionStatusText: String = "量子融合：待命"
+    @Published var quantumFusionStatusText: String = "融合狀態：待命"
     @Published var highPrecisionContinuousModeEnabled: Bool = true
     @Published var highPrecisionStatusText: String = "高精度連續模式：待命"
     @Published var designTargetDistanceMeters: Double = 2.0
@@ -263,7 +263,7 @@ final class LiDARSessionManager: ObservableObject {
             qaProfile = .ultra
             UserDefaults.standard.set(true, forKey: highestModeLockStorageKey)
             UserDefaults.standard.set(qaProfile.rawValue, forKey: qaProfileStorageKey)
-            quantumStatusText = "量子核心：戰術模式已啟用"
+            quantumStatusText = "核心引擎：戰術模式已啟用"
         }
         loadQuantumHistory()
         refreshVolumeAreaM2()
@@ -356,7 +356,7 @@ final class LiDARSessionManager: ObservableObject {
         if !enabled && quantumModeEnabled {
             quantumModeEnabled = false
             UserDefaults.standard.set(false, forKey: quantumModeStorageKey)
-            quantumStatusText = "量子核心：已因解除最高鎖定而關閉"
+            quantumStatusText = "核心引擎：已因解除最高鎖定而關閉"
             quantumCoreLevel = 0
         }
         if enabled {
@@ -537,11 +537,11 @@ final class LiDARSessionManager: ObservableObject {
         var trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
         if source == "manual" && trimmed.isEmpty {
             // Allow manual button to work without requiring text input.
-            trimmed = "量子核心啟動"
+            trimmed = "核心引擎啟動"
         }
         quantumLastCommandText = trimmed
         guard isQuantumCommandValid(trimmed) else {
-            quantumStatusText = "量子核心：口令不符，請使用授權口令"
+            quantumStatusText = "核心引擎：口令不符，請使用授權口令"
             return
         }
         quantumModeEnabled = true
@@ -555,14 +555,14 @@ final class LiDARSessionManager: ObservableObject {
         maybeRunAutoCorrection()
         refreshQuantumProviderText()
         if quantumIBMCloudEnabled && hasIBMQuantumAPIKey {
-            quantumStatusText = "量子核心：已啟用，IBM 量子雲輔助上線"
+            quantumStatusText = "核心引擎：已啟用，IBM 雲端輔助上線"
             Task {
                 await runIBMQuantumRuntimeJob()
             }
         } else if quantumIBMCloudEnabled {
-            quantumStatusText = "量子核心：已啟用，IBM Key 未設置，使用本地模式"
+            quantumStatusText = "核心引擎：已啟用，IBM Key 未設置，使用本地模式"
         } else {
-            quantumStatusText = "量子核心：已啟用，戰術增益上線"
+            quantumStatusText = "核心引擎：已啟用，戰術增益上線"
         }
         refreshQuantumTelemetry()
         appendQuantumHistory(
@@ -580,7 +580,7 @@ final class LiDARSessionManager: ObservableObject {
         autoCorrectionEnabled = false
         autoCorrectionStatusText = "自動連續矯正：關"
         quantumCoreLevel = 0
-        quantumStatusText = "量子核心：已解除"
+        quantumStatusText = "核心引擎：已解除"
         stopQuantumVoiceCommand()
         appendQuantumHistory(
             source: source,
@@ -598,7 +598,7 @@ final class LiDARSessionManager: ObservableObject {
 
     func runQuantumFusionAutopilot() {
         guard quantumModeEnabled else {
-            quantumStatusText = "量子核心：請先啟用後再執行融合補齊"
+            quantumStatusText = "核心引擎：請先啟用後再執行融合補齊"
             return
         }
 
@@ -621,7 +621,7 @@ final class LiDARSessionManager: ObservableObject {
             steps.append("A 待對位")
         }
 
-        quantumStatusText = "量子核心：融合補齊已執行（\(steps.joined(separator: "｜"))）"
+        quantumStatusText = "核心引擎：融合補齊已執行（\(steps.joined(separator: "｜"))）"
         refreshQuantumTelemetry()
     }
 
@@ -738,7 +738,7 @@ final class LiDARSessionManager: ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 guard auth == .authorized else {
-                    self.quantumStatusText = "量子核心：語音權限未開啟"
+                    self.quantumStatusText = "核心引擎：語音權限未開啟"
                     return
                 }
                 await self.beginSpeechSession()
@@ -759,7 +759,7 @@ final class LiDARSessionManager: ObservableObject {
         let wasListening = quantumVoiceListening
         quantumVoiceListening = false
         if wasListening && quantumStatusText.contains("語音監聽中") {
-            quantumStatusText = "量子核心：語音監聽已停止"
+            quantumStatusText = "核心引擎：語音監聽已停止"
         }
     }
 
@@ -1069,7 +1069,7 @@ final class LiDARSessionManager: ObservableObject {
     private func triggerQuantumRunOnBlueprintLockIfNeeded(imageName: String, now: TimeInterval) {
         guard quantumModeEnabled, quantumIBMCloudEnabled, hasIBMQuantumAPIKey else { return }
         if isBlueprintQuantumJobRunning {
-            quantumIBMJobText = "IBM Job：藍圖量子任務進行中，等待上一筆完成"
+            quantumIBMJobText = "IBM Job：藍圖任務進行中，等待上一筆完成"
             return
         }
         if lastQuantumTriggerImageName == imageName, now - lastQuantumTriggerAt < quantumTriggerCooldownSec {
@@ -1082,23 +1082,23 @@ final class LiDARSessionManager: ObservableObject {
         lastQuantumTriggerImageName = imageName
         lastQuantumTriggerAt = now
         isBlueprintQuantumJobRunning = true
-        quantumIBMJobText = "IBM Job：藍圖 \(imageName) 鎖定，觸發量子最佳化..."
+        quantumIBMJobText = "IBM Job：藍圖 \(imageName) 鎖定，觸發最佳化..."
         Task { [weak self] in
             guard let self else { return }
             do {
                 let summary = try await QuantumManager.shared.optimizeBlueprint(blueprintName: imageName)
                 await MainActor.run {
                     self.isBlueprintQuantumJobRunning = false
-                    self.quantumIBMJobText = "IBM Job：藍圖 \(imageName) 量子最佳化完成"
+                    self.quantumIBMJobText = "IBM Job：藍圖 \(imageName) 最佳化完成"
                     self.quantumIBMResultText = "IBM Result：\(summary)"
-                    self.quantumStatusText = "量子核心：藍圖鎖定已觸發量子最佳化"
+                    self.quantumStatusText = "核心引擎：藍圖鎖定已觸發最佳化"
                 }
             } catch {
                 await MainActor.run {
                     self.isBlueprintQuantumJobRunning = false
                     self.quantumIBMJobText = "IBM Job：藍圖 \(imageName) 最佳化失敗"
                     self.quantumIBMResultText = "IBM Result：\(error.localizedDescription)"
-                    self.quantumStatusText = "量子核心：藍圖量子最佳化失敗，已維持本地模式"
+                    self.quantumStatusText = "核心引擎：藍圖最佳化失敗，已維持本地模式"
                 }
             }
         }
@@ -1380,6 +1380,9 @@ final class LiDARSessionManager: ObservableObject {
         let allowed = [
             "quantum core",
             "quantum on",
+            "core engine",
+            "核心引擎",
+            "核心引擎啟動",
             "量子核心",
             "量子核心啟動",
             "戰術模式啟動"
@@ -1408,17 +1411,17 @@ final class LiDARSessionManager: ObservableObject {
             "B體積\(volumeReady ? "OK" : "待掃描")",
             "C裂縫\(crackReady ? "OK" : "待鏡頭")"
         ]
-        quantumFusionStatusText = "量子融合：\(fusionParts.joined(separator: "｜"))"
+        quantumFusionStatusText = "融合狀態：\(fusionParts.joined(separator: "｜"))"
 
         if !quantumModeEnabled {
             quantumCoreLevel = 0
             refreshQuantumProviderText()
             if qaScore < 70 {
-                quantumSuggestionText = "戰術建議：QA 偏低，建議啟動量子核心"
+                quantumSuggestionText = "戰術建議：QA 偏低，建議啟動核心引擎"
             } else if crackSeveritySummary == "高" {
-                quantumSuggestionText = "戰術建議：裂縫高風險，建議啟動量子核心強化檢測"
+                quantumSuggestionText = "戰術建議：裂縫高風險，建議啟動核心引擎強化檢測"
             } else if !volumeReady {
-                quantumSuggestionText = "戰術建議：可啟動量子核心後執行體積掃描強化"
+                quantumSuggestionText = "戰術建議：可啟動核心引擎後執行體積掃描強化"
             } else {
                 quantumSuggestionText = "戰術建議：目前無需啟動"
             }
@@ -1435,16 +1438,16 @@ final class LiDARSessionManager: ObservableObject {
         quantumCoreLevel = score
 
         if score >= 85 {
-            quantumStatusText = "量子核心：火力全開（\(score)%）"
+            quantumStatusText = "核心引擎：火力全開（\(score)%）"
         } else if score >= 60 {
-            quantumStatusText = "量子核心：穩定作戰（\(score)%）"
+            quantumStatusText = "核心引擎：穩定作戰（\(score)%）"
         } else {
-            quantumStatusText = "量子核心：能量不足，請先校準（\(score)%）"
+            quantumStatusText = "核心引擎：能量不足，請先校準（\(score)%）"
         }
         if !blueprintReady {
             quantumSuggestionText = "戰術建議：先完成 A 藍圖對位，提高融合穩定度"
         } else if !volumeReady {
-            quantumSuggestionText = "戰術建議：執行 B 體積掃描，補齊量子融合資料"
+            quantumSuggestionText = "戰術建議：執行 B 體積掃描，補齊融合資料"
         } else if !crackReady {
             quantumSuggestionText = "戰術建議：對準裂縫後執行 C 即時分析，完成三項融合"
         } else if crackSeveritySummary == "高" {
@@ -1456,11 +1459,11 @@ final class LiDARSessionManager: ObservableObject {
 
     private func refreshQuantumProviderText() {
         if quantumIBMCloudEnabled && hasIBMQuantumAPIKey {
-            quantumIBMProviderText = "量子雲：IBM Quantum API 已接入"
+            quantumIBMProviderText = "雲端：IBM Cloud API 已接入"
         } else if quantumIBMCloudEnabled {
-            quantumIBMProviderText = "量子雲：已啟用（未設定 API Key，將回退本地）"
+            quantumIBMProviderText = "雲端：已啟用（未設定 API Key，將回退本地）"
         } else {
-            quantumIBMProviderText = "量子雲：本地模式"
+            quantumIBMProviderText = "雲端：本地模式"
         }
     }
 
@@ -1488,14 +1491,14 @@ final class LiDARSessionManager: ObservableObject {
             if status == "completed" {
                 let resultSummary = try await fetchIBMRuntimeResultSummary(apiKey: apiKey, jobID: jobID)
                 quantumIBMResultText = "IBM Result：\(resultSummary)"
-                quantumStatusText = "量子核心：IBM Job 完成，量子雲回饋已更新"
+                quantumStatusText = "核心引擎：IBM Job 完成，雲端回饋已更新"
             } else {
                 quantumIBMResultText = "IBM Result：Job 狀態 \(status)"
             }
         } catch {
             quantumIBMJobText = "IBM Job：送出失敗"
             quantumIBMResultText = "IBM Result：\(error.localizedDescription)"
-            quantumStatusText = "量子核心：IBM 連線失敗，已回退本地模式"
+            quantumStatusText = "核心引擎：IBM 連線失敗，已回退本地模式"
         }
     }
 
@@ -1644,14 +1647,14 @@ final class LiDARSessionManager: ObservableObject {
             audioEngine.prepare()
             try audioEngine.start()
         } catch {
-            quantumStatusText = "量子核心：語音引擎啟動失敗"
+            quantumStatusText = "核心引擎：語音引擎啟動失敗"
             stopQuantumVoiceCommand()
             return
         }
 
         quantumVoiceListening = true
         quantumVoiceTranscript = ""
-        quantumStatusText = "量子核心：語音監聽中..."
+        quantumStatusText = "核心引擎：語音監聽中..."
 
         speechTask = speechRecognizer?.recognitionTask(with: request) { [weak self] result, error in
             guard let self else { return }
@@ -1665,7 +1668,7 @@ final class LiDARSessionManager: ObservableObject {
                     }
                 }
                 if error != nil {
-                    self.quantumStatusText = "量子核心：語音辨識中斷"
+                    self.quantumStatusText = "核心引擎：語音辨識中斷"
                     self.stopQuantumVoiceCommand()
                 }
             }

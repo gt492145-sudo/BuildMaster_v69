@@ -4,16 +4,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BuildMaster V6.9 - 預算決策系統 (會員上線版)</title>
+<title>Construction Master V7.0 - 預算決策系統 (會員上線版)</title>
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="manifest" href="site.webmanifest">
 <meta name="theme-color" content="#0b1220">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="BuildMaster">
+<meta name="apple-mobile-web-app-title" content="Construction Master">
 <meta name="referrer" content="no-referrer">
 <style>
-    /* ... 保留之前的 CSS 樣式，這裡為了精簡先省略，請沿用 V6.9 的黑洞版 CSS ... */
+    /* ... 保留之前的 CSS 樣式，這裡為了精簡先省略，請沿用 V7.0 的黑洞版 CSS ... */
     :root { --bg-dark: #0b1220; --panel-bg: rgba(10, 18, 32, 0.34); --text-main: #ecf0f1; --highlight: #ff9800; --accent: #5ecbff; --money: #2ecc71; --line-soft: rgba(255,255,255,0.16); --text-subtle: #b8c7d9; }
     html { font-size: 110%; width: 100%; overflow-x: hidden; }
     body { font-family: sans-serif; margin: 0; width: 100%; max-width: 100%; overflow-x: hidden; display: flex; flex-direction: column; min-height: 100dvh; background-color: var(--bg-dark); background-image: linear-gradient(rgba(6, 10, 18, 0.26), rgba(6, 10, 18, 0.26)); background-size: 100% 100%; background-position: center center; background-repeat: no-repeat; color: var(--text-main); }
@@ -47,7 +47,7 @@
     #img-wrapper.viewer-3d { cursor: grab; touch-action: none; }
     #img-wrapper.viewer-3d.dragging { cursor: grabbing; }
     #blueprint { display: block; pointer-events: none; }
-    #drawCanvas { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; touch-action: none; }
+    #drawCanvas { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; touch-action: manipulation; }
     .group-title { color: var(--highlight); font-weight: bold; margin-top: 15px; border-left: 4px solid var(--highlight); padding-left: 10px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
     .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
     .input-wrapper { flex: 1; }
@@ -112,7 +112,7 @@
     #toast { visibility: hidden; background: var(--highlight); color: black; padding: 12px 25px; position: fixed; left: 50%; bottom: 50px; transform: translateX(-50%); border-radius: 50px; font-weight: bold; z-index: 9999; }
     #toast.show { visibility: visible; animation: fadeInUp 0.5s; }
     @keyframes fadeInUp { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
-    /* 🌌 量子全息掃描雷射線 */
+    /* 🌌 全息掃描雷射線 */
     .quantum-scanner-line {
         position: absolute;
         top: 0;
@@ -225,7 +225,7 @@
 
 <div id="securityLock" class="security-lock">
     <div class="security-panel">
-        <h3>BuildMaster 保護模式</h3>
+        <h3>Construction Master 保護模式</h3>
         <p id="securityMessage">請輸入存取碼以啟用系統。</p>
         <input id="securityMemberInput" class="security-input" type="text" placeholder="會員帳號（選填，可用自訂密碼）">
         <input id="securityCodeInput" class="security-input" type="password" placeholder="輸入存取碼">
@@ -237,7 +237,7 @@
 
 <header>
     <img src="logo-app.png" class="logo-img" alt="Black Hole Logo">
-    <div class="header-title">BUILDMASTER V6.9 - BLACK HOLE POWER <span class="live-badge">正式版 LIVE</span> <span class="live-badge">v69 量子更新</span></div>
+    <div class="header-title">Construction Master V7.0 - BLACK HOLE POWER <span class="live-badge">正式版 LIVE</span> <span class="live-badge">v70 進階更新</span></div>
     <div class="level-switch">
         <button id="levelBasicBtn" class="level-btn" onclick="setUserLevel('basic')">頁1 新手</button>
         <button id="levelStandardBtn" class="level-btn" onclick="setUserLevel('standard')">頁2 工程</button>
@@ -274,7 +274,7 @@
             <button id="btn3D" class="tool-btn level-only-pro" onclick="toggle3DView()">🧊 3D檢視</button>
             <button id="btn360" class="tool-btn level-only-pro" onclick="toggle360Spin()">🌀 360翻轉</button>
             <button class="tool-btn level-only-pro" onclick="reset3DView()">🎯 重設視角</button>
-            <button class="tool-btn level-only-pro" style="border-color: #b388ff; color: #e040fb; font-weight: 900;" onclick="autoQuantumScan()">🌌 量子一鍵掃描 3D</button>
+            <button class="tool-btn level-only-pro" style="border-color: #b388ff; color: #e040fb; font-weight: 900;" onclick="autoQuantumScan()">🌌 一鍵掃描 3D</button>
             <button id="btnGyro" class="tool-btn level-only-pro" onclick="toggleGyroMode()">🧭 陀螺儀: 關</button>
             <button class="tool-btn level-only-pro" onclick="calibrateGyroBaseline()">🎯 校正陀螺儀</button>
             <button class="tool-btn level-only-standard" onclick="startEdgeAIVision()">👁️ AI視覺點料</button>
@@ -408,7 +408,7 @@
                 <label class="tool-mini"><input id="layoutHighPrecisionToggle" type="checkbox" checked> 放樣高精度</label>
             </div>
             <div class="bim-actions">
-                <button class="tool-btn" style="border-color:#b388ff; color:#e8d9ff;" onclick="runQuantumAutoStakeLayout()">⚛️ 量子自進放樣</button>
+                <button class="tool-btn" style="border-color:#b388ff; color:#e8d9ff;" onclick="runQuantumAutoStakeLayout()">⚛️ 核心自進放樣</button>
                 <button class="tool-btn" onclick="generateBimLayoutPoints()">📍 產生放樣點</button>
                 <button class="tool-btn" onclick="optimizeBimLayoutPointsForPrecision()">🎯 高精度修正</button>
                 <button class="tool-btn" onclick="groupBimLayoutPointsForQa()">🧩 自動分群 QA</button>
@@ -418,9 +418,9 @@
             </div>
             <div class="input-row" style="margin-top: 10px; border: 1px dashed #b388ff; padding: 10px; border-radius: 6px; background: rgba(179, 136, 255, 0.05);">
                 <div class="input-wrapper">
-                    <label style="color: #b388ff; font-weight: bold; font-size: 0.85em;">🔑 IBM Quantum Token (量子放樣直連)</label>
+                    <label style="color: #b388ff; font-weight: bold; font-size: 0.85em;">🔑 IBM Cloud Token (放樣直連)</label>
                     <div style="display:flex; gap:8px; align-items:center;">
-                        <input type="password" id="ibmQuantumKey" placeholder="請貼上您的 IBM Quantum API 金鑰" style="border-color: #b388ff; box-shadow: 0 0 8px rgba(179,136,255,0.2);">
+                        <input type="password" id="ibmQuantumKey" placeholder="請貼上您的 IBM Cloud API 金鑰" style="border-color: #b388ff; box-shadow: 0 0 8px rgba(179,136,255,0.2);">
                         <button class="tool-btn" type="button" id="ibmQuantumKeyToggleBtn" onclick="toggleIBMQuantumKeyVisibility()" style="border-color:#b388ff; color:#e8d9ff; white-space:nowrap;">👁️ 顯示</button>
                         <button class="tool-btn" type="button" onclick="clearIBMQuantumKey()" style="border-color:#ff9aa2; color:#ffd7dc; white-space:nowrap;">🧹 清除</button>
                     </div>
@@ -689,7 +689,7 @@
 <script>
     // 1.0 資料隔離與相容性設定
     const STORAGE_KEY = 'bm_69:list';
-    const SCHEMA_VERSION = '6.9.1';
+    const SCHEMA_VERSION = '7.0.0';
     const SECURITY_UNLOCK_KEY = 'bm_69:security_unlocked';
     const MEMBER_CODES_STORAGE_KEY = 'bm_69:member_codes';
     const SECURITY_CONFIG = {
@@ -778,7 +778,7 @@
         if (storedData) {
             const parsed = JSON.parse(storedData);
             // 簡單的版本檢查，若結構大改可在此處寫轉換邏輯
-            if (parsed.version && parsed.version.startsWith('6.9')) {
+            if (parsed.version && (parsed.version.startsWith('7.0') || parsed.version.startsWith('6.9'))) {
                 list = (parsed.data || []).filter(item => item && item.source !== 'warroom');
             } else {
                 console.warn("偵測到舊版資料，嘗試載入...");
@@ -1468,7 +1468,7 @@
         const wm = document.getElementById('securityWatermark');
         if (!wm) return;
         const stamp = new Date().toLocaleString('zh-TW');
-        wm.innerText = `BuildMaster Secure | ${location.hostname} | ${stamp}`;
+        wm.innerText = `Construction Master Secure | ${location.hostname} | ${stamp}`;
     }
 
     function bindClientDeterrence() {
@@ -1630,7 +1630,7 @@
         const input = document.getElementById('ibmQuantumKey');
         if (input) input.value = '';
         safeStorage.remove(localStorage, IBM_QUANTUM_KEY_STORAGE);
-        showToast('已清除 IBM Quantum 金鑰');
+        showToast('已清除 IBM Cloud 金鑰');
     }
 
     function normalizeMemberAccount(account) {
@@ -2697,7 +2697,7 @@
             return;
         }
         const level = getQaLevelByScore(bimLayoutQaResult.qaScore);
-        box.innerText = `放樣 QA：等級 ${level}（${bimLayoutQaResult.qaScore} / 100），重複 ${bimLayoutQaResult.duplicatePointCount}，缺漏 ${bimLayoutQaResult.missingGeometryCount}，越界 ${bimLayoutQaResult.outOfRangeCount}，點距穩定度 ${bimLayoutQaResult.spacingStabilityScore || 0}，分群穩定度 ${bimLayoutQaResult.groupStabilityScore || 0}（${bimLayoutQaResult.groupCount || 0} 組），高精度修正 ${bimLayoutPrecisionPass} 次，量子自進 ${quantumStakeAutoRuns} 次`;
+        box.innerText = `放樣 QA：等級 ${level}（${bimLayoutQaResult.qaScore} / 100），重複 ${bimLayoutQaResult.duplicatePointCount}，缺漏 ${bimLayoutQaResult.missingGeometryCount}，越界 ${bimLayoutQaResult.outOfRangeCount}，點距穩定度 ${bimLayoutQaResult.spacingStabilityScore || 0}，分群穩定度 ${bimLayoutQaResult.groupStabilityScore || 0}（${bimLayoutQaResult.groupCount || 0} 組），高精度修正 ${bimLayoutPrecisionPass} 次，核心自進 ${quantumStakeAutoRuns} 次`;
         updateQaDashboard();
     }
 
@@ -2758,13 +2758,13 @@
 
     async function runQuantumAutoStakeLayout() {
         if (!bimModelData || !Array.isArray(bimModelData.elements) || !bimModelData.elements.length) {
-            return showToast('⚠️ 量子雷達未偵測到目標：請先上傳 IFC 模型');
+            return showToast('⚠️ 核心雷達未偵測到目標：請先上傳 IFC 模型');
         }
 
         const ibmKeyInput = document.getElementById('ibmQuantumKey');
         const ibmKey = (ibmKeyInput && ibmKeyInput.value.trim()) || safeStorage.get(localStorage, IBM_QUANTUM_KEY_STORAGE, '');
         if (!ibmKey) {
-            return showToast('❌ 缺少 IBM Quantum API 金鑰！請先插入金鑰以開啟量子蟲洞。');
+            return showToast('❌ 缺少 IBM Cloud API 金鑰！請先插入金鑰以開啟雲端通道。');
         }
         safeStorage.set(localStorage, IBM_QUANTUM_KEY_STORAGE, ibmKey);
 
@@ -2772,7 +2772,7 @@
         generateBimLayoutPoints();
         if (!bimLayoutPoints.length) return;
 
-        showToast('🌌 [量子核心] 啟動！正在將放樣座標矩陣轉換為 QASM 量子語言...');
+        showToast('🌌 [核心引擎] 啟動！正在將放樣座標矩陣轉換為 QASM 指令...');
 
         const qubitCount = Math.max(1, Math.min(bimLayoutPoints.length, 5));
         const qasmCode = [
@@ -2804,7 +2804,7 @@
                 throw new Error(`HTTP ${response.status} ${errText.slice(0, 120)}`);
             }
 
-            showToast('⚡ [IBM 實驗室] 運算中... 量子位元糾纏與坍縮中！');
+            showToast('⚡ [IBM 實驗室] 運算中... 高速最佳化處理中！');
             await new Promise(resolve => setTimeout(resolve, 1500));
 
             const highPrecisionToggle = document.getElementById('layoutHighPrecisionToggle');
@@ -2814,11 +2814,11 @@
             runBimLayoutQa();
             quantumStakeAutoRuns += 1;
             renderBimLayoutQaSummary();
-            addAuditLog('真・量子自進放樣', `成功呼叫 IBM API / 第 ${quantumStakeAutoRuns} 次 / 點位 ${bimLayoutPoints.length}`);
-            showToast('⚛️ IBM 量子運算完成！已自動濾除重複點並得出最佳放樣路徑！');
+            addAuditLog('真・核心自進放樣', `成功呼叫 IBM API / 第 ${quantumStakeAutoRuns} 次 / 點位 ${bimLayoutPoints.length}`);
+            showToast('⚛️ IBM 雲端運算完成！已自動濾除重複點並得出最佳放樣路徑！');
         } catch (error) {
-            console.error('量子通訊錯誤:', error);
-            showToast('❌ 量子通道受干擾！請確認金鑰是否正確或伺服器狀態。');
+            console.error('核心通訊錯誤:', error);
+            showToast('❌ 雲端通道受干擾！請確認金鑰是否正確或伺服器狀態。');
         } finally {
             document.body.style.boxShadow = 'none';
         }
@@ -2837,7 +2837,7 @@
         scanner.setAttribute('aria-hidden', 'true');
         wrapper.appendChild(scanner);
 
-        showToast('⚡ [量子核心] 啟動！正在利用 AI 視覺解析 CAD 輪廓...');
+        showToast('⚡ [核心引擎] 啟動！正在利用 AI 視覺解析 CAD 輪廓...');
         if (is360Spinning) toggle360Spin();
         if (!is3DView) toggle3DView();
 
@@ -2851,15 +2851,15 @@
                 }
             }
 
-            // 若有 IFC，走完整量子放樣流程；若無 IFC，維持 3D 展示模式。
+            // 若有 IFC，走完整核心放樣流程；若無 IFC，維持 3D 展示模式。
             if (bimModelData && Array.isArray(bimModelData.elements) && bimModelData.elements.length) {
                 await runQuantumAutoStakeLayout();
             }
 
-            showToast('✅ 結構解析完成！量子全息建築已實體化！');
+            showToast('✅ 結構解析完成！全息建築已實體化！');
         } catch (error) {
-            console.error('量子一鍵掃描錯誤:', error);
-            showToast('⚠️ 量子一鍵掃描失敗，請稍後重試');
+            console.error('一鍵掃描錯誤:', error);
+            showToast('⚠️ 一鍵掃描失敗，請稍後重試');
         } finally {
             if (scanner && scanner.parentNode) scanner.parentNode.removeChild(scanner);
             // Return to previous interaction state to avoid locking touch workflows.
@@ -3046,7 +3046,7 @@
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = `BuildMaster_BIM放樣點_${new Date().getTime()}.csv`;
+        link.download = `ConstructionMaster_BIM放樣點_${new Date().getTime()}.csv`;
         link.click();
         addAuditLog('匯出放樣點', `${bimLayoutPoints.length} 筆`);
         showToast('放樣點 CSV 已匯出');
@@ -3078,7 +3078,7 @@
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = `BuildMaster_BIM放樣QA_${new Date().getTime()}.csv`;
+        link.download = `ConstructionMaster_BIM放樣QA_${new Date().getTime()}.csv`;
         link.click();
         addAuditLog('匯出放樣QA', `等級 ${qaLevel} / 分數 ${qa.qaScore || 0}`);
         showToast('放樣 QA 報告已匯出');
@@ -3360,6 +3360,7 @@
 
     function apply3DTransform() {
         const wrapper = document.getElementById('img-wrapper');
+        updateTouchInteractionMode();
         if (!wrapper) return;
         if (!is3DView) {
             wrapper.style.transform = 'none';
@@ -3368,6 +3369,22 @@
         }
         wrapper.classList.add('viewer-3d');
         wrapper.style.transform = `perspective(1300px) rotateX(${rotation3D.x}deg) rotateY(${rotation3D.y}deg)`;
+    }
+
+    function updateTouchInteractionMode() {
+        const wrapper = document.getElementById('img-wrapper');
+        const canvasEl = document.getElementById('drawCanvas');
+        const allow3DDrag = is3DView && !is360Spinning && !gyroState.enabled;
+
+        if (wrapper) {
+            wrapper.style.touchAction = allow3DDrag ? 'none' : 'manipulation';
+        }
+        if (canvasEl) {
+            canvasEl.style.touchAction = allow3DDrag ? 'none' : 'manipulation';
+        }
+        if (canvasContainer) {
+            canvasContainer.style.touchAction = allow3DDrag ? 'none' : 'pan-y';
+        }
     }
 
     function updateGyroUI() {
@@ -4544,7 +4561,7 @@
                         messages: [
                             {
                                 role: 'system',
-                                content: '你是 BuildMaster 工程估算助手，請用繁體中文、短句、可操作步驟回答。'
+                                content: '你是 Construction Master 工程估算助手，請用繁體中文、短句、可操作步驟回答。'
                             },
                             {
                                 role: 'user',
@@ -4638,7 +4655,7 @@
         if (target.closest('button[onclick="resetBimRules()"]')) return '清空全部 BIM 規則，恢復系統預設匹配。';
         if (target.closest('button[onclick="generateBIMEstimate()"]')) return '依 IFC 類型與材料單價自動產生估價預覽表。';
         if (target.closest('button[onclick="importBIMEstimateToList()"]')) return '把 BIM 估價結果一鍵匯入主清單，直接進入總價彙整。';
-        if (target.closest('button[onclick="runQuantumAutoStakeLayout()"]')) return '量子自進放樣：自動執行生成點位、高精度修正、分群 QA 與放樣 QA。';
+        if (target.closest('button[onclick="runQuantumAutoStakeLayout()"]')) return '核心自進放樣：自動執行生成點位、高精度修正、分群 QA 與放樣 QA。';
         if (target.closest('button[onclick="generateBimLayoutPoints()"]')) return '從 IFC 自動抽取放樣點（柱心、牆端點、梁端點）。';
         if (target.closest('button[onclick="runBimLayoutQa()"]')) return '執行放樣 QA，檢查重複點、缺漏與越界，產生分數。';
         if (target.closest('button[onclick="exportBimLayoutPoints()"]')) return '匯出放樣點 CSV，可交給儀器或現場施工使用。';
@@ -5029,7 +5046,7 @@
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `BuildMaster_黑洞報表_${new Date().getTime()}.csv`;
+        link.download = `ConstructionMaster_黑洞報表_${new Date().getTime()}.csv`;
         link.click();
         showToast('📥 報表已下載！');
     }
@@ -5082,7 +5099,7 @@
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = `BuildMaster_量圖QA報告_${new Date().getTime()}.csv`;
+        link.download = `ConstructionMaster_量圖QA報告_${new Date().getTime()}.csv`;
         link.click();
         if (typeof addAuditLog === 'function') {
             addAuditLog('匯出量圖QA報告', `等級 ${qaLevel} / 分數 ${qaScore} / 測量完成 ${measureQaStats.measureSuccess} 次`);

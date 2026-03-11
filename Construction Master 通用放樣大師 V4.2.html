@@ -1,15 +1,29 @@
-
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BuildMaster 通用放樣大師 V4.2</title>
+<title>Construction Master 通用放樣大師 V4.2</title>
 <style>
     :root { --bg: #1e272e; --panel: #2f3640; --text: #ecf0f1; --radar: #00ff00; --accent: #f39c12; --btn: #3498db; --danger: #e74c3c; }
     body { font-family: sans-serif; margin: 0; padding: 10px; background-color: var(--bg); color: var(--text); }
-    header { background: #000; color: var(--accent); padding: 15px; text-align: center; font-size: 1.5em; font-weight: bold; border-bottom: 2px solid var(--accent); margin-bottom: 15px; }
+    header { background: rgba(10, 16, 30, 0.38); padding: 10px 20px; display: flex; align-items: center; gap: 12px; border-bottom: 2px solid rgba(255,152,0,0.65); box-shadow: 0 4px 15px rgba(255,152,0,0.2); backdrop-filter: blur(8px) saturate(115%); margin-bottom: 15px; border-radius: 10px; }
+    .logo-img { width: 62px; height: 62px; border-radius: 50%; border: 2px solid var(--accent); object-fit: cover; box-shadow: 0 0 12px var(--accent); flex-shrink: 0; }
+    .header-main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .header-title { font-size: 1.25em; font-weight: bold; color: var(--accent); letter-spacing: 1px; text-shadow: 0 0 10px rgba(255, 152, 0, 0.35); line-height: 1.2; }
+    .header-sub { font-size: 0.78em; color: #b8c7d9; letter-spacing: 0.4px; }
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.06); color: #d7ebff; font-size: 0.72em; }
+    .status-pill.accent { border-color: rgba(255, 184, 114, 0.65); color: #ffd8a7; }
+    .status-pill.info { border-color: rgba(112, 213, 255, 0.65); color: #d7f4ff; }
     .live-badge { display: inline-flex; align-items: center; margin-left: 10px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(222, 189, 255, 0.72); background: linear-gradient(135deg, rgba(108, 60, 188, 0.9), rgba(139, 92, 246, 0.9)); color: #f7ebff; font-size: 0.46em; letter-spacing: 0.8px; vertical-align: middle; }
+    @media (max-width: 900px) {
+        header { padding: 10px 12px; }
+        .logo-img { width: 52px; height: 52px; }
+        .header-title { font-size: 1.05em; }
+        .header-sub { font-size: 0.72em; }
+        .header-right { width: 100%; margin-left: 0; justify-content: flex-start; }
+    }
     
     .global-settings { background: rgba(0,0,0,0.5); padding: 15px; border: 1px dashed var(--accent); border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; }
     .global-settings input { width: 120px; padding: 8px; background: #222; color: #fff; border: 1px solid #555; }
@@ -36,7 +50,18 @@
 </head>
 <body>
 
-<header>🏗️ BuildMaster 通用放樣精算系統 (V4.2 衛星制導版)<span class="live-badge">正式版 LIVE</span></header>
+<header>
+    <img src="logo-app.png" class="logo-img" alt="Black Hole Logo">
+    <div class="header-main">
+        <div class="header-title">🏗️ Construction Master 通用放樣精算系統 (V4.2 衛星制導版)<span class="live-badge">正式版 LIVE</span></div>
+        <div class="header-sub">黑洞主視覺同步｜放樣子系統獨立版本 4.2</div>
+    </div>
+    <div class="header-right">
+        <span class="status-pill accent">放樣核心 4.2</span>
+        <span class="status-pill info">座標轉換 TWD97</span>
+        <span class="status-pill">CSV 匯出就緒</span>
+    </div>
+</header>
 
 <div class="global-settings">
     <div style="width: 100%; color: var(--accent); font-weight: bold; margin-bottom: 5px;">📍 專案基準點設定 (Global Settings)</div>
@@ -235,7 +260,7 @@
             const g = buildMaster_3D_Converter(p.x, p.y, p.z, cfg); csv += `${p.n},${p.x},${p.y},${g.E},${g.N},${g.H}\n`;
         });
         const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-        a.download = "BuildMaster_放樣座標.csv"; a.click();
+        a.download = "ConstructionMaster_放樣座標.csv"; a.click();
     }
 
     // === 支距、面積、高程 ===

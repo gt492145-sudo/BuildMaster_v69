@@ -215,7 +215,7 @@ struct ContentView: View {
                             Text(sessionManager.quantumStatusText)
                                 .font(.caption2.bold())
                                 .foregroundStyle(.purple)
-                            Text("量子核心等級：\(sessionManager.quantumCoreLevel)%")
+                            Text("核心引擎等級：\(sessionManager.quantumCoreLevel)%")
                                 .font(.caption2)
                                 .foregroundStyle(.purple.opacity(0.9))
                             Text(sessionManager.quantumSuggestionText)
@@ -395,7 +395,7 @@ struct ContentView: View {
                     .tint(.red)
                     .frame(maxWidth: .infinity)
 
-                    Button(sessionManager.quantumModeEnabled ? "量子核心（運行中）" : "量子核心戰術模式") {
+                    Button(sessionManager.quantumModeEnabled ? "核心引擎（運行中）" : "核心引擎戰術模式") {
                         showingQuantumMode = true
                     }
                     .buttonStyle(.borderedProminent)
@@ -900,11 +900,11 @@ struct ContentView: View {
         NavigationStack {
             Form {
                 Section("戰術口令") {
-                    TextField("輸入口令（例如：量子核心啟動）", text: $quantumCommandInput)
+                    TextField("輸入口令（例如：核心引擎啟動）", text: $quantumCommandInput)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 
-                    Button("啟動量子核心") {
+                    Button("啟動核心引擎") {
                         sessionManager.activateQuantumMode(command: quantumCommandInput)
                     }
                     .buttonStyle(.borderedProminent)
@@ -922,14 +922,14 @@ struct ContentView: View {
                     .tint(.indigo)
                     .frame(maxWidth: .infinity)
 
-                    Button("解除量子核心") {
+                    Button("解除核心引擎") {
                         sessionManager.deactivateQuantumMode()
                     }
                     .buttonStyle(.bordered)
                     .tint(.secondary)
                     .frame(maxWidth: .infinity)
 
-                    Button("一鍵量子融合補齊") {
+                    Button("一鍵融合補齊") {
                         sessionManager.runQuantumFusionAutopilot()
                     }
                     .buttonStyle(.borderedProminent)
@@ -977,15 +977,15 @@ struct ContentView: View {
                         .foregroundStyle(.yellow)
                 }
 
-                Section("IBM Quantum API（需要就用）") {
+                Section("IBM Cloud API（需要就用）") {
                     Toggle(isOn: Binding(
                         get: { sessionManager.quantumIBMCloudEnabled },
                         set: { sessionManager.setQuantumIBMCloudEnabled($0) }
                     )) {
-                        Text("啟用 IBM Quantum API")
+                        Text("啟用 IBM Cloud API")
                     }
 
-                    SecureField("貼上 IBM Quantum API Key", text: $ibmQuantumAPIKeyInput)
+                    SecureField("貼上 IBM Cloud API Key", text: $ibmQuantumAPIKeyInput)
 
                     HStack {
                         Button("儲存 Key") {
@@ -1048,7 +1048,7 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle("量子核心戰術模式")
+            .navigationTitle("核心引擎戰術模式")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") {

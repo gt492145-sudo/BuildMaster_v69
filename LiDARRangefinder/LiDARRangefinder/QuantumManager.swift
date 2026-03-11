@@ -43,9 +43,9 @@ final class QuantumManager {
         let status = try await pollRuntimeJobStatus(apiKey: apiKey, jobID: jobID)
         if status == "completed" || status == "done" {
             let summary = try await fetchRuntimeResultSummary(apiKey: apiKey, jobID: jobID)
-            return "量子運算完成（\(taggedBackend)）：\(summary)"
+            return "核心運算完成（\(taggedBackend)）：\(summary)"
         }
-        return "量子任務狀態：\(status)（job: \(jobID)）"
+        return "核心任務狀態：\(status)（job: \(jobID)）"
     }
 
     private func readAPIKey() throws -> String {
@@ -179,7 +179,7 @@ enum QuantumManagerError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noAPIKey:
-            return "未設定 IBM Quantum API Key"
+            return "未設定 IBM Cloud API Key"
         case .invalidURL:
             return "IBM API URL 無效"
         case .invalidResponse(let message):
