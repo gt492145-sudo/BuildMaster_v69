@@ -894,20 +894,20 @@ final class LiDARSessionManager: ObservableObject {
         anchor.addChild(root)
 
         let imageRatio = max(0.35, min(2.2, Double(image.size.height / max(1, image.size.width))))
-        let facadeWidth: Float = 1.55
+        let facadeWidth: Float = 1.75
         let facadeHeight: Float = Float(facadeWidth * Float(imageRatio))
-        let depth: Float = 0.18
+        let depth: Float = 0.24
 
         let bodyMesh = MeshResource.generateBox(size: [facadeWidth, facadeHeight, depth])
-        let bodyMat = SimpleMaterial(color: UIColor.systemCyan.withAlphaComponent(0.34), roughness: 0.18, isMetallic: true)
+        let bodyMat = SimpleMaterial(color: UIColor.systemTeal.withAlphaComponent(0.72), roughness: 0.28, isMetallic: false)
         let body = ModelEntity(mesh: bodyMesh, materials: [bodyMat])
         body.position = [0, facadeHeight / 2, 0]
         root.addChild(body)
 
         // Generate floor slabs based on facade ratio.
         let floorCount = max(6, min(16, Int((facadeHeight / 0.22).rounded())))
-        let slabMesh = MeshResource.generateBox(size: [facadeWidth * 0.96, 0.007, depth * 1.02])
-        let slabMat = SimpleMaterial(color: UIColor.white.withAlphaComponent(0.66), roughness: 0.3, isMetallic: false)
+        let slabMesh = MeshResource.generateBox(size: [facadeWidth * 0.97, 0.013, depth * 1.03])
+        let slabMat = SimpleMaterial(color: UIColor.white.withAlphaComponent(0.95), roughness: 0.2, isMetallic: false)
         for i in 1..<floorCount {
             let y = (facadeHeight / Float(floorCount)) * Float(i)
             let slab = ModelEntity(mesh: slabMesh, materials: [slabMat])
@@ -917,8 +917,8 @@ final class LiDARSessionManager: ObservableObject {
 
         // Window arrays left/right.
         let windowRows = max(5, floorCount - 2)
-        let windowMesh = MeshResource.generateBox(size: [0.11, 0.085, 0.01])
-        let windowMat = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.78), roughness: 0.12, isMetallic: true)
+        let windowMesh = MeshResource.generateBox(size: [0.15, 0.11, 0.018])
+        let windowMat = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.9), roughness: 0.1, isMetallic: true)
         for row in 0..<windowRows {
             let y = 0.12 + (facadeHeight - 0.28) * Float(row) / Float(max(1, windowRows - 1))
             for col in -2...2 where col != 0 {
@@ -930,11 +930,28 @@ final class LiDARSessionManager: ObservableObject {
         }
 
         // Central core / stair block.
-        let coreMesh = MeshResource.generateBox(size: [0.32, facadeHeight * 0.96, depth * 1.1])
-        let coreMat = SimpleMaterial(color: UIColor.systemRed.withAlphaComponent(0.34), roughness: 0.16, isMetallic: true)
+        let coreMesh = MeshResource.generateBox(size: [0.34, facadeHeight * 0.96, depth * 1.1])
+        let coreMat = SimpleMaterial(color: UIColor.systemIndigo.withAlphaComponent(0.62), roughness: 0.18, isMetallic: false)
         let core = ModelEntity(mesh: coreMesh, materials: [coreMat])
         core.position = [0, facadeHeight * 0.48, 0]
         root.addChild(core)
+
+        // Add high-contrast outline frame so the facade silhouette stays readable on site.
+        let edgeThickness: Float = 0.03
+        let edgeMat = SimpleMaterial(color: UIColor.black.withAlphaComponent(0.85), roughness: 0.35, isMetallic: false)
+        let sideEdgeMesh = MeshResource.generateBox(size: [edgeThickness, facadeHeight, depth * 1.04])
+        let topBottomEdgeMesh = MeshResource.generateBox(size: [facadeWidth + edgeThickness, edgeThickness, depth * 1.04])
+        for side: Float in [-1, 1] {
+            let sideEdge = ModelEntity(mesh: sideEdgeMesh, materials: [edgeMat])
+            sideEdge.position = [side * (facadeWidth / 2), facadeHeight / 2, 0]
+            root.addChild(sideEdge)
+        }
+        let topEdge = ModelEntity(mesh: topBottomEdgeMesh, materials: [edgeMat])
+        topEdge.position = [0, facadeHeight, 0]
+        root.addChild(topEdge)
+        let bottomEdge = ModelEntity(mesh: topBottomEdgeMesh, materials: [edgeMat])
+        bottomEdge.position = [0, 0, 0]
+        root.addChild(bottomEdge)
 
         return anchor
     }
