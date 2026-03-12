@@ -154,7 +154,7 @@
     <button class="mobile-func-tab" type="button" onclick="toggleMobileFuncDrawer()">功能</button>
     <div class="mobile-func-panel">
         <div class="drawer-header">🛠️ 戰術工具箱</div>
-        <button id="mobileFocusBtn" class="mobile-func-btn" type="button" data-mobile-action="toggle-focus">🧲 釋放畫面：關</button>
+        <button id="mobileFocusBtn" class="mobile-func-btn" type="button" data-mobile-action="toggle-focus">🧲 視圖模式：自動</button>
         <button class="mobile-func-btn" type="button" data-mobile-action="measure-clear">🎯 量測淨空模式</button>
         <button id="mobileSunlightBtn" class="mobile-func-btn" type="button" data-mobile-action="toggle-sunlight">☀️ 戶外高亮：關</button>
         <hr style="border: 0.5px solid rgba(255,255,255,0.18); margin: 2px 0;">
@@ -241,6 +241,7 @@
 
 <script>
     const SUNLIGHT_MODE_KEY = 'cm_stake:sunlight_mode';
+    const MOBILE_VIEW_MODE_KEY = 'cm_stake:mobile_view_mode';
 
     function switchTab(evt, tabId) {
         document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -262,6 +263,7 @@
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById(tabId).classList.add('active');
         targetBtn.classList.add('active');
+        syncMobileViewModeForStake(tabId);
     }
 
     function getConfig() {
@@ -437,8 +439,40 @@
     function updateMobileFocusLabel() {
         const btn = document.getElementById('mobileFocusBtn');
         if (!btn) return;
-        const on = document.body.classList.contains('mobile-focus-mode');
-        btn.textContent = `🧲 釋放畫面：${on ? '開' : '關'}`;
+        const mode = localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto';
+        const modeText = mode === 'clear' ? '釋放' : (mode === 'normal' ? '一般' : '自動');
+        btn.textContent = `🧲 視圖模式：${modeText}`;
+    }
+
+    function currentStakeTabId() {
+        const active = document.querySelector('.tab-content.active');
+        return active ? active.id : 'tab-radar';
+    }
+
+    function applyMobileViewMode(mode, opts = {}) {
+        const normalized = (mode === 'clear' || mode === 'normal' || mode === 'auto') ? mode : 'auto';
+        localStorage.setItem(MOBILE_VIEW_MODE_KEY, normalized);
+        syncMobileViewModeForStake(currentStakeTabId());
+        updateMobileFocusLabel();
+    }
+
+    function syncMobileViewModeForStake(tabId) {
+        const mode = localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto';
+        if (mode === 'clear') {
+            document.body.classList.add('mobile-focus-mode');
+            return;
+        }
+        if (mode === 'normal') {
+            document.body.classList.remove('mobile-focus-mode');
+            return;
+        }
+        document.body.classList.toggle('mobile-focus-mode', tabId === 'tab-radar');
+    }
+
+    function cycleMobileViewMode() {
+        const current = localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto';
+        const next = current === 'normal' ? 'clear' : (current === 'clear' ? 'auto' : 'normal');
+        applyMobileViewMode(next);
     }
 
     function applySunlightMode() {
@@ -456,7 +490,7 @@
 
     function enterMeasureClearMode() {
         activateStakeTab('tab-radar');
-        document.body.classList.add('mobile-focus-mode');
+        applyMobileViewMode('clear');
         updateMobileFocusLabel();
         toggleMobileFuncDrawer(false);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -464,8 +498,7 @@
 
     function runMobileQuickAction(action) {
         if (action === 'toggle-focus') {
-            document.body.classList.toggle('mobile-focus-mode');
-            updateMobileFocusLabel();
+            cycleMobileViewMode();
             toggleMobileFuncDrawer(false);
             return;
         }
@@ -514,9 +547,11 @@
                 toggleMobileFuncDrawer(false);
                 document.body.classList.remove('mobile-focus-mode');
             }
+            syncMobileViewModeForStake(currentStakeTabId());
             updateMobileFocusLabel();
             applySunlightMode();
         });
+        applyMobileViewMode(localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto', { silent: true });
         updateMobileFocusLabel();
         applySunlightMode();
     }

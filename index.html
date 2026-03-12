@@ -406,6 +406,9 @@
     <button id="mobileFuncTab" class="mobile-func-tab" type="button" onclick="toggleMobileFuncDrawer()">功能</button>
     <div class="drawer-shell">
         <div class="drawer-header">🛠️ 戰術工具箱</div>
+        <div id="mobileFocusBtn" class="drawer-item" data-mobile-action="toggle-focus">
+            <span>🧲 視圖模式：自動</span>
+        </div>
 
         <div class="drawer-item" data-mobile-action="scan" onclick="autoQuantumScan()">
             <span>🌌 一鍵掃描 3D</span>
@@ -996,6 +999,7 @@
     const CONTRAST_MODE_KEY = 'bm_69:contrast_mode';
     const CONTRAST_AUTO_KEY = 'bm_69:contrast_auto';
     const SUNLIGHT_MODE_KEY = 'bm_69:sunlight_mode';
+    const MOBILE_VIEW_MODE_KEY = 'bm_69:mobile_view_mode';
     const WAR_ROOM_KEY = 'bm_69:war_room_enabled';
     const FEATURE_FLAGS_KEY = 'bm_69:feature_flags';
     const SHOW_WAR_ROOM_ROWS_KEY = 'bm_69:show_war_room_rows';
@@ -5525,10 +5529,35 @@
     }
 
     function updateMobileFocusLabel() {
-        const btn = document.getElementById('mobileFocusBtn');
-        if (!btn) return;
-        const on = document.body.classList.contains('mobile-focus-mode');
-        btn.textContent = `🧲 釋放畫面：${on ? '開' : '關'}`;
+        const label = document.querySelector('#mobileFocusBtn span');
+        if (!label) return;
+        const mode = localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto';
+        const modeText = mode === 'clear' ? '釋放' : (mode === 'normal' ? '一般' : '自動');
+        label.textContent = `🧲 視圖模式：${modeText}`;
+    }
+
+    function applyMobileViewMode(mode, opts = {}) {
+        const normalized = (mode === 'clear' || mode === 'normal' || mode === 'auto') ? mode : 'auto';
+        localStorage.setItem(MOBILE_VIEW_MODE_KEY, normalized);
+        const activeMeasure = (drawMode === 'calibration' || drawMode === 'measure');
+        if (normalized === 'clear') {
+            document.body.classList.add('mobile-focus-mode');
+        } else if (normalized === 'normal') {
+            document.body.classList.remove('mobile-focus-mode');
+        } else {
+            document.body.classList.toggle('mobile-focus-mode', activeMeasure);
+        }
+        updateMobileFocusLabel();
+        if (!opts.silent) {
+            const text = normalized === 'clear' ? '釋放畫面' : (normalized === 'normal' ? '一般模式' : '自動釋放');
+            appendMobileTestLog(`視圖模式: ${text}`);
+        }
+    }
+
+    function cycleMobileViewMode() {
+        const current = localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto';
+        const next = current === 'normal' ? 'clear' : (current === 'clear' ? 'auto' : 'normal');
+        applyMobileViewMode(next);
     }
 
     function updateMobileChaosLabel() {
@@ -5557,8 +5586,15 @@
         }
         const activeMeasure = (drawMode === 'calibration' || drawMode === 'measure');
         document.body.classList.toggle('mobile-measure-mode', activeMeasure);
-        if (activeMeasure) {
+        const mode = localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto';
+        if (mode === 'auto') {
+            document.body.classList.toggle('mobile-focus-mode', activeMeasure);
+        } else if (mode === 'clear') {
             document.body.classList.add('mobile-focus-mode');
+        } else {
+            document.body.classList.remove('mobile-focus-mode');
+        }
+        if (activeMeasure && mode !== 'normal') {
             const box = document.getElementById('mobileTestLog');
             if (box) box.classList.add('collapsed');
         }
@@ -5568,9 +5604,7 @@
         appendMobileTestLog(`觸發功能: ${action}`);
         switch (action) {
         case 'toggle-focus':
-            document.body.classList.toggle('mobile-focus-mode');
-            updateMobileFocusLabel();
-            appendMobileTestLog(`釋放畫面: ${document.body.classList.contains('mobile-focus-mode') ? '開' : '關'}`);
+            cycleMobileViewMode();
             break;
         case 'toggle-chaos':
             toggleChaosMonkey();
@@ -5620,10 +5654,10 @@
                 document.body.classList.remove('mobile-focus-mode');
                 document.body.classList.remove('mobile-measure-mode');
             }
-            updateMobileFocusLabel();
+            applyMobileViewMode(localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto', { silent: true });
             syncMobileMeasureModeUI();
         });
-        updateMobileFocusLabel();
+        applyMobileViewMode(localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto', { silent: true });
         applySunlightMode();
         syncMobileMeasureModeUI();
         appendMobileTestLog('手機測試紀錄面板已啟用');
