@@ -19,6 +19,7 @@ struct ContentView: View {
     @State private var selectedMainPage: MainPage = .page1
     @State private var selectedStatusPage: StatusPage = .measure
     @State private var selectedControlPage: ControlPage = .measure
+    @State private var volumeSheetDetent: PresentationDetent = .fraction(0.28)
     @State private var isTopPanelExpanded = false
     @State private var isTacticalMenuOpen = false
     @State private var isClearViewMode = false
@@ -96,7 +97,7 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingVolumeScan) {
             volumeScanView
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.fraction(0.28), .medium, .large], selection: $volumeSheetDetent)
                 .presentationDragIndicator(.visible)
                 .presentationBackgroundInteraction(.enabled)
         }
@@ -121,6 +122,11 @@ struct ContentView: View {
         }
         .onChange(of: autoClearViewDuringMeasure) {
             syncAutoClearViewMode(for: selectedControlPage)
+        }
+        .onChange(of: showingVolumeScan) {
+            if showingVolumeScan {
+                volumeSheetDetent = .fraction(0.28)
+            }
         }
         .onAppear {
             syncAutoClearViewMode(for: selectedControlPage)
@@ -169,9 +175,19 @@ struct ContentView: View {
 
     private var clearViewRecordButton: some View {
         Button {
-            let recorded = performRecordMeasurement()
-            if recorded, autoClearViewDuringMeasure {
+            if canRecordMeasurement {
+                let recorded = performRecordMeasurement()
+                if recorded, autoClearViewDuringMeasure {
+                    clearViewAutoApplied = false
+                    setClearViewMode(false)
+                }
+            } else {
+                // Keep this button always responsive: if record conditions are not met,
+                // return to the full control panels so the operator can adjust quickly.
                 clearViewAutoApplied = false
+                selectedMainPage = .page1
+                selectedControlPage = .measure
+                selectedStatusPage = .measure
                 setClearViewMode(false)
             }
         } label: {
@@ -191,8 +207,9 @@ struct ContentView: View {
                 )
                 .shadow(color: .black.opacity(0.4), radius: 10, x: 0, y: 5)
                 .contentShape(Circle())
+                .padding(8)
+                .contentShape(Rectangle())
         }
-        .disabled(!canRecordMeasurement)
     }
 
     private var crosshair: some View {
@@ -1106,6 +1123,11 @@ struct ContentView: View {
             }
             .navigationTitle("3D 體積掃描儀")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("縮小視窗") {
+                        volumeSheetDetent = .fraction(0.28)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") {
                         showingVolumeScan = false
