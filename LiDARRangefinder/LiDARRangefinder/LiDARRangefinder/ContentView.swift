@@ -481,8 +481,9 @@ struct ContentView: View {
             }
             .pickerStyle(.segmented)
 
-            Group {
-                switch selectedControlPage {
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(spacing: 10) {
+                    switch selectedControlPage {
                 case .measure:
                     Toggle("量測時自動釋放畫面", isOn: $autoClearViewDuringMeasure)
                         .font(.footnote.bold())
@@ -639,6 +640,17 @@ struct ContentView: View {
                     Text(sessionManager.twdStakingStatusText)
                         .font(.caption2)
                         .foregroundStyle(.mint)
+
+                    Button(sessionManager.twdStakingPreviewEnabled ? "隱藏 AR 放樣點" : "顯示 AR 放樣點") {
+                        sessionManager.toggleTWDStakingPreviewInAR()
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.cyan)
+                    .frame(maxWidth: .infinity)
+
+                    Text(sessionManager.twdStakingPreviewStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.cyan)
 
                     if !sessionManager.twdStakingPoints.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -837,8 +849,12 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.purple)
                     .frame(maxWidth: .infinity)
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(maxHeight: 280)
+            .scrollDismissesKeyboard(.immediately)
         }
         .padding(12)
         .background(.regularMaterial)

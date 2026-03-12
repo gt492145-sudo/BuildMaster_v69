@@ -153,6 +153,8 @@ final class LiDARSessionManager: ObservableObject {
     @Published var twd97RotationDeg: Double = 0
     @Published var twdStakingPoints: [TWDStakingPoint] = []
     @Published var twdStakingStatusText: String = "放樣：待命"
+    @Published var twdStakingPreviewEnabled: Bool = false
+    @Published var twdStakingPreviewStatusText: String = "放樣點顯示：關"
     @Published var blueprintQuickStakeStatusText: String = "圖紙快速放樣：待命"
     @Published var ifcSimulationEnabled: Bool = false
     @Published var ifcSimulationStatusText: String = "IFC 模擬：待命"
@@ -224,6 +226,7 @@ final class LiDARSessionManager: ObservableObject {
     private var autoCorrectionRoundsDone = 0
     private var overlayAnchorEntity: AnchorEntity?
     private var ifcSimulationAnchor: AnchorEntity?
+    private var twdStakingPreviewAnchor: AnchorEntity?
     private var overlayImageName: String?
     private var ifcElements: [IFCElementSpec] = []
     private var overlayConfigSignature: String = ""
@@ -652,6 +655,22 @@ final class LiDARSessionManager: ObservableObject {
         UserDefaults.standard.set(value, forKey: twd97RotationStorageKey)
     }
 
+    func toggleTWDStakingPreviewInAR() {
+        if twdStakingPreviewEnabled {
+            clearTWDStakingPreviewAnchor()
+            return
+        }
+        guard !twdStakingPoints.isEmpty else {
+            twdStakingPreviewStatusText = "放樣點顯示：請先生成放樣點"
+            return
+        }
+        guard arView != nil else {
+            twdStakingPreviewStatusText = "放樣點顯示：AR 尚未就緒"
+            return
+        }
+        regenerateTWDStakingPreviewAnchor()
+    }
+
     func generateTWDStakingPointsFromIFC() {
         guard !ifcElements.isEmpty else {
             twdStakingPoints = []
@@ -692,6 +711,9 @@ final class LiDARSessionManager: ObservableObject {
 
         twdStakingPoints = points
         twdStakingStatusText = "放樣：已生成 \(points.count) 點（TWD97）"
+        if twdStakingPreviewEnabled {
+            regenerateTWDStakingPreviewAnchor()
+        }
     }
 
     func generateQuickStakingPointsFromBlueprint(planWidthMeters: Double, planHeightMeters: Double) {
@@ -732,6 +754,9 @@ final class LiDARSessionManager: ObservableObject {
         }
         twdStakingStatusText = "放樣：已由圖紙快速生成 \(twdStakingPoints.count) 點（TWD97）"
         blueprintQuickStakeStatusText = String(format: "圖紙快速放樣：消防/機電 10 點（%.2fm × %.2fm）已轉換 TWD97", width, height)
+        if twdStakingPreviewEnabled {
+            regenerateTWDStakingPreviewAnchor()
+        }
     }
 
     private func toTWDStakingPoint(name: String, localX: Double, localY: Double, localZ: Double) -> TWDStakingPoint {
@@ -750,6 +775,79 @@ final class LiDARSessionManager: ObservableObject {
             n: n,
             h: h
         )
+    }
+
+    private func regenerateTWDStakingPreviewAnchor() {
+        guard let arView else { return }
+        twdStakingPreviewAnchor?.removeFromParent()
+
+        let anchor = AnchorEntity(world: matrix_identity_float4x4)
+        if let cameraTransform = arView.session.currentFrame?.camera.transform {
+            let forward = SIMD3<Float>(
+                -cameraTransform.columns.2.x,
+                -cameraTransform.columns.2.y,
+                -cameraTransform.columns.2.z
+            )
+            let cameraPos = SIMD3<Float>(
+                cameraTransform.columns.3.x,
+                cameraTransform.columns.3.y,
+                cameraTransform.columns.3.z
+            )
+            anchor.position = cameraPos + (forward * 1.3) + SIMD3<Float>(0, -0.18, 0)
+        } else {
+            anchor.position = [0, 0, -1.3]
+        }
+
+        let root = Entity()
+        anchor.addChild(root)
+
+        // Auto-fit staking cloud into visible AR area.
+        let xs = twdStakingPoints.map(\.localX)
+        let ys = twdStakingPoints.map(\.localY)
+        let minX = xs.min() ?? -1
+        let maxX = xs.max() ?? 1
+        let minY = ys.min() ?? -1
+        let maxY = ys.max() ?? 1
+        let span = max(maxX - minX, maxY - minY)
+        let scale = Float(span > 0 ? min(1.0, 2.0 / span) : 1.0)
+
+        let markerMesh = MeshResource.generateSphere(radius: 0.028)
+        let stemMesh = MeshResource.generateBox(size: [0.008, 0.14, 0.008])
+        let markerMat = SimpleMaterial(color: .systemMint, roughness: 0.25, isMetallic: true)
+        let stemMat = SimpleMaterial(color: UIColor.white.withAlphaComponent(0.85), roughness: 0.4, isMetallic: false)
+
+        for (index, point) in twdStakingPoints.enumerated() {
+            let px = Float((point.localX - ((minX + maxX) / 2.0)) * Double(scale))
+            let pz = Float((point.localY - ((minY + maxY) / 2.0)) * Double(scale))
+            let marker = ModelEntity(mesh: markerMesh, materials: [markerMat])
+            marker.position = [px, 0.08, pz]
+            root.addChild(marker)
+
+            let stem = ModelEntity(mesh: stemMesh, materials: [stemMat])
+            stem.position = [px, 0.01, pz]
+            root.addChild(stem)
+
+            if index == 0 {
+                // Highlight first point as quick orientation reference.
+                let refMesh = MeshResource.generateSphere(radius: 0.04)
+                let refMat = SimpleMaterial(color: .systemYellow, roughness: 0.15, isMetallic: true)
+                let ref = ModelEntity(mesh: refMesh, materials: [refMat])
+                ref.position = [px, 0.16, pz]
+                root.addChild(ref)
+            }
+        }
+
+        arView.scene.addAnchor(anchor)
+        twdStakingPreviewAnchor = anchor
+        twdStakingPreviewEnabled = true
+        twdStakingPreviewStatusText = "放樣點顯示：已開啟（\(twdStakingPoints.count) 點）"
+    }
+
+    private func clearTWDStakingPreviewAnchor() {
+        twdStakingPreviewAnchor?.removeFromParent()
+        twdStakingPreviewAnchor = nil
+        twdStakingPreviewEnabled = false
+        twdStakingPreviewStatusText = "放樣點顯示：關"
     }
 
     func toggleIFCSimulationFromUploadedBlueprint() {
@@ -1275,6 +1373,8 @@ final class LiDARSessionManager: ObservableObject {
         ifcShowPipes = true
         twdStakingPoints = []
         twdStakingStatusText = "放樣：待命"
+        clearTWDStakingPreviewAnchor()
+        twdStakingPreviewStatusText = "放樣點顯示：關"
         blueprintQuickStakeStatusText = "圖紙快速放樣：待命"
         clearIFCSimulationAnchor()
         ifcSimulationStatusText = "IFC 模擬：待命"
