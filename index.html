@@ -3050,13 +3050,8 @@
 
         try {
             await new Promise(resolve => setTimeout(resolve, 2500));
-            if (typeof startEdgeAIVision === 'function') {
-                try {
-                    await startEdgeAIVision();
-                } catch (visionError) {
-                    console.warn('AI 視覺解析警告:', visionError);
-                }
-            }
+            
+            // ✂️ (內鬼已經被阿基切除了，現在這裡非常乾淨！)
 
             // 若有 IFC，走完整核心放樣流程；若無 IFC，維持 3D 展示模式。
             if (bimModelData && Array.isArray(bimModelData.elements) && bimModelData.elements.length) {
