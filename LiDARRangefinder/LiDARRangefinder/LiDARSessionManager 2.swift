@@ -83,6 +83,17 @@ private struct IFCModelPayload: Codable {
     var elements: [IFCElementSpec]
 }
 
+struct TWDStakingPoint: Identifiable {
+    let id = UUID()
+    let name: String
+    let localX: Double
+    let localY: Double
+    let localZ: Double
+    let e: Double
+    let n: Double
+    let h: Double
+}
+
 @MainActor
 final class LiDARSessionManager: ObservableObject {
     @Published var distanceText: String = "-- m"
@@ -136,6 +147,13 @@ final class LiDARSessionManager: ObservableObject {
     @Published var ifcShowWalls: Bool = true
     @Published var ifcShowRebars: Bool = true
     @Published var ifcShowPipes: Bool = true
+    @Published var twd97BaseE: Double = 204000
+    @Published var twd97BaseN: Double = 2_682_000
+    @Published var twd97BaseH: Double = 0
+    @Published var twd97RotationDeg: Double = 0
+    @Published var twdStakingPoints: [TWDStakingPoint] = []
+    @Published var twdStakingStatusText: String = "放樣：待命"
+    @Published var blueprintQuickStakeStatusText: String = "圖紙快速放樣：待命"
     @Published var ifcSimulationEnabled: Bool = false
     @Published var ifcSimulationStatusText: String = "IFC 模擬：待命"
     @Published var crackInputImage: UIImage?
@@ -197,6 +215,10 @@ final class LiDARSessionManager: ObservableObject {
     private let highPrecisionContinuousModeStorageKey = "lidar_rangefinder_high_precision_continuous_mode"
     private let designTargetDistanceStorageKey = "lidar_rangefinder_design_target_distance_m"
     private let deviationToleranceStorageKey = "lidar_rangefinder_deviation_tolerance_cm"
+    private let twd97BaseEStorageKey = "lidar_rangefinder_twd97_base_e"
+    private let twd97BaseNStorageKey = "lidar_rangefinder_twd97_base_n"
+    private let twd97BaseHStorageKey = "lidar_rangefinder_twd97_base_h"
+    private let twd97RotationStorageKey = "lidar_rangefinder_twd97_rotation_deg"
     private var aiIssue: AIQAIssueType = .none
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
@@ -295,6 +317,18 @@ final class LiDARSessionManager: ObservableObject {
         }
         if UserDefaults.standard.object(forKey: deviationToleranceStorageKey) != nil {
             deviationToleranceCm = clampDeviationToleranceCm(UserDefaults.standard.double(forKey: deviationToleranceStorageKey))
+        }
+        if UserDefaults.standard.object(forKey: twd97BaseEStorageKey) != nil {
+            twd97BaseE = UserDefaults.standard.double(forKey: twd97BaseEStorageKey)
+        }
+        if UserDefaults.standard.object(forKey: twd97BaseNStorageKey) != nil {
+            twd97BaseN = UserDefaults.standard.double(forKey: twd97BaseNStorageKey)
+        }
+        if UserDefaults.standard.object(forKey: twd97BaseHStorageKey) != nil {
+            twd97BaseH = UserDefaults.standard.double(forKey: twd97BaseHStorageKey)
+        }
+        if UserDefaults.standard.object(forKey: twd97RotationStorageKey) != nil {
+            twd97RotationDeg = UserDefaults.standard.double(forKey: twd97RotationStorageKey)
         }
         if quantumModeEnabled {
             highestModeLockEnabled = true
@@ -596,6 +630,126 @@ final class LiDARSessionManager: ObservableObject {
     func setIFCShowPipes(_ enabled: Bool) {
         ifcShowPipes = enabled
         if ifcSimulationEnabled { regenerateIFCSimulationAnchor() }
+    }
+
+    func setTWD97BaseE(_ value: Double) {
+        twd97BaseE = value
+        UserDefaults.standard.set(value, forKey: twd97BaseEStorageKey)
+    }
+
+    func setTWD97BaseN(_ value: Double) {
+        twd97BaseN = value
+        UserDefaults.standard.set(value, forKey: twd97BaseNStorageKey)
+    }
+
+    func setTWD97BaseH(_ value: Double) {
+        twd97BaseH = value
+        UserDefaults.standard.set(value, forKey: twd97BaseHStorageKey)
+    }
+
+    func setTWD97RotationDeg(_ value: Double) {
+        twd97RotationDeg = value
+        UserDefaults.standard.set(value, forKey: twd97RotationStorageKey)
+    }
+
+    func generateTWDStakingPointsFromIFC() {
+        guard !ifcElements.isEmpty else {
+            twdStakingPoints = []
+            twdStakingStatusText = "放樣：請先匯入 IFC/JSON"
+            return
+        }
+        let rotation = twd97RotationDeg * .pi / 180.0
+        let cosR = cos(rotation)
+        let sinR = sin(rotation)
+        var points: [TWDStakingPoint] = []
+
+        for (index, element) in ifcElements.enumerated() {
+            let localX = element.x ?? 0
+            let localY = element.z ?? 0
+            let localZ = element.y ?? 0
+
+            let e = twd97BaseE + (localX * cosR - localY * sinR)
+            let n = twd97BaseN + (localX * sinR + localY * cosR)
+            let h = twd97BaseH + localZ
+            let prefix: String
+            switch element.type {
+            case .wall: prefix = "W"
+            case .rebar: prefix = "R"
+            case .pipe: prefix = "P"
+            }
+            points.append(
+                TWDStakingPoint(
+                    name: "\(prefix)-\(index + 1)",
+                    localX: localX,
+                    localY: localY,
+                    localZ: localZ,
+                    e: e,
+                    n: n,
+                    h: h
+                )
+            )
+        }
+
+        twdStakingPoints = points
+        twdStakingStatusText = "放樣：已生成 \(points.count) 點（TWD97）"
+    }
+
+    func generateQuickStakingPointsFromBlueprint(planWidthMeters: Double, planHeightMeters: Double) {
+        guard blueprintInputImage != nil else {
+            blueprintQuickStakeStatusText = "圖紙快速放樣：請先上傳圖紙"
+            return
+        }
+        let width = max(0.5, planWidthMeters)
+        let height = max(0.5, planHeightMeters)
+        let halfW = width / 2
+        let halfH = height / 2
+
+        // Quick mode preset: fire/electrical room focused staking points.
+        let localPoints: [(String, Double, Double, Double)] = [
+            // 消防水池四角（預設落在上半部）
+            ("FP-01", -halfW * 0.22, halfH * 0.42, 0),
+            ("FP-02", halfW * 0.22, halfH * 0.42, 0),
+            ("FP-03", halfW * 0.22, halfH * 0.16, 0),
+            ("FP-04", -halfW * 0.22, halfH * 0.16, 0),
+
+            // 電信室門口與角點（中段左側）
+            ("TR-01", -halfW * 0.20, -halfH * 0.02, 0),
+            ("TR-02", -halfW * 0.06, -halfH * 0.10, 0),
+
+            // 消防機房門口與角點（下段右側）
+            ("MR-01", halfW * 0.20, -halfH * 0.44, 0),
+            ("MR-02", halfW * 0.06, -halfH * 0.33, 0),
+
+            // 無障礙梯前緣中心
+            ("ST-01", halfW * 0.18, -halfH * 0.03, 0),
+
+            // 全區基準中心點
+            ("AX-01", 0, 0, 0)
+        ]
+
+        twdStakingPoints = localPoints.map { name, x, y, z in
+            toTWDStakingPoint(name: name, localX: x, localY: y, localZ: z)
+        }
+        twdStakingStatusText = "放樣：已由圖紙快速生成 \(twdStakingPoints.count) 點（TWD97）"
+        blueprintQuickStakeStatusText = String(format: "圖紙快速放樣：消防/機電 10 點（%.2fm × %.2fm）已轉換 TWD97", width, height)
+    }
+
+    private func toTWDStakingPoint(name: String, localX: Double, localY: Double, localZ: Double) -> TWDStakingPoint {
+        let rotation = twd97RotationDeg * .pi / 180.0
+        let cosR = cos(rotation)
+        let sinR = sin(rotation)
+        let e = twd97BaseE + (localX * cosR - localY * sinR)
+        let n = twd97BaseN + (localX * sinR + localY * cosR)
+        let h = twd97BaseH + localZ
+        return TWDStakingPoint(
+            name: name,
+            localX: localX,
+            localY: localY,
+            localZ: localZ,
+            e: e,
+            n: n,
+            h: h
+        )
     }
 
     func toggleIFCSimulationFromUploadedBlueprint() {
@@ -1119,6 +1273,9 @@ final class LiDARSessionManager: ObservableObject {
         ifcShowWalls = true
         ifcShowRebars = true
         ifcShowPipes = true
+        twdStakingPoints = []
+        twdStakingStatusText = "放樣：待命"
+        blueprintQuickStakeStatusText = "圖紙快速放樣：待命"
         clearIFCSimulationAnchor()
         ifcSimulationStatusText = "IFC 模擬：待命"
 

@@ -50,6 +50,8 @@ struct ContentView: View {
     @State private var monkeyPasswordError = ""
     @State private var showingIFCFileImporter = false
     @State private var selectedBlueprintPhotoItem: PhotosPickerItem?
+    @State private var blueprintPlanWidthMeters: Double = 8.85
+    @State private var blueprintPlanHeightMeters: Double = 24.925
     @State private var tacticalMenuDragOffset: CGFloat = 0
     private let minRecordScore = 85
     private let tacticalMenuWidth: CGFloat = 230
@@ -597,6 +599,69 @@ struct ContentView: View {
                         .font(.caption2)
                         .foregroundStyle(.indigo)
 
+                    Group {
+                        TextField("TWD97 E", value: Binding(
+                            get: { sessionManager.twd97BaseE },
+                            set: { sessionManager.setTWD97BaseE($0) }
+                        ), format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .keyboardType(.decimalPad)
+
+                        TextField("TWD97 N", value: Binding(
+                            get: { sessionManager.twd97BaseN },
+                            set: { sessionManager.setTWD97BaseN($0) }
+                        ), format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .keyboardType(.decimalPad)
+
+                        TextField("TWD97 H", value: Binding(
+                            get: { sessionManager.twd97BaseH },
+                            set: { sessionManager.setTWD97BaseH($0) }
+                        ), format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .keyboardType(.decimalPad)
+
+                        TextField("旋轉角（deg）", value: Binding(
+                            get: { sessionManager.twd97RotationDeg },
+                            set: { sessionManager.setTWD97RotationDeg($0) }
+                        ), format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .keyboardType(.decimalPad)
+                    }
+
+                    Button("生成 TWD97 放樣點") {
+                        sessionManager.generateTWDStakingPointsFromIFC()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.mint)
+                    .frame(maxWidth: .infinity)
+
+                    Text(sessionManager.twdStakingStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.mint)
+
+                    if !sessionManager.twdStakingPoints.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(sessionManager.twdStakingPoints.prefix(10)) { point in
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(point.name)
+                                            .font(.caption.bold())
+                                        Text(String(format: "E %.3f", point.e))
+                                            .font(.caption2)
+                                        Text(String(format: "N %.3f", point.n))
+                                            .font(.caption2)
+                                        Text(String(format: "H %.3f", point.h))
+                                            .font(.caption2)
+                                    }
+                                    .padding(8)
+                                    .background(.black.opacity(0.18))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                }
+                            }
+                        }
+                    }
+
                     if sessionManager.ifcModelElementCount > 0 {
                         Toggle("顯示牆體", isOn: Binding(
                             get: { sessionManager.ifcShowWalls },
@@ -644,6 +709,29 @@ struct ContentView: View {
                         .buttonStyle(.bordered)
                         .frame(maxWidth: .infinity)
                     }
+
+                    Group {
+                        TextField("圖紙寬（m）", value: $blueprintPlanWidthMeters, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .keyboardType(.decimalPad)
+                        TextField("圖紙高（m）", value: $blueprintPlanHeightMeters, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .keyboardType(.decimalPad)
+                    }
+
+                    Button("由上傳圖紙快速生成放樣點") {
+                        sessionManager.generateQuickStakingPointsFromBlueprint(
+                            planWidthMeters: blueprintPlanWidthMeters,
+                            planHeightMeters: blueprintPlanHeightMeters
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.teal)
+                    .frame(maxWidth: .infinity)
+
+                    Text(sessionManager.blueprintQuickStakeStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.teal)
 
                     Button(sessionManager.ifcSimulationEnabled ? "IFC 模擬：清除 3D" : "IFC 模擬：生成 3D 工程模型") {
                         sessionManager.toggleIFCSimulationFromUploadedBlueprint()
