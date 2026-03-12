@@ -1149,9 +1149,13 @@ final class LiDARSessionManager: ObservableObject {
         arView.scene.addAnchor(anchor)
         ifcSimulationAnchor = anchor
         ifcSimulationEnabled = true
-        ifcSimulationStatusText = ifcElements.isEmpty
-            ? "IFC 模擬：已生成牆體/鋼筋/水管（示意）"
-            : "IFC 模擬：已套用 IFC 模型生成 3D"
+        if ifcElements.isEmpty, blueprintInputImage != nil {
+            ifcSimulationStatusText = "IFC 模擬：已依上傳圖紙生成 3D（自動變化）"
+        } else if ifcElements.isEmpty {
+            ifcSimulationStatusText = "IFC 模擬：已生成牆體/鋼筋/水管（示意）"
+        } else {
+            ifcSimulationStatusText = "IFC 模擬：已套用 IFC 模型生成 3D"
+        }
     }
 
     func toggleFacadeHologramFromBlueprint() {
@@ -2075,7 +2079,7 @@ final class LiDARSessionManager: ObservableObject {
 
         if ifcElements.isEmpty {
             // Fallback demo geometry when no IFC-JSON payload exists.
-            addFallbackIFCEntities(to: root)
+            addFallbackIFCEntities(to: root, blueprintImage: blueprintInputImage)
         } else {
             addIFCEntities(from: ifcElements, to: root)
         }
@@ -2084,13 +2088,36 @@ final class LiDARSessionManager: ObservableObject {
         return anchor
     }
 
-    private func addFallbackIFCEntities(to root: Entity) {
+    private func addFallbackIFCEntities(to root: Entity, blueprintImage: UIImage?) {
         guard ifcShowWalls || ifcShowRebars || ifcShowPipes else { return }
+        let lumaMap = blueprintImage.flatMap { makeFacadeLumaMap(from: $0, maxDimension: 72) }
+        let avgLuma: Float = {
+            guard let map = lumaMap, !map.bytes.isEmpty else { return 0.52 }
+            let sum = map.bytes.reduce(0) { $0 + Int($1) }
+            return Float(sum) / Float(map.bytes.count * 255)
+        }()
+        let contrast: Float = {
+            guard let map = lumaMap, !map.bytes.isEmpty else { return 0.28 }
+            let mean = avgLuma * 255
+            let variance = map.bytes.reduce(Float(0)) { partial, b in
+                let d = Float(b) - mean
+                return partial + d * d
+            } / Float(map.bytes.count * 255 * 255)
+            return min(0.55, max(0.12, sqrt(variance)))
+        }()
+        let imageRatio: Float = {
+            guard let size = blueprintImage?.size, size.width > 0 else { return 1.45 }
+            return min(2.2, max(0.6, Float(size.height / size.width)))
+        }()
+
         if ifcShowWalls {
-            let wallMesh = MeshResource.generateBox(size: [1.6, 2.7, 0.16])
+            let wallWidth = min(2.1, max(1.15, 1.15 + imageRatio * 0.5))
+            let wallHeight = min(3.3, max(2.2, 2.2 + (1 - avgLuma) * 1.1))
+            let wallDepth = min(0.28, max(0.12, 0.12 + contrast * 0.22))
+            let wallMesh = MeshResource.generateBox(size: [wallWidth, wallHeight, wallDepth])
             let wallMaterial = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.4), roughness: 0.24, isMetallic: false)
             let wallEntity = ModelEntity(mesh: wallMesh, materials: [wallMaterial])
-            wallEntity.position = [0, 1.35, 0]
+            wallEntity.position = [0, wallHeight / 2, 0]
             root.addChild(wallEntity)
         }
         if ifcShowRebars {
@@ -2098,30 +2125,38 @@ final class LiDARSessionManager: ObservableObject {
             let rebarHorizontalMesh = MeshResource.generateBox(size: [1.42, 0.01, 0.01])
             let rebarMaterial = SimpleMaterial(color: .systemRed, roughness: 0.14, isMetallic: true)
             let stirrupMaterial = SimpleMaterial(color: .systemOrange, roughness: 0.2, isMetallic: true)
-            for index in 0..<6 {
-                let x = -0.7 + Float(index) * 0.28
+            let verticalCount = max(4, min(11, Int((contrast * 16).rounded())))
+            let wallSpan: Float = min(1.9, max(1.1, 1.05 + imageRatio * 0.45))
+            for index in 0..<verticalCount {
+                let normalized = Float(index) / Float(max(1, verticalCount - 1))
+                let x = -wallSpan / 2 + wallSpan * normalized
                 let bar = ModelEntity(mesh: rebarVerticalMesh, materials: [rebarMaterial])
                 bar.position = [x, 1.35, -0.02]
                 root.addChild(bar)
             }
-            for index in 0..<10 {
-                let y = 0.2 + Float(index) * 0.25
+            let stirrupCount = max(7, min(14, Int((7 + (1 - avgLuma) * 8).rounded())))
+            let stirrupSpacing = 2.2 / Float(max(1, stirrupCount))
+            for index in 0..<stirrupCount {
+                let y = 0.25 + Float(index) * stirrupSpacing
                 let stirrup = ModelEntity(mesh: rebarHorizontalMesh, materials: [stirrupMaterial])
                 stirrup.position = [0, y, -0.02]
                 root.addChild(stirrup)
             }
         }
         if ifcShowPipes {
-            let pipeMesh = MeshResource.generateCylinder(height: 1.35, radius: 0.03)
+            let pipeLength = min(1.9, max(1.05, 1.0 + imageRatio * 0.42))
+            let pipeRadius = min(0.05, max(0.024, 0.024 + contrast * 0.045))
+            let pipeMesh = MeshResource.generateCylinder(height: pipeLength, radius: pipeRadius)
             let coldPipeMaterial = SimpleMaterial(color: .systemBlue, roughness: 0.12, isMetallic: true)
             let hotPipeMaterial = SimpleMaterial(color: .systemGreen, roughness: 0.12, isMetallic: true)
             let coldPipe = ModelEntity(mesh: pipeMesh, materials: [coldPipeMaterial])
             coldPipe.orientation = simd_quatf(angle: .pi / 2, axis: [0, 0, 1])
-            coldPipe.position = [0, 0.95, 0.035]
+            let baseY = min(1.35, max(0.85, 0.85 + (1 - avgLuma) * 0.55))
+            coldPipe.position = [0, baseY, 0.035]
             root.addChild(coldPipe)
             let hotPipe = ModelEntity(mesh: pipeMesh, materials: [hotPipeMaterial])
             hotPipe.orientation = simd_quatf(angle: .pi / 2, axis: [0, 0, 1])
-            hotPipe.position = [0, 1.45, 0.035]
+            hotPipe.position = [0, baseY + 0.42, 0.035]
             root.addChild(hotPipe)
         }
     }
@@ -2638,7 +2673,7 @@ final class LiDARSessionManager: ObservableObject {
     }
 
     private func runIBMQuantumRuntimeJob() async {
-        guard quantumModeEnabled, quantumIBMCloudEnabled else { return }
+        guard quantumIBMCloudEnabled else { return }
         guard let apiKey = UserDefaults.standard.string(forKey: quantumIBMAPIKeyStorageKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines), !apiKey.isEmpty else {
             quantumIBMJobText = "IBM Job：未設定 API Key"
@@ -2661,14 +2696,18 @@ final class LiDARSessionManager: ObservableObject {
             if status == "completed" {
                 let resultSummary = try await fetchIBMRuntimeResultSummary(apiKey: apiKey, jobID: jobID)
                 quantumIBMResultText = "IBM Result：\(resultSummary)"
-                quantumStatusText = "核心引擎：IBM Job 完成，雲端回饋已更新"
+                quantumStatusText = quantumModeEnabled
+                    ? "核心引擎：IBM Job 完成，雲端回饋已更新"
+                    : "IBM 雲端：送件完成（未啟用核心也可送件）"
             } else {
                 quantumIBMResultText = "IBM Result：Job 狀態 \(status)"
             }
         } catch {
             quantumIBMJobText = "IBM Job：送出失敗"
             quantumIBMResultText = "IBM Result：\(error.localizedDescription)"
-            quantumStatusText = "核心引擎：IBM 連線失敗，已回退本地模式"
+            quantumStatusText = quantumModeEnabled
+                ? "核心引擎：IBM 連線失敗，已回退本地模式"
+                : "IBM 雲端：送件失敗，請檢查 Key/Backend"
         }
     }
 
