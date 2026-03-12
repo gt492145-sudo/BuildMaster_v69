@@ -46,6 +46,10 @@ struct ContentView: View {
     @State private var safetyMonkeyTickCount = 0
     @State private var safetyMonkeyLastAction = "待命"
     @State private var safetyMonkeyTask: Task<Void, Never>?
+    @State private var monkeySessionStartedAt: Date?
+    @State private var monkeyLastStoppedAt: Date?
+    @State private var monkeyActionHistory: [String] = []
+    @State private var monkeyReportLines: [String] = []
     @State private var monkeyHasPassword = false
     @State private var isMonkeyUnlocked = false
     @State private var showingMonkeyAccessSheet = false
@@ -877,6 +881,37 @@ struct ContentView: View {
                     Text("最近動作：\(safetyMonkeyLastAction)")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+
+                    HStack(spacing: 10) {
+                        Button("📋 生成猴子測試報告") {
+                            buildMonkeyTestReport()
+                        }
+                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
+
+                        Button("清除猴子報告") {
+                            monkeyReportLines = []
+                        }
+                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
+                    }
+
+                    if !monkeyReportLines.isEmpty {
+                        ScrollView(.vertical, showsIndicators: true) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(Array(monkeyReportLines.enumerated()), id: \.offset) { _, line in
+                                    Text(line)
+                                        .font(.caption2)
+                                        .foregroundStyle(.white.opacity(0.9))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                        }
+                        .frame(maxHeight: 130)
+                        .padding(8)
+                        .background(.black.opacity(0.16))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
 
                     Button("✅ 測試打勾表") {
                         showingTestChecklist = true
@@ -2239,6 +2274,10 @@ struct ContentView: View {
         safetyMonkeyEnabled = true
         safetyMonkeyTickCount = 0
         safetyMonkeyLastAction = "已啟動"
+        monkeySessionStartedAt = Date()
+        monkeyLastStoppedAt = nil
+        monkeyActionHistory = []
+        appendMonkeyAction("已啟動")
         safetyMonkeyTask = Task {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 3_200_000_000)
@@ -2364,6 +2403,9 @@ struct ContentView: View {
         safetyMonkeyTask?.cancel()
         safetyMonkeyTask = nil
         safetyMonkeyLastAction = "已停止"
+        appendMonkeyAction("已停止")
+        monkeyLastStoppedAt = Date()
+        buildMonkeyTestReport()
     }
 
     private func runSafetyMonkeyTick(sessionManager: LiDARSessionManager?) {
@@ -2413,5 +2455,37 @@ struct ContentView: View {
             sessionManager?.refreshCrackPreviewFromCurrentFrame()
             safetyMonkeyLastAction = "更新裂縫鏡頭預覽"
         }
+        appendMonkeyAction(safetyMonkeyLastAction)
+    }
+
+    private func appendMonkeyAction(_ action: String) {
+        let time = Date().formatted(date: .omitted, time: .standard)
+        monkeyActionHistory.insert("[\(time)] \(action)", at: 0)
+        if monkeyActionHistory.count > 24 {
+            monkeyActionHistory.removeLast(monkeyActionHistory.count - 24)
+        }
+    }
+
+    private func buildMonkeyTestReport() {
+        let now = Date()
+        let startedAt = monkeySessionStartedAt ?? now
+        let endedAt = monkeyLastStoppedAt ?? now
+        let duration = max(0, endedAt.timeIntervalSince(startedAt))
+        var lines: [String] = []
+        lines.append("猴子測試報告")
+        lines.append("開始：\(startedAt.formatted(date: .abbreviated, time: .standard))")
+        lines.append("結束：\(endedAt.formatted(date: .abbreviated, time: .standard))")
+        lines.append(String(format: "運行時長：%.1f 秒", duration))
+        lines.append("動作次數：\(safetyMonkeyTickCount)")
+        lines.append("最後狀態：\(safetyMonkeyLastAction)")
+        if monkeyActionHistory.isEmpty {
+            lines.append("近期動作：無")
+        } else {
+            lines.append("近期動作（最多 8 筆）：")
+            for item in monkeyActionHistory.prefix(8) {
+                lines.append("• \(item)")
+            }
+        }
+        monkeyReportLines = lines
     }
 }

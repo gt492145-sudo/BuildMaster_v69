@@ -58,9 +58,16 @@ struct ARViewContainer: UIViewRepresentable {
         }
 
         @objc func handlePinch(_ recognizer: UIPinchGestureRecognizer) {
-            guard recognizer.state == .changed else { return }
-            sessionManager.adjustFacadeHologramScale(by: recognizer.scale)
-            recognizer.scale = 1.0
+            switch recognizer.state {
+            case .began, .changed:
+                sessionManager.adjustFacadeHologramScale(by: recognizer.scale)
+                recognizer.scale = 1.0
+            case .ended:
+                // Leave final status update to explicit actions to avoid high-frequency UI churn.
+                break
+            default:
+                break
+            }
         }
 
         @objc func handlePanRotate(_ recognizer: UIPanGestureRecognizer) {
@@ -86,7 +93,22 @@ struct ARViewContainer: UIViewRepresentable {
         }
 
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-            true
+            // Allow only multi-touch gesture combos needed for hologram manipulation.
+            let a = gestureRecognizer
+            let b = otherGestureRecognizer
+            if (a is UIPinchGestureRecognizer && b is UIRotationGestureRecognizer) ||
+                (a is UIRotationGestureRecognizer && b is UIPinchGestureRecognizer) {
+                return true
+            }
+            if (a is UIPinchGestureRecognizer && b is UIPanGestureRecognizer) ||
+                (a is UIPanGestureRecognizer && b is UIPinchGestureRecognizer) {
+                return true
+            }
+            if let panA = a as? UIPanGestureRecognizer, let panB = b as? UIPanGestureRecognizer {
+                // Do not run one-finger rotate-pan and two-finger move-pan together.
+                return panA.minimumNumberOfTouches == panB.minimumNumberOfTouches
+            }
+            return false
         }
     }
 }

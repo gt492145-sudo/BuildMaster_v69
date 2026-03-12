@@ -965,11 +965,31 @@ final class LiDARSessionManager: ObservableObject {
         body.position = [0, facadeHeight / 2, 0]
         root.addChild(body)
 
-        let cols = max(8, min(16, Int((facadeWidth / 0.16).rounded())))
-        let rows = max(12, min(28, Int((facadeHeight / 0.13).rounded())))
+        // Stability-first tessellation: keep entity count controlled on mobile GPUs.
+        let cols = max(6, min(10, Int((facadeWidth / 0.22).rounded())))
+        let rows = max(8, min(16, Int((facadeHeight / 0.2).rounded())))
         let unitW = facadeWidth / Float(cols)
         let unitH = facadeHeight / Float(rows)
-        let lumaMap = makeFacadeLumaMap(from: image, maxDimension: 100)
+        let lumaMap = makeFacadeLumaMap(from: image, maxDimension: 64)
+
+        let depthBuckets: [Float] = [0.012, 0.022, 0.034]
+        let toneBuckets: [CGFloat] = [0.66, 0.77, 0.88]
+        let tileMeshes = depthBuckets.map { bucket in
+            MeshResource.generateBox(size: [unitW * 0.93, unitH * 0.9, bucket])
+        }
+        let tileMaterials = toneBuckets.map { tone -> SimpleMaterial in
+            let color = UIColor(
+                red: tone * 0.9,
+                green: tone * 0.92,
+                blue: tone * 0.95,
+                alpha: 0.96
+            )
+            return SimpleMaterial(color: color, roughness: 0.4, isMetallic: false)
+        }
+
+        let windowMesh = MeshResource.generateBox(size: [unitW * 0.62, unitH * 0.56, 0.009])
+        let windowMat = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.82), roughness: 0.12, isMetallic: true)
+        var windowBudget = 120
 
         for row in 0..<rows {
             let y = unitH * (Float(row) + 0.5)
@@ -986,25 +1006,17 @@ final class LiDARSessionManager: ObservableObject {
                 let tileDepth = 0.012 + protrusion
                 let tileZ = depth / 2 + (tileDepth / 2) - recess
 
-                let tileMesh = MeshResource.generateBox(size: [unitW * 0.93, unitH * 0.9, tileDepth])
-                let concreteShade = 0.58 + (clampedLuma * 0.32)
-                let tileColor = UIColor(
-                    red: CGFloat(concreteShade * 0.9),
-                    green: CGFloat(concreteShade * 0.92),
-                    blue: CGFloat(concreteShade * 0.95),
-                    alpha: 0.96
-                )
-                let tileMat = SimpleMaterial(color: tileColor, roughness: 0.38, isMetallic: false)
-                let tile = ModelEntity(mesh: tileMesh, materials: [tileMat])
+                let depthIndex = min(depthBuckets.count - 1, max(0, Int((tileDepth - 0.012) / 0.011)))
+                let toneIndex = min(toneBuckets.count - 1, max(0, Int(clampedLuma * Float(toneBuckets.count))))
+                let tile = ModelEntity(mesh: tileMeshes[depthIndex], materials: [tileMaterials[toneIndex]])
                 tile.position = [x, y, tileZ]
                 root.addChild(tile)
 
-                if recess > 0.016 {
-                    let windowMesh = MeshResource.generateBox(size: [unitW * 0.68, unitH * 0.62, 0.01])
-                    let windowMat = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.88), roughness: 0.08, isMetallic: true)
+                if recess > 0.018, windowBudget > 0, ((row + col) % 2 == 0) {
                     let window = ModelEntity(mesh: windowMesh, materials: [windowMat])
                     window.position = [x, y, depth / 2 - recess - 0.006]
                     root.addChild(window)
+                    windowBudget -= 1
                 }
             }
         }
@@ -1063,9 +1075,8 @@ final class LiDARSessionManager: ObservableObject {
     func adjustFacadeHologramScale(by factor: CGFloat) {
         guard facadeHologramEnabled, facadeHologramRoot != nil else { return }
         let safeFactor = max(0.6, min(1.6, Float(factor)))
-        facadeHologramScale = min(3.2, max(0.35, facadeHologramScale * safeFactor))
+        facadeHologramScale = min(2.0, max(0.45, facadeHologramScale * safeFactor))
         applyFacadeHologramTransform()
-        facadeHologramStatusText = String(format: "立面全息：縮放 %.2fx", facadeHologramScale)
     }
 
     func rotateFacadeHologram(deltaYaw: Float, deltaPitch: Float) {
@@ -1073,14 +1084,12 @@ final class LiDARSessionManager: ObservableObject {
         facadeHologramYaw += deltaYaw
         facadeHologramPitch = min(0.95, max(-0.95, facadeHologramPitch + deltaPitch))
         applyFacadeHologramTransform()
-        facadeHologramStatusText = "立面全息：可自由旋轉"
     }
 
     func rollFacadeHologram(deltaRoll: Float) {
         guard facadeHologramEnabled, facadeHologramRoot != nil else { return }
         facadeHologramRoll += deltaRoll
         applyFacadeHologramTransform()
-        facadeHologramStatusText = "立面全息：旋轉中（含翻轉）"
     }
 
     func moveFacadeHologram(deltaScreenX: CGFloat, deltaScreenY: CGFloat) {
@@ -1094,7 +1103,6 @@ final class LiDARSessionManager: ObservableObject {
         let dy = Float(deltaScreenY) * sensitivity
         anchor.position += right * dx
         anchor.position += up * -dy
-        facadeHologramStatusText = "立面全息：已平移定位"
     }
 
     func resetFacadeHologramTransform() {
