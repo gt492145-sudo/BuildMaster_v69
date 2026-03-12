@@ -40,7 +40,7 @@ struct ContentView: View {
     @State private var isTopPanelExpanded = false
     @State private var isTacticalMenuOpen = false
     @State private var isClearViewMode = false
-    @State private var autoClearViewDuringMeasure = true
+    @State private var autoClearViewDuringMeasure = false
     @State private var clearViewAutoApplied = false
     @State private var safetyMonkeyEnabled = false
     @State private var safetyMonkeyTickCount = 0
@@ -220,6 +220,8 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            clearViewAutoApplied = false
+            setClearViewMode(false)
             syncAutoClearViewMode(for: selectedControlPage)
         }
         .onChange(of: scenePhase) {

@@ -12,6 +12,10 @@ struct ARViewContainer: UIViewRepresentable {
     func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero)
         view.environment.sceneUnderstanding.options.insert(.occlusion)
+        // Keep camera feed crisp for field alignment.
+        view.renderOptions.insert(.disableMotionBlur)
+        view.renderOptions.insert(.disableDepthOfField)
+        view.renderOptions.insert(.disableCameraGrain)
         view.automaticallyConfigureSession = false
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
         view.addGestureRecognizer(tap)

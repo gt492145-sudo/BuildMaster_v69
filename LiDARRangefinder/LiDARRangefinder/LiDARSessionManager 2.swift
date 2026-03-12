@@ -899,7 +899,7 @@ final class LiDARSessionManager: ObservableObject {
         let depth: Float = 0.18
 
         let bodyMesh = MeshResource.generateBox(size: [facadeWidth, facadeHeight, depth])
-        let bodyMat = SimpleMaterial(color: UIColor.systemCyan.withAlphaComponent(0.42), roughness: 0.12, isMetallic: true)
+        let bodyMat = SimpleMaterial(color: UIColor.systemCyan.withAlphaComponent(0.34), roughness: 0.18, isMetallic: true)
         let body = ModelEntity(mesh: bodyMesh, materials: [bodyMat])
         body.position = [0, facadeHeight / 2, 0]
         root.addChild(body)
@@ -907,7 +907,7 @@ final class LiDARSessionManager: ObservableObject {
         // Generate floor slabs based on facade ratio.
         let floorCount = max(6, min(16, Int((facadeHeight / 0.22).rounded())))
         let slabMesh = MeshResource.generateBox(size: [facadeWidth * 0.96, 0.007, depth * 1.02])
-        let slabMat = SimpleMaterial(color: UIColor.white.withAlphaComponent(0.78), roughness: 0.22, isMetallic: false)
+        let slabMat = SimpleMaterial(color: UIColor.white.withAlphaComponent(0.66), roughness: 0.3, isMetallic: false)
         for i in 1..<floorCount {
             let y = (facadeHeight / Float(floorCount)) * Float(i)
             let slab = ModelEntity(mesh: slabMesh, materials: [slabMat])
@@ -918,7 +918,7 @@ final class LiDARSessionManager: ObservableObject {
         // Window arrays left/right.
         let windowRows = max(5, floorCount - 2)
         let windowMesh = MeshResource.generateBox(size: [0.11, 0.085, 0.01])
-        let windowMat = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.9), roughness: 0.06, isMetallic: true)
+        let windowMat = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.78), roughness: 0.12, isMetallic: true)
         for row in 0..<windowRows {
             let y = 0.12 + (facadeHeight - 0.28) * Float(row) / Float(max(1, windowRows - 1))
             for col in -2...2 where col != 0 {
@@ -931,7 +931,7 @@ final class LiDARSessionManager: ObservableObject {
 
         // Central core / stair block.
         let coreMesh = MeshResource.generateBox(size: [0.32, facadeHeight * 0.96, depth * 1.1])
-        let coreMat = SimpleMaterial(color: UIColor.systemRed.withAlphaComponent(0.45), roughness: 0.1, isMetallic: true)
+        let coreMat = SimpleMaterial(color: UIColor.systemRed.withAlphaComponent(0.34), roughness: 0.16, isMetallic: true)
         let core = ModelEntity(mesh: coreMesh, materials: [coreMat])
         core.position = [0, facadeHeight * 0.48, 0]
         root.addChild(core)
@@ -1824,7 +1824,7 @@ final class LiDARSessionManager: ObservableObject {
         } else {
             addIFCEntities(from: ifcElements, to: root)
         }
-        root.scale = SIMD3<Float>(repeating: 1.12)
+        root.scale = SIMD3<Float>(repeating: 1.08)
 
         return anchor
     }
@@ -1833,7 +1833,7 @@ final class LiDARSessionManager: ObservableObject {
         guard ifcShowWalls || ifcShowRebars || ifcShowPipes else { return }
         if ifcShowWalls {
             let wallMesh = MeshResource.generateBox(size: [1.6, 2.7, 0.16])
-            let wallMaterial = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.5), roughness: 0.18, isMetallic: false)
+            let wallMaterial = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.4), roughness: 0.24, isMetallic: false)
             let wallEntity = ModelEntity(mesh: wallMesh, materials: [wallMaterial])
             wallEntity.position = [0, 1.35, 0]
             root.addChild(wallEntity)
@@ -1841,8 +1841,8 @@ final class LiDARSessionManager: ObservableObject {
         if ifcShowRebars {
             let rebarVerticalMesh = MeshResource.generateBox(size: [0.012, 2.45, 0.012])
             let rebarHorizontalMesh = MeshResource.generateBox(size: [1.42, 0.01, 0.01])
-            let rebarMaterial = SimpleMaterial(color: .systemRed, roughness: 0.08, isMetallic: true)
-            let stirrupMaterial = SimpleMaterial(color: .systemOrange, roughness: 0.12, isMetallic: true)
+            let rebarMaterial = SimpleMaterial(color: .systemRed, roughness: 0.14, isMetallic: true)
+            let stirrupMaterial = SimpleMaterial(color: .systemOrange, roughness: 0.2, isMetallic: true)
             for index in 0..<6 {
                 let x = -0.7 + Float(index) * 0.28
                 let bar = ModelEntity(mesh: rebarVerticalMesh, materials: [rebarMaterial])
@@ -1858,8 +1858,8 @@ final class LiDARSessionManager: ObservableObject {
         }
         if ifcShowPipes {
             let pipeMesh = MeshResource.generateCylinder(height: 1.35, radius: 0.03)
-            let coldPipeMaterial = SimpleMaterial(color: .systemBlue, roughness: 0.05, isMetallic: true)
-            let hotPipeMaterial = SimpleMaterial(color: .systemGreen, roughness: 0.05, isMetallic: true)
+            let coldPipeMaterial = SimpleMaterial(color: .systemBlue, roughness: 0.12, isMetallic: true)
+            let hotPipeMaterial = SimpleMaterial(color: .systemGreen, roughness: 0.12, isMetallic: true)
             let coldPipe = ModelEntity(mesh: pipeMesh, materials: [coldPipeMaterial])
             coldPipe.orientation = simd_quatf(angle: .pi / 2, axis: [0, 0, 1])
             coldPipe.position = [0, 0.95, 0.035]
@@ -1879,7 +1879,7 @@ final class LiDARSessionManager: ObservableObject {
                 let height = Float(max(0.2, element.height ?? 2.8))
                 let depth = Float(max(0.03, element.depth ?? 0.16))
                 let mesh = MeshResource.generateBox(size: [width, height, depth])
-                let material = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.5), roughness: 0.18, isMetallic: false)
+                let material = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.4), roughness: 0.24, isMetallic: false)
                 let entity = ModelEntity(mesh: mesh, materials: [material])
                 applyIFCTransform(for: element, to: entity, defaultY: Double(height / 2))
                 root.addChild(entity)
@@ -1888,7 +1888,7 @@ final class LiDARSessionManager: ObservableObject {
                 let height = Float(max(0.1, element.height ?? (element.length ?? 1.2)))
                 let depth = Float(max(0.005, element.depth ?? 0.012))
                 let mesh = MeshResource.generateBox(size: [width, height, depth])
-                let material = SimpleMaterial(color: .systemRed, roughness: 0.08, isMetallic: true)
+                let material = SimpleMaterial(color: .systemRed, roughness: 0.14, isMetallic: true)
                 let entity = ModelEntity(mesh: mesh, materials: [material])
                 applyIFCTransform(for: element, to: entity, defaultY: Double(height / 2))
                 root.addChild(entity)
@@ -1896,7 +1896,7 @@ final class LiDARSessionManager: ObservableObject {
                 let radius = Float(max(0.003, element.radius ?? 0.03))
                 let length = Float(max(0.05, element.length ?? element.width ?? 1.2))
                 let mesh = MeshResource.generateCylinder(height: length, radius: radius)
-                let material = SimpleMaterial(color: .systemGreen, roughness: 0.05, isMetallic: true)
+                let material = SimpleMaterial(color: .systemGreen, roughness: 0.12, isMetallic: true)
                 let entity = ModelEntity(mesh: mesh, materials: [material])
                 entity.orientation = simd_quatf(angle: .pi / 2, axis: [0, 0, 1])
                 applyIFCTransform(for: element, to: entity, defaultY: Double(element.y ?? 1.0))
