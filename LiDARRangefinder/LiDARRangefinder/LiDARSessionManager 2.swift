@@ -872,6 +872,53 @@ final class LiDARSessionManager: ObservableObject {
         twdStakingPreviewStatusText = "放樣點顯示：關"
     }
 
+    private struct FacadeLumaMap {
+        let width: Int
+        let height: Int
+        let bytes: [UInt8]
+
+        func sample(u: Float, v: Float) -> Float {
+            guard width > 0, height > 0 else { return 0.5 }
+            let uu = min(max(u, 0), 1)
+            let vv = min(max(v, 0), 1)
+            let x = min(width - 1, max(0, Int(uu * Float(width - 1))))
+            let y = min(height - 1, max(0, Int(vv * Float(height - 1))))
+            let idx = y * width + x
+            guard idx >= 0, idx < bytes.count else { return 0.5 }
+            return Float(bytes[idx]) / 255.0
+        }
+    }
+
+    private func makeFacadeLumaMap(from image: UIImage, maxDimension: Int = 96) -> FacadeLumaMap? {
+        guard let cgImage = image.cgImage else { return nil }
+        let sourceWidth = cgImage.width
+        let sourceHeight = cgImage.height
+        guard sourceWidth > 0, sourceHeight > 0 else { return nil }
+
+        let scale = min(1.0, Float(maxDimension) / Float(max(sourceWidth, sourceHeight)))
+        let targetWidth = max(16, Int(Float(sourceWidth) * scale))
+        let targetHeight = max(16, Int(Float(sourceHeight) * scale))
+        var bytes = [UInt8](repeating: 0, count: targetWidth * targetHeight)
+
+        let colorSpace = CGColorSpaceCreateDeviceGray()
+        let bytesPerRow = targetWidth
+        guard let context = CGContext(
+            data: &bytes,
+            width: targetWidth,
+            height: targetHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.none.rawValue
+        ) else {
+            return nil
+        }
+
+        context.interpolationQuality = .medium
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight))
+        return FacadeLumaMap(width: targetWidth, height: targetHeight, bytes: bytes)
+    }
+
     private func buildFacadeHologramAnchor(image: UIImage, referenceTransform: simd_float4x4?) -> AnchorEntity {
         let anchor = AnchorEntity(world: matrix_identity_float4x4)
         if let cameraTransform = referenceTransform {
@@ -894,47 +941,80 @@ final class LiDARSessionManager: ObservableObject {
         anchor.addChild(root)
 
         let imageRatio = max(0.35, min(2.2, Double(image.size.height / max(1, image.size.width))))
-        let facadeWidth: Float = 1.75
+        let facadeWidth: Float = 1.9
         let facadeHeight: Float = Float(facadeWidth * Float(imageRatio))
-        let depth: Float = 0.24
+        let depth: Float = 0.26
 
         let bodyMesh = MeshResource.generateBox(size: [facadeWidth, facadeHeight, depth])
-        let bodyMat = SimpleMaterial(color: UIColor.systemTeal.withAlphaComponent(0.72), roughness: 0.28, isMetallic: false)
+        let bodyMat = SimpleMaterial(color: UIColor.systemGray.withAlphaComponent(0.92), roughness: 0.42, isMetallic: false)
         let body = ModelEntity(mesh: bodyMesh, materials: [bodyMat])
         body.position = [0, facadeHeight / 2, 0]
         root.addChild(body)
 
-        // Generate floor slabs based on facade ratio.
-        let floorCount = max(6, min(16, Int((facadeHeight / 0.22).rounded())))
-        let slabMesh = MeshResource.generateBox(size: [facadeWidth * 0.97, 0.013, depth * 1.03])
-        let slabMat = SimpleMaterial(color: UIColor.white.withAlphaComponent(0.95), roughness: 0.2, isMetallic: false)
-        for i in 1..<floorCount {
-            let y = (facadeHeight / Float(floorCount)) * Float(i)
-            let slab = ModelEntity(mesh: slabMesh, materials: [slabMat])
-            slab.position = [0, y, 0.002]
-            root.addChild(slab)
-        }
+        let cols = max(8, min(16, Int((facadeWidth / 0.16).rounded())))
+        let rows = max(12, min(28, Int((facadeHeight / 0.13).rounded())))
+        let unitW = facadeWidth / Float(cols)
+        let unitH = facadeHeight / Float(rows)
+        let lumaMap = makeFacadeLumaMap(from: image, maxDimension: 100)
 
-        // Window arrays left/right.
-        let windowRows = max(5, floorCount - 2)
-        let windowMesh = MeshResource.generateBox(size: [0.15, 0.11, 0.018])
-        let windowMat = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.9), roughness: 0.1, isMetallic: true)
-        for row in 0..<windowRows {
-            let y = 0.12 + (facadeHeight - 0.28) * Float(row) / Float(max(1, windowRows - 1))
-            for col in -2...2 where col != 0 {
-                let x = Float(col) * 0.22
-                let window = ModelEntity(mesh: windowMesh, materials: [windowMat])
-                window.position = [x, y, depth / 2 + 0.008]
-                root.addChild(window)
+        for row in 0..<rows {
+            let y = unitH * (Float(row) + 0.5)
+            for col in 0..<cols {
+                let x = -facadeWidth / 2 + unitW * (Float(col) + 0.5)
+                let u = (Float(col) + 0.5) / Float(cols)
+                let v = 1 - (Float(row) + 0.5) / Float(rows)
+                let luma = lumaMap?.sample(u: u, v: v) ?? (0.5 + 0.2 * sinf(Float(col) * 0.7) * cosf(Float(row) * 0.35))
+                let clampedLuma = min(max(luma, 0), 1)
+
+                // Dark zones are treated as recessed window-like regions; bright zones are protruding features.
+                let recess = max(0, (0.5 - clampedLuma) * 0.085)
+                let protrusion = max(0, (clampedLuma - 0.58) * 0.06)
+                let tileDepth = 0.012 + protrusion
+                let tileZ = depth / 2 + (tileDepth / 2) - recess
+
+                let tileMesh = MeshResource.generateBox(size: [unitW * 0.93, unitH * 0.9, tileDepth])
+                let concreteShade = 0.58 + (clampedLuma * 0.32)
+                let tileColor = UIColor(
+                    red: CGFloat(concreteShade * 0.9),
+                    green: CGFloat(concreteShade * 0.92),
+                    blue: CGFloat(concreteShade * 0.95),
+                    alpha: 0.96
+                )
+                let tileMat = SimpleMaterial(color: tileColor, roughness: 0.38, isMetallic: false)
+                let tile = ModelEntity(mesh: tileMesh, materials: [tileMat])
+                tile.position = [x, y, tileZ]
+                root.addChild(tile)
+
+                if recess > 0.016 {
+                    let windowMesh = MeshResource.generateBox(size: [unitW * 0.68, unitH * 0.62, 0.01])
+                    let windowMat = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.88), roughness: 0.08, isMetallic: true)
+                    let window = ModelEntity(mesh: windowMesh, materials: [windowMat])
+                    window.position = [x, y, depth / 2 - recess - 0.006]
+                    root.addChild(window)
+                }
             }
         }
 
-        // Central core / stair block.
-        let coreMesh = MeshResource.generateBox(size: [0.34, facadeHeight * 0.96, depth * 1.1])
-        let coreMat = SimpleMaterial(color: UIColor.systemIndigo.withAlphaComponent(0.62), roughness: 0.18, isMetallic: false)
-        let core = ModelEntity(mesh: coreMesh, materials: [coreMat])
-        core.position = [0, facadeHeight * 0.48, 0]
-        root.addChild(core)
+        // Structural fins and horizontal belts add stronger silhouette and real-world facade rhythm.
+        let finCount = max(3, cols / 3)
+        let finMesh = MeshResource.generateBox(size: [0.028, facadeHeight, depth * 1.08])
+        let finMat = SimpleMaterial(color: UIColor.darkGray.withAlphaComponent(0.95), roughness: 0.44, isMetallic: false)
+        for i in 1..<finCount {
+            let x = -facadeWidth / 2 + facadeWidth * Float(i) / Float(finCount)
+            let fin = ModelEntity(mesh: finMesh, materials: [finMat])
+            fin.position = [x, facadeHeight / 2, depth / 2 + 0.022]
+            root.addChild(fin)
+        }
+
+        let beltCount = max(4, rows / 4)
+        let beltMesh = MeshResource.generateBox(size: [facadeWidth * 0.98, 0.018, depth * 1.05])
+        let beltMat = SimpleMaterial(color: UIColor.white.withAlphaComponent(0.9), roughness: 0.3, isMetallic: false)
+        for i in 1..<beltCount {
+            let y = facadeHeight * Float(i) / Float(beltCount)
+            let belt = ModelEntity(mesh: beltMesh, materials: [beltMat])
+            belt.position = [0, y, depth / 2 + 0.012]
+            root.addChild(belt)
+        }
 
         // Add high-contrast outline frame so the facade silhouette stays readable on site.
         let edgeThickness: Float = 0.03
