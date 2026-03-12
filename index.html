@@ -410,7 +410,7 @@
             <span>🧲 視圖模式：自動</span>
         </div>
 
-        <div class="drawer-item" data-mobile-action="scan" onclick="autoQuantumScan()">
+        <div class="drawer-item" data-mobile-action="scan">
             <span>🌌 一鍵掃描 3D</span>
         </div>
 
@@ -422,12 +422,23 @@
             <span>📏 啟動自動量測</span>
         </div>
 
+        <div class="drawer-item" id="mobileOwnerLockBtn" data-mobile-action="owner-lock">
+            <span>🐒 猴子權限：未設定</span>
+        </div>
+        <div class="drawer-item" data-mobile-action="owner-pass-change">
+            <span>🔁 更改猴子密碼</span>
+        </div>
+
+        <div class="drawer-item" data-mobile-action="usage-guide">
+            <span>📘 使用與錯誤排查</span>
+        </div>
+
         <div class="drawer-item" id="sunlightToggle" onclick="toggleSunlightMode()">
             <span>☀️ 戶外高亮：關</span>
         </div>
 
-        <div class="drawer-item" id="monkeyBtn" onclick="toggleChaosMonkey()">
-            <span>🐒 混沌猴子：關</span>
+        <div class="drawer-item" id="mobileMonkeyBtn" data-mobile-action="toggle-chaos" style="display:none;">
+            <span>🐒 混沌猴子</span>
         </div>
 
         <hr style="border: 0.5px solid var(--line-soft); margin: 10px 0;">
@@ -497,7 +508,6 @@
             <button id="btnCtrlLaser" class="tool-btn" onclick="toggleFeatureFlag('laser')">雷射尺: 開</button>
             <button id="btnCtrlWarRoom" class="tool-btn" onclick="toggleFeatureFlag('warRoom')">戰情室: 開</button>
             <button id="btnQaStress" class="tool-btn" style="border-color:#ffd166; color:#ffe4a1;" onclick="toggleQaStressTest()">QA 壓力測試: 關</button>
-            <button id="btnChaosMonkey" class="tool-btn" style="border-color:#ff9f43; color:#ffd6aa;" onclick="toggleChaosMonkey()">🐒 混沌猴子: 關</button>
             <button class="tool-btn" style="border-color:#ff7675; color:#ffd0ce;" onclick="stopAllRealtimeFeatures()">⛔ 一鍵停止即時功能</button>
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
@@ -884,6 +894,8 @@
     const STORAGE_KEY = 'bm_69:list';
     const SCHEMA_VERSION = '8.0.0';
     const SECURITY_UNLOCK_KEY = 'bm_69:security_unlocked';
+    const OWNER_LOCK_HASH_KEY = 'cm_owner_lock_hash_v1';
+    const OWNER_UNLOCK_SESSION_KEY = 'cm_owner_lock_unlocked_v1';
     const MEMBER_CODES_STORAGE_KEY = 'bm_69:member_codes';
     const SECURITY_CONFIG = {
         // 預設存取碼：BuildMaster@2026!
@@ -1056,6 +1068,7 @@
     let chaosMonkeyMode = false;
     let chaosMonkeyTimer = null;
     let chaosMonkeyTickCount = 0;
+    const CHAOS_MONKEY_ENABLED = false;
     let laserChaosStats = { dirtyBlocked: 0, successWrites: 0 };
 
     function safeToast(message) {
@@ -1673,6 +1686,7 @@
     }
 
     function startChaosMonkey() {
+        if (!CHAOS_MONKEY_ENABLED) return;
         if (chaosMonkeyMode) return;
         chaosMonkeyMode = true;
         chaosMonkeyTickCount = 0;
@@ -1692,7 +1706,13 @@
         if (!silent) showToast('🐒 混沌猴子已收回');
     }
 
-    function toggleChaosMonkey() {
+    async function toggleChaosMonkey() {
+        const unlocked = await ensureOwnerUnlocked('混沌猴子');
+        if (!unlocked) return;
+        if (!CHAOS_MONKEY_ENABLED) {
+            stopChaosMonkey(true);
+            return showToast('🐒 混沌猴子已暫時收掉');
+        }
         if (chaosMonkeyMode) return stopChaosMonkey(false);
         startChaosMonkey();
     }
@@ -1719,6 +1739,170 @@
         const msgUint8 = new TextEncoder().encode(text);
         const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
         return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function hasOwnerPassword() {
+        return !!safeStorage.get(localStorage, OWNER_LOCK_HASH_KEY, '');
+    }
+
+    function currentMemberAccount() {
+        return normalizeMemberAccount(sessionStorage.getItem('bm_69:member') || '');
+    }
+
+    function isMemberSession() {
+        return !!currentMemberAccount();
+    }
+
+    function isOwnerUnlocked() {
+        if (!hasOwnerPassword()) return true;
+        return sessionStorage.getItem(OWNER_UNLOCK_SESSION_KEY) === '1';
+    }
+
+    function updateOwnerLockButton() {
+        const btn = document.getElementById('mobileOwnerLockBtn');
+        if (!btn) {
+            updateMonkeyControlsVisibility();
+            return;
+        }
+        if (isMemberSession()) {
+            const span = btn.querySelector('span');
+            const text = '🚫 猴子權限：會員不可用';
+            if (span) span.textContent = text;
+            else btn.textContent = text;
+            updateMonkeyControlsVisibility();
+            return;
+        }
+        let text = '🐒 猴子權限：未設定';
+        if (hasOwnerPassword()) {
+            text = isOwnerUnlocked() ? '🐒 猴子權限：已解鎖' : '🐒 猴子權限：已上鎖';
+        }
+        const span = btn.querySelector('span');
+        if (span) span.textContent = text;
+        else btn.textContent = text;
+        updateMonkeyControlsVisibility();
+    }
+
+    function updateMonkeyControlsVisibility() {
+        const mobileMonkeyBtn = document.getElementById('mobileMonkeyBtn');
+        if (!mobileMonkeyBtn) return;
+        const visible = !isMemberSession() && hasOwnerPassword() && isOwnerUnlocked();
+        mobileMonkeyBtn.style.display = visible ? '' : 'none';
+    }
+
+    async function setupOwnerPassword() {
+        if (isMemberSession()) {
+            showToast('此功能僅限擁有者，會員不可使用');
+            return false;
+        }
+        const pass1 = prompt('設定管理密碼（至少 4 碼）');
+        if (pass1 === null) return false;
+        const password = String(pass1).trim();
+        if (password.length < 4) {
+            showToast('管理密碼至少 4 碼');
+            return false;
+        }
+        const pass2 = prompt('再次輸入管理密碼');
+        if (pass2 === null) return false;
+        if (password !== String(pass2).trim()) {
+            showToast('兩次密碼不一致');
+            return false;
+        }
+        const hashed = await hashTextSHA256(password);
+        safeStorage.set(localStorage, OWNER_LOCK_HASH_KEY, hashed);
+        sessionStorage.setItem(OWNER_UNLOCK_SESSION_KEY, '1');
+        updateOwnerLockButton();
+        showToast('管理密碼已設定並解鎖');
+        return true;
+    }
+
+    async function unlockOwnerPassword() {
+        if (isMemberSession()) {
+            showToast('此功能僅限擁有者，會員不可使用');
+            return false;
+        }
+        if (!hasOwnerPassword()) return setupOwnerPassword();
+        const input = prompt('輸入管理密碼');
+        if (input === null) return false;
+        const hashed = await hashTextSHA256(String(input).trim());
+        const saved = safeStorage.get(localStorage, OWNER_LOCK_HASH_KEY, '');
+        if (hashed !== saved) {
+            showToast('管理密碼錯誤');
+            return false;
+        }
+        sessionStorage.setItem(OWNER_UNLOCK_SESSION_KEY, '1');
+        updateOwnerLockButton();
+        showToast('猴子權限已解鎖');
+        return true;
+    }
+
+    async function changeOwnerPassword() {
+        if (isMemberSession()) {
+            showToast('此功能僅限擁有者，會員不可使用');
+            return false;
+        }
+        if (!hasOwnerPassword()) {
+            showToast('請先設定猴子密碼');
+            return false;
+        }
+        const oldPass = prompt('輸入舊猴子密碼');
+        if (oldPass === null) return false;
+        const saved = safeStorage.get(localStorage, OWNER_LOCK_HASH_KEY, '');
+        const oldHash = await hashTextSHA256(String(oldPass).trim());
+        if (oldHash !== saved) {
+            showToast('舊密碼錯誤');
+            return false;
+        }
+        const newPass1 = prompt('輸入新猴子密碼（至少 4 碼）');
+        if (newPass1 === null) return false;
+        const newPassword = String(newPass1).trim();
+        if (newPassword.length < 4) {
+            showToast('新密碼至少 4 碼');
+            return false;
+        }
+        const newPass2 = prompt('再次輸入新猴子密碼');
+        if (newPass2 === null) return false;
+        if (newPassword !== String(newPass2).trim()) {
+            showToast('兩次新密碼不一致');
+            return false;
+        }
+        const nextHash = await hashTextSHA256(newPassword);
+        safeStorage.set(localStorage, OWNER_LOCK_HASH_KEY, nextHash);
+        sessionStorage.setItem(OWNER_UNLOCK_SESSION_KEY, '1');
+        updateOwnerLockButton();
+        showToast('猴子密碼已更新');
+        return true;
+    }
+
+    async function ensureOwnerUnlocked(reason) {
+        if (isMemberSession()) {
+            showToast('此功能僅限擁有者，會員不可使用');
+            return false;
+        }
+        if (isOwnerUnlocked()) return true;
+        showToast(`此功能需管理密碼：${reason || '受保護功能'}`);
+        return unlockOwnerPassword();
+    }
+
+    function lockOwnerAccess() {
+        sessionStorage.removeItem(OWNER_UNLOCK_SESSION_KEY);
+        updateOwnerLockButton();
+        showToast('猴子權限已上鎖');
+    }
+
+    async function handleOwnerLockAction() {
+        if (isMemberSession()) {
+            showToast('此功能僅限擁有者，會員不可使用');
+            return;
+        }
+        if (!hasOwnerPassword()) {
+            await setupOwnerPassword();
+            return;
+        }
+        if (isOwnerUnlocked()) {
+            lockOwnerAccess();
+            return;
+        }
+        await unlockOwnerPassword();
     }
 
     function showSecurityLock(message) {
@@ -5600,14 +5784,76 @@
         }
     }
 
-    function runMobileQuickAction(action) {
+    function showCalcResetGuide() {
+        alert([
+            '【計算模式｜使用與錯誤說明（詳細版）】',
+            '',
+            'A. 使用前檢查',
+            '1) 手機與頁面版本',
+            '• 確認已是最新版本（重新整理一次）',
+            '• 若仍像舊版：清網站快取後重開',
+            '2) 畫面可見度',
+            '• 日照強：先開「☀️ 戶外高亮」',
+            '• 視野被擋：先切「🧲 視圖模式：釋放」',
+            '3) 測試資料策略',
+            '• 本輪測試建議使用同一張圖紙',
+            '• 若比較不同圖，務必分輪記錄',
+            '',
+            'B. 標準使用順序（避免誤判）',
+            '1) 先做「📏 定比例」：點兩點 + 輸入真實長度',
+            '2) 再做「📐 測量」：點起終點，確認 v1/v2 有寫入',
+            '3) 再測 3D 功能：3D檢視、360、掃描、拖曳',
+            '4) 最後測延伸功能：雷射尺、AI、匯出',
+            '',
+            'C. 視圖模式使用規則',
+            '• 一般：完整面板，適合設定參數',
+            '• 釋放：最大視野，適合現場瞄準',
+            '• 自動：量測時自動釋放，平常回一般',
+            '',
+            'D. 錯誤使用說明與快速排查',
+            '1) 測量數值不變',
+            '• 檢查是否已定比例',
+            '• 檢查是否仍在 3D 模式（量測需平面）',
+            '2) 觸控像卡住',
+            '• 先關 360 旋轉，再重試拖曳',
+            '• 切「視圖模式：一般」確認是否被遮罩',
+            '3) 結果跳動大',
+            '• 重新定比例',
+            '• 拉近測點，避免跨太大距離',
+            '',
+            'E. 測試紀錄建議格式（便於回報）',
+            '• 輪次：R1 / R2 ...',
+            '• 操作：定比例/測量/3D/匯出',
+            '• 結果：成功/失敗 + 截圖',
+            '• 備註：當時視圖模式、是否高亮、是否清快取',
+            '',
+            'F. 驗收建議門檻',
+            '• 定比例後測量可穩定連續輸出',
+            '• 主要按鈕無「按了沒反應」',
+            '• 視圖模式切換後畫面與行為一致'
+        ].join('\n'));
+    }
+
+    async function runMobileQuickAction(action) {
         appendMobileTestLog(`觸發功能: ${action}`);
         switch (action) {
+        case 'scan':
+            await autoQuantumScan();
+            break;
         case 'toggle-focus':
             cycleMobileViewMode();
             break;
         case 'toggle-chaos':
-            toggleChaosMonkey();
+            await toggleChaosMonkey();
+            break;
+        case 'usage-guide':
+            showCalcResetGuide();
+            break;
+        case 'owner-lock':
+            await handleOwnerLockAction();
+            break;
+        case 'owner-pass-change':
+            await changeOwnerPassword();
             break;
         case 'measure':
             if (typeof startMeasure === 'function') startMeasure();
@@ -5660,10 +5906,17 @@
         applyMobileViewMode(localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto', { silent: true });
         applySunlightMode();
         syncMobileMeasureModeUI();
+        updateOwnerLockButton();
         appendMobileTestLog('手機測試紀錄面板已啟用');
     }
 
     initMobileFuncDrawer();
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') {
+            sessionStorage.removeItem(OWNER_UNLOCK_SESSION_KEY);
+            updateOwnerLockButton();
+        }
+    });
 </script>
 </body>
 </html>

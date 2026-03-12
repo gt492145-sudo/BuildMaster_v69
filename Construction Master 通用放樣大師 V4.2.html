@@ -156,6 +156,9 @@
         <div class="drawer-header">🛠️ 戰術工具箱</div>
         <button id="mobileFocusBtn" class="mobile-func-btn" type="button" data-mobile-action="toggle-focus">🧲 視圖模式：自動</button>
         <button class="mobile-func-btn" type="button" data-mobile-action="measure-clear">🎯 量測淨空模式</button>
+        <button id="mobileOwnerLockBtn" class="mobile-func-btn" type="button" data-mobile-action="owner-lock">🐒 猴子權限：未設定</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="owner-pass-change">🔁 更改猴子密碼</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="usage-guide">📘 使用與錯誤排查</button>
         <button id="mobileSunlightBtn" class="mobile-func-btn" type="button" data-mobile-action="toggle-sunlight">☀️ 戶外高亮：關</button>
         <hr style="border: 0.5px solid rgba(255,255,255,0.18); margin: 2px 0;">
         <button class="mobile-func-btn" type="button" data-mobile-action="mode-calc">🧮 計算模式</button>
@@ -242,6 +245,8 @@
 <script>
     const SUNLIGHT_MODE_KEY = 'cm_stake:sunlight_mode';
     const MOBILE_VIEW_MODE_KEY = 'cm_stake:mobile_view_mode';
+    const OWNER_LOCK_HASH_KEY = 'cm_owner_lock_hash_v1';
+    const OWNER_UNLOCK_SESSION_KEY = 'cm_owner_lock_unlocked_v1';
 
     function switchTab(evt, tabId) {
         document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -475,6 +480,195 @@
         applyMobileViewMode(next);
     }
 
+    async function hashTextSHA256(text) {
+        const msgUint8 = new TextEncoder().encode(text);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+        return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function hasOwnerPassword() {
+        return !!localStorage.getItem(OWNER_LOCK_HASH_KEY);
+    }
+
+    function currentMemberAccount() {
+        return String(sessionStorage.getItem('bm_69:member') || '').trim().toLowerCase();
+    }
+
+    function isMemberSession() {
+        return !!currentMemberAccount();
+    }
+
+    function isOwnerUnlocked() {
+        if (!hasOwnerPassword()) return true;
+        return sessionStorage.getItem(OWNER_UNLOCK_SESSION_KEY) === '1';
+    }
+
+    function updateOwnerLockButton() {
+        const btn = document.getElementById('mobileOwnerLockBtn');
+        if (!btn) return;
+        if (isMemberSession()) {
+            btn.textContent = '🚫 猴子權限：會員不可用';
+            return;
+        }
+        if (!hasOwnerPassword()) {
+            btn.textContent = '🐒 猴子權限：未設定';
+            return;
+        }
+        btn.textContent = isOwnerUnlocked() ? '🐒 猴子權限：已解鎖' : '🐒 猴子權限：已上鎖';
+    }
+
+    async function setupOwnerPassword() {
+        if (isMemberSession()) {
+            alert('此功能僅限擁有者，會員不可使用');
+            return false;
+        }
+        const pass1 = prompt('設定管理密碼（至少 4 碼）');
+        if (pass1 === null) return false;
+        const password = String(pass1).trim();
+        if (password.length < 4) {
+            alert('管理密碼至少 4 碼');
+            return false;
+        }
+        const pass2 = prompt('再次輸入管理密碼');
+        if (pass2 === null) return false;
+        if (password !== String(pass2).trim()) {
+            alert('兩次密碼不一致');
+            return false;
+        }
+        localStorage.setItem(OWNER_LOCK_HASH_KEY, await hashTextSHA256(password));
+        sessionStorage.setItem(OWNER_UNLOCK_SESSION_KEY, '1');
+        updateOwnerLockButton();
+        alert('管理密碼已設定並解鎖');
+        return true;
+    }
+
+    async function unlockOwnerPassword() {
+        if (isMemberSession()) {
+            alert('此功能僅限擁有者，會員不可使用');
+            return false;
+        }
+        if (!hasOwnerPassword()) return setupOwnerPassword();
+        const input = prompt('輸入管理密碼');
+        if (input === null) return false;
+        const hashed = await hashTextSHA256(String(input).trim());
+        const saved = localStorage.getItem(OWNER_LOCK_HASH_KEY) || '';
+        if (hashed !== saved) {
+            alert('管理密碼錯誤');
+            return false;
+        }
+        sessionStorage.setItem(OWNER_UNLOCK_SESSION_KEY, '1');
+        updateOwnerLockButton();
+        return true;
+    }
+
+    async function changeOwnerPassword() {
+        if (isMemberSession()) {
+            alert('此功能僅限擁有者，會員不可使用');
+            return false;
+        }
+        if (!hasOwnerPassword()) {
+            alert('請先設定猴子密碼');
+            return false;
+        }
+        const oldPass = prompt('輸入舊猴子密碼');
+        if (oldPass === null) return false;
+        const oldHash = await hashTextSHA256(String(oldPass).trim());
+        const saved = localStorage.getItem(OWNER_LOCK_HASH_KEY) || '';
+        if (oldHash !== saved) {
+            alert('舊密碼錯誤');
+            return false;
+        }
+        const newPass1 = prompt('輸入新猴子密碼（至少 4 碼）');
+        if (newPass1 === null) return false;
+        const newPassword = String(newPass1).trim();
+        if (newPassword.length < 4) {
+            alert('新密碼至少 4 碼');
+            return false;
+        }
+        const newPass2 = prompt('再次輸入新猴子密碼');
+        if (newPass2 === null) return false;
+        if (newPassword !== String(newPass2).trim()) {
+            alert('兩次新密碼不一致');
+            return false;
+        }
+        localStorage.setItem(OWNER_LOCK_HASH_KEY, await hashTextSHA256(newPassword));
+        sessionStorage.setItem(OWNER_UNLOCK_SESSION_KEY, '1');
+        updateOwnerLockButton();
+        alert('猴子密碼已更新');
+        return true;
+    }
+
+    function lockOwnerAccess() {
+        sessionStorage.removeItem(OWNER_UNLOCK_SESSION_KEY);
+        updateOwnerLockButton();
+    }
+
+    async function handleOwnerLockAction() {
+        if (isMemberSession()) {
+            alert('此功能僅限擁有者，會員不可使用');
+            return;
+        }
+        if (!hasOwnerPassword()) {
+            await setupOwnerPassword();
+            return;
+        }
+        if (isOwnerUnlocked()) {
+            lockOwnerAccess();
+            return;
+        }
+        await unlockOwnerPassword();
+    }
+
+    function showStakeResetGuide() {
+        alert([
+            '【放樣模式｜使用與錯誤說明（詳細版）】',
+            '',
+            'A. 使用前環境檢查',
+            '1) 手機版本',
+            '• 先重開頁面一次，確認是最新',
+            '• 若畫面像舊版：清快取後重開',
+            '2) 可視化',
+            '• 日照強：先開「☀️ 戶外高亮」',
+            '• 要大視野：用「🧲 視圖模式：釋放」',
+            '3) 基準一致性',
+            '• E/N/H 與旋轉角需固定，避免前後輪不可比',
+            '',
+            'B. 標準使用順序（建議固定）',
+            '1) 雷達轉換：手動加 2~3 點，確認圖->政府座標轉換',
+            '2) 支距避障：測 P1/P2/目標點計算結果',
+            '3) 鞋帶面積：至少 4 點封閉測試 + 單位切換',
+            '4) 坡度高程：距離與坡度變化驗證',
+            '5) 最後做 CSV 匯出驗證',
+            '',
+            'C. 視圖模式規則',
+            '• 一般：看完整設定與分頁',
+            '• 釋放：專注看雷達畫面',
+            '• 自動：雷達頁自動釋放，其他頁回一般',
+            '',
+            'D. 錯誤使用說明與排查',
+            '1) 座標看起來不合理',
+            '• 先檢查旋轉角是否被改過',
+            '• 檢查基準點 E/N/H 是否填錯',
+            '2) 分頁切換後畫面怪',
+            '• 先回雷達頁再切一次',
+            '• 視圖模式切到一般後再切回自動',
+            '3) 匯出檔不如預期',
+            '• 先檢查點位名稱是否空白',
+            '• 檢查是否有重複或錯欄位',
+            '',
+            'E. 測試紀錄建議格式',
+            '• 輪次：R1 / R2 ...',
+            '• 分頁：雷達/支距/面積/坡度',
+            '• 結果：成功/失敗 + 截圖',
+            '• 備註：基準值、旋轉角、視圖模式',
+            '',
+            'F. 驗收門檻（建議）',
+            '• 同一組輸入重算結果一致',
+            '• 分頁切換與視圖模式不互相衝突',
+            '• CSV 欄位完整且可直接給儀器/工程人員使用'
+        ].join('\n'));
+    }
+
     function applySunlightMode() {
         const on = localStorage.getItem(SUNLIGHT_MODE_KEY) === '1';
         document.body.classList.toggle('sunlight-readable', on);
@@ -496,7 +690,7 @@
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    function runMobileQuickAction(action) {
+    async function runMobileQuickAction(action) {
         if (action === 'toggle-focus') {
             cycleMobileViewMode();
             toggleMobileFuncDrawer(false);
@@ -504,6 +698,18 @@
         }
         if (action === 'measure-clear') {
             enterMeasureClearMode();
+            return;
+        }
+        if (action === 'usage-guide') {
+            showStakeResetGuide();
+            return;
+        }
+        if (action === 'owner-lock') {
+            await handleOwnerLockAction();
+            return;
+        }
+        if (action === 'owner-pass-change') {
+            await changeOwnerPassword();
             return;
         }
         if (action === 'toggle-sunlight') {
@@ -554,9 +760,16 @@
         applyMobileViewMode(localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto', { silent: true });
         updateMobileFocusLabel();
         applySunlightMode();
+        updateOwnerLockButton();
     }
 
     initMobileFuncDrawer();
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') {
+            sessionStorage.removeItem(OWNER_UNLOCK_SESSION_KEY);
+            updateOwnerLockButton();
+        }
+    });
     updateRadarUI();
 </script>
 </body>
