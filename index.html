@@ -172,6 +172,28 @@
     body.high-contrast .level-btn.active { background: rgba(255, 198, 90, 0.35); }
     body.high-contrast .work-btn { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.35); color: #e6f5ff; }
     body.high-contrast .work-btn.active { background: rgba(90, 160, 235, 0.35); border-color: rgba(160, 220, 255, 0.8); }
+    body.sunlight-readable {
+        --panel-bg: rgba(4, 10, 20, 0.84);
+        --line-soft: rgba(255,255,255,0.52);
+        --text-main: #ffffff;
+        --text-subtle: #f2f7ff;
+        --highlight: #ffd54f;
+        --accent: #8fe7ff;
+        color: #ffffff;
+    }
+    body.sunlight-readable .tool-btn,
+    body.sunlight-readable .mode-btn,
+    body.sunlight-readable .level-btn,
+    body.sunlight-readable .work-btn {
+        border-width: 2px;
+        font-weight: 800;
+        text-shadow: 0 0 1px rgba(0,0,0,0.6);
+    }
+    body.sunlight-readable #scale-info,
+    body.sunlight-readable #measureAssistInfo,
+    body.sunlight-readable #gyroInfo {
+        font-weight: 800;
+    }
     body[data-user-level="basic"] .level-hide-basic { display: none !important; }
     body[data-user-level="basic"] .level-only-standard { display: none !important; }
     body[data-user-level="basic"] .level-only-pro { display: none !important; }
@@ -287,6 +309,13 @@
         body.mobile-focus-mode .drawing-panel {
             min-height: calc(100dvh - 14px);
         }
+        body.mobile-measure-mode .mobile-test-log {
+            display: none !important;
+        }
+        body.mobile-measure-mode .mobile-drawer {
+            right: -188px;
+            width: 188px;
+        }
         .mobile-test-log {
             display: block;
             position: fixed;
@@ -388,6 +417,10 @@
 
         <div class="drawer-item" onclick="toggleAutoMeasure()">
             <span>📏 啟動自動量測</span>
+        </div>
+
+        <div class="drawer-item" id="sunlightToggle" onclick="toggleSunlightMode()">
+            <span>☀️ 戶外高亮：關</span>
         </div>
 
         <div class="drawer-item" id="monkeyBtn" onclick="toggleChaosMonkey()">
@@ -962,6 +995,7 @@
     const IBM_QUANTUM_KEY_STORAGE = 'bm_69:ibm_quantum_key';
     const CONTRAST_MODE_KEY = 'bm_69:contrast_mode';
     const CONTRAST_AUTO_KEY = 'bm_69:contrast_auto';
+    const SUNLIGHT_MODE_KEY = 'bm_69:sunlight_mode';
     const WAR_ROOM_KEY = 'bm_69:war_room_enabled';
     const FEATURE_FLAGS_KEY = 'bm_69:feature_flags';
     const SHOW_WAR_ROOM_ROWS_KEY = 'bm_69:show_war_room_rows';
@@ -1266,6 +1300,7 @@
         applyWorkMode();
         applyAutoContrastMode();
         applyContrastMode();
+        applySunlightMode();
         applyFeatureControlStatus();
         applyWarRoomStatus();
         window.addEventListener('online', applyWarRoomStatus);
@@ -4019,6 +4054,7 @@
         measureQaStats.calibrationStarts += 1;
         if (measureAssistState.enabled) calibrateMeasureAssist();
         drawMode = 'calibration'; clickPoints = []; showToast('點擊圖面上已知長度的【起點】與【終點】');
+        syncMobileMeasureModeUI();
     }
     function startMeasure() {
         if (is3DView) return showToast('請先關閉 3D 檢視再做量測');
@@ -4026,6 +4062,7 @@
         measureQaStats.measureStarts += 1;
         if (measureAssistState.enabled) calibrateMeasureAssist();
         drawMode = 'measure'; clickPoints = []; showToast('點擊你要測量的【起點】與【終點】');
+        syncMobileMeasureModeUI();
     }
 
     async function connectLaserRuler() {
@@ -4211,7 +4248,13 @@
         }, 800);
     }
 
-    function clearCanvas() { ctx.clearRect(0,0,canvas.width,canvas.height); clickPoints = []; drawMode = 'none'; showToast('🧽 畫布已擦乾淨！'); }
+    function clearCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        clickPoints = [];
+        drawMode = 'none';
+        syncMobileMeasureModeUI();
+        showToast('🧽 畫布已擦乾淨！');
+    }
     function removeLoadedImage() {
         if (!img.src) return showToast('目前沒有已上傳圖紙');
         img.removeAttribute('src');
@@ -4225,6 +4268,7 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         clickPoints = [];
         drawMode = 'none';
+        syncMobileMeasureModeUI();
         scalePixelsPerUnit = 0;
         document.getElementById('scale-info').innerText = '比例: 未設定';
         const fileInput = document.getElementById('fileInput');
@@ -4461,7 +4505,9 @@
                 } else { document.getElementById('v2').value = m.toFixed(2); }
                 showToast(`📏 測量結果: ${m.toFixed(2)}m`); previewCalc();
             }
-            clickPoints = []; drawMode = 'none';
+            clickPoints = [];
+            drawMode = 'none';
+            syncMobileMeasureModeUI();
         }
     }
 
@@ -5207,6 +5253,20 @@
         showToast(autoEnabled ? '自動高對比已關閉' : '自動高對比已啟用（18:00-06:00）');
     }
 
+    function applySunlightMode() {
+        const enabled = localStorage.getItem(SUNLIGHT_MODE_KEY) === '1';
+        document.body.classList.toggle('sunlight-readable', enabled);
+        const btn = document.querySelector('#sunlightToggle span');
+        if (btn) btn.textContent = `☀️ 戶外高亮：${enabled ? '開' : '關'}`;
+    }
+
+    function toggleSunlightMode() {
+        const enabled = localStorage.getItem(SUNLIGHT_MODE_KEY) === '1';
+        localStorage.setItem(SUNLIGHT_MODE_KEY, enabled ? '0' : '1');
+        applySunlightMode();
+        showToast(enabled ? '☀️ 戶外高亮已關閉' : '☀️ 戶外高亮已啟用');
+    }
+
     function applyWarRoomStatus() {
         const btn = document.getElementById('btnWarRoom');
         if (!btn) return;
@@ -5490,6 +5550,20 @@
         toggleMobileFuncDrawer(false);
     }
 
+    function syncMobileMeasureModeUI() {
+        if (!isMobileViewport()) {
+            document.body.classList.remove('mobile-measure-mode');
+            return;
+        }
+        const activeMeasure = (drawMode === 'calibration' || drawMode === 'measure');
+        document.body.classList.toggle('mobile-measure-mode', activeMeasure);
+        if (activeMeasure) {
+            document.body.classList.add('mobile-focus-mode');
+            const box = document.getElementById('mobileTestLog');
+            if (box) box.classList.add('collapsed');
+        }
+    }
+
     function runMobileQuickAction(action) {
         appendMobileTestLog(`觸發功能: ${action}`);
         switch (action) {
@@ -5544,10 +5618,14 @@
             if (!isMobileViewport()) {
                 toggleMobileFuncDrawer(false);
                 document.body.classList.remove('mobile-focus-mode');
+                document.body.classList.remove('mobile-measure-mode');
             }
             updateMobileFocusLabel();
+            syncMobileMeasureModeUI();
         });
         updateMobileFocusLabel();
+        applySunlightMode();
+        syncMobileMeasureModeUI();
         appendMobileTestLog('手機測試紀錄面板已啟用');
     }
 
