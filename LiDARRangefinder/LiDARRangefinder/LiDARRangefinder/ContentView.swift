@@ -622,6 +622,16 @@ struct ContentView: View {
                         .font(.caption2)
                         .foregroundStyle(.indigo)
 
+                    Toggle("網狀模式（LiDAR Mesh）", isOn: Binding(
+                        get: { sessionManager.meshVisualizationEnabled },
+                        set: { sessionManager.setMeshVisualizationEnabled($0) }
+                    ))
+                        .tint(.orange)
+
+                    Text(sessionManager.meshVisualizationStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+
                     Group {
                         TextField("TWD97 E", value: Binding(
                             get: { sessionManager.twd97BaseE },

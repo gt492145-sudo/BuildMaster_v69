@@ -160,6 +160,8 @@ final class LiDARSessionManager: ObservableObject {
     @Published var ifcSimulationStatusText: String = "IFC 模擬：待命"
     @Published var facadeHologramEnabled: Bool = false
     @Published var facadeHologramStatusText: String = "立面全息：待命"
+    @Published var meshVisualizationEnabled: Bool = false
+    @Published var meshVisualizationStatusText: String = "網狀模式：關"
     @Published var crackInputImage: UIImage?
     @Published var crackFindings: [CrackFinding] = []
     @Published var crackStatusText: String = "裂縫檢測：待命"
@@ -223,6 +225,7 @@ final class LiDARSessionManager: ObservableObject {
     private let twd97BaseNStorageKey = "lidar_rangefinder_twd97_base_n"
     private let twd97BaseHStorageKey = "lidar_rangefinder_twd97_base_h"
     private let twd97RotationStorageKey = "lidar_rangefinder_twd97_rotation_deg"
+    private let meshVisualizationStorageKey = "lidar_rangefinder_mesh_visualization_enabled"
     private var aiIssue: AIQAIssueType = .none
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
@@ -336,6 +339,10 @@ final class LiDARSessionManager: ObservableObject {
         if UserDefaults.standard.object(forKey: twd97RotationStorageKey) != nil {
             twd97RotationDeg = UserDefaults.standard.double(forKey: twd97RotationStorageKey)
         }
+        // Keep startup visual style stable: always start from hologram-focused view.
+        meshVisualizationEnabled = false
+        UserDefaults.standard.set(false, forKey: meshVisualizationStorageKey)
+        meshVisualizationStatusText = "網狀模式：關"
         if quantumModeEnabled {
             highestModeLockEnabled = true
             qaProfile = .ultra
@@ -636,6 +643,18 @@ final class LiDARSessionManager: ObservableObject {
     func setIFCShowPipes(_ enabled: Bool) {
         ifcShowPipes = enabled
         if ifcSimulationEnabled { regenerateIFCSimulationAnchor() }
+    }
+
+    func setMeshVisualizationEnabled(_ enabled: Bool) {
+        meshVisualizationEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: meshVisualizationStorageKey)
+        meshVisualizationStatusText = enabled ? "網狀模式：開" : "網狀模式：關"
+        guard let arView else { return }
+        if enabled {
+            arView.debugOptions.insert(.showSceneUnderstanding)
+        } else {
+            arView.debugOptions.remove(.showSceneUnderstanding)
+        }
     }
 
     func setTWD97BaseE(_ value: Double) {
@@ -1527,11 +1546,11 @@ final class LiDARSessionManager: ObservableObject {
         }
         if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
             configuration.sceneReconstruction = .mesh
-            #if DEBUG
-            view.debugOptions.insert(.showSceneUnderstanding)
-            #else
-            view.debugOptions.remove(.showSceneUnderstanding)
-            #endif
+            if meshVisualizationEnabled {
+                view.debugOptions.insert(.showSceneUnderstanding)
+            } else {
+                view.debugOptions.remove(.showSceneUnderstanding)
+            }
         }
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
             configuration.frameSemantics.insert(.sceneDepth)
