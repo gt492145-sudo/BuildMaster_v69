@@ -1,9 +1,12 @@
 import SwiftUI
 import simd
+import CryptoKit
+import Foundation
 
 struct ContentView: View {
     @EnvironmentObject private var sessionManager: LiDARSessionManager
     @EnvironmentObject private var measurementStore: MeasurementStore
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var showingRecords = false
     @State private var showingShareSheet = false
@@ -13,6 +16,8 @@ struct ContentView: View {
     @State private var showingVolumeScan = false
     @State private var showingCrackInspector = false
     @State private var showingQuantumMode = false
+    @State private var showingTestChecklist = false
+    @State private var completedTestItems: Set<TestChecklistItem> = []
     @State private var quantumCommandInput = ""
     @State private var ibmQuantumAPIKeyInput = ""
     @State private var aiGoalInput = ""
@@ -30,10 +35,22 @@ struct ContentView: View {
     @State private var isClearViewMode = false
     @State private var autoClearViewDuringMeasure = true
     @State private var clearViewAutoApplied = false
+    @State private var safetyMonkeyEnabled = false
+    @State private var safetyMonkeyTickCount = 0
+    @State private var safetyMonkeyLastAction = "待命"
+    @State private var safetyMonkeyTask: Task<Void, Never>?
+    @State private var monkeyHasPassword = false
+    @State private var isMonkeyUnlocked = false
+    @State private var showingMonkeyAccessSheet = false
+    @State private var monkeyLockMode: MonkeyLockMode = .unlock
+    @State private var monkeyPasswordInput = ""
+    @State private var monkeyPasswordConfirmInput = ""
+    @State private var monkeyPasswordError = ""
     @State private var tacticalMenuDragOffset: CGFloat = 0
     private let minRecordScore = 85
     private let tacticalMenuWidth: CGFloat = 230
     private let touchOpenCloseThreshold: CGFloat = 34
+    private let monkeyPassHashStorageKey = "lidar_rangefinder_monkey_pass_hash_v1"
 
     var body: some View {
         GeometryReader { proxy in
@@ -124,6 +141,18 @@ struct ContentView: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackgroundInteraction(.enabled)
         }
+        .sheet(isPresented: $showingTestChecklist) {
+            testChecklistView
+                .presentationDetents([.fraction(0.4), .medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled)
+        }
+        .sheet(isPresented: $showingMonkeyAccessSheet) {
+            monkeyAccessSheetView
+                .presentationDetents([.fraction(0.36), .medium])
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled)
+        }
         .onChange(of: selectedMainPage) {
             switch selectedMainPage {
             case .page1:
@@ -168,6 +197,18 @@ struct ContentView: View {
         }
         .onAppear {
             syncAutoClearViewMode(for: selectedControlPage)
+        }
+        .onChange(of: scenePhase) {
+            if scenePhase != .active {
+                stopSafetyMonkey()
+                isMonkeyUnlocked = false
+            }
+        }
+        .onDisappear {
+            stopSafetyMonkey()
+        }
+        .onAppear {
+            refreshMonkeyAccessState()
         }
     }
 
@@ -530,6 +571,59 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity)
                 case .tools:
                     HStack(spacing: 10) {
+                        Button(monkeyHasPassword ? "🔐 密碼解鎖猴子" : "🔐 設定猴子密碼") {
+                            openMonkeyAccessSheet(setup: !monkeyHasPassword)
+                        }
+                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
+
+                        if monkeyHasPassword {
+                            Button("🔒 立即上鎖") {
+                                lockMonkeyAccess()
+                            }
+                            .buttonStyle(.bordered)
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
+
+                    Text(
+                        monkeyHasPassword
+                            ? (isMonkeyUnlocked ? "猴子權限：已解鎖（僅本次前景有效）" : "猴子權限：已上鎖（需密碼）")
+                            : "猴子權限：尚未設定密碼"
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(isMonkeyUnlocked ? .mint : .secondary)
+
+                    Button(safetyMonkeyEnabled ? "🐒 安全猴子：停止" : "🐒 安全猴子：啟動") {
+                        toggleSafetyMonkey()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(safetyMonkeyEnabled ? .red : .yellow)
+                    .frame(maxWidth: .infinity)
+                    .disabled(!isMonkeyUnlocked)
+
+                    Text("猴子狀態：\(safetyMonkeyEnabled ? "運行中" : "關")｜動作次數：\(safetyMonkeyTickCount)")
+                        .font(.caption2)
+                        .foregroundStyle(safetyMonkeyEnabled ? .yellow : .secondary)
+
+                    Text("最近動作：\(safetyMonkeyLastAction)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+
+                    Button("✅ 測試打勾表") {
+                        showingTestChecklist = true
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
+
+                    Button("🧪 測試歸零（全項重測）") {
+                        resetAllForRetest(clearChecks: true)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .frame(maxWidth: .infinity)
+
+                    HStack(spacing: 10) {
                         Button("截圖存相簿") {
                             sessionManager.capturePhotoToLibrary()
                         }
@@ -827,6 +921,50 @@ struct ContentView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("匯出 CSV") {
                         showingShareSheet = true
+                    }
+                }
+            }
+        }
+    }
+
+    private var testChecklistView: some View {
+        NavigationStack {
+            Form {
+                Section("iOS 手機測試打勾") {
+                    ForEach(TestChecklistItem.allCases) { item in
+                        Toggle(item.title, isOn: Binding(
+                            get: { completedTestItems.contains(item) },
+                            set: { isOn in
+                                if isOn {
+                                    completedTestItems.insert(item)
+                                } else {
+                                    completedTestItems.remove(item)
+                                }
+                            }
+                        ))
+                    }
+                }
+
+                Section("進度") {
+                    Text("完成 \(completedTestItems.count) / \(TestChecklistItem.allCases.count)")
+                        .font(.headline)
+                    if completedTestItems.count == TestChecklistItem.allCases.count {
+                        Text("✅ 全部測試項目已完成")
+                            .font(.caption.bold())
+                            .foregroundStyle(.green)
+                    }
+                }
+            }
+            .navigationTitle("測試打勾表")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("歸零重測") {
+                        resetAllForRetest(clearChecks: true)
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("關閉") {
+                        showingTestChecklist = false
                     }
                 }
             }
@@ -1626,6 +1764,103 @@ struct ContentView: View {
         }
     }
 
+    private func resetAllForRetest(clearChecks: Bool) {
+        measurementStore.clearAll()
+        sessionManager.resetForTesting()
+        showingVolumeScan = false
+        showingCrackInspector = false
+        showingQuantumMode = false
+        showingAIAssistant = false
+        showingRebarConfig = false
+        showingCorrectionHistory = false
+        showingTestChecklist = false
+        selectedMainPage = .page1
+        selectedStatusPage = .measure
+        selectedControlPage = .measure
+        clearViewAutoApplied = false
+        setClearViewMode(false)
+        if clearChecks {
+            completedTestItems.removeAll()
+        }
+    }
+
+    private enum TestChecklistItem: String, CaseIterable, Identifiable {
+        case clearViewToggle
+        case bottomRightButton
+        case volumeFirstPress
+        case volumePreviewPoints
+        case crackPreview
+        case crackOverlayLabel
+        case crackLocationList
+        case compactSheets
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .clearViewToggle:
+                return "釋放畫面 / 顯示功能 可切換"
+            case .bottomRightButton:
+                return "右下按鈕可按，不會無反應"
+            case .volumeFirstPress:
+                return "3D 體積掃描首次按就更新"
+            case .volumePreviewPoints:
+                return "掃描區域預覽有點位顯示"
+            case .crackPreview:
+                return "AI 抓漏有預覽畫面"
+            case .crackOverlayLabel:
+                return "AI 抓漏有 #編號 與區位標籤"
+            case .crackLocationList:
+                return "漏點定位清單有座標/長度/嚴重度"
+            case .compactSheets:
+                return "各工具視窗可縮小，不擋主畫面"
+            }
+        }
+    }
+
+    private enum MonkeyLockMode {
+        case setup
+        case unlock
+    }
+
+    private var monkeyAccessSheetView: some View {
+        NavigationStack {
+            Form {
+                if monkeyLockMode == .setup {
+                    Section("設定安全猴子密碼") {
+                        SecureField("輸入新密碼（至少 4 碼）", text: $monkeyPasswordInput)
+                        SecureField("再次輸入密碼", text: $monkeyPasswordConfirmInput)
+                    }
+                } else {
+                    Section("輸入密碼解鎖安全猴子") {
+                        SecureField("請輸入密碼", text: $monkeyPasswordInput)
+                    }
+                }
+
+                if !monkeyPasswordError.isEmpty {
+                    Section {
+                        Text(monkeyPasswordError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+            .navigationTitle(monkeyLockMode == .setup ? "設定猴子密碼" : "猴子密碼解鎖")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("取消") {
+                        showingMonkeyAccessSheet = false
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(monkeyLockMode == .setup ? "儲存" : "解鎖") {
+                        submitMonkeyAccess()
+                    }
+                }
+            }
+        }
+    }
+
     private enum MainPage: String, CaseIterable, Identifiable {
         case page1
         case page2
@@ -1636,6 +1871,150 @@ struct ContentView: View {
             case .page1: return "第1頁"
             case .page2: return "第2頁"
             }
+        }
+    }
+
+    private func toggleSafetyMonkey() {
+        safetyMonkeyEnabled ? stopSafetyMonkey() : startSafetyMonkey()
+    }
+
+    private func startSafetyMonkey() {
+        guard !safetyMonkeyEnabled else { return }
+        guard monkeyHasPassword, isMonkeyUnlocked else {
+            monkeyPasswordError = "請先輸入密碼解鎖"
+            openMonkeyAccessSheet(setup: !monkeyHasPassword)
+            return
+        }
+        safetyMonkeyEnabled = true
+        safetyMonkeyTickCount = 0
+        safetyMonkeyLastAction = "已啟動"
+        safetyMonkeyTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 3_200_000_000)
+                if Task.isCancelled { break }
+                await MainActor.run {
+                    runSafetyMonkeyTick(sessionManager: sessionManager)
+                }
+            }
+        }
+    }
+
+    private func refreshMonkeyAccessState() {
+        monkeyHasPassword = !(UserDefaults.standard.string(forKey: monkeyPassHashStorageKey) ?? "").isEmpty
+        if !monkeyHasPassword {
+            isMonkeyUnlocked = true
+        }
+    }
+
+    private func openMonkeyAccessSheet(setup: Bool) {
+        monkeyLockMode = setup ? .setup : .unlock
+        monkeyPasswordInput = ""
+        monkeyPasswordConfirmInput = ""
+        monkeyPasswordError = ""
+        showingMonkeyAccessSheet = true
+    }
+
+    private func lockMonkeyAccess() {
+        stopSafetyMonkey()
+        isMonkeyUnlocked = false
+    }
+
+    private func submitMonkeyAccess() {
+        switch monkeyLockMode {
+        case .setup:
+            let pass = monkeyPasswordInput.trimmingCharacters(in: .whitespacesAndNewlines)
+            let confirm = monkeyPasswordConfirmInput.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard pass.count >= 4 else {
+                monkeyPasswordError = "密碼至少 4 碼"
+                return
+            }
+            guard pass == confirm else {
+                monkeyPasswordError = "兩次輸入的密碼不一致"
+                return
+            }
+            UserDefaults.standard.set(sha256String(pass), forKey: monkeyPassHashStorageKey)
+            monkeyHasPassword = true
+            isMonkeyUnlocked = true
+            monkeyPasswordError = ""
+            showingMonkeyAccessSheet = false
+            safetyMonkeyLastAction = "密碼已設定並解鎖"
+        case .unlock:
+            let pass = monkeyPasswordInput.trimmingCharacters(in: .whitespacesAndNewlines)
+            let savedHash = UserDefaults.standard.string(forKey: monkeyPassHashStorageKey) ?? ""
+            guard !savedHash.isEmpty else {
+                monkeyPasswordError = "尚未設定密碼"
+                return
+            }
+            if sha256String(pass) == savedHash {
+                isMonkeyUnlocked = true
+                monkeyPasswordError = ""
+                showingMonkeyAccessSheet = false
+                safetyMonkeyLastAction = "密碼解鎖成功"
+            } else {
+                monkeyPasswordError = "密碼錯誤"
+            }
+        }
+    }
+
+    private func sha256String(_ value: String) -> String {
+        let digest = SHA256.hash(data: Data(value.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func stopSafetyMonkey() {
+        guard safetyMonkeyEnabled || safetyMonkeyTask != nil else { return }
+        safetyMonkeyEnabled = false
+        safetyMonkeyTask?.cancel()
+        safetyMonkeyTask = nil
+        safetyMonkeyLastAction = "已停止"
+    }
+
+    private func runSafetyMonkeyTick(sessionManager: LiDARSessionManager?) {
+        guard safetyMonkeyEnabled else { return }
+        enum MonkeyAction: CaseIterable {
+            case switchMainPage
+            case switchControlPage
+            case toggleClearView
+            case toggleTopPanel
+            case openVolumeSheet
+            case openCrackSheet
+            case scanVolume
+            case refreshCrackPreview
+        }
+        guard let action = MonkeyAction.allCases.randomElement() else { return }
+        safetyMonkeyTickCount += 1
+
+        switch action {
+        case .switchMainPage:
+            selectedMainPage = (selectedMainPage == .page1) ? .page2 : .page1
+            safetyMonkeyLastAction = "切換主頁到 \(selectedMainPage.title)"
+        case .switchControlPage:
+            selectedControlPage = ControlPage.allCases.randomElement() ?? .measure
+            safetyMonkeyLastAction = "切換功能頁到 \(selectedControlPage.title)"
+        case .toggleClearView:
+            clearViewAutoApplied = false
+            setClearViewMode(!isClearViewMode)
+            safetyMonkeyLastAction = isClearViewMode ? "開啟釋放畫面" : "關閉釋放畫面"
+        case .toggleTopPanel:
+            isTopPanelExpanded.toggle()
+            safetyMonkeyLastAction = isTopPanelExpanded ? "展開上方面板" : "收合上方面板"
+        case .openVolumeSheet:
+            showingVolumeScan.toggle()
+            if showingVolumeScan { volumeSheetDetent = .fraction(0.28) }
+            safetyMonkeyLastAction = showingVolumeScan ? "開啟體積掃描視窗" : "關閉體積掃描視窗"
+        case .openCrackSheet:
+            showingCrackInspector.toggle()
+            if showingCrackInspector {
+                crackSheetDetent = .fraction(0.32)
+                sessionManager?.refreshCrackPreviewFromCurrentFrame()
+            }
+            safetyMonkeyLastAction = showingCrackInspector ? "開啟裂縫視窗" : "關閉裂縫視窗"
+        case .scanVolume:
+            sessionManager?.runVolumeScanOnce()
+            safetyMonkeyLastAction = "觸發一次體積掃描"
+        case .refreshCrackPreview:
+            sessionManager?.refreshCrackPreviewFromCurrentFrame()
+            safetyMonkeyLastAction = "更新裂縫鏡頭預覽"
         }
     }
 }

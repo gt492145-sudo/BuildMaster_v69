@@ -969,6 +969,62 @@ final class LiDARSessionManager: ObservableObject {
         refreshCorrectionTrend()
     }
 
+    func resetForTesting() {
+        // Runtime measurement state
+        latestDistanceMeters = nil
+        distanceText = "-- m"
+        statusText = "測試重置完成，請重新對準目標"
+        recentDistances.removeAll()
+        recentRawDistances.removeAll()
+
+        // QA / deviation state
+        qaLevel = .normal
+        qaLevelText = qaLevel.displayName
+        qaScore = 0
+        aiIssue = .none
+        aiDiagnosisText = "AI QA：測試重置完成"
+        aiCorrectionText = "建議：請重新進行定比例與量測"
+        aiLastActionText = ""
+        highPrecisionStatusText = "高精度連續模式：待命"
+        deviationValueCm = 0
+        deviationStatusText = "偏差檢核：待命"
+
+        // AR mismatch display state
+        arPOCStatusText = "AR POC：等待影像錨點"
+        arMismatchSummaryText = "AR 偏位檢核：待命"
+        arMismatchAlerts = []
+        overlayLostSince = nil
+        overlayLastUpdateTime = 0
+
+        // Volume scan state
+        volumeEstimateM3 = 0
+        volumeSampleCount = 0
+        volumeScanPreviewPoints = []
+        volumeStatusText = "體積掃描：待命"
+        refreshVolumeAreaM2()
+
+        // Crack detection state
+        crackInputImage = nil
+        crackFindings = []
+        crackMaxLengthCm = 0
+        crackSeveritySummary = "無"
+        crackStatusText = "裂縫檢測：待命"
+
+        // Quantum runtime state (keep user settings, clear runtime telemetry)
+        quantumModeEnabled = false
+        UserDefaults.standard.set(false, forKey: quantumModeStorageKey)
+        stopQuantumVoiceCommand()
+        quantumCoreLevel = 0
+        quantumStatusText = "核心引擎：待命"
+        quantumSuggestionText = "戰術建議：目前無需啟動"
+        quantumFusionStatusText = "融合狀態：待命"
+        quantumIBMJobText = "IBM Job：尚未送出"
+        quantumIBMResultText = "IBM Result：尚無資料"
+        quantumLastCommandText = ""
+        quantumHistory.removeAll()
+        persistQuantumHistory()
+    }
+
     private func configureSession(on view: ARView) {
         guard ARWorldTrackingConfiguration.isSupported else {
             statusText = "此裝置不支援 ARWorldTracking"
