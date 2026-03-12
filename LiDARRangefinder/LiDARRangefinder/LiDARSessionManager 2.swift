@@ -1207,6 +1207,42 @@ final class LiDARSessionManager: ObservableObject {
         ibmScheduleStatusText = "IBM 排程：本地模擬完成（可作為現場執行順序）"
     }
 
+    func runIBMCloudScheduleSimulation() async {
+        guard quantumIBMCloudEnabled else {
+            ibmScheduleStatusText = "IBM 排程：請先開啟 IBM Cloud API"
+            return
+        }
+        guard let apiKey = UserDefaults.standard.string(forKey: quantumIBMAPIKeyStorageKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !apiKey.isEmpty else {
+            ibmScheduleStatusText = "IBM 排程：未設定 API Key"
+            return
+        }
+
+        ibmScheduleStatusText = "IBM 排程：送到雲端中..."
+        do {
+            let jobID = try await submitIBMRuntimeJob(
+                apiKey: apiKey,
+                backend: quantumIBMBackend,
+                shots: quantumIBMShots
+            )
+            let status = try await pollIBMRuntimeJobStatus(apiKey: apiKey, jobID: jobID)
+            var resultLine = "結果：狀態 \(status)"
+            if status == "completed" || status == "done" {
+                let summary = try await fetchIBMRuntimeResultSummary(apiKey: apiKey, jobID: jobID)
+                resultLine = "結果：\(summary)"
+            }
+            ibmSchedulePreviewLines = [
+                "雲端 Job：\(jobID)",
+                "Backend：\(quantumIBMBackend)｜Shots：\(quantumIBMShots)",
+                resultLine
+            ]
+            ibmScheduleStatusText = "IBM 排程：雲端完成"
+        } catch {
+            ibmScheduleStatusText = "IBM 排程：雲端失敗（\(error.localizedDescription)）"
+            ibmSchedulePreviewLines = ["雲端錯誤：\(error.localizedDescription)"]
+        }
+    }
+
     func setCrackCalibrationCmPerPixel(_ value: Double) {
         crackCalibrationCmPerPixel = clampCrackCalibration(value)
         UserDefaults.standard.set(crackCalibrationCmPerPixel, forKey: crackCalibrationStorageKey)

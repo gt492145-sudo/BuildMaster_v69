@@ -417,12 +417,6 @@ struct ContentView: View {
                                 .font(.caption2)
                                 .foregroundStyle(sessionManager.autoCorrectionEnabled ? .mint : .secondary)
                         case .system:
-                            Text(sessionManager.aiAssistantSourceText)
-                                .font(.caption2)
-                                .foregroundStyle(.cyan)
-                            Text(sessionManager.aiAssistantText)
-                                .font(.caption2)
-                                .foregroundStyle(.white.opacity(0.9))
                             Text(sessionManager.arPOCStatusText)
                                 .font(.caption2.bold())
                                 .foregroundStyle(.cyan)
@@ -451,15 +445,6 @@ struct ContentView: View {
                             Text(sessionManager.crackStatusText)
                                 .font(.caption2)
                                 .foregroundStyle(.orange)
-                            Text(sessionManager.quantumStatusText)
-                                .font(.caption2.bold())
-                                .foregroundStyle(.purple)
-                            Text("核心引擎等級：\(sessionManager.quantumCoreLevel)%")
-                                .font(.caption2)
-                                .foregroundStyle(.purple.opacity(0.9))
-                            Text(sessionManager.quantumSuggestionText)
-                                .font(.caption2)
-                                .foregroundStyle(.yellow)
                             Text("狀態: \(sessionManager.statusText)")
                                 .font(.footnote)
                                 .foregroundStyle(.white.opacity(0.8))
@@ -803,9 +788,55 @@ struct ContentView: View {
                     .tint(sessionManager.facadeHologramEnabled ? .orange : .indigo)
                     .frame(maxWidth: .infinity)
 
+                    if sessionManager.facadeHologramEnabled {
+                        Button("重置立面姿態（回到前方）") {
+                            sessionManager.resetFacadeHologramTransform()
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.indigo)
+                        .frame(maxWidth: .infinity)
+                    }
+
                     Text(sessionManager.facadeHologramStatusText)
                         .font(.caption2)
                         .foregroundStyle(.indigo)
+
+                    Button("IBM 排程本地模擬") {
+                        sessionManager.runLocalIBMScheduleSimulation()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.gray)
+                    .frame(maxWidth: .infinity)
+
+                    Button("送到 IBM Cloud 排程") {
+                        Task {
+                            await sessionManager.runIBMCloudScheduleSimulation()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.indigo)
+                    .frame(maxWidth: .infinity)
+
+                    Text(sessionManager.ibmScheduleStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+
+                    if !sessionManager.ibmSchedulePreviewLines.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(Array(sessionManager.ibmSchedulePreviewLines.prefix(8).enumerated()), id: \.offset) { _, line in
+                                    Text(line)
+                                        .font(.caption2)
+                                        .foregroundStyle(.white.opacity(0.88))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                        }
+                        .frame(maxHeight: 110)
+                        .padding(8)
+                        .background(.black.opacity(0.16))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
 
                     HStack(spacing: 10) {
                         Button(monkeyHasPassword ? "🔐 密碼解鎖猴子" : "🔐 設定猴子密碼") {
@@ -1022,6 +1053,17 @@ struct ContentView: View {
                             }
                         } label: {
                             tacticalActionLabel("✨ AI 建議", color: .purple)
+                        }
+
+                        Button {
+                            selectedMainPage = .page2
+                            selectedControlPage = .tools
+                            sessionManager.setMeshVisualizationEnabled(!sessionManager.meshVisualizationEnabled)
+                        } label: {
+                            tacticalActionLabel(
+                                sessionManager.meshVisualizationEnabled ? "🕸️ 關閉網狀" : "🕸️ 開啟網狀",
+                                color: .orange
+                            )
                         }
 
                         Button {
