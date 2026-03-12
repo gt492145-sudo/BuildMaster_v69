@@ -1,0 +1,190 @@
+{
+  "project_id": "buildmaster_v69_pilot",
+  "source": "csv_templates",
+  "tasks": [
+    {
+      "task_id": "T001",
+      "name": "1F_Layout_Staking",
+      "zone": "Zone_A",
+      "duration_days": "1",
+      "crew_type": "SURVEY",
+      "priority": "1",
+      "planned_start": "2026-03-15",
+      "planned_finish": "2026-03-15"
+    },
+    {
+      "task_id": "T002",
+      "name": "1F_Formwork",
+      "zone": "Zone_A",
+      "duration_days": "2",
+      "crew_type": "FORM",
+      "priority": "1",
+      "planned_start": "2026-03-16",
+      "planned_finish": "2026-03-17"
+    },
+    {
+      "task_id": "T003",
+      "name": "1F_Rebar",
+      "zone": "Zone_A",
+      "duration_days": "2",
+      "crew_type": "REBAR",
+      "priority": "1",
+      "planned_start": "2026-03-18",
+      "planned_finish": "2026-03-19"
+    },
+    {
+      "task_id": "T004",
+      "name": "1F_MEP_RoughIn",
+      "zone": "Zone_A",
+      "duration_days": "2",
+      "crew_type": "MEP",
+      "priority": "1",
+      "planned_start": "2026-03-20",
+      "planned_finish": "2026-03-21"
+    },
+    {
+      "task_id": "T005",
+      "name": "1F_Concrete_Pour",
+      "zone": "Zone_A",
+      "duration_days": "1",
+      "crew_type": "CONCRETE",
+      "priority": "1",
+      "planned_start": "2026-03-22",
+      "planned_finish": "2026-03-22"
+    },
+    {
+      "task_id": "T006",
+      "name": "1F_Curing",
+      "zone": "Zone_A",
+      "duration_days": "3",
+      "crew_type": "CONCRETE",
+      "priority": "2",
+      "planned_start": "2026-03-23",
+      "planned_finish": "2026-03-25"
+    }
+  ],
+  "dependencies": [
+    {
+      "task_id": "T002",
+      "predecessor_task_id": "T001",
+      "dependency_type": "FS",
+      "lag_days": "0"
+    },
+    {
+      "task_id": "T003",
+      "predecessor_task_id": "T002",
+      "dependency_type": "FS",
+      "lag_days": "0"
+    },
+    {
+      "task_id": "T004",
+      "predecessor_task_id": "T003",
+      "dependency_type": "FS",
+      "lag_days": "0"
+    },
+    {
+      "task_id": "T005",
+      "predecessor_task_id": "T004",
+      "dependency_type": "FS",
+      "lag_days": "0"
+    },
+    {
+      "task_id": "T006",
+      "predecessor_task_id": "T005",
+      "dependency_type": "FS",
+      "lag_days": "0"
+    }
+  ],
+  "resources": [
+    {
+      "resource_id": "R001",
+      "resource_type": "LABOR",
+      "name": "SURVEY_TEAM",
+      "capacity_per_day": "1",
+      "unit": "team",
+      "cost_per_day": "18000"
+    },
+    {
+      "resource_id": "R002",
+      "resource_type": "LABOR",
+      "name": "FORM_TEAM",
+      "capacity_per_day": "1",
+      "unit": "team",
+      "cost_per_day": "22000"
+    },
+    {
+      "resource_id": "R003",
+      "resource_type": "LABOR",
+      "name": "REBAR_TEAM",
+      "capacity_per_day": "1",
+      "unit": "team",
+      "cost_per_day": "23000"
+    },
+    {
+      "resource_id": "R004",
+      "resource_type": "LABOR",
+      "name": "MEP_TEAM",
+      "capacity_per_day": "1",
+      "unit": "team",
+      "cost_per_day": "25000"
+    },
+    {
+      "resource_id": "R005",
+      "resource_type": "LABOR",
+      "name": "CONCRETE_TEAM",
+      "capacity_per_day": "1",
+      "unit": "team",
+      "cost_per_day": "26000"
+    },
+    {
+      "resource_id": "R006",
+      "resource_type": "EQUIPMENT",
+      "name": "CONCRETE_PUMP",
+      "capacity_per_day": "1",
+      "unit": "set",
+      "cost_per_day": "12000"
+    },
+    {
+      "resource_id": "R007",
+      "resource_type": "MATERIAL",
+      "name": "READY_MIX",
+      "capacity_per_day": "120",
+      "unit": "m3",
+      "cost_per_day": "0"
+    }
+  ],
+  "ifc_mapping": [
+    {
+      "ifc_element_id": "WALL_1F_A_001",
+      "ifc_type": "IfcWall",
+      "level": "1F",
+      "zone": "Zone_A",
+      "task_id": "T002",
+      "notes": "formwork_scope"
+    },
+    {
+      "ifc_element_id": "REB_1F_A_001",
+      "ifc_type": "IfcReinforcingBar",
+      "level": "1F",
+      "zone": "Zone_A",
+      "task_id": "T003",
+      "notes": "rebar_scope"
+    },
+    {
+      "ifc_element_id": "MEP_1F_A_001",
+      "ifc_type": "IfcPipeSegment",
+      "level": "1F",
+      "zone": "Zone_A",
+      "task_id": "T004",
+      "notes": "mep_scope"
+    },
+    {
+      "ifc_element_id": "COL_1F_A_001",
+      "ifc_type": "IfcColumn",
+      "level": "1F",
+      "zone": "Zone_A",
+      "task_id": "T005",
+      "notes": "concrete_scope"
+    }
+  ]
+}

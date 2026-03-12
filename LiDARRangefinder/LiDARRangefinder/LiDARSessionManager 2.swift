@@ -94,6 +94,12 @@ struct TWDStakingPoint: Identifiable {
     let h: Double
 }
 
+private struct LocalScheduleTask {
+    let id: String
+    let name: String
+    let durationDays: Int
+}
+
 @MainActor
 final class LiDARSessionManager: ObservableObject {
     @Published var distanceText: String = "-- m"
@@ -160,6 +166,8 @@ final class LiDARSessionManager: ObservableObject {
     @Published var ifcSimulationStatusText: String = "IFC 模擬：待命"
     @Published var facadeHologramEnabled: Bool = false
     @Published var facadeHologramStatusText: String = "立面全息：待命"
+    @Published var ibmScheduleStatusText: String = "IBM 排程：待命"
+    @Published var ibmSchedulePreviewLines: [String] = []
     @Published var meshVisualizationEnabled: Bool = false
     @Published var meshVisualizationStatusText: String = "網狀模式：關"
     @Published var crackInputImage: UIImage?
@@ -233,6 +241,11 @@ final class LiDARSessionManager: ObservableObject {
     private var ifcSimulationAnchor: AnchorEntity?
     private var twdStakingPreviewAnchor: AnchorEntity?
     private var facadeHologramAnchor: AnchorEntity?
+    private var facadeHologramRoot: Entity?
+    private var facadeHologramScale: Float = 1.0
+    private var facadeHologramYaw: Float = 0
+    private var facadeHologramPitch: Float = 0
+    private var facadeHologramRoll: Float = 0
     private var overlayImageName: String?
     private var ifcElements: [IFCElementSpec] = []
     private var overlayConfigSignature: String = ""
@@ -938,6 +951,7 @@ final class LiDARSessionManager: ObservableObject {
         }
 
         let root = Entity()
+        facadeHologramRoot = root
         anchor.addChild(root)
 
         let imageRatio = max(0.35, min(2.2, Double(image.size.height / max(1, image.size.width))))
@@ -1033,12 +1047,87 @@ final class LiDARSessionManager: ObservableObject {
         bottomEdge.position = [0, 0, 0]
         root.addChild(bottomEdge)
 
+        applyFacadeHologramTransform()
         return anchor
+    }
+
+    private func applyFacadeHologramTransform() {
+        guard let root = facadeHologramRoot else { return }
+        root.scale = SIMD3<Float>(repeating: facadeHologramScale)
+        let yaw = simd_quatf(angle: facadeHologramYaw, axis: [0, 1, 0])
+        let pitch = simd_quatf(angle: facadeHologramPitch, axis: [1, 0, 0])
+        let roll = simd_quatf(angle: facadeHologramRoll, axis: [0, 0, 1])
+        root.orientation = yaw * pitch * roll
+    }
+
+    func adjustFacadeHologramScale(by factor: CGFloat) {
+        guard facadeHologramEnabled, facadeHologramRoot != nil else { return }
+        let safeFactor = max(0.6, min(1.6, Float(factor)))
+        facadeHologramScale = min(3.2, max(0.35, facadeHologramScale * safeFactor))
+        applyFacadeHologramTransform()
+        facadeHologramStatusText = String(format: "立面全息：縮放 %.2fx", facadeHologramScale)
+    }
+
+    func rotateFacadeHologram(deltaYaw: Float, deltaPitch: Float) {
+        guard facadeHologramEnabled, facadeHologramRoot != nil else { return }
+        facadeHologramYaw += deltaYaw
+        facadeHologramPitch = min(0.95, max(-0.95, facadeHologramPitch + deltaPitch))
+        applyFacadeHologramTransform()
+        facadeHologramStatusText = "立面全息：可自由旋轉"
+    }
+
+    func rollFacadeHologram(deltaRoll: Float) {
+        guard facadeHologramEnabled, facadeHologramRoot != nil else { return }
+        facadeHologramRoll += deltaRoll
+        applyFacadeHologramTransform()
+        facadeHologramStatusText = "立面全息：旋轉中（含翻轉）"
+    }
+
+    func moveFacadeHologram(deltaScreenX: CGFloat, deltaScreenY: CGFloat) {
+        guard facadeHologramEnabled, let anchor = facadeHologramAnchor, let arView else { return }
+        guard let frame = arView.session.currentFrame else { return }
+        let camera = frame.camera.transform
+        let right = SIMD3<Float>(camera.columns.0.x, camera.columns.0.y, camera.columns.0.z)
+        let up = SIMD3<Float>(camera.columns.1.x, camera.columns.1.y, camera.columns.1.z)
+        let sensitivity: Float = 0.0012 * max(0.8, facadeHologramScale)
+        let dx = Float(deltaScreenX) * sensitivity
+        let dy = Float(deltaScreenY) * sensitivity
+        anchor.position += right * dx
+        anchor.position += up * -dy
+        facadeHologramStatusText = "立面全息：已平移定位"
+    }
+
+    func resetFacadeHologramTransform() {
+        guard facadeHologramEnabled, facadeHologramRoot != nil else { return }
+        facadeHologramScale = 1.0
+        facadeHologramYaw = 0
+        facadeHologramPitch = 0
+        facadeHologramRoll = 0
+        if let arView, let anchor = facadeHologramAnchor, let cameraTransform = arView.session.currentFrame?.camera.transform {
+            let forward = SIMD3<Float>(
+                -cameraTransform.columns.2.x,
+                -cameraTransform.columns.2.y,
+                -cameraTransform.columns.2.z
+            )
+            let cameraPos = SIMD3<Float>(
+                cameraTransform.columns.3.x,
+                cameraTransform.columns.3.y,
+                cameraTransform.columns.3.z
+            )
+            anchor.position = cameraPos + (forward * 1.7) + SIMD3<Float>(0, -0.25, 0)
+        }
+        applyFacadeHologramTransform()
+        facadeHologramStatusText = "立面全息：已重置（前方可操作）"
     }
 
     private func clearFacadeHologramAnchor() {
         facadeHologramAnchor?.removeFromParent()
         facadeHologramAnchor = nil
+        facadeHologramRoot = nil
+        facadeHologramScale = 1.0
+        facadeHologramYaw = 0
+        facadeHologramPitch = 0
+        facadeHologramRoll = 0
         facadeHologramEnabled = false
         facadeHologramStatusText = "立面全息：關"
     }
@@ -1082,7 +1171,40 @@ final class LiDARSessionManager: ObservableObject {
         arView.scene.addAnchor(anchor)
         facadeHologramAnchor = anchor
         facadeHologramEnabled = true
-        facadeHologramStatusText = "立面全息：已生成 3D 建築立面"
+        facadeHologramStatusText = "立面全息：已生成（單指旋轉｜雙指縮放/平移/翻轉）"
+    }
+
+    func runLocalIBMScheduleSimulation() {
+        ibmScheduleStatusText = "IBM 排程：模擬中..."
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM/dd"
+
+        let tasks: [LocalScheduleTask] = [
+            .init(id: "T001", name: "放樣/定位", durationDays: 1),
+            .init(id: "T002", name: "模板工程", durationDays: 2),
+            .init(id: "T003", name: "鋼筋工程", durationDays: 2),
+            .init(id: "T004", name: "機電預埋", durationDays: 2),
+            .init(id: "T005", name: "混凝土澆置", durationDays: 1),
+            .init(id: "T006", name: "養護與複測", durationDays: 3)
+        ]
+
+        var pointer = Calendar.current.startOfDay(for: Date())
+        var lines: [String] = []
+        for task in tasks {
+            let start = pointer
+            let finish = Calendar.current.date(byAdding: .day, value: max(1, task.durationDays) - 1, to: start) ?? start
+            lines.append("[\(task.id)] \(task.name) \(formatter.string(from: start)) -> \(formatter.string(from: finish))")
+            pointer = Calendar.current.date(byAdding: .day, value: max(1, task.durationDays), to: start) ?? pointer
+        }
+
+        if ifcModelElementCount > 0 {
+            lines.insert("模型關聯：已載入 IFC 元件 \(ifcModelElementCount) 件", at: 0)
+        } else {
+            lines.insert("模型關聯：未載入 IFC，使用標準排程樣板", at: 0)
+        }
+
+        ibmSchedulePreviewLines = lines
+        ibmScheduleStatusText = "IBM 排程：本地模擬完成（可作為現場執行順序）"
     }
 
     func setCrackCalibrationCmPerPixel(_ value: Double) {

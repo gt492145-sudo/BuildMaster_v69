@@ -18,7 +18,22 @@ struct ARViewContainer: UIViewRepresentable {
         view.renderOptions.insert(.disableCameraGrain)
         view.automaticallyConfigureSession = false
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+        let pinch = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePinch(_:)))
+        let panRotate = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePanRotate(_:)))
+        panRotate.minimumNumberOfTouches = 1
+        panRotate.maximumNumberOfTouches = 1
+        panRotate.delegate = context.coordinator
+        let panMove = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePanMove(_:)))
+        panMove.minimumNumberOfTouches = 2
+        panMove.maximumNumberOfTouches = 2
+        panMove.delegate = context.coordinator
+        let rotation = UIRotationGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleRotation(_:)))
+        rotation.delegate = context.coordinator
         view.addGestureRecognizer(tap)
+        view.addGestureRecognizer(pinch)
+        view.addGestureRecognizer(panRotate)
+        view.addGestureRecognizer(panMove)
+        view.addGestureRecognizer(rotation)
         sessionManager.attachARView(view)
         context.coordinator.arView = view
         return view
@@ -28,7 +43,7 @@ struct ARViewContainer: UIViewRepresentable {
         // No-op for now.
     }
 
-    final class Coordinator: NSObject {
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         weak var arView: ARView?
         private let sessionManager: LiDARSessionManager
 
@@ -40,6 +55,38 @@ struct ARViewContainer: UIViewRepresentable {
             guard let arView else { return }
             let location = recognizer.location(in: arView)
             sessionManager.placeConcreteBlock(atScreenPoint: location)
+        }
+
+        @objc func handlePinch(_ recognizer: UIPinchGestureRecognizer) {
+            guard recognizer.state == .changed else { return }
+            sessionManager.adjustFacadeHologramScale(by: recognizer.scale)
+            recognizer.scale = 1.0
+        }
+
+        @objc func handlePanRotate(_ recognizer: UIPanGestureRecognizer) {
+            guard let arView, recognizer.state == .changed else { return }
+            let translation = recognizer.translation(in: arView)
+            let deltaYaw = -Float(translation.x) * 0.012
+            let deltaPitch = -Float(translation.y) * 0.009
+            sessionManager.rotateFacadeHologram(deltaYaw: deltaYaw, deltaPitch: deltaPitch)
+            recognizer.setTranslation(.zero, in: arView)
+        }
+
+        @objc func handlePanMove(_ recognizer: UIPanGestureRecognizer) {
+            guard let arView, recognizer.state == .changed else { return }
+            let translation = recognizer.translation(in: arView)
+            sessionManager.moveFacadeHologram(deltaScreenX: translation.x, deltaScreenY: translation.y)
+            recognizer.setTranslation(.zero, in: arView)
+        }
+
+        @objc func handleRotation(_ recognizer: UIRotationGestureRecognizer) {
+            guard recognizer.state == .changed else { return }
+            sessionManager.rollFacadeHologram(deltaRoll: Float(recognizer.rotation))
+            recognizer.rotation = 0
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+            true
         }
     }
 }
