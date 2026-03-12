@@ -792,6 +792,16 @@ struct ContentView: View {
                     .tint(sessionManager.facadeHologramEnabled ? .orange : .indigo)
                     .frame(maxWidth: .infinity)
 
+                    Toggle("生命感模式（動態光影）", isOn: Binding(
+                        get: { sessionManager.facadeLifeModeEnabled },
+                        set: { sessionManager.setFacadeLifeModeEnabled($0) }
+                    ))
+                        .tint(.mint)
+
+                    Text(sessionManager.facadeLifeModeStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.mint)
+
                     if sessionManager.facadeHologramEnabled {
                         Button("重置立面姿態（回到前方）") {
                             sessionManager.resetFacadeHologramTransform()

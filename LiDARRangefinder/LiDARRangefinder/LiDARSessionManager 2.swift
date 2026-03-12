@@ -166,6 +166,8 @@ final class LiDARSessionManager: ObservableObject {
     @Published var ifcSimulationStatusText: String = "IFC 模擬：待命"
     @Published var facadeHologramEnabled: Bool = false
     @Published var facadeHologramStatusText: String = "立面全息：待命"
+    @Published var facadeLifeModeEnabled: Bool = true
+    @Published var facadeLifeModeStatusText: String = "生命感模式：開"
     @Published var ibmScheduleStatusText: String = "IBM 排程：待命"
     @Published var ibmSchedulePreviewLines: [String] = []
     @Published var meshVisualizationEnabled: Bool = false
@@ -234,6 +236,7 @@ final class LiDARSessionManager: ObservableObject {
     private let twd97BaseHStorageKey = "lidar_rangefinder_twd97_base_h"
     private let twd97RotationStorageKey = "lidar_rangefinder_twd97_rotation_deg"
     private let meshVisualizationStorageKey = "lidar_rangefinder_mesh_visualization_enabled"
+    private let facadeLifeModeStorageKey = "lidar_rangefinder_facade_life_mode_enabled"
     private var aiIssue: AIQAIssueType = .none
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
@@ -246,6 +249,11 @@ final class LiDARSessionManager: ObservableObject {
     private var facadeHologramYaw: Float = 0
     private var facadeHologramPitch: Float = 0
     private var facadeHologramRoll: Float = 0
+    private var facadeLifePulseScale: Float = 1.0
+    private var facadeLifeAnimationTimer: Timer?
+    private var facadeLifeStartTime: TimeInterval = 0
+    private var facadeScanBandEntity: ModelEntity?
+    private var facadeCurrentHeight: Float = 1.4
     private var overlayImageName: String?
     private var ifcElements: [IFCElementSpec] = []
     private var overlayConfigSignature: String = ""
@@ -356,6 +364,10 @@ final class LiDARSessionManager: ObservableObject {
         meshVisualizationEnabled = false
         UserDefaults.standard.set(false, forKey: meshVisualizationStorageKey)
         meshVisualizationStatusText = "網狀模式：關"
+        if UserDefaults.standard.object(forKey: facadeLifeModeStorageKey) != nil {
+            facadeLifeModeEnabled = UserDefaults.standard.bool(forKey: facadeLifeModeStorageKey)
+        }
+        facadeLifeModeStatusText = facadeLifeModeEnabled ? "生命感模式：開" : "生命感模式：關"
         if quantumModeEnabled {
             highestModeLockEnabled = true
             qaProfile = .ultra
@@ -375,6 +387,7 @@ final class LiDARSessionManager: ObservableObject {
 
     deinit {
         updateTimer?.invalidate()
+        facadeLifeAnimationTimer?.invalidate()
     }
 
     func attachARView(_ view: ARView) {
@@ -670,6 +683,23 @@ final class LiDARSessionManager: ObservableObject {
         }
     }
 
+    func setFacadeLifeModeEnabled(_ enabled: Bool) {
+        facadeLifeModeEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: facadeLifeModeStorageKey)
+        facadeLifeModeStatusText = enabled ? "生命感模式：開" : "生命感模式：關"
+        if enabled {
+            startFacadeLifeAnimationIfNeeded()
+            facadeHologramStatusText = facadeHologramEnabled
+                ? "立面全息：生命感已啟用"
+                : "立面全息：待命（生命感開）"
+        } else {
+            stopFacadeLifeAnimation()
+            facadeHologramStatusText = facadeHologramEnabled
+                ? "立面全息：生命感已關閉"
+                : "立面全息：待命"
+        }
+    }
+
     func setTWD97BaseE(_ value: Double) {
         twd97BaseE = value
         UserDefaults.standard.set(value, forKey: twd97BaseEStorageKey)
@@ -958,6 +988,7 @@ final class LiDARSessionManager: ObservableObject {
         let facadeWidth: Float = 1.9
         let facadeHeight: Float = Float(facadeWidth * Float(imageRatio))
         let depth: Float = 0.26
+        facadeCurrentHeight = facadeHeight
 
         let bodyMesh = MeshResource.generateBox(size: [facadeWidth, facadeHeight, depth])
         let bodyMat = SimpleMaterial(color: UIColor.systemGray.withAlphaComponent(0.92), roughness: 0.42, isMetallic: false)
@@ -1059,17 +1090,61 @@ final class LiDARSessionManager: ObservableObject {
         bottomEdge.position = [0, 0, 0]
         root.addChild(bottomEdge)
 
+        let scanMesh = MeshResource.generateBox(size: [facadeWidth * 0.98, 0.06, 0.008])
+        let scanMat = SimpleMaterial(color: UIColor.cyan.withAlphaComponent(0.42), roughness: 0.15, isMetallic: true)
+        let scanBand = ModelEntity(mesh: scanMesh, materials: [scanMat])
+        scanBand.position = [0, 0.08, depth / 2 + 0.04]
+        root.addChild(scanBand)
+        facadeScanBandEntity = scanBand
+
+        facadeLifePulseScale = 1.0
         applyFacadeHologramTransform()
+        startFacadeLifeAnimationIfNeeded()
         return anchor
     }
 
     private func applyFacadeHologramTransform() {
         guard let root = facadeHologramRoot else { return }
-        root.scale = SIMD3<Float>(repeating: facadeHologramScale)
+        root.scale = SIMD3<Float>(repeating: facadeHologramScale * facadeLifePulseScale)
         let yaw = simd_quatf(angle: facadeHologramYaw, axis: [0, 1, 0])
         let pitch = simd_quatf(angle: facadeHologramPitch, axis: [1, 0, 0])
         let roll = simd_quatf(angle: facadeHologramRoll, axis: [0, 0, 1])
         root.orientation = yaw * pitch * roll
+    }
+
+    private func startFacadeLifeAnimationIfNeeded() {
+        guard facadeLifeModeEnabled, facadeHologramEnabled, facadeHologramRoot != nil else { return }
+        if facadeLifeAnimationTimer != nil { return }
+        facadeLifeStartTime = Date().timeIntervalSinceReferenceDate
+        facadeLifeAnimationTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                self.tickFacadeLifeAnimation()
+            }
+        }
+    }
+
+    private func stopFacadeLifeAnimation() {
+        facadeLifeAnimationTimer?.invalidate()
+        facadeLifeAnimationTimer = nil
+        facadeLifePulseScale = 1.0
+        applyFacadeHologramTransform()
+    }
+
+    private func tickFacadeLifeAnimation() {
+        guard facadeLifeModeEnabled, facadeHologramEnabled, facadeHologramRoot != nil else {
+            stopFacadeLifeAnimation()
+            return
+        }
+        let t = Float(Date().timeIntervalSinceReferenceDate - facadeLifeStartTime)
+        facadeLifePulseScale = 1.0 + 0.012 * sinf(t * 1.8)
+        applyFacadeHologramTransform()
+        if let scanBand = facadeScanBandEntity {
+            let travel = max(0.2, facadeCurrentHeight - 0.18)
+            let y = 0.08 + ((sinf(t * 1.1) * 0.5 + 0.5) * travel)
+            scanBand.position.y = y
+            scanBand.position.z = 0.17 + 0.0012 * sinf(t * 2.4)
+        }
     }
 
     func adjustFacadeHologramScale(by factor: CGFloat) {
@@ -1111,6 +1186,7 @@ final class LiDARSessionManager: ObservableObject {
         facadeHologramYaw = 0
         facadeHologramPitch = 0
         facadeHologramRoll = 0
+        facadeLifePulseScale = 1.0
         if let arView, let anchor = facadeHologramAnchor, let cameraTransform = arView.session.currentFrame?.camera.transform {
             let forward = SIMD3<Float>(
                 -cameraTransform.columns.2.x,
@@ -1129,9 +1205,11 @@ final class LiDARSessionManager: ObservableObject {
     }
 
     private func clearFacadeHologramAnchor() {
+        stopFacadeLifeAnimation()
         facadeHologramAnchor?.removeFromParent()
         facadeHologramAnchor = nil
         facadeHologramRoot = nil
+        facadeScanBandEntity = nil
         facadeHologramScale = 1.0
         facadeHologramYaw = 0
         facadeHologramPitch = 0
@@ -1183,7 +1261,10 @@ final class LiDARSessionManager: ObservableObject {
         arView.scene.addAnchor(anchor)
         facadeHologramAnchor = anchor
         facadeHologramEnabled = true
-        facadeHologramStatusText = "立面全息：已生成（單指旋轉｜雙指縮放/平移/翻轉）"
+        facadeHologramStatusText = facadeLifeModeEnabled
+            ? "立面全息：已生成（生命感模式）"
+            : "立面全息：已生成（單指旋轉｜雙指縮放/平移/翻轉）"
+        startFacadeLifeAnimationIfNeeded()
     }
 
     func runLocalIBMScheduleSimulation() {
