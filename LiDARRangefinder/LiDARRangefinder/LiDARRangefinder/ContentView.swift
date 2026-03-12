@@ -481,6 +481,28 @@ struct ContentView: View {
             }
             .pickerStyle(.segmented)
 
+            if selectedControlPage == .tools {
+                HStack(spacing: 8) {
+                    Button("匯入IFC") {
+                        showingIFCFileImporter = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.indigo)
+                    .frame(maxWidth: .infinity)
+
+                    Button(sessionManager.ifcSimulationEnabled ? "關閉IFC-3D" : "生成IFC-3D") {
+                        if sessionManager.ifcModelElementCount == 0 && sessionManager.blueprintInputImage == nil {
+                            showingIFCFileImporter = true
+                        } else {
+                            sessionManager.toggleIFCSimulationFromUploadedBlueprint()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(sessionManager.ifcSimulationEnabled ? .orange : .teal)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(spacing: 10) {
                     switch selectedControlPage {
@@ -693,7 +715,7 @@ struct ContentView: View {
                     }
 
                     PhotosPicker(selection: $selectedBlueprintPhotoItem, matching: .images, photoLibrary: .shared()) {
-                        Label("上傳圖紙（3D生成）", systemImage: "square.and.arrow.up")
+                        Label("上傳圖紙（底圖）", systemImage: "square.and.arrow.up")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -745,7 +767,7 @@ struct ContentView: View {
                         .font(.caption2)
                         .foregroundStyle(.teal)
 
-                    Button(sessionManager.ifcSimulationEnabled ? "IFC 模擬：清除 3D" : "IFC 模擬：生成 3D 工程模型") {
+                    Button(sessionManager.ifcSimulationEnabled ? "關閉IFC-3D" : "生成IFC-3D") {
                         sessionManager.toggleIFCSimulationFromUploadedBlueprint()
                     }
                     .buttonStyle(.borderedProminent)
@@ -755,6 +777,17 @@ struct ContentView: View {
                     Text(sessionManager.ifcSimulationStatusText)
                         .font(.caption2)
                         .foregroundStyle(.blue)
+
+                    Button(sessionManager.facadeHologramEnabled ? "關閉立面全息" : "生成立面全息") {
+                        sessionManager.toggleFacadeHologramFromBlueprint()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(sessionManager.facadeHologramEnabled ? .orange : .indigo)
+                    .frame(maxWidth: .infinity)
+
+                    Text(sessionManager.facadeHologramStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.indigo)
 
                     HStack(spacing: 10) {
                         Button(monkeyHasPassword ? "🔐 密碼解鎖猴子" : "🔐 設定猴子密碼") {
@@ -969,6 +1002,58 @@ struct ContentView: View {
                     }
                 } label: {
                     tacticalActionLabel("✨ AI 建議", color: .purple)
+                }
+
+                Button {
+                    selectedMainPage = .page2
+                    selectedControlPage = .tools
+                    sessionManager.toggleIFCSimulationFromUploadedBlueprint()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        isTacticalMenuOpen = false
+                    }
+                } label: {
+                    tacticalActionLabel(
+                        sessionManager.ifcSimulationEnabled ? "🧱 關閉IFC-3D" : "🧱 生成IFC-3D",
+                        color: .teal
+                    )
+                }
+
+                Button {
+                    selectedMainPage = .page2
+                    selectedControlPage = .tools
+                    sessionManager.toggleFacadeHologramFromBlueprint()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        isTacticalMenuOpen = false
+                    }
+                } label: {
+                    tacticalActionLabel(
+                        sessionManager.facadeHologramEnabled ? "🏢 關閉立面全息" : "🏢 生成立面全息",
+                        color: .indigo
+                    )
+                }
+
+                Button {
+                    selectedMainPage = .page2
+                    selectedControlPage = .tools
+                    if sessionManager.twdStakingPoints.isEmpty {
+                        if sessionManager.ifcModelElementCount > 0 {
+                            sessionManager.generateTWDStakingPointsFromIFC()
+                        } else {
+                            sessionManager.generateQuickStakingPointsFromBlueprint(
+                                planWidthMeters: blueprintPlanWidthMeters,
+                                planHeightMeters: blueprintPlanHeightMeters
+                            )
+                        }
+                    }
+                    sessionManager.toggleTWDStakingPreviewInAR()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        isTacticalMenuOpen = false
+                    }
+                } label: {
+                    tacticalActionLabel(
+                        sessionManager.twdStakingPreviewEnabled ? "📍 隱藏放樣點" : "📍 顯示放樣點",
+                        color: .orange
+                    )
                 }
 
                 Spacer(minLength: 0)

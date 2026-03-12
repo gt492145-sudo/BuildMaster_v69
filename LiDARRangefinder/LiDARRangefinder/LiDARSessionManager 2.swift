@@ -158,6 +158,8 @@ final class LiDARSessionManager: ObservableObject {
     @Published var blueprintQuickStakeStatusText: String = "圖紙快速放樣：待命"
     @Published var ifcSimulationEnabled: Bool = false
     @Published var ifcSimulationStatusText: String = "IFC 模擬：待命"
+    @Published var facadeHologramEnabled: Bool = false
+    @Published var facadeHologramStatusText: String = "立面全息：待命"
     @Published var crackInputImage: UIImage?
     @Published var crackFindings: [CrackFinding] = []
     @Published var crackStatusText: String = "裂縫檢測：待命"
@@ -227,6 +229,7 @@ final class LiDARSessionManager: ObservableObject {
     private var overlayAnchorEntity: AnchorEntity?
     private var ifcSimulationAnchor: AnchorEntity?
     private var twdStakingPreviewAnchor: AnchorEntity?
+    private var facadeHologramAnchor: AnchorEntity?
     private var overlayImageName: String?
     private var ifcElements: [IFCElementSpec] = []
     private var overlayConfigSignature: String = ""
@@ -850,13 +853,87 @@ final class LiDARSessionManager: ObservableObject {
         twdStakingPreviewStatusText = "放樣點顯示：關"
     }
 
+    private func buildFacadeHologramAnchor(image: UIImage, referenceTransform: simd_float4x4?) -> AnchorEntity {
+        let anchor = AnchorEntity(world: matrix_identity_float4x4)
+        if let cameraTransform = referenceTransform {
+            let forward = SIMD3<Float>(
+                -cameraTransform.columns.2.x,
+                -cameraTransform.columns.2.y,
+                -cameraTransform.columns.2.z
+            )
+            let cameraPos = SIMD3<Float>(
+                cameraTransform.columns.3.x,
+                cameraTransform.columns.3.y,
+                cameraTransform.columns.3.z
+            )
+            anchor.position = cameraPos + (forward * 1.7) + SIMD3<Float>(0, -0.25, 0)
+        } else {
+            anchor.position = [0, 0, -1.7]
+        }
+
+        let root = Entity()
+        anchor.addChild(root)
+
+        let imageRatio = max(0.35, min(2.2, Double(image.size.height / max(1, image.size.width))))
+        let facadeWidth: Float = 1.55
+        let facadeHeight: Float = Float(facadeWidth * Float(imageRatio))
+        let depth: Float = 0.12
+
+        let bodyMesh = MeshResource.generateBox(size: [facadeWidth, facadeHeight, depth])
+        let bodyMat = SimpleMaterial(color: UIColor.systemCyan.withAlphaComponent(0.22), roughness: 0.25, isMetallic: true)
+        let body = ModelEntity(mesh: bodyMesh, materials: [bodyMat])
+        body.position = [0, facadeHeight / 2, 0]
+        root.addChild(body)
+
+        // Generate floor slabs based on facade ratio.
+        let floorCount = max(6, min(16, Int((facadeHeight / 0.22).rounded())))
+        let slabMesh = MeshResource.generateBox(size: [facadeWidth * 0.96, 0.007, depth * 1.02])
+        let slabMat = SimpleMaterial(color: UIColor.white.withAlphaComponent(0.55), roughness: 0.4, isMetallic: false)
+        for i in 1..<floorCount {
+            let y = (facadeHeight / Float(floorCount)) * Float(i)
+            let slab = ModelEntity(mesh: slabMesh, materials: [slabMat])
+            slab.position = [0, y, 0.002]
+            root.addChild(slab)
+        }
+
+        // Window arrays left/right.
+        let windowRows = max(5, floorCount - 2)
+        let windowMesh = MeshResource.generateBox(size: [0.11, 0.085, 0.01])
+        let windowMat = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.72), roughness: 0.1, isMetallic: true)
+        for row in 0..<windowRows {
+            let y = 0.12 + (facadeHeight - 0.28) * Float(row) / Float(max(1, windowRows - 1))
+            for col in -2...2 where col != 0 {
+                let x = Float(col) * 0.22
+                let window = ModelEntity(mesh: windowMesh, materials: [windowMat])
+                window.position = [x, y, depth / 2 + 0.008]
+                root.addChild(window)
+            }
+        }
+
+        // Central core / stair block.
+        let coreMesh = MeshResource.generateBox(size: [0.32, facadeHeight * 0.96, depth * 1.1])
+        let coreMat = SimpleMaterial(color: UIColor.systemRed.withAlphaComponent(0.25), roughness: 0.2, isMetallic: true)
+        let core = ModelEntity(mesh: coreMesh, materials: [coreMat])
+        core.position = [0, facadeHeight * 0.48, 0]
+        root.addChild(core)
+
+        return anchor
+    }
+
+    private func clearFacadeHologramAnchor() {
+        facadeHologramAnchor?.removeFromParent()
+        facadeHologramAnchor = nil
+        facadeHologramEnabled = false
+        facadeHologramStatusText = "立面全息：關"
+    }
+
     func toggleIFCSimulationFromUploadedBlueprint() {
         if ifcSimulationEnabled {
             clearIFCSimulationAnchor()
             return
         }
         guard blueprintInputImage != nil || !ifcElements.isEmpty else {
-            ifcSimulationStatusText = "IFC 模擬：請先上傳圖紙或匯入 IFC-JSON"
+            ifcSimulationStatusText = "IFC 模擬：請先匯入 IFC（若無 IFC 才用上傳圖）"
             return
         }
         guard let arView else {
@@ -870,6 +947,26 @@ final class LiDARSessionManager: ObservableObject {
         ifcSimulationStatusText = ifcElements.isEmpty
             ? "IFC 模擬：已生成牆體/鋼筋/水管（示意）"
             : "IFC 模擬：已套用 IFC 模型生成 3D"
+    }
+
+    func toggleFacadeHologramFromBlueprint() {
+        if facadeHologramEnabled {
+            clearFacadeHologramAnchor()
+            return
+        }
+        guard let image = blueprintInputImage else {
+            facadeHologramStatusText = "立面全息：請先上傳立面圖"
+            return
+        }
+        guard let arView else {
+            facadeHologramStatusText = "立面全息：AR 尚未就緒"
+            return
+        }
+        let anchor = buildFacadeHologramAnchor(image: image, referenceTransform: arView.session.currentFrame?.camera.transform)
+        arView.scene.addAnchor(anchor)
+        facadeHologramAnchor = anchor
+        facadeHologramEnabled = true
+        facadeHologramStatusText = "立面全息：已生成 3D 建築立面"
     }
 
     func setCrackCalibrationCmPerPixel(_ value: Double) {
@@ -1375,6 +1472,8 @@ final class LiDARSessionManager: ObservableObject {
         twdStakingStatusText = "放樣：待命"
         clearTWDStakingPreviewAnchor()
         twdStakingPreviewStatusText = "放樣點顯示：關"
+        clearFacadeHologramAnchor()
+        facadeHologramStatusText = "立面全息：待命"
         blueprintQuickStakeStatusText = "圖紙快速放樣：待命"
         clearIFCSimulationAnchor()
         ifcSimulationStatusText = "IFC 模擬：待命"
