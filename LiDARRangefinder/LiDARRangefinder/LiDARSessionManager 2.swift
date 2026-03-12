@@ -482,6 +482,15 @@ final class LiDARSessionManager: ObservableObject {
         UserDefaults.standard.set(crackCalibrationCmPerPixel, forKey: crackCalibrationStorageKey)
     }
 
+    func refreshCrackPreviewFromCurrentFrame() {
+        if let live = captureCurrentFrameForCrackDetection() {
+            crackInputImage = live.image
+            crackStatusText = "裂縫檢測：已更新鏡頭預覽，可直接執行分析"
+        } else {
+            crackStatusText = "裂縫檢測：鏡頭預覽尚未就緒，請稍後重試"
+        }
+    }
+
     func runCrackDetection() {
         let source: (image: UIImage, cgImage: CGImage, label: String)
         if let liveSource = captureCurrentFrameForCrackDetection() {

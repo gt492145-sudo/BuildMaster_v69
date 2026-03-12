@@ -19,7 +19,11 @@ struct ContentView: View {
     @State private var selectedMainPage: MainPage = .page1
     @State private var selectedStatusPage: StatusPage = .measure
     @State private var selectedControlPage: ControlPage = .measure
+    @State private var assistantSheetDetent: PresentationDetent = .fraction(0.32)
+    @State private var rebarSheetDetent: PresentationDetent = .fraction(0.32)
     @State private var volumeSheetDetent: PresentationDetent = .fraction(0.28)
+    @State private var crackSheetDetent: PresentationDetent = .fraction(0.32)
+    @State private var quantumSheetDetent: PresentationDetent = .fraction(0.32)
     @State private var isTopPanelExpanded = false
     @State private var isTacticalMenuOpen = false
     @State private var isClearViewMode = false
@@ -91,9 +95,15 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingAIAssistant) {
             aiAssistantView
+                .presentationDetents([.fraction(0.32), .medium, .large], selection: $assistantSheetDetent)
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled)
         }
         .sheet(isPresented: $showingRebarConfig) {
             rebarConfigView
+                .presentationDetents([.fraction(0.32), .medium, .large], selection: $rebarSheetDetent)
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled)
         }
         .sheet(isPresented: $showingVolumeScan) {
             volumeScanView
@@ -103,9 +113,15 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingCrackInspector) {
             crackInspectorView
+                .presentationDetents([.fraction(0.32), .medium, .large], selection: $crackSheetDetent)
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled)
         }
         .sheet(isPresented: $showingQuantumMode) {
             quantumModeView
+                .presentationDetents([.fraction(0.32), .medium, .large], selection: $quantumSheetDetent)
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled)
         }
         .onChange(of: selectedMainPage) {
             switch selectedMainPage {
@@ -126,6 +142,27 @@ struct ContentView: View {
         .onChange(of: showingVolumeScan) {
             if showingVolumeScan {
                 volumeSheetDetent = .fraction(0.28)
+            }
+        }
+        .onChange(of: showingAIAssistant) {
+            if showingAIAssistant {
+                assistantSheetDetent = .fraction(0.32)
+            }
+        }
+        .onChange(of: showingRebarConfig) {
+            if showingRebarConfig {
+                rebarSheetDetent = .fraction(0.32)
+            }
+        }
+        .onChange(of: showingCrackInspector) {
+            if showingCrackInspector {
+                crackSheetDetent = .fraction(0.32)
+                sessionManager.refreshCrackPreviewFromCurrentFrame()
+            }
+        }
+        .onChange(of: showingQuantumMode) {
+            if showingQuantumMode {
+                quantumSheetDetent = .fraction(0.32)
             }
         }
         .onAppear {
@@ -992,6 +1029,11 @@ struct ContentView: View {
             }
             .navigationTitle("AI 助手版")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("縮小視窗") {
+                        assistantSheetDetent = .fraction(0.32)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("關閉") {
                         showingAIAssistant = false
@@ -1067,6 +1109,11 @@ struct ContentView: View {
             }
             .navigationTitle("鋼筋透視參數")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("縮小視窗") {
+                        rebarSheetDetent = .fraction(0.32)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") {
                         showingRebarConfig = false
@@ -1144,6 +1191,10 @@ struct ContentView: View {
                     Text("系統將直接使用 AR 鏡頭畫面做裂縫 AI 偵測")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    Button("更新鏡頭預覽") {
+                        sessionManager.refreshCrackPreviewFromCurrentFrame()
+                    }
+                    .buttonStyle(.bordered)
                     VStack(alignment: .leading, spacing: 6) {
                         Text(String(format: "校正比例：1 px = %.3f cm", sessionManager.crackCalibrationCmPerPixel))
                         Slider(value: Binding(
@@ -1173,15 +1224,61 @@ struct ContentView: View {
                         )
                 }
 
-                if let image = sessionManager.crackInputImage {
-                    Section("裂縫標記") {
+                Section("裂縫畫面預覽") {
+                    if let image = sessionManager.crackInputImage {
                         crackOverlayPreview(image: image, findings: sessionManager.crackFindings)
                             .frame(maxWidth: .infinity)
+                    } else {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(.black.opacity(0.75))
+                            .frame(height: 220)
+                            .overlay(
+                                VStack(spacing: 8) {
+                                    Image(systemName: "camera.viewfinder")
+                                        .font(.title2)
+                                        .foregroundStyle(.white.opacity(0.9))
+                                    Text("尚未取得鏡頭預覽")
+                                        .font(.footnote.bold())
+                                        .foregroundStyle(.white.opacity(0.9))
+                                    Text("點「更新鏡頭預覽」或直接執行裂縫分析")
+                                        .font(.caption2)
+                                        .foregroundStyle(.white.opacity(0.75))
+                                }
+                            )
+                    }
+                }
+
+                if !sessionManager.crackFindings.isEmpty {
+                    Section("漏點定位清單") {
+                        ForEach(Array(sessionManager.crackFindings.enumerated()), id: \.element.id) { index, finding in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("#\(index + 1) \(crackZoneText(for: finding.box))")
+                                    .font(.footnote.bold())
+                                    .foregroundStyle(.white)
+                                Text(
+                                    String(
+                                        format: "座標 %.0f%%, %.0f%%｜長度 %.1f cm｜嚴重度 %@",
+                                        finding.box.midX * 100,
+                                        (1 - finding.box.midY) * 100,
+                                        finding.lengthCm,
+                                        finding.severity
+                                    )
+                                )
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 2)
+                        }
                     }
                 }
             }
             .navigationTitle("AI 裂縫抓漏")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("縮小視窗") {
+                        crackSheetDetent = .fraction(0.32)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") {
                         showingCrackInspector = false
@@ -1202,16 +1299,51 @@ struct ContentView: View {
                     .scaledToFit()
                     .frame(width: geo.size.width, height: geo.size.height)
 
-                ForEach(findings) { finding in
+                ForEach(Array(findings.enumerated()), id: \.element.id) { index, finding in
                     let rect = rectForNormalizedBox(finding.box, in: fitted)
+                    let labelColor: Color =
+                        finding.severity == "高" ? .red : (finding.severity == "中" ? .orange : .yellow)
                     Rectangle()
-                        .stroke(finding.severity == "高" ? .red : (finding.severity == "中" ? .orange : .yellow), lineWidth: 2)
+                        .stroke(labelColor, lineWidth: 2)
                         .frame(width: rect.width, height: rect.height)
                         .position(x: rect.midX, y: rect.midY)
+
+                    Text("#\(index + 1) \(crackZoneText(for: finding.box))")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(.black.opacity(0.72))
+                        .foregroundStyle(labelColor)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .position(
+                            x: max(54, min(rect.midX, geo.size.width - 54)),
+                            y: max(12, rect.minY - 12)
+                        )
                 }
             }
         }
         .frame(height: 260)
+    }
+
+    private func crackZoneText(for box: CGRect) -> String {
+        let h: String
+        if box.midX < 0.33 {
+            h = "左"
+        } else if box.midX > 0.67 {
+            h = "右"
+        } else {
+            h = "中"
+        }
+
+        let v: String
+        if box.midY < 0.33 {
+            v = "下"
+        } else if box.midY > 0.67 {
+            v = "上"
+        } else {
+            v = "中"
+        }
+        return "\(v)\(h)"
     }
 
     private func aspectFitRect(imageSize: CGSize, in container: CGSize) -> CGRect {
@@ -1387,6 +1519,11 @@ struct ContentView: View {
             }
             .navigationTitle("核心引擎戰術模式")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("縮小視窗") {
+                        quantumSheetDetent = .fraction(0.32)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") {
                         showingQuantumMode = false
