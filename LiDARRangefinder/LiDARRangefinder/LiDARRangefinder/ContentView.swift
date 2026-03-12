@@ -6,6 +6,11 @@ import CryptoKit
 import Foundation
 
 struct ContentView: View {
+    private enum TacticalDragAxis {
+        case horizontal
+        case vertical
+    }
+
     @EnvironmentObject private var sessionManager: LiDARSessionManager
     @EnvironmentObject private var measurementStore: MeasurementStore
     @Environment(\.scenePhase) private var scenePhase
@@ -53,6 +58,7 @@ struct ContentView: View {
     @State private var blueprintPlanWidthMeters: Double = 8.85
     @State private var blueprintPlanHeightMeters: Double = 24.925
     @State private var tacticalMenuDragOffset: CGFloat = 0
+    @State private var tacticalMenuDragAxis: TacticalDragAxis?
     private let minRecordScore = 85
     private let tacticalMenuWidth: CGFloat = 230
     private let touchOpenCloseThreshold: CGFloat = 34
@@ -986,87 +992,90 @@ struct ContentView: View {
                     .font(.headline)
                     .foregroundStyle(.mint)
 
-                Button {
-                    performRecordMeasurement()
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        isTacticalMenuOpen = false
-                    }
-                } label: {
-                    tacticalActionLabel("📸 記錄量測", color: .green)
-                }
-                .disabled(!canRecordMeasurement)
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(spacing: 12) {
+                        Button {
+                            performRecordMeasurement()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                isTacticalMenuOpen = false
+                            }
+                        } label: {
+                            tacticalActionLabel("📸 記錄量測", color: .green)
+                        }
+                        .disabled(!canRecordMeasurement)
 
-                Button {
-                    sessionManager.applyAIQACorrection()
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        isTacticalMenuOpen = false
-                    }
-                } label: {
-                    tacticalActionLabel("🤖 一鍵矯正", color: .blue)
-                }
+                        Button {
+                            sessionManager.applyAIQACorrection()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                isTacticalMenuOpen = false
+                            }
+                        } label: {
+                            tacticalActionLabel("🤖 一鍵矯正", color: .blue)
+                        }
 
-                Button {
-                    showingAIAssistant = true
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        isTacticalMenuOpen = false
-                    }
-                } label: {
-                    tacticalActionLabel("✨ AI 建議", color: .purple)
-                }
+                        Button {
+                            showingAIAssistant = true
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                isTacticalMenuOpen = false
+                            }
+                        } label: {
+                            tacticalActionLabel("✨ AI 建議", color: .purple)
+                        }
 
-                Button {
-                    selectedMainPage = .page2
-                    selectedControlPage = .tools
-                    sessionManager.toggleIFCSimulationFromUploadedBlueprint()
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        isTacticalMenuOpen = false
-                    }
-                } label: {
-                    tacticalActionLabel(
-                        sessionManager.ifcSimulationEnabled ? "🧱 關閉IFC-3D" : "🧱 生成IFC-3D",
-                        color: .teal
-                    )
-                }
+                        Button {
+                            selectedMainPage = .page2
+                            selectedControlPage = .tools
+                            sessionManager.toggleIFCSimulationFromUploadedBlueprint()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                isTacticalMenuOpen = false
+                            }
+                        } label: {
+                            tacticalActionLabel(
+                                sessionManager.ifcSimulationEnabled ? "🧱 關閉IFC-3D" : "🧱 生成IFC-3D",
+                                color: .teal
+                            )
+                        }
 
-                Button {
-                    selectedMainPage = .page2
-                    selectedControlPage = .tools
-                    sessionManager.toggleFacadeHologramFromBlueprint()
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        isTacticalMenuOpen = false
-                    }
-                } label: {
-                    tacticalActionLabel(
-                        sessionManager.facadeHologramEnabled ? "🏢 關閉立面全息" : "🏢 生成立面全息",
-                        color: .indigo
-                    )
-                }
+                        Button {
+                            selectedMainPage = .page2
+                            selectedControlPage = .tools
+                            sessionManager.toggleFacadeHologramFromBlueprint()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                isTacticalMenuOpen = false
+                            }
+                        } label: {
+                            tacticalActionLabel(
+                                sessionManager.facadeHologramEnabled ? "🏢 關閉立面全息" : "🏢 生成立面全息",
+                                color: .indigo
+                            )
+                        }
 
-                Button {
-                    selectedMainPage = .page2
-                    selectedControlPage = .tools
-                    if sessionManager.twdStakingPoints.isEmpty {
-                        if sessionManager.ifcModelElementCount > 0 {
-                            sessionManager.generateTWDStakingPointsFromIFC()
-                        } else {
-                            sessionManager.generateQuickStakingPointsFromBlueprint(
-                                planWidthMeters: blueprintPlanWidthMeters,
-                                planHeightMeters: blueprintPlanHeightMeters
+                        Button {
+                            selectedMainPage = .page2
+                            selectedControlPage = .tools
+                            if sessionManager.twdStakingPoints.isEmpty {
+                                if sessionManager.ifcModelElementCount > 0 {
+                                    sessionManager.generateTWDStakingPointsFromIFC()
+                                } else {
+                                    sessionManager.generateQuickStakingPointsFromBlueprint(
+                                        planWidthMeters: blueprintPlanWidthMeters,
+                                        planHeightMeters: blueprintPlanHeightMeters
+                                    )
+                                }
+                            }
+                            sessionManager.toggleTWDStakingPreviewInAR()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                isTacticalMenuOpen = false
+                            }
+                        } label: {
+                            tacticalActionLabel(
+                                sessionManager.twdStakingPreviewEnabled ? "📍 隱藏放樣點" : "📍 顯示放樣點",
+                                color: .orange
                             )
                         }
                     }
-                    sessionManager.toggleTWDStakingPreviewInAR()
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        isTacticalMenuOpen = false
-                    }
-                } label: {
-                    tacticalActionLabel(
-                        sessionManager.twdStakingPreviewEnabled ? "📍 隱藏放樣點" : "📍 顯示放樣點",
-                        color: .orange
-                    )
+                    .padding(.bottom, 4)
                 }
-
-                Spacer(minLength: 0)
             }
             .foregroundStyle(.white)
             .padding(14)
@@ -1081,6 +1090,12 @@ struct ContentView: View {
         .gesture(
             DragGesture(minimumDistance: 6)
                 .onChanged { value in
+                    let horizontalDistance = abs(value.translation.width)
+                    let verticalDistance = abs(value.translation.height)
+                    if tacticalMenuDragAxis == nil, horizontalDistance > 4 || verticalDistance > 4 {
+                        tacticalMenuDragAxis = horizontalDistance > (verticalDistance * 1.15) ? .horizontal : .vertical
+                    }
+                    guard tacticalMenuDragAxis == .horizontal else { return }
                     if isTacticalMenuOpen {
                         tacticalMenuDragOffset = max(0, value.translation.width)
                     } else {
@@ -1088,6 +1103,13 @@ struct ContentView: View {
                     }
                 }
                 .onEnded { value in
+                    defer {
+                        tacticalMenuDragAxis = nil
+                    }
+                    guard tacticalMenuDragAxis == .horizontal else {
+                        tacticalMenuDragOffset = 0
+                        return
+                    }
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                         if isTacticalMenuOpen, value.translation.width > touchOpenCloseThreshold {
                             isTacticalMenuOpen = false
