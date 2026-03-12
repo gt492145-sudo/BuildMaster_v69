@@ -219,10 +219,10 @@
         .total-budget { grid-column: span 1; }
         .control-grid { grid-template-columns: 1fr; }
     }
-    .mobile-func-drawer { display: none; }
+    .mobile-drawer { display: none; }
     .mobile-test-log { display: none; }
     @media (max-width: 768px) {
-        .mobile-func-drawer {
+        .mobile-drawer {
             display: block;
             position: fixed;
             right: -210px;
@@ -232,7 +232,7 @@
             z-index: 2200;
             transition: right 0.24s ease;
         }
-        .mobile-func-drawer.open { right: 0; }
+        .mobile-drawer.open { right: 0; }
         .mobile-func-tab {
             position: absolute;
             left: -44px;
@@ -249,17 +249,13 @@
             text-orientation: mixed;
             letter-spacing: 2px;
         }
-        .mobile-func-panel {
-            border-radius: 12px 0 0 12px;
-            border: 1px solid rgba(154, 211, 255, 0.52);
-            background: rgba(8, 17, 31, 0.94);
-            backdrop-filter: blur(8px);
-            padding: 10px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-            display: grid;
-            gap: 8px;
+        .drawer-header {
+            color: #bfe7ff;
+            font-size: 0.84em;
+            font-weight: 800;
+            padding: 4px 2px 8px 2px;
         }
-        .mobile-func-btn {
+        .mobile-drawer .drawer-item {
             border: 1px solid rgba(255,255,255,0.26);
             border-radius: 8px;
             background: rgba(40, 66, 96, 0.5);
@@ -268,6 +264,17 @@
             font-weight: 700;
             padding: 8px 10px;
             text-align: left;
+            cursor: pointer;
+        }
+        .drawer-shell {
+            border-radius: 12px 0 0 12px;
+            border: 1px solid rgba(154, 211, 255, 0.52);
+            background: rgba(8, 17, 31, 0.94);
+            backdrop-filter: blur(8px);
+            padding: 10px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            display: grid;
+            gap: 8px;
         }
         body.mobile-focus-mode header,
         body.mobile-focus-mode .calc-panel {
@@ -366,17 +373,32 @@
     </div>
 </header>
 
-<div id="mobileFuncDrawer" class="mobile-func-drawer" aria-hidden="true">
+<div id="mobileFuncDrawer" class="mobile-drawer" aria-hidden="true">
     <button id="mobileFuncTab" class="mobile-func-tab" type="button" onclick="toggleMobileFuncDrawer()">功能</button>
-    <div class="mobile-func-panel">
-        <button id="mobileFocusBtn" class="mobile-func-btn" type="button" data-mobile-action="toggle-focus">🧲 釋放畫面：關</button>
-        <button id="mobileChaosBtn" class="mobile-func-btn" type="button" data-mobile-action="toggle-chaos">🐒 混沌猴子：關</button>
-        <button class="mobile-func-btn" type="button" data-mobile-action="measure">📐 立即測量</button>
-        <button class="mobile-func-btn" type="button" data-mobile-action="scale">📏 啟動定比例</button>
-        <button class="mobile-func-btn" type="button" data-mobile-action="clear">🧽 清空標註</button>
-        <button class="mobile-func-btn" type="button" data-mobile-action="mode-calc">🧮 計算模式</button>
-        <button class="mobile-func-btn" type="button" data-mobile-action="mode-stake">📍 放樣模式</button>
-        <button class="mobile-func-btn" type="button" data-mobile-action="top">⬆️ 回到上方</button>
+    <div class="drawer-shell">
+        <div class="drawer-header">🛠️ 戰術工具箱</div>
+
+        <div class="drawer-item" data-mobile-action="scan" onclick="autoQuantumScan()">
+            <span>🌌 一鍵掃描 3D</span>
+        </div>
+
+        <div class="drawer-item" onclick="reset3DView(true)">
+            <span>🔄 重置全息視角</span>
+        </div>
+
+        <div class="drawer-item" onclick="toggleAutoMeasure()">
+            <span>📏 啟動自動量測</span>
+        </div>
+
+        <div class="drawer-item" id="monkeyBtn" onclick="toggleChaosMonkey()">
+            <span>🐒 混沌猴子：關</span>
+        </div>
+
+        <hr style="border: 0.5px solid var(--line-soft); margin: 10px 0;">
+
+        <div class="drawer-item" onclick="toggleMobileFuncDrawer(false)">
+            <span>❌ 關閉工具箱</span>
+        </div>
     </div>
 </div>
 
@@ -5422,9 +5444,22 @@
     }
 
     function updateMobileChaosLabel() {
-        const btn = document.getElementById('mobileChaosBtn');
+        const btn = document.querySelector('#monkeyBtn span');
         if (!btn) return;
         btn.textContent = `🐒 混沌猴子：${chaosMonkeyMode ? '開' : '關'}`;
+    }
+
+    function toggleAutoMeasure() {
+        if (!scalePixelsPerUnit) {
+            startCalibration();
+            return showToast('先完成定比例，再自動進入量測');
+        }
+        if (!measureAssistState.enabled) {
+            toggleMeasureAssist();
+        }
+        startMeasure();
+        showToast('📏 已啟動自動量測流程');
+        toggleMobileFuncDrawer(false);
     }
 
     function runMobileQuickAction(action) {
