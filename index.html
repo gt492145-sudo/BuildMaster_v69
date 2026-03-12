@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Construction Master V7.0 - 預算決策系統 (會員上線版)</title>
+<title>Construction Master V8.0 - 預算決策系統 (會員上線版)</title>
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="manifest" href="site.webmanifest">
@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="Construction Master">
 <meta name="referrer" content="no-referrer">
 <style>
-    /* ... 保留之前的 CSS 樣式，這裡為了精簡先省略，請沿用 V7.0 的黑洞版 CSS ... */
+    /* ... 保留之前的 CSS 樣式，這裡為了精簡先省略，請沿用 V8.0 的黑洞版 CSS ... */
     :root { --bg-dark: #0b1220; --panel-bg: rgba(10, 18, 32, 0.34); --text-main: #ecf0f1; --highlight: #ff9800; --accent: #5ecbff; --money: #2ecc71; --line-soft: rgba(255,255,255,0.16); --text-subtle: #b8c7d9; }
     html { font-size: 110%; width: 100%; overflow-x: hidden; }
     body { font-family: sans-serif; margin: 0; width: 100%; max-width: 100%; overflow-x: hidden; display: flex; flex-direction: column; min-height: 100dvh; background-color: var(--bg-dark); background-image: linear-gradient(rgba(6, 10, 18, 0.26), rgba(6, 10, 18, 0.26)); background-size: 100% 100%; background-position: center center; background-repeat: no-repeat; color: var(--text-main); }
@@ -346,7 +346,7 @@
 
 <header>
     <img src="logo-app.png" class="logo-img" alt="Black Hole Logo">
-    <div class="header-title">Construction Master V7.0 - BLACK HOLE POWER <span class="live-badge">正式版 LIVE</span> <span class="live-badge">v70 進階更新</span></div>
+    <div class="header-title">Construction Master V8.0 - BLACK HOLE POWER <span class="live-badge">正式版 LIVE</span> <span class="live-badge">v80 進階更新</span></div>
     <div class="level-switch">
         <button id="levelBasicBtn" class="level-btn" onclick="setUserLevel('basic')">頁1 新手</button>
         <button id="levelStandardBtn" class="level-btn" onclick="setUserLevel('standard')">頁2 工程</button>
@@ -824,7 +824,7 @@
 <script>
     // 1.0 資料隔離與相容性設定
     const STORAGE_KEY = 'bm_69:list';
-    const SCHEMA_VERSION = '7.0.0';
+    const SCHEMA_VERSION = '8.0.0';
     const SECURITY_UNLOCK_KEY = 'bm_69:security_unlocked';
     const MEMBER_CODES_STORAGE_KEY = 'bm_69:member_codes';
     const SECURITY_CONFIG = {
@@ -913,7 +913,7 @@
         if (storedData) {
             const parsed = JSON.parse(storedData);
             // 簡單的版本檢查，若結構大改可在此處寫轉換邏輯
-            if (parsed.version && (parsed.version.startsWith('7.0') || parsed.version.startsWith('6.9'))) {
+            if (parsed.version && (parsed.version.startsWith('8.0') || parsed.version.startsWith('7.0') || parsed.version.startsWith('6.9'))) {
                 list = (parsed.data || []).filter(item => item && item.source !== 'warroom');
             } else {
                 console.warn("偵測到舊版資料，嘗試載入...");
