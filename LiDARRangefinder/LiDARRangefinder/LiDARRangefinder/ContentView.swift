@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import UniformTypeIdentifiers
 import simd
 import CryptoKit
 import Foundation
@@ -46,6 +48,8 @@ struct ContentView: View {
     @State private var monkeyPasswordInput = ""
     @State private var monkeyPasswordConfirmInput = ""
     @State private var monkeyPasswordError = ""
+    @State private var showingIFCFileImporter = false
+    @State private var selectedBlueprintPhotoItem: PhotosPickerItem?
     @State private var tacticalMenuDragOffset: CGFloat = 0
     private let minRecordScore = 85
     private let tacticalMenuWidth: CGFloat = 230
@@ -153,6 +157,13 @@ struct ContentView: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackgroundInteraction(.enabled)
         }
+        .fileImporter(
+            isPresented: $showingIFCFileImporter,
+            allowedContentTypes: supportedIFCImportTypes,
+            allowsMultipleSelection: false
+        ) { result in
+            handleIFCImportResult(result)
+        }
         .onChange(of: selectedMainPage) {
             switch selectedMainPage {
             case .page1:
@@ -193,6 +204,11 @@ struct ContentView: View {
         .onChange(of: showingQuantumMode) {
             if showingQuantumMode {
                 quantumSheetDetent = .fraction(0.32)
+            }
+        }
+        .onChange(of: selectedBlueprintPhotoItem) {
+            Task {
+                await handleBlueprintPhotoSelection()
             }
         }
         .onAppear {
@@ -570,6 +586,76 @@ struct ContentView: View {
                     .tint(.purple)
                     .frame(maxWidth: .infinity)
                 case .tools:
+                    Button("匯入 IFC/JSON 工程檔") {
+                        showingIFCFileImporter = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.indigo)
+                    .frame(maxWidth: .infinity)
+
+                    Text(sessionManager.ifcModelSummaryText)
+                        .font(.caption2)
+                        .foregroundStyle(.indigo)
+
+                    if sessionManager.ifcModelElementCount > 0 {
+                        Toggle("顯示牆體", isOn: Binding(
+                            get: { sessionManager.ifcShowWalls },
+                            set: { sessionManager.setIFCShowWalls($0) }
+                        ))
+                            .tint(.blue)
+                        Toggle("顯示鋼筋", isOn: Binding(
+                            get: { sessionManager.ifcShowRebars },
+                            set: { sessionManager.setIFCShowRebars($0) }
+                        ))
+                            .tint(.red)
+                        Toggle("顯示水管", isOn: Binding(
+                            get: { sessionManager.ifcShowPipes },
+                            set: { sessionManager.setIFCShowPipes($0) }
+                        ))
+                            .tint(.green)
+                    }
+
+                    PhotosPicker(selection: $selectedBlueprintPhotoItem, matching: .images, photoLibrary: .shared()) {
+                        Label("上傳圖紙（3D生成）", systemImage: "square.and.arrow.up")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.cyan)
+
+                    Text(sessionManager.blueprintUploadStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.cyan)
+
+                    if let blueprintImage = sessionManager.blueprintInputImage {
+                        Image(uiImage: blueprintImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity, minHeight: 90, maxHeight: 140)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(.white.opacity(0.2), lineWidth: 1)
+                            )
+
+                        Button("清除上傳圖紙") {
+                            sessionManager.clearBlueprintInputImage()
+                            selectedBlueprintPhotoItem = nil
+                        }
+                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
+                    }
+
+                    Button(sessionManager.ifcSimulationEnabled ? "IFC 模擬：清除 3D" : "IFC 模擬：生成 3D 工程模型") {
+                        sessionManager.toggleIFCSimulationFromUploadedBlueprint()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(sessionManager.ifcSimulationEnabled ? .orange : .blue)
+                    .frame(maxWidth: .infinity)
+
+                    Text(sessionManager.ifcSimulationStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+
                     HStack(spacing: 10) {
                         Button(monkeyHasPassword ? "🔐 密碼解鎖猴子" : "🔐 設定猴子密碼") {
                             openMonkeyAccessSheet(setup: !monkeyHasPassword)
@@ -1959,6 +2045,52 @@ struct ContentView: View {
     private func sha256String(_ value: String) -> String {
         let digest = SHA256.hash(data: Data(value.utf8))
         return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func handleBlueprintPhotoSelection() async {
+        guard let selectedBlueprintPhotoItem else { return }
+        do {
+            if let data = try await selectedBlueprintPhotoItem.loadTransferable(type: Data.self),
+               let image = UIImage(data: data) {
+                sessionManager.setBlueprintInputImage(image)
+            } else {
+                sessionManager.blueprintUploadStatusText = "圖紙上傳失敗：無法讀取影像"
+            }
+        } catch {
+            sessionManager.blueprintUploadStatusText = "圖紙上傳失敗：\(error.localizedDescription)"
+        }
+    }
+
+    private var supportedIFCImportTypes: [UTType] {
+        var types: [UTType] = [.json, .plainText]
+        if let ifcType = UTType(filenameExtension: "ifc") {
+            types.append(ifcType)
+        }
+        return types
+    }
+
+    private func handleIFCImportResult(_ result: Result<[URL], Error>) {
+        switch result {
+        case .failure(let error):
+            sessionManager.ifcModelSummaryText = "IFC 匯入失敗：\(error.localizedDescription)"
+        case .success(let urls):
+            guard let fileURL = urls.first else {
+                sessionManager.ifcModelSummaryText = "IFC 匯入失敗：未選擇檔案"
+                return
+            }
+            let needsSecurityScope = fileURL.startAccessingSecurityScopedResource()
+            defer {
+                if needsSecurityScope {
+                    fileURL.stopAccessingSecurityScopedResource()
+                }
+            }
+            do {
+                let data = try Data(contentsOf: fileURL)
+                sessionManager.importIFCModelData(data, fileName: fileURL.lastPathComponent)
+            } catch {
+                sessionManager.ifcModelSummaryText = "IFC 匯入失敗：\(error.localizedDescription)"
+            }
+        }
     }
 
     private func stopSafetyMonkey() {

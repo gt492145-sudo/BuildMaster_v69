@@ -57,6 +57,32 @@ struct QuantumTacticRecord: Identifiable, Codable {
     }
 }
 
+private enum IFCElementKind: String, Codable {
+    case wall
+    case rebar
+    case pipe
+}
+
+private struct IFCElementSpec: Codable {
+    var type: IFCElementKind
+    var width: Double?
+    var height: Double?
+    var depth: Double?
+    var radius: Double?
+    var length: Double?
+    var x: Double?
+    var y: Double?
+    var z: Double?
+    var rotationDeg: Double?
+}
+
+private struct IFCModelPayload: Codable {
+    var projectName: String?
+    var schemaVersion: String?
+    var toleranceCm: Double?
+    var elements: [IFCElementSpec]
+}
+
 @MainActor
 final class LiDARSessionManager: ObservableObject {
     @Published var distanceText: String = "-- m"
@@ -103,6 +129,15 @@ final class LiDARSessionManager: ObservableObject {
     @Published var volumeSampleCount: Int = 0
     @Published var volumeStatusText: String = "體積掃描：待命"
     @Published var volumeScanPreviewPoints: [SIMD2<Double>] = []
+    @Published var blueprintInputImage: UIImage?
+    @Published var blueprintUploadStatusText: String = "圖紙：尚未上傳"
+    @Published var ifcModelElementCount: Int = 0
+    @Published var ifcModelSummaryText: String = "IFC 模型：尚未匯入"
+    @Published var ifcShowWalls: Bool = true
+    @Published var ifcShowRebars: Bool = true
+    @Published var ifcShowPipes: Bool = true
+    @Published var ifcSimulationEnabled: Bool = false
+    @Published var ifcSimulationStatusText: String = "IFC 模擬：待命"
     @Published var crackInputImage: UIImage?
     @Published var crackFindings: [CrackFinding] = []
     @Published var crackStatusText: String = "裂縫檢測：待命"
@@ -166,7 +201,9 @@ final class LiDARSessionManager: ObservableObject {
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
     private var overlayAnchorEntity: AnchorEntity?
+    private var ifcSimulationAnchor: AnchorEntity?
     private var overlayImageName: String?
+    private var ifcElements: [IFCElementSpec] = []
     private var overlayConfigSignature: String = ""
     private var overlayLostSince: TimeInterval?
     private var overlayLastUpdateTime: TimeInterval = 0
@@ -511,6 +548,76 @@ final class LiDARSessionManager: ObservableObject {
         crackMaxLengthCm = 0
         crackSeveritySummary = "待分析"
         crackStatusText = "裂縫檢測：已載入影像，請開始分析"
+    }
+
+    func setBlueprintInputImage(_ image: UIImage) {
+        blueprintInputImage = image
+        blueprintUploadStatusText = "圖紙已上傳：可進行 3D 牆體生成"
+    }
+
+    func clearBlueprintInputImage() {
+        blueprintInputImage = nil
+        blueprintUploadStatusText = "圖紙：已清除"
+    }
+
+    func importIFCModelData(_ data: Data, fileName: String) {
+        if fileName.lowercased().hasSuffix(".ifc") {
+            do {
+                let payload = try parseIFCTextPayload(from: data, fileName: fileName)
+                applyImportedIFCPayload(payload)
+            } catch {
+                ifcModelSummaryText = "IFC 文字解析失敗：\(error.localizedDescription)"
+                ifcModelElementCount = 0
+                ifcElements = []
+            }
+            return
+        }
+
+        do {
+            let payload = try decodeIFCPayload(from: data)
+            applyImportedIFCPayload(payload)
+        } catch {
+            ifcModelSummaryText = "IFC 匯入失敗：\(error.localizedDescription)"
+            ifcModelElementCount = 0
+            ifcElements = []
+        }
+    }
+
+    func setIFCShowWalls(_ enabled: Bool) {
+        ifcShowWalls = enabled
+        if ifcSimulationEnabled { regenerateIFCSimulationAnchor() }
+    }
+
+    func setIFCShowRebars(_ enabled: Bool) {
+        ifcShowRebars = enabled
+        if ifcSimulationEnabled { regenerateIFCSimulationAnchor() }
+    }
+
+    func setIFCShowPipes(_ enabled: Bool) {
+        ifcShowPipes = enabled
+        if ifcSimulationEnabled { regenerateIFCSimulationAnchor() }
+    }
+
+    func toggleIFCSimulationFromUploadedBlueprint() {
+        if ifcSimulationEnabled {
+            clearIFCSimulationAnchor()
+            return
+        }
+        guard blueprintInputImage != nil || !ifcElements.isEmpty else {
+            ifcSimulationStatusText = "IFC 模擬：請先上傳圖紙或匯入 IFC-JSON"
+            return
+        }
+        guard let arView else {
+            ifcSimulationStatusText = "IFC 模擬：AR 尚未就緒"
+            return
+        }
+        let anchor = buildIFCSimulationAnchor(referenceTransform: arView.session.currentFrame?.camera.transform)
+        arView.scene.addAnchor(anchor)
+        ifcSimulationAnchor = anchor
+        ifcSimulationEnabled = true
+        ifcSimulationStatusText = ifcElements.isEmpty
+            ? "IFC 模擬：已生成牆體/鋼筋/水管（示意）"
+            : "IFC 模擬：已套用 IFC 模型生成 3D"
     }
 
     func setCrackCalibrationCmPerPixel(_ value: Double) {
@@ -1003,6 +1110,18 @@ final class LiDARSessionManager: ObservableObject {
         volumeStatusText = "體積掃描：待命"
         refreshVolumeAreaM2()
 
+        // Uploaded blueprint state
+        blueprintInputImage = nil
+        blueprintUploadStatusText = "圖紙：尚未上傳"
+        ifcElements = []
+        ifcModelElementCount = 0
+        ifcModelSummaryText = "IFC 模型：尚未匯入"
+        ifcShowWalls = true
+        ifcShowRebars = true
+        ifcShowPipes = true
+        clearIFCSimulationAnchor()
+        ifcSimulationStatusText = "IFC 模擬：待命"
+
         // Crack detection state
         crackInputImage = nil
         crackFindings = []
@@ -1301,6 +1420,317 @@ final class LiDARSessionManager: ObservableObject {
         }
 
         return anchor
+    }
+
+    private func buildIFCSimulationAnchor(referenceTransform: simd_float4x4?) -> AnchorEntity {
+        let anchor = AnchorEntity(world: matrix_identity_float4x4)
+        if let cameraTransform = referenceTransform {
+            let forward = SIMD3<Float>(
+                -cameraTransform.columns.2.x,
+                -cameraTransform.columns.2.y,
+                -cameraTransform.columns.2.z
+            )
+            let cameraPos = SIMD3<Float>(
+                cameraTransform.columns.3.x,
+                cameraTransform.columns.3.y,
+                cameraTransform.columns.3.z
+            )
+            anchor.position = cameraPos + (forward * 1.2) + SIMD3<Float>(0, -0.18, 0)
+        } else {
+            anchor.position = [0, 0, -1.2]
+        }
+
+        let root = Entity()
+        anchor.addChild(root)
+
+        if ifcElements.isEmpty {
+            // Fallback demo geometry when no IFC-JSON payload exists.
+            addFallbackIFCEntities(to: root)
+        } else {
+            addIFCEntities(from: ifcElements, to: root)
+        }
+
+        return anchor
+    }
+
+    private func addFallbackIFCEntities(to root: Entity) {
+        guard ifcShowWalls || ifcShowRebars || ifcShowPipes else { return }
+        if ifcShowWalls {
+            let wallMesh = MeshResource.generateBox(size: [1.6, 2.7, 0.16])
+            let wallMaterial = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.22), roughness: 0.35, isMetallic: false)
+            let wallEntity = ModelEntity(mesh: wallMesh, materials: [wallMaterial])
+            wallEntity.position = [0, 1.35, 0]
+            root.addChild(wallEntity)
+        }
+        if ifcShowRebars {
+            let rebarVerticalMesh = MeshResource.generateBox(size: [0.012, 2.45, 0.012])
+            let rebarHorizontalMesh = MeshResource.generateBox(size: [1.42, 0.01, 0.01])
+            let rebarMaterial = SimpleMaterial(color: .systemRed, roughness: 0.2, isMetallic: true)
+            let stirrupMaterial = SimpleMaterial(color: .systemOrange, roughness: 0.25, isMetallic: true)
+            for index in 0..<6 {
+                let x = -0.7 + Float(index) * 0.28
+                let bar = ModelEntity(mesh: rebarVerticalMesh, materials: [rebarMaterial])
+                bar.position = [x, 1.35, -0.02]
+                root.addChild(bar)
+            }
+            for index in 0..<10 {
+                let y = 0.2 + Float(index) * 0.25
+                let stirrup = ModelEntity(mesh: rebarHorizontalMesh, materials: [stirrupMaterial])
+                stirrup.position = [0, y, -0.02]
+                root.addChild(stirrup)
+            }
+        }
+        if ifcShowPipes {
+            let pipeMesh = MeshResource.generateCylinder(height: 1.35, radius: 0.03)
+            let coldPipeMaterial = SimpleMaterial(color: .systemBlue, roughness: 0.15, isMetallic: true)
+            let hotPipeMaterial = SimpleMaterial(color: .systemGreen, roughness: 0.15, isMetallic: true)
+            let coldPipe = ModelEntity(mesh: pipeMesh, materials: [coldPipeMaterial])
+            coldPipe.orientation = simd_quatf(angle: .pi / 2, axis: [0, 0, 1])
+            coldPipe.position = [0, 0.95, 0.035]
+            root.addChild(coldPipe)
+            let hotPipe = ModelEntity(mesh: pipeMesh, materials: [hotPipeMaterial])
+            hotPipe.orientation = simd_quatf(angle: .pi / 2, axis: [0, 0, 1])
+            hotPipe.position = [0, 1.45, 0.035]
+            root.addChild(hotPipe)
+        }
+    }
+
+    private func addIFCEntities(from elements: [IFCElementSpec], to root: Entity) {
+        for element in elements {
+            switch element.type {
+            case .wall where ifcShowWalls:
+                let width = Float(max(0.05, element.width ?? 1.2))
+                let height = Float(max(0.2, element.height ?? 2.8))
+                let depth = Float(max(0.03, element.depth ?? 0.16))
+                let mesh = MeshResource.generateBox(size: [width, height, depth])
+                let material = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.22), roughness: 0.35, isMetallic: false)
+                let entity = ModelEntity(mesh: mesh, materials: [material])
+                applyIFCTransform(for: element, to: entity, defaultY: Double(height / 2))
+                root.addChild(entity)
+            case .rebar where ifcShowRebars:
+                let width = Float(max(0.005, element.width ?? 0.012))
+                let height = Float(max(0.1, element.height ?? (element.length ?? 1.2)))
+                let depth = Float(max(0.005, element.depth ?? 0.012))
+                let mesh = MeshResource.generateBox(size: [width, height, depth])
+                let material = SimpleMaterial(color: .systemRed, roughness: 0.2, isMetallic: true)
+                let entity = ModelEntity(mesh: mesh, materials: [material])
+                applyIFCTransform(for: element, to: entity, defaultY: Double(height / 2))
+                root.addChild(entity)
+            case .pipe where ifcShowPipes:
+                let radius = Float(max(0.003, element.radius ?? 0.03))
+                let length = Float(max(0.05, element.length ?? element.width ?? 1.2))
+                let mesh = MeshResource.generateCylinder(height: length, radius: radius)
+                let material = SimpleMaterial(color: .systemGreen, roughness: 0.15, isMetallic: true)
+                let entity = ModelEntity(mesh: mesh, materials: [material])
+                entity.orientation = simd_quatf(angle: .pi / 2, axis: [0, 0, 1])
+                applyIFCTransform(for: element, to: entity, defaultY: Double(element.y ?? 1.0))
+                root.addChild(entity)
+            default:
+                continue
+            }
+        }
+    }
+
+    private func applyIFCTransform(for element: IFCElementSpec, to entity: ModelEntity, defaultY: Double) {
+        let x = Float(element.x ?? 0)
+        let y = Float(element.y ?? defaultY)
+        let z = Float(element.z ?? 0)
+        entity.position = [x, y, z]
+        let rotation = Float((element.rotationDeg ?? 0) * .pi / 180.0)
+        if rotation != 0 {
+            entity.orientation *= simd_quatf(angle: rotation, axis: [0, 1, 0])
+        }
+    }
+
+    private func regenerateIFCSimulationAnchor() {
+        guard let arView else { return }
+        ifcSimulationAnchor?.removeFromParent()
+        let anchor = buildIFCSimulationAnchor(referenceTransform: arView.session.currentFrame?.camera.transform)
+        arView.scene.addAnchor(anchor)
+        ifcSimulationAnchor = anchor
+        ifcSimulationEnabled = true
+        ifcSimulationStatusText = "IFC 模擬：模型已更新"
+    }
+
+    private func decodeIFCPayload(from data: Data) throws -> IFCModelPayload {
+        let decoder = JSONDecoder()
+        if let direct = try? decoder.decode(IFCModelPayload.self, from: data) {
+            return direct
+        }
+        let object = try JSONSerialization.jsonObject(with: data)
+        guard let dict = object as? [String: Any], let elementsRaw = dict["elements"] as? [[String: Any]] else {
+            throw NSError(domain: "IFCImport", code: 1, userInfo: [NSLocalizedDescriptionKey: "JSON 格式不符合，缺少 elements"])
+        }
+        let mapped = elementsRaw.compactMap(mapIFCElementDictionary(_:))
+        let projectDict = dict["project"] as? [String: Any]
+        let qaDict = dict["qa"] as? [String: Any]
+        return IFCModelPayload(
+            projectName: parseIFCString(projectDict?["name"]) ?? parseIFCString(dict["projectName"]),
+            schemaVersion: parseIFCString(dict["schema"]) ?? parseIFCString(dict["schemaVersion"]) ?? parseIFCString(projectDict?["schema"]),
+            toleranceCm: parseIFCDouble(qaDict?["toleranceCm"]) ?? parseIFCDouble(dict["toleranceCm"]),
+            elements: mapped
+        )
+    }
+
+    private func parseIFCTextPayload(from data: Data, fileName: String) throws -> IFCModelPayload {
+        guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .ascii) else {
+            throw NSError(domain: "IFCImport", code: 2, userInfo: [NSLocalizedDescriptionKey: "IFC 文字編碼不可讀"])
+        }
+        let lines = text
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var wallCount = 0
+        var rebarCount = 0
+        var pipeCount = 0
+        for line in lines {
+            let upper = line.uppercased()
+            if upper.contains("IFCWALL") {
+                wallCount += 1
+            } else if upper.contains("IFCREINFORCINGBAR") {
+                rebarCount += 1
+            } else if upper.contains("IFCFLOWSEGMENT") || upper.contains("IFCPIPE") {
+                pipeCount += 1
+            }
+        }
+
+        // Fallback counts to keep model usable for sparse IFC variants.
+        if wallCount == 0 && rebarCount == 0 && pipeCount == 0 {
+            throw NSError(domain: "IFCImport", code: 3, userInfo: [NSLocalizedDescriptionKey: "未找到 IFCWall / IFCReinforcingBar / IFCFlowSegment"])
+        }
+
+        var elements: [IFCElementSpec] = []
+        elements.append(contentsOf: generateDefaultIFCElements(type: .wall, count: wallCount))
+        elements.append(contentsOf: generateDefaultIFCElements(type: .rebar, count: rebarCount))
+        elements.append(contentsOf: generateDefaultIFCElements(type: .pipe, count: pipeCount))
+
+        return IFCModelPayload(
+            projectName: fileName,
+            schemaVersion: "IFC-Text-v0",
+            toleranceCm: nil,
+            elements: elements
+        )
+    }
+
+    private func generateDefaultIFCElements(type: IFCElementKind, count: Int) -> [IFCElementSpec] {
+        guard count > 0 else { return [] }
+        var specs: [IFCElementSpec] = []
+        let columns = max(1, min(6, Int(sqrt(Double(count)).rounded(.up))))
+        for index in 0..<count {
+            let row = index / columns
+            let col = index % columns
+            let x = (Double(col) - Double(columns - 1) / 2.0) * 0.45
+            let z = -Double(row) * 0.42
+            switch type {
+            case .wall:
+                specs.append(IFCElementSpec(type: .wall, width: 1.2, height: 2.8, depth: 0.18, radius: nil, length: nil, x: x, y: 1.4, z: z, rotationDeg: 0))
+            case .rebar:
+                specs.append(IFCElementSpec(type: .rebar, width: 0.012, height: 2.5, depth: 0.012, radius: nil, length: nil, x: x, y: 1.25, z: z - 0.03, rotationDeg: 0))
+            case .pipe:
+                specs.append(IFCElementSpec(type: .pipe, width: nil, height: nil, depth: nil, radius: 0.025, length: 1.2, x: x, y: 1.0 + Double((index % 3)) * 0.25, z: z + 0.04, rotationDeg: 0))
+            }
+        }
+        return specs
+    }
+
+    private func applyImportedIFCPayload(_ payload: IFCModelPayload) {
+        let normalized = payload.elements.map { normalizeIFCElement($0) }
+        if normalized.isEmpty {
+            ifcModelSummaryText = "IFC 匯入失敗：未解析到可用元素"
+            ifcModelElementCount = 0
+            ifcElements = []
+            return
+        }
+        ifcElements = normalized
+        ifcModelElementCount = normalized.count
+        let wallCount = normalized.filter { $0.type == .wall }.count
+        let rebarCount = normalized.filter { $0.type == .rebar }.count
+        let pipeCount = normalized.filter { $0.type == .pipe }.count
+        let projectTitle = payload.projectName ?? "未命名工程"
+        let schemaTag = payload.schemaVersion ?? "basic"
+        if let tolerance = payload.toleranceCm, tolerance > 0 {
+            ifcModelSummaryText = "IFC[\(schemaTag)] \(projectTitle)：牆 \(wallCount)｜鋼筋 \(rebarCount)｜水管 \(pipeCount)｜容差 ±\(Int(tolerance))cm"
+        } else {
+            ifcModelSummaryText = "IFC[\(schemaTag)] \(projectTitle)：牆 \(wallCount)｜鋼筋 \(rebarCount)｜水管 \(pipeCount)"
+        }
+        if ifcSimulationEnabled {
+            regenerateIFCSimulationAnchor()
+        }
+    }
+
+    private func mapIFCElementDictionary(_ dict: [String: Any]) -> IFCElementSpec? {
+        let typeSource = parseIFCString(dict["type"]) ?? parseIFCString(dict["category"]) ?? parseIFCString(dict["kind"])
+        guard let typeRaw = typeSource?.lowercased(),
+              let type = mapIFCElementKind(from: typeRaw) else {
+            return nil
+        }
+        let dimensions = dict["dimensions"] as? [String: Any]
+        let transform = dict["transform"] as? [String: Any]
+        let position = transform?["position"] as? [String: Any]
+        let rotation = transform?["rotation"] as? [String: Any]
+        return IFCElementSpec(
+            type: type,
+            width: parseIFCDouble(dict["width"]) ?? parseIFCDouble(dimensions?["width"]),
+            height: parseIFCDouble(dict["height"]) ?? parseIFCDouble(dimensions?["height"]),
+            depth: parseIFCDouble(dict["depth"]) ?? parseIFCDouble(dimensions?["depth"]),
+            radius: parseIFCDouble(dict["radius"]) ?? parseIFCDouble(dimensions?["radius"]),
+            length: parseIFCDouble(dict["length"]) ?? parseIFCDouble(dimensions?["length"]),
+            x: parseIFCDouble(dict["x"]) ?? parseIFCDouble(position?["x"]),
+            y: parseIFCDouble(dict["y"]) ?? parseIFCDouble(position?["y"]),
+            z: parseIFCDouble(dict["z"]) ?? parseIFCDouble(position?["z"]),
+            rotationDeg: parseIFCDouble(dict["rotationDeg"] ?? dict["rotation"]) ?? parseIFCDouble(rotation?["y"]) ?? parseIFCDouble(rotation?["yaw"])
+        )
+    }
+
+    private func mapIFCElementKind(from raw: String) -> IFCElementKind? {
+        switch raw {
+        case "wall", "ifcwall", "ifcwallstandardcase":
+            return .wall
+        case "rebar", "ifcreinforcingbar", "reinforcement":
+            return .rebar
+        case "pipe", "ifcpipe", "ifcflowsegment", "ifcpipefitting":
+            return .pipe
+        default:
+            return IFCElementKind(rawValue: raw)
+        }
+    }
+
+    private func parseIFCDouble(_ raw: Any?) -> Double? {
+        if let value = raw as? Double { return value }
+        if let value = raw as? Int { return Double(value) }
+        if let value = raw as? String { return Double(value.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        return nil
+    }
+
+    private func parseIFCString(_ raw: Any?) -> String? {
+        if let value = raw as? String {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        return nil
+    }
+
+    private func normalizeIFCElement(_ element: IFCElementSpec) -> IFCElementSpec {
+        IFCElementSpec(
+            type: element.type,
+            width: max(0.003, element.width ?? 0),
+            height: max(0.003, element.height ?? 0),
+            depth: max(0.003, element.depth ?? 0),
+            radius: max(0.003, element.radius ?? 0),
+            length: max(0.003, element.length ?? 0),
+            x: element.x ?? 0,
+            y: element.y ?? 0,
+            z: element.z ?? 0,
+            rotationDeg: element.rotationDeg ?? 0
+        )
+    }
+
+    private func clearIFCSimulationAnchor() {
+        ifcSimulationAnchor?.removeFromParent()
+        ifcSimulationAnchor = nil
+        ifcSimulationEnabled = false
+        ifcSimulationStatusText = "IFC 模擬：已清除"
     }
 
     private func invalidateOverlayAnchor() {

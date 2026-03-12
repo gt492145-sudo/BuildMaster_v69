@@ -1,0 +1,70 @@
+{
+  "schema": "IFC-JSON-Pro-v1",
+  "project": {
+    "name": "Construction Master Demo Tower",
+    "coordinateSystem": "Local-ENU",
+    "unit": "meter",
+    "phase": "施工中"
+  },
+  "levels": [
+    { "id": "L1", "name": "1F", "elevation": 0.0 },
+    { "id": "L2", "name": "2F", "elevation": 3.6 }
+  ],
+  "qa": {
+    "toleranceCm": 3
+  },
+  "elements": [
+    {
+      "id": "W-001",
+      "type": "wall",
+      "levelId": "L1",
+      "material": "RC",
+      "dimensions": { "width": 2.8, "height": 2.8, "depth": 0.2 },
+      "transform": { "position": { "x": 0.0, "y": 1.4, "z": 0.0 }, "rotation": { "yaw": 0 } }
+    },
+    {
+      "id": "W-002",
+      "category": "IFCWall",
+      "levelId": "L1",
+      "dimensions": { "width": 1.6, "height": 2.8, "depth": 0.2 },
+      "transform": { "position": { "x": -0.9, "y": 1.4, "z": -0.6 }, "rotation": { "y": 90 } }
+    },
+    {
+      "id": "R-001",
+      "type": "rebar",
+      "levelId": "L1",
+      "dimensions": { "width": 0.012, "height": 2.5, "depth": 0.012 },
+      "transform": { "position": { "x": -1.0, "y": 1.25, "z": -0.03 } }
+    },
+    {
+      "id": "R-002",
+      "category": "IFCReinforcingBar",
+      "levelId": "L1",
+      "dimensions": { "width": 0.012, "height": 2.5, "depth": 0.012 },
+      "transform": { "position": { "x": -0.5, "y": 1.25, "z": -0.03 } }
+    },
+    {
+      "id": "R-003",
+      "type": "rebar",
+      "levelId": "L1",
+      "dimensions": { "width": 0.012, "height": 2.5, "depth": 0.012 },
+      "transform": { "position": { "x": 0.0, "y": 1.25, "z": -0.03 } }
+    },
+    {
+      "id": "P-001",
+      "type": "pipe",
+      "levelId": "L1",
+      "system": "給水",
+      "dimensions": { "radius": 0.03, "length": 1.8 },
+      "transform": { "position": { "x": 0.0, "y": 1.0, "z": 0.05 }, "rotation": { "yaw": 0 } }
+    },
+    {
+      "id": "P-002",
+      "category": "IFCFlowSegment",
+      "levelId": "L1",
+      "system": "消防",
+      "dimensions": { "radius": 0.025, "length": 1.4 },
+      "transform": { "position": { "x": -0.6, "y": 1.7, "z": 0.05 }, "rotation": { "yaw": 0 } }
+    }
+  ]
+}
