@@ -1,4 +1,5 @@
 import SwiftUI
+import simd
 
 struct ContentView: View {
     @EnvironmentObject private var sessionManager: LiDARSessionManager
@@ -212,6 +213,10 @@ struct ContentView: View {
 
     private var clearViewRecordButton: some View {
         Button {
+            if showingVolumeScan {
+                sessionManager.runVolumeScanOnce()
+                return
+            }
             if canRecordMeasurement {
                 let recorded = performRecordMeasurement()
                 if recorded, autoClearViewDuringMeasure {
@@ -228,14 +233,18 @@ struct ContentView: View {
                 setClearViewMode(false)
             }
         } label: {
-            Image(systemName: "camera.metering.center.weighted")
+            Image(systemName: showingVolumeScan ? "viewfinder.circle.fill" : "camera.metering.center.weighted")
                 .font(.title2.bold())
                 .foregroundStyle(.white)
                 .frame(width: 74, height: 74)
                 .background(
-                    canRecordMeasurement
-                        ? LinearGradient(colors: [.green.opacity(0.98), .mint.opacity(0.88)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                        : LinearGradient(colors: [.gray.opacity(0.7), .gray.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    showingVolumeScan
+                        ? LinearGradient(colors: [.blue.opacity(0.98), .cyan.opacity(0.86)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        : (
+                            canRecordMeasurement
+                                ? LinearGradient(colors: [.green.opacity(0.98), .mint.opacity(0.88)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                                : LinearGradient(colors: [.gray.opacity(0.7), .gray.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        )
                 )
                 .clipShape(Circle())
                 .overlay(
@@ -1156,6 +1165,9 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
                     .frame(maxWidth: .infinity)
 
+                    volumeScanPreviewView
+                        .frame(maxWidth: .infinity)
+
                     Text(String(format: "掃描面積：%.2f m²", sessionManager.volumeAreaM2))
                         .font(.headline)
                     Text(String(format: "估算體積：%.2f m³", sessionManager.volumeEstimateM3))
@@ -1182,6 +1194,57 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    private var volumeScanPreviewView: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.black.opacity(0.72))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(.white.opacity(0.18), lineWidth: 1)
+                )
+
+            if sessionManager.volumeScanPreviewPoints.isEmpty {
+                VStack(spacing: 6) {
+                    Image(systemName: "scope")
+                        .font(.title3)
+                        .foregroundStyle(.white.opacity(0.9))
+                    Text("掃描區域預覽：以準星為中心的方形網格")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.85))
+                    Text("按一次掃描後，會顯示實際取樣點位")
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.65))
+                }
+                .padding(.horizontal, 10)
+            } else {
+                GeometryReader { geo in
+                    ZStack {
+                        // Center crosshair of sampling region
+                        Rectangle()
+                            .fill(.white.opacity(0.35))
+                            .frame(width: 1.5, height: 68)
+                            .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                        Rectangle()
+                            .fill(.white.opacity(0.35))
+                            .frame(width: 68, height: 1.5)
+                            .position(x: geo.size.width / 2, y: geo.size.height / 2)
+
+                        ForEach(Array(sessionManager.volumeScanPreviewPoints.enumerated()), id: \.offset) { _, p in
+                            Circle()
+                                .fill(.mint)
+                                .frame(width: 6, height: 6)
+                                .position(
+                                    x: max(6, min(geo.size.width - 6, CGFloat(p.x) * geo.size.width)),
+                                    y: max(6, min(geo.size.height - 6, CGFloat(p.y) * geo.size.height))
+                                )
+                        }
+                    }
+                }
+            }
+        }
+        .frame(height: 140)
     }
 
     private var crackInspectorView: some View {

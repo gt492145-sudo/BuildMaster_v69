@@ -102,6 +102,7 @@ final class LiDARSessionManager: ObservableObject {
     @Published var volumeEstimateM3: Double = 0
     @Published var volumeSampleCount: Int = 0
     @Published var volumeStatusText: String = "體積掃描：待命"
+    @Published var volumeScanPreviewPoints: [SIMD2<Double>] = []
     @Published var crackInputImage: UIImage?
     @Published var crackFindings: [CrackFinding] = []
     @Published var crackStatusText: String = "裂縫檢測：待命"
@@ -444,17 +445,52 @@ final class LiDARSessionManager: ObservableObject {
     }
 
     func runVolumeScanOnce() {
+        runVolumeScanOnce(allowRetry: true)
+    }
+
+    private func runVolumeScanOnce(allowRetry: Bool) {
         guard let arView, let frame = arView.session.currentFrame else {
-            volumeStatusText = "體積掃描：AR 畫面尚未就緒"
+            if allowRetry {
+                volumeStatusText = "體積掃描：準備掃描中，稍候自動重試..."
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: 240_000_000)
+                    self?.runVolumeScanOnce(allowRetry: false)
+                }
+            } else {
+                volumeStatusText = "體積掃描：AR 畫面尚未就緒"
+            }
             return
         }
 
         let firstPass = collectVolumeSamples(arView: arView, frame: frame, gridSize: volumeGridSize)
         let secondPass = collectVolumeSamples(arView: arView, frame: frame, gridSize: volumeGridSize)
-        let samples = firstPass + secondPass
-        guard samples.count >= max(12, volumeGridSize * 2) else {
+        let samples = firstPass.depths + secondPass.depths
+        volumeScanPreviewPoints = firstPass.previewPoints + secondPass.previewPoints
+
+        let minNeeded = max(12, volumeGridSize * 2)
+        guard samples.count >= minNeeded else {
+            if allowRetry {
+                volumeStatusText = "體積掃描：取樣不足（\(samples.count) 點），補掃中..."
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: 220_000_000)
+                    self?.runVolumeScanOnce(allowRetry: false)
+                }
+                return
+            }
             volumeSampleCount = samples.count
-            volumeStatusText = "體積掃描：取樣不足（\(samples.count) 點），請對準平面重掃"
+            if samples.count >= 4 {
+                // Even with sparse points, return a rough estimate to avoid "no change" perception.
+                let roughDepth = robustDepthEstimate(samples)
+                refreshVolumeAreaM2()
+                volumeEstimateM3 = max(0, volumeAreaM2 * roughDepth)
+                volumeStatusText = String(
+                    format: "體積掃描：點位偏少（%d 點，粗估深度 %.2fm）",
+                    samples.count,
+                    roughDepth
+                )
+            } else {
+                volumeStatusText = "體積掃描：取樣不足（\(samples.count) 點），請對準平面重掃"
+            }
             return
         }
 
@@ -1269,12 +1305,17 @@ final class LiDARSessionManager: ObservableObject {
         )
     }
 
-    private func collectVolumeSamples(arView: ARView, frame: ARFrame, gridSize: Int) -> [Double] {
+    private func collectVolumeSamples(
+        arView: ARView,
+        frame: ARFrame,
+        gridSize: Int
+    ) -> (depths: [Double], previewPoints: [SIMD2<Double>]) {
         let size = max(3, gridSize)
         let spread = min(arView.bounds.width, arView.bounds.height) * 0.28
         let centerX = arView.bounds.midX
         let centerY = arView.bounds.midY
         var depths: [Double] = []
+        var previewPoints: [SIMD2<Double>] = []
 
         for row in 0..<size {
             for col in 0..<size {
@@ -1292,9 +1333,12 @@ final class LiDARSessionManager: ObservableObject {
                 let dz = world.z - camera.z
                 let distance = Double(sqrt(dx * dx + dy * dy + dz * dz))
                 depths.append(distance)
+                let px = Double(max(0, min(1, x / max(1, arView.bounds.width))))
+                let py = Double(max(0, min(1, y / max(1, arView.bounds.height))))
+                previewPoints.append(SIMD2<Double>(px, py))
             }
         }
-        return depths
+        return (depths, previewPoints)
     }
 
     private func robustDepthEstimate(_ values: [Double]) -> Double {
