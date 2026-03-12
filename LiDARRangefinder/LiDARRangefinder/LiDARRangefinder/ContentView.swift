@@ -21,9 +21,13 @@ struct ContentView: View {
     @State private var selectedControlPage: ControlPage = .measure
     @State private var isTopPanelExpanded = false
     @State private var isTacticalMenuOpen = false
+    @State private var isClearViewMode = false
+    @State private var autoClearViewDuringMeasure = true
+    @State private var clearViewAutoApplied = false
     @State private var tacticalMenuDragOffset: CGFloat = 0
     private let minRecordScore = 85
     private let tacticalMenuWidth: CGFloat = 230
+    private let touchOpenCloseThreshold: CGFloat = 34
 
     var body: some View {
         GeometryReader { proxy in
@@ -35,26 +39,44 @@ struct ContentView: View {
                 crosshair
 
                 if isLandscape {
-                    landscapeCombatOverlay
-                        .padding(.top, 12)
-                        .padding(.leading, 12)
-                        .padding(.trailing, trailingInset(for: proxy.size))
-                        .padding(.bottom, 12)
-                } else {
-                    VStack {
-                        mainPagePicker
-                        topPanel
-                        Spacer()
-                        bottomPanel
+                    if !isClearViewMode {
+                        landscapeCombatOverlay
+                            .padding(.top, 12)
+                            .padding(.leading, 12)
+                            .padding(.trailing, trailingInset(for: proxy.size))
+                            .padding(.bottom, 12)
                     }
-                    .padding(.top, 10)
-                    .padding(.leading, 10)
-                    .padding(.bottom, 10)
-                    .padding(.trailing, trailingInset(for: proxy.size))
-                    .animation(.easeInOut(duration: 0.2), value: isTacticalMenuOpen)
+                } else {
+                    if !isClearViewMode {
+                        VStack {
+                            mainPagePicker
+                            topPanel
+                            Spacer()
+                            bottomPanel
+                        }
+                        .padding(.top, 10)
+                        .padding(.leading, 10)
+                        .padding(.bottom, 10)
+                        .padding(.trailing, trailingInset(for: proxy.size))
+                        .animation(.easeInOut(duration: 0.2), value: isTacticalMenuOpen)
+                    }
                 }
 
-                tacticalMenuDrawer(viewportHeight: proxy.size.height)
+                if !isClearViewMode {
+                    tacticalMenuDrawer(viewportHeight: proxy.size.height)
+                }
+
+                clearViewToggleButton
+                    .padding(.top, 12)
+                    .padding(.trailing, 12)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+
+                if isClearViewMode {
+                    clearViewRecordButton
+                        .padding(.bottom, 20)
+                        .padding(.trailing, 18)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                }
             }
         }
         .sheet(isPresented: $showingRecords) {
@@ -94,6 +116,15 @@ struct ContentView: View {
                 selectedControlPage = .tools
             }
         }
+        .onChange(of: selectedControlPage) {
+            syncAutoClearViewMode(for: selectedControlPage)
+        }
+        .onChange(of: autoClearViewDuringMeasure) {
+            syncAutoClearViewMode(for: selectedControlPage)
+        }
+        .onAppear {
+            syncAutoClearViewMode(for: selectedControlPage)
+        }
     }
 
     private var mainPagePicker: some View {
@@ -104,6 +135,64 @@ struct ContentView: View {
         }
         .pickerStyle(.segmented)
         .padding(.horizontal, 2)
+    }
+
+    private var clearViewToggleButton: some View {
+        Button {
+            clearViewAutoApplied = false
+            setClearViewMode(!isClearViewMode)
+        } label: {
+            Text(isClearViewMode ? "顯示功能" : "釋放畫面")
+                .font(.subheadline.bold())
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(
+                    LinearGradient(
+                        colors: isClearViewMode
+                            ? [.teal.opacity(0.95), .cyan.opacity(0.8)]
+                            : [.black.opacity(0.78), .black.opacity(0.62)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .foregroundStyle(.white)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(.white.opacity(0.75), lineWidth: 1.4)
+                )
+                .shadow(color: .black.opacity(0.32), radius: 6, x: 0, y: 3)
+                .frame(minWidth: 112, minHeight: 48)
+                .contentShape(Rectangle())
+        }
+    }
+
+    private var clearViewRecordButton: some View {
+        Button {
+            let recorded = performRecordMeasurement()
+            if recorded, autoClearViewDuringMeasure {
+                clearViewAutoApplied = false
+                setClearViewMode(false)
+            }
+        } label: {
+            Image(systemName: "camera.metering.center.weighted")
+                .font(.title2.bold())
+                .foregroundStyle(.white)
+                .frame(width: 74, height: 74)
+                .background(
+                    canRecordMeasurement
+                        ? LinearGradient(colors: [.green.opacity(0.98), .mint.opacity(0.88)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        : LinearGradient(colors: [.gray.opacity(0.7), .gray.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(.white.opacity(0.92), lineWidth: 2.6)
+                )
+                .shadow(color: .black.opacity(0.4), radius: 10, x: 0, y: 5)
+                .contentShape(Circle())
+        }
+        .disabled(!canRecordMeasurement)
     }
 
     private var crosshair: some View {
@@ -273,6 +362,10 @@ struct ContentView: View {
             Group {
                 switch selectedControlPage {
                 case .measure:
+                    Toggle("量測時自動釋放畫面", isOn: $autoClearViewDuringMeasure)
+                        .font(.footnote.bold())
+                        .tint(.cyan)
+
                     VStack(alignment: .leading, spacing: 6) {
                         Text(String(format: "設計距離：%.2f m", sessionManager.designTargetDistanceMeters))
                         Slider(value: Binding(
@@ -455,15 +548,19 @@ struct ContentView: View {
                     ZStack {
                         Circle()
                             .fill(.black.opacity(0.3))
-                            .frame(width: 86, height: 86)
+                            .frame(width: 94, height: 94)
                         Circle()
                             .stroke(.green, lineWidth: 4)
-                            .frame(width: 80, height: 80)
+                            .frame(width: 88, height: 88)
                         Circle()
-                            .fill(.green.opacity(canRecordMeasurement ? 0.8 : 0.3))
-                            .frame(width: 66, height: 66)
+                            .fill(
+                                canRecordMeasurement
+                                    ? LinearGradient(colors: [.green.opacity(0.95), .mint.opacity(0.85)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                                    : LinearGradient(colors: [.gray.opacity(0.55), .gray.opacity(0.4)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                            )
+                            .frame(width: 74, height: 74)
                         Image(systemName: "camera.metering.center.weighted")
-                            .font(.title2)
+                            .font(.title)
                             .foregroundStyle(.white)
                     }
                 }
@@ -490,6 +587,8 @@ struct ContentView: View {
                     .background(.black.opacity(0.72))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .shadow(color: .cyan.opacity(0.35), radius: 8, x: -3, y: 0)
+                    .frame(width: 58, height: 112, alignment: .trailing)
+                    .contentShape(Rectangle())
             }
 
             VStack(spacing: 14) {
@@ -503,11 +602,7 @@ struct ContentView: View {
                         isTacticalMenuOpen = false
                     }
                 } label: {
-                    Text("📸 記錄量測")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(.green.opacity(0.85))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    tacticalActionLabel("📸 記錄量測", color: .green)
                 }
                 .disabled(!canRecordMeasurement)
 
@@ -517,11 +612,7 @@ struct ContentView: View {
                         isTacticalMenuOpen = false
                     }
                 } label: {
-                    Text("🤖 一鍵矯正")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(.blue.opacity(0.85))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    tacticalActionLabel("🤖 一鍵矯正", color: .blue)
                 }
 
                 Button {
@@ -530,11 +621,7 @@ struct ContentView: View {
                         isTacticalMenuOpen = false
                     }
                 } label: {
-                    Text("✨ AI 建議")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(.purple.opacity(0.85))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    tacticalActionLabel("✨ AI 建議", color: .purple)
                 }
 
                 Spacer(minLength: 0)
@@ -550,7 +637,7 @@ struct ContentView: View {
         }
         .offset(x: isTacticalMenuOpen ? tacticalMenuDragOffset : tacticalMenuWidth + tacticalMenuDragOffset)
         .gesture(
-            DragGesture()
+            DragGesture(minimumDistance: 6)
                 .onChanged { value in
                     if isTacticalMenuOpen {
                         tacticalMenuDragOffset = max(0, value.translation.width)
@@ -560,9 +647,9 @@ struct ContentView: View {
                 }
                 .onEnded { value in
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        if isTacticalMenuOpen, value.translation.width > 50 {
+                        if isTacticalMenuOpen, value.translation.width > touchOpenCloseThreshold {
                             isTacticalMenuOpen = false
-                        } else if !isTacticalMenuOpen, value.translation.width < -50 {
+                        } else if !isTacticalMenuOpen, value.translation.width < -touchOpenCloseThreshold {
                             isTacticalMenuOpen = true
                         }
                         tacticalMenuDragOffset = 0
@@ -572,13 +659,65 @@ struct ContentView: View {
     }
 
     private func trailingInset(for size: CGSize) -> CGFloat {
+        if isClearViewMode { return 10 }
         let isLandscape = size.width > size.height
         if !isLandscape { return 10 }
         return isTacticalMenuOpen ? tacticalMenuWidth + 12 : 44
     }
 
-    private func performRecordMeasurement() {
-        guard let distance = sessionManager.prepareDistanceForRecording() else { return }
+    private func setClearViewMode(_ enabled: Bool) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isClearViewMode = enabled
+            if enabled {
+                isTacticalMenuOpen = false
+                tacticalMenuDragOffset = 0
+                isTopPanelExpanded = false
+            }
+        }
+    }
+
+    private func tacticalActionLabel(_ title: String, color: Color) -> some View {
+        Text(title)
+            .font(.headline.weight(.semibold))
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 52)
+            .padding(.vertical, 12)
+            .background(
+                LinearGradient(
+                    colors: [color.opacity(0.95), color.opacity(0.72)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(.white.opacity(0.75), lineWidth: 1.2)
+            )
+            .shadow(color: color.opacity(0.28), radius: 6, x: 0, y: 3)
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func syncAutoClearViewMode(for page: ControlPage) {
+        if autoClearViewDuringMeasure {
+            if page == .measure {
+                if !isClearViewMode {
+                    clearViewAutoApplied = true
+                    setClearViewMode(true)
+                }
+            } else if clearViewAutoApplied {
+                clearViewAutoApplied = false
+                setClearViewMode(false)
+            }
+        } else if clearViewAutoApplied {
+            clearViewAutoApplied = false
+            setClearViewMode(false)
+        }
+    }
+
+    @discardableResult
+    private func performRecordMeasurement() -> Bool {
+        guard let distance = sessionManager.prepareDistanceForRecording() else { return false }
         measurementStore.add(
             distance: distance,
             pitch: sessionManager.latestPitchDegrees,
@@ -587,6 +726,7 @@ struct ContentView: View {
             qaProfile: sessionManager.qaProfile,
             qaScore: sessionManager.qaScore
         )
+        return true
     }
 
     private var recordsView: some View {
