@@ -732,6 +732,52 @@ struct ContentView: View {
                         .font(.caption2)
                         .foregroundStyle(.cyan)
 
+                    HStack(spacing: 10) {
+                        Button("加入多視角樣本") {
+                            sessionManager.appendCurrentBlueprintToMultiViewSet()
+                        }
+                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
+
+                        Button("清空樣本") {
+                            sessionManager.clearMultiViewSamples()
+                        }
+                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
+                    }
+
+                    Button("生成多視角重建封包") {
+                        sessionManager.buildMultiViewReconstructionPackage()
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.purple)
+                    .frame(maxWidth: .infinity)
+
+                    Text("多視角樣本：\(sessionManager.multiViewSampleCount)/12")
+                        .font(.caption2)
+                        .foregroundStyle(.purple)
+
+                    Text(sessionManager.multiViewStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.purple.opacity(0.9))
+
+                    if !sessionManager.multiViewPackagePreviewLines.isEmpty {
+                        ScrollView(.vertical, showsIndicators: true) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(Array(sessionManager.multiViewPackagePreviewLines.enumerated()), id: \.offset) { _, line in
+                                    Text(line)
+                                        .font(.caption2)
+                                        .foregroundStyle(.white.opacity(0.88))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                        }
+                        .frame(maxHeight: 120)
+                        .padding(8)
+                        .background(.black.opacity(0.16))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+
                     if let blueprintImage = sessionManager.blueprintInputImage {
                         Image(uiImage: blueprintImage)
                             .resizable()

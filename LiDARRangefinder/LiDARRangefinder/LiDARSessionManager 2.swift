@@ -1,6 +1,7 @@
 import ARKit
 import AVFoundation
 import CoreImage
+import CoreML
 import Foundation
 import Photos
 import RealityKit
@@ -144,6 +145,11 @@ private struct FacadeHologramSnapshot {
     let renderMode: HologramRenderMode
 }
 
+private struct MultiViewSample {
+    let image: UIImage
+    let capturedAt: Date
+}
+
 @MainActor
 final class LiDARSessionManager: ObservableObject {
     @Published var distanceText: String = "-- m"
@@ -192,6 +198,9 @@ final class LiDARSessionManager: ObservableObject {
     @Published var volumeScanPreviewPoints: [SIMD2<Double>] = []
     @Published var blueprintInputImage: UIImage?
     @Published var blueprintUploadStatusText: String = "圖紙：尚未上傳"
+    @Published var multiViewSampleCount: Int = 0
+    @Published var multiViewStatusText: String = "多視角重建：尚未收集樣本"
+    @Published var multiViewPackagePreviewLines: [String] = []
     @Published var ifcModelElementCount: Int = 0
     @Published var ifcModelSummaryText: String = "IFC 模型：尚未匯入"
     @Published var ifcShowWalls: Bool = true
@@ -312,6 +321,9 @@ final class LiDARSessionManager: ObservableObject {
     private var facadeRebuildCooldownTimer: Timer?
     private var facadeRebuildCooldownUntil: TimeInterval = 0
     private var facadeRebuildTapTimes: [TimeInterval] = []
+    private var multiViewSamples: [MultiViewSample] = []
+    private var cachedFacadeDepthVNModel: VNCoreMLModel?
+    private var cachedFacadeDepthModelName: String?
     private var overlayImageName: String?
     private var ifcElements: [IFCElementSpec] = []
     private var overlayConfigSignature: String = ""
@@ -695,6 +707,87 @@ final class LiDARSessionManager: ObservableObject {
         blueprintUploadStatusText = "圖紙已上傳：可進行 3D 牆體生成"
     }
 
+    func appendCurrentBlueprintToMultiViewSet() {
+        guard let image = blueprintInputImage else {
+            multiViewStatusText = "多視角重建：請先上傳當前角度照片"
+            return
+        }
+        if multiViewSamples.count >= 12 {
+            _ = multiViewSamples.removeFirst()
+        }
+        multiViewSamples.append(MultiViewSample(image: image, capturedAt: Date()))
+        multiViewSampleCount = multiViewSamples.count
+        multiViewStatusText = "多視角重建：已加入樣本 \(multiViewSamples.count)/12"
+    }
+
+    func clearMultiViewSamples() {
+        multiViewSamples = []
+        multiViewSampleCount = 0
+        multiViewPackagePreviewLines = []
+        multiViewStatusText = "多視角重建：已清空樣本"
+    }
+
+    func buildMultiViewReconstructionPackage() {
+        guard !multiViewSamples.isEmpty else {
+            multiViewPackagePreviewLines = []
+            multiViewStatusText = "多視角重建：至少需要 1 張樣本"
+            return
+        }
+
+        let iso = ISO8601DateFormatter()
+        let summaries: [[String: Any]] = multiViewSamples.enumerated().map { idx, sample in
+            let w = max(1, Int((sample.image.size.width * sample.image.scale).rounded()))
+            let h = max(1, Int((sample.image.size.height * sample.image.scale).rounded()))
+            let ratio = Float(h) / Float(max(1, w))
+            let orientation: String
+            if ratio > 1.15 {
+                orientation = "portrait"
+            } else if ratio < 0.85 {
+                orientation = "landscape"
+            } else {
+                orientation = "square-ish"
+            }
+            let map = makeFacadeDepthMap(from: sample.image, maxDimension: 64)
+            let lumaBytes = map?.lumaBytes ?? []
+            let avgLuma: Float
+            if lumaBytes.isEmpty {
+                avgLuma = 0.5
+            } else {
+                let sum = lumaBytes.reduce(0) { $0 + Int($1) }
+                avgLuma = Float(sum) / Float(lumaBytes.count * 255)
+            }
+            return [
+                "index": idx + 1,
+                "captured_at": iso.string(from: sample.capturedAt),
+                "width": w,
+                "height": h,
+                "orientation_hint": orientation,
+                "avg_luma": Double(avgLuma),
+                "depth_source": map?.depthSourceLabel ?? "單張影像（亮度+邊緣）"
+            ]
+        }
+
+        let payload: [String: Any] = [
+            "capture_id": UUID().uuidString,
+            "created_at": iso.string(from: Date()),
+            "sample_count": summaries.count,
+            "samples": summaries
+        ]
+
+        if let json = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted]),
+           let text = String(data: json, encoding: .utf8) {
+            var lines = text.split(separator: "\n").map(String.init)
+            if lines.count > 18 {
+                lines = Array(lines.prefix(18)) + ["... (省略，完整封包已在記憶體生成)"]
+            }
+            multiViewPackagePreviewLines = lines
+        } else {
+            multiViewPackagePreviewLines = ["封包生成失敗：JSON 序列化錯誤"]
+        }
+
+        multiViewStatusText = "多視角重建：封包已生成（\(summaries.count) 視角）"
+    }
+
     func clearBlueprintInputImage() {
         blueprintInputImage = nil
         blueprintUploadStatusText = "圖紙：已清除"
@@ -1011,24 +1104,151 @@ final class LiDARSessionManager: ObservableObject {
         twdStakingPreviewStatusText = "放樣點顯示：關"
     }
 
-    private struct FacadeLumaMap {
+    private struct FacadeDepthMap {
         let width: Int
         let height: Int
-        let bytes: [UInt8]
+        let lumaBytes: [UInt8]
+        let edgeBytes: [UInt8]
+        let predictedDepthBytes: [UInt8]?
+        let depthSourceLabel: String
 
-        func sample(u: Float, v: Float) -> Float {
+        func sampleLuma(u: Float, v: Float) -> Float {
             guard width > 0, height > 0 else { return 0.5 }
             let uu = min(max(u, 0), 1)
             let vv = min(max(v, 0), 1)
             let x = min(width - 1, max(0, Int(uu * Float(width - 1))))
             let y = min(height - 1, max(0, Int(vv * Float(height - 1))))
             let idx = y * width + x
-            guard idx >= 0, idx < bytes.count else { return 0.5 }
-            return Float(bytes[idx]) / 255.0
+            guard idx >= 0, idx < lumaBytes.count else { return 0.5 }
+            return Float(lumaBytes[idx]) / 255.0
+        }
+
+        func sampleDepth(u: Float, v: Float) -> Float {
+            let luma = sampleLuma(u: u, v: v)
+            guard width > 0, height > 0 else { return luma }
+            let uu = min(max(u, 0), 1)
+            let vv = min(max(v, 0), 1)
+            let x = min(width - 1, max(0, Int(uu * Float(width - 1))))
+            let y = min(height - 1, max(0, Int(vv * Float(height - 1))))
+            let idx = y * width + x
+            guard idx >= 0, idx < edgeBytes.count else { return luma }
+            let edge = Float(edgeBytes[idx]) / 255.0
+            if let predictedDepthBytes, idx < predictedDepthBytes.count {
+                let predicted = Float(predictedDepthBytes[idx]) / 255.0
+                // If a CoreML depth map is available, trust it as main geometry.
+                return min(1, max(0, predicted * 0.9 + edge * 0.1))
+            }
+
+            // Week-1 depth estimate (single image): brightness base + edge relief boost.
+            let baseDepth = luma
+            let edgeRelief = edge * 0.35
+            return min(1, max(0, baseDepth * 0.78 + edgeRelief))
         }
     }
 
-    private func makeFacadeLumaMap(from image: UIImage, maxDimension: Int = 96) -> FacadeLumaMap? {
+    private func loadFacadeDepthVNModelIfAvailable() -> (model: VNCoreMLModel, name: String)? {
+        if let cachedFacadeDepthVNModel, let cachedFacadeDepthModelName {
+            return (cachedFacadeDepthVNModel, cachedFacadeDepthModelName)
+        }
+        let candidateNames = [
+            "DepthEstimator",
+            "DepthAnythingV2Small",
+            "MiDaSDepthSmall"
+        ]
+        for name in candidateNames {
+            guard let modelURL = Bundle.main.url(forResource: name, withExtension: "mlmodelc") else { continue }
+            guard let mlModel = try? MLModel(contentsOf: modelURL) else { continue }
+            guard let vnModel = try? VNCoreMLModel(for: mlModel) else { continue }
+            cachedFacadeDepthVNModel = vnModel
+            cachedFacadeDepthModelName = name
+            return (vnModel, name)
+        }
+        return nil
+    }
+
+    private func computeSobelEdges(from bytes: [UInt8], width: Int, height: Int) -> [UInt8] {
+        var edgeBytes = [UInt8](repeating: 0, count: width * height)
+        guard width > 2, height > 2 else { return edgeBytes }
+        for y in 1..<(height - 1) {
+            for x in 1..<(width - 1) {
+                let i00 = Int(bytes[(y - 1) * width + (x - 1)])
+                let i01 = Int(bytes[(y - 1) * width + x])
+                let i02 = Int(bytes[(y - 1) * width + (x + 1)])
+                let i10 = Int(bytes[y * width + (x - 1)])
+                let i12 = Int(bytes[y * width + (x + 1)])
+                let i20 = Int(bytes[(y + 1) * width + (x - 1)])
+                let i21 = Int(bytes[(y + 1) * width + x])
+                let i22 = Int(bytes[(y + 1) * width + (x + 1)])
+
+                let gx = (-i00 + i02) + (-2 * i10 + 2 * i12) + (-i20 + i22)
+                let gy = (-i00 - 2 * i01 - i02) + (i20 + 2 * i21 + i22)
+                let mag = min(255, Int(sqrt(Double(gx * gx + gy * gy)) * 0.25))
+                edgeBytes[y * width + x] = UInt8(mag)
+            }
+        }
+        return edgeBytes
+    }
+
+    private func makeDepthBytesFromModel(
+        cgImage: CGImage,
+        targetWidth: Int,
+        targetHeight: Int
+    ) -> (bytes: [UInt8], source: String)? {
+        guard let modelInfo = loadFacadeDepthVNModelIfAvailable() else { return nil }
+        var observedArray: MLMultiArray?
+        let request = VNCoreMLRequest(model: modelInfo.model) { request, _ in
+            let results = request.results ?? []
+            for result in results {
+                if let obs = result as? VNCoreMLFeatureValueObservation,
+                   let array = obs.featureValue.multiArrayValue {
+                    observedArray = array
+                    return
+                }
+            }
+        }
+        request.imageCropAndScaleOption = .scaleFill
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        do {
+            try handler.perform([request])
+        } catch {
+            return nil
+        }
+        guard let array = observedArray else { return nil }
+
+        let shape = array.shape.map { Int(truncating: $0) }
+        guard shape.count >= 2 else { return nil }
+        let depthHeight = max(1, shape[shape.count - 2])
+        let depthWidth = max(1, shape[shape.count - 1])
+        let prefix = Array(repeating: 0, count: max(0, shape.count - 2))
+        var values = [Float](repeating: 0, count: depthWidth * depthHeight)
+        var minV: Float = .greatestFiniteMagnitude
+        var maxV: Float = -.greatestFiniteMagnitude
+
+        for y in 0..<depthHeight {
+            for x in 0..<depthWidth {
+                let idxPath = prefix + [y, x]
+                let number = array[idxPath.map { NSNumber(value: $0) }]
+                let value = Float(truncating: number)
+                values[y * depthWidth + x] = value
+                minV = min(minV, value)
+                maxV = max(maxV, value)
+            }
+        }
+        let range = max(1e-6, maxV - minV)
+        var bytes = [UInt8](repeating: 0, count: targetWidth * targetHeight)
+        for y in 0..<targetHeight {
+            for x in 0..<targetWidth {
+                let srcX = min(depthWidth - 1, Int(Float(x) / Float(max(1, targetWidth - 1)) * Float(depthWidth - 1)))
+                let srcY = min(depthHeight - 1, Int(Float(y) / Float(max(1, targetHeight - 1)) * Float(depthHeight - 1)))
+                let v = values[srcY * depthWidth + srcX]
+                let n = (v - minV) / range
+                bytes[y * targetWidth + x] = UInt8(min(255, max(0, Int(n * 255.0))))
+            }
+        }
+        return (bytes, "CoreML \(modelInfo.name)")
+    }
+
+    private func makeFacadeDepthMap(from image: UIImage, maxDimension: Int = 96) -> FacadeDepthMap? {
         guard let cgImage = image.cgImage else { return nil }
         let sourceWidth = cgImage.width
         let sourceHeight = cgImage.height
@@ -1037,12 +1257,12 @@ final class LiDARSessionManager: ObservableObject {
         let scale = min(1.0, Float(maxDimension) / Float(max(sourceWidth, sourceHeight)))
         let targetWidth = max(16, Int(Float(sourceWidth) * scale))
         let targetHeight = max(16, Int(Float(sourceHeight) * scale))
-        var bytes = [UInt8](repeating: 0, count: targetWidth * targetHeight)
+        var lumaBytes = [UInt8](repeating: 0, count: targetWidth * targetHeight)
 
         let colorSpace = CGColorSpaceCreateDeviceGray()
         let bytesPerRow = targetWidth
         guard let context = CGContext(
-            data: &bytes,
+            data: &lumaBytes,
             width: targetWidth,
             height: targetHeight,
             bitsPerComponent: 8,
@@ -1055,7 +1275,17 @@ final class LiDARSessionManager: ObservableObject {
 
         context.interpolationQuality = .medium
         context.draw(cgImage, in: CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight))
-        return FacadeLumaMap(width: targetWidth, height: targetHeight, bytes: bytes)
+        let edgeBytes = computeSobelEdges(from: lumaBytes, width: targetWidth, height: targetHeight)
+        let modelDepth = makeDepthBytesFromModel(cgImage: cgImage, targetWidth: targetWidth, targetHeight: targetHeight)
+
+        return FacadeDepthMap(
+            width: targetWidth,
+            height: targetHeight,
+            lumaBytes: lumaBytes,
+            edgeBytes: edgeBytes,
+            predictedDepthBytes: modelDepth?.bytes,
+            depthSourceLabel: modelDepth?.source ?? "單張影像（亮度+邊緣）"
+        )
     }
 
     private func buildFacadeHologramAnchor(
@@ -1122,7 +1352,7 @@ final class LiDARSessionManager: ObservableObject {
         }
         let unitW = facadeWidth / Float(cols)
         let unitH = facadeHeight / Float(rows)
-        let lumaMap = makeFacadeLumaMap(from: image, maxDimension: lumaMaxDimension)
+        let depthMap = makeFacadeDepthMap(from: image, maxDimension: lumaMaxDimension)
 
         let depthBuckets: [Float] = [0.012, 0.022, 0.034]
         let toneBuckets: [CGFloat] = [0.66, 0.77, 0.88]
@@ -1150,12 +1380,14 @@ final class LiDARSessionManager: ObservableObject {
                 let x = -facadeWidth / 2 + unitW * (Float(col) + 0.5)
                 let u = (Float(col) + 0.5) / Float(cols)
                 let v = 1 - (Float(row) + 0.5) / Float(rows)
-                let luma = lumaMap?.sample(u: u, v: v) ?? (0.5 + 0.2 * sinf(Float(col) * 0.7) * cosf(Float(row) * 0.35))
+                let luma = depthMap?.sampleLuma(u: u, v: v) ?? (0.5 + 0.2 * sinf(Float(col) * 0.7) * cosf(Float(row) * 0.35))
+                let estimatedDepth = depthMap?.sampleDepth(u: u, v: v) ?? luma
                 let clampedLuma = min(max(luma, 0), 1)
+                let clampedDepth = min(max(estimatedDepth, 0), 1)
 
-                // Dark zones are treated as recessed window-like regions; bright zones are protruding features.
-                let recess = max(0, (0.5 - clampedLuma) * 0.085)
-                let protrusion = max(0, (clampedLuma - 0.58) * 0.06)
+                // Use estimated depth for geometry; keep luma for tone.
+                let recess = max(0, (0.48 - clampedDepth) * 0.095)
+                let protrusion = max(0, (clampedDepth - 0.54) * 0.075)
                 let tileDepth = 0.012 + protrusion
                 let tileZ = depth / 2 + (tileDepth / 2) - recess
 
@@ -1226,6 +1458,7 @@ final class LiDARSessionManager: ObservableObject {
         facadeQualityReportLines = [
             "模式：\(effectiveRenderMode == .showcase ? "展示" : "效能")",
             "穩定保護：\(shouldAutoDowngrade ? "已降載" : "未降載")",
+            "深度估計：\(depthMap?.depthSourceLabel ?? "單張影像（亮度+邊緣）")",
             "影像解析：\(pixelWidth)x\(pixelHeight)",
             "格網密度：\(cols)x\(rows)（\(cols * rows) 塊）",
             "亮度取樣：\(lumaMaxDimension)",
@@ -2134,6 +2367,10 @@ final class LiDARSessionManager: ObservableObject {
         // Uploaded blueprint state
         blueprintInputImage = nil
         blueprintUploadStatusText = "圖紙：尚未上傳"
+        multiViewSamples = []
+        multiViewSampleCount = 0
+        multiViewStatusText = "多視角重建：尚未收集樣本"
+        multiViewPackagePreviewLines = []
         ifcElements = []
         ifcModelElementCount = 0
         ifcModelSummaryText = "IFC 模型：尚未匯入"
@@ -2484,19 +2721,19 @@ final class LiDARSessionManager: ObservableObject {
 
     private func addFallbackIFCEntities(to root: Entity, blueprintImage: UIImage?) {
         guard ifcShowWalls || ifcShowRebars || ifcShowPipes else { return }
-        let lumaMap = blueprintImage.flatMap { makeFacadeLumaMap(from: $0, maxDimension: 72) }
+        let depthMap = blueprintImage.flatMap { makeFacadeDepthMap(from: $0, maxDimension: 72) }
         let avgLuma: Float = {
-            guard let map = lumaMap, !map.bytes.isEmpty else { return 0.52 }
-            let sum = map.bytes.reduce(0) { $0 + Int($1) }
-            return Float(sum) / Float(map.bytes.count * 255)
+            guard let map = depthMap, !map.lumaBytes.isEmpty else { return 0.52 }
+            let sum = map.lumaBytes.reduce(0) { $0 + Int($1) }
+            return Float(sum) / Float(map.lumaBytes.count * 255)
         }()
         let contrast: Float = {
-            guard let map = lumaMap, !map.bytes.isEmpty else { return 0.28 }
+            guard let map = depthMap, !map.lumaBytes.isEmpty else { return 0.28 }
             let mean = avgLuma * 255
-            let variance = map.bytes.reduce(Float(0)) { partial, b in
+            let variance = map.lumaBytes.reduce(Float(0)) { partial, b in
                 let d = Float(b) - mean
                 return partial + d * d
-            } / Float(map.bytes.count * 255 * 255)
+            } / Float(map.lumaBytes.count * 255 * 255)
             return min(0.55, max(0.12, sqrt(variance)))
         }()
         let imageRatio: Float = {
