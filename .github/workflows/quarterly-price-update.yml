@@ -37,13 +37,23 @@ jobs:
           echo "CSV_URL=$CSV_URL" >> "$GITHUB_ENV"
 
       - name: Download reviewed CSV (optional)
-        if: ${{ env.CSV_URL != '' }}
         run: |
-          curl -L --fail "$CSV_URL" -o seasonal-prices.csv
+          if [ -z "$CSV_URL" ]; then
+            echo "INFO: no CSV URL configured, will use fallback seasonal factor"
+            echo "CSV_FILE=" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          if curl -L --fail "$CSV_URL" -o seasonal-prices.csv; then
+            echo "INFO: downloaded seasonal-prices.csv"
+            echo "CSV_FILE=seasonal-prices.csv" >> "$GITHUB_ENV"
+          else
+            echo "WARN: CSV download failed, will use fallback seasonal factor"
+            echo "CSV_FILE=" >> "$GITHUB_ENV"
+          fi
 
       - name: Update prices.json
         run: |
-          if [ -f "seasonal-prices.csv" ]; then
+          if [ -n "$CSV_FILE" ] && [ -f "$CSV_FILE" ]; then
             python3 update_prices_from_arcnet.py --csv "seasonal-prices.csv"
           else
             python3 update_prices_from_arcnet.py
@@ -51,7 +61,7 @@ jobs:
 
       - name: QA validate seasonal prices
         run: |
-          if [ -f "seasonal-prices.csv" ]; then
+          if [ -n "$CSV_FILE" ] && [ -f "$CSV_FILE" ]; then
             python3 qa_validate_prices.py --prices prices.json --csv "seasonal-prices.csv"
           else
             python3 qa_validate_prices.py --prices prices.json

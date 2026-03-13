@@ -33,6 +33,12 @@ ANNOUNCEMENTS_URL = f"{BASE}/informations?locale=zh-TW&type=announcement"
 NEWS_URL = f"{BASE}/news?locale=zh-TW"
 SITEMAP_URL = f"{BASE}/sitemap.xml"
 PRICES_FILE = Path(__file__).with_name("prices.json")
+FALLBACK_FACTORS_BY_QUARTER = {
+    1: 1.000,  # Q1 (spring)
+    2: 1.010,  # Q2 (summer)
+    3: 1.015,  # Q3 (autumn)
+    4: 1.020,  # Q4 (winter)
+}
 
 
 @dataclass
@@ -152,6 +158,38 @@ def quarter_str(now: datetime) -> str:
     return f"{now.year}Q{q}"
 
 
+def quarter_number(now: datetime) -> int:
+    return ((now.month - 1) // 3) + 1
+
+
+def _normalize_price(value: float) -> float | int:
+    rounded = round(value, 2)
+    if rounded.is_integer():
+        return int(rounded)
+    return rounded
+
+
+def apply_fallback_factor(items: List[Dict], factor: float) -> List[Dict]:
+    updated: List[Dict] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip()
+        if not name:
+            continue
+        try:
+            price = float(item.get("price"))
+        except Exception as exc:  # noqa: BLE001
+            raise ValueError(f"invalid item price for fallback factor: {name}: {exc}") from exc
+        if price <= 0:
+            raise ValueError(f"non-positive item price for fallback factor: {name}")
+
+        next_item = dict(item)
+        next_item["price"] = _normalize_price(price * factor)
+        updated.append(next_item)
+    return updated
+
+
 def parse_csv_items(csv_path: Path) -> List[Dict[str, float]]:
     items: List[Dict[str, float]] = []
     with csv_path.open("r", encoding="utf-8-sig", newline="") as f:
@@ -196,6 +234,14 @@ def main() -> int:
 
     output = Path(args.output).expanduser().resolve()
     payload = load_prices(output)
+    if (
+        not args.csv
+        and (not isinstance(payload.get("items"), list) or not payload.get("items"))
+        and output != PRICES_FILE.resolve()
+        and PRICES_FILE.exists()
+    ):
+        # Keep dry-run outputs usable by inheriting baseline items from repo prices.json.
+        payload = load_prices(PRICES_FILE.resolve())
 
     notice = extract_latest_notice()
     if notice is None:
@@ -218,9 +264,23 @@ def main() -> int:
         if not items:
             raise ValueError("CSV 解析後沒有有效資料列")
         payload["items"] = items
+        payload["price_update_mode"] = "csv_reviewed"
+        payload.pop("seasonal_factor", None)
+        payload.pop("fallback_reason", None)
         print(f"INFO: items updated from CSV => {len(items)} rows")
     else:
-        print("INFO: no --csv provided, keep existing items")
+        factor = FALLBACK_FACTORS_BY_QUARTER[quarter_number(datetime.now(timezone(timedelta(hours=8))))]
+        current_items = payload.get("items", [])
+        if not isinstance(current_items, list) or not current_items:
+            raise ValueError("fallback requires existing non-empty items in prices.json")
+        payload["items"] = apply_fallback_factor(current_items, factor)
+        payload["price_update_mode"] = "fallback_seasonal_factor"
+        payload["seasonal_factor"] = factor
+        payload["fallback_reason"] = "csv_missing_or_unavailable"
+        print(
+            f"INFO: no --csv provided, applied fallback seasonal factor => x{factor} "
+            f"({len(payload['items'])} rows)"
+        )
 
     now = datetime.now(timezone(timedelta(hours=8)))
     payload["season"] = quarter_str(now)

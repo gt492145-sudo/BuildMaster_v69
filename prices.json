@@ -2,7 +2,7 @@
   "source": "價格試算表拷貝.xlsx",
   "source_site": "local_upload",
   "season": "2026Q1",
-  "generated_at": "2026-03-08T01:46:29+08:00",
+  "generated_at": "2026-03-14T07:18:33+08:00",
   "items": [
     {
       "name": "抽水井-人工挖掘",
@@ -594,5 +594,8 @@
       "price": 3000000,
       "unit": "台"
     }
-  ]
+  ],
+  "price_update_mode": "fallback_seasonal_factor",
+  "seasonal_factor": 1.0,
+  "fallback_reason": "csv_missing_or_unavailable"
 }

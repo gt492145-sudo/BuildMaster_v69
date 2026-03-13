@@ -24,6 +24,14 @@ def parse_prices_json(path: Path) -> Dict:
             fail(f"missing key in prices.json: {key}")
     if not isinstance(payload["items"], list) or not payload["items"]:
         fail("items must be a non-empty list")
+    mode = str(payload.get("price_update_mode", "")).strip()
+    if mode == "fallback_seasonal_factor":
+        try:
+            factor = float(payload.get("seasonal_factor"))
+        except Exception as e:  # noqa: BLE001
+            fail(f"fallback mode requires numeric seasonal_factor: {e}")
+        if factor <= 0:
+            fail("seasonal_factor must be > 0")
     return payload
 
 
