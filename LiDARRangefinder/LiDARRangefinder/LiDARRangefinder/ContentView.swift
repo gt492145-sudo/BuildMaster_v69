@@ -227,6 +227,7 @@ struct ContentView: View {
             clearViewAutoApplied = false
             setClearViewMode(false)
             syncAutoClearViewMode(for: selectedControlPage)
+            sessionManager.resumeSessionIfNeeded()
         }
         .onChange(of: scenePhase) {
             if scenePhase != .active {
@@ -236,9 +237,16 @@ struct ContentView: View {
         }
         .onDisappear {
             stopSafetyMonkey()
+            sessionManager.suspendSessionForViewDisappearance()
         }
         .onAppear {
             refreshMonkeyAccessState()
+        }
+    }
+
+    private func deferSessionMutation(_ mutation: @escaping @MainActor (LiDARSessionManager) -> Void) {
+        Task { @MainActor in
+            mutation(sessionManager)
         }
     }
 
@@ -512,7 +520,11 @@ struct ContentView: View {
                         Text(String(format: "設計距離：%.2f m", sessionManager.designTargetDistanceMeters))
                         Slider(value: Binding(
                             get: { sessionManager.designTargetDistanceMeters },
-                            set: { sessionManager.setDesignTargetDistanceMeters($0) }
+                            set: { newValue in
+                                deferSessionMutation { manager in
+                                    manager.setDesignTargetDistanceMeters(newValue)
+                                }
+                            }
                         ), in: 0.2...20, step: 0.05)
                     }
 
@@ -520,13 +532,21 @@ struct ContentView: View {
                         Text(String(format: "偏差容差：±%.1f cm", sessionManager.deviationToleranceCm))
                         Slider(value: Binding(
                             get: { sessionManager.deviationToleranceCm },
-                            set: { sessionManager.setDeviationToleranceCm($0) }
+                            set: { newValue in
+                                deferSessionMutation { manager in
+                                    manager.setDeviationToleranceCm(newValue)
+                                }
+                            }
                         ), in: 0.5...20, step: 0.5)
                     }
 
                     Toggle(isOn: Binding(
                         get: { sessionManager.highPrecisionContinuousModeEnabled },
-                        set: { sessionManager.setHighPrecisionContinuousModeEnabled($0) }
+                        set: { newValue in
+                            deferSessionMutation { manager in
+                                manager.setHighPrecisionContinuousModeEnabled(newValue)
+                            }
+                        }
                     )) {
                         Text("高精度連續模式（記錄前 3 次取中位數）")
                             .font(.footnote.bold())
@@ -535,7 +555,11 @@ struct ContentView: View {
 
                     Toggle(isOn: Binding(
                         get: { sessionManager.highestModeLockEnabled },
-                        set: { sessionManager.setHighestModeLockEnabled($0) }
+                        set: { newValue in
+                            deferSessionMutation { manager in
+                                manager.setHighestModeLockEnabled(newValue)
+                            }
+                        }
                     )) {
                         Text("最高等級鎖定（固定超嚴格）")
                             .font(.footnote.bold())
@@ -544,7 +568,11 @@ struct ContentView: View {
 
                     Picker("QA 模式", selection: Binding(
                         get: { sessionManager.qaProfile },
-                        set: { sessionManager.setQAProfile($0) }
+                        set: { newValue in
+                            deferSessionMutation { manager in
+                                manager.setQAProfile(newValue)
+                            }
+                        }
                     )) {
                         ForEach(QATuningProfile.allCases) { mode in
                             Text(mode.displayName).tag(mode)

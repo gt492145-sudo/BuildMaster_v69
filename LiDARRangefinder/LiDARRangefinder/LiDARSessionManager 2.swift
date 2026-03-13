@@ -266,6 +266,7 @@ final class LiDARSessionManager: ObservableObject {
     private weak var arView: ARView?
     private let ciContext = CIContext()
     private var updateTimer: Timer?
+    private var isSessionSuspended = false
     private var recentDistances: [Double] = []
     private var recentRawDistances: [Double] = []
     private let qaProfileStorageKey = "lidar_rangefinder_qa_profile"
@@ -543,7 +544,27 @@ final class LiDARSessionManager: ObservableObject {
             guard let self else { return }
             self.configureSession(on: view)
             self.beginPolling()
+            self.isSessionSuspended = false
         }
+    }
+
+    func suspendSessionForViewDisappearance() {
+        guard !isSessionSuspended else { return }
+        isSessionSuspended = true
+        updateTimer?.invalidate()
+        updateTimer = nil
+        arView?.session.pause()
+        statusText = "LiDAR 暫停中"
+    }
+
+    func resumeSessionIfNeeded() {
+        guard let arView else { return }
+        if !isSessionSuspended && updateTimer != nil {
+            return
+        }
+        configureSession(on: arView)
+        beginPolling()
+        isSessionSuspended = false
     }
 
     func capturePhotoToLibrary() {
