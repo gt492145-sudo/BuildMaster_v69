@@ -1004,6 +1004,7 @@
                 <label>工地即時天氣</label>
                 <div id="siteWeatherInfo" class="bim-note" style="margin-top:4px;">天氣：尚未更新</div>
                 <div id="siteWeatherSafety" class="bim-note" style="margin-top:4px; color:#bdeecf;">施工建議：請先更新天氣</div>
+                <div id="siteWeatherNews" class="bim-note" style="margin-top:4px; color:#cfe6ff;">氣象快報：待更新</div>
             </div>
             <div class="input-wrapper">
                 <label>天氣更新</label>
@@ -4789,16 +4790,33 @@
         else if (level === '建議暫緩') body.classList.add('weather-scene-bad');
     }
 
+    function createWeatherNewsBulletin(weather) {
+        if (!weather) return '氣象快報：資料不足，請稍後更新。';
+        const weatherLabel = WEATHER_CODE_MAP[Number(weather.weatherCode)] || '天氣變化';
+        const rainProb = Math.round(Number(weather.rainProb) || 0);
+        const rainMm = Number(weather.rainMm) || 0;
+        const windKmh = Math.round(Number(weather.windKmh) || 0);
+        const tempC = Number(weather.tempC) || 0;
+        const advice = getWeatherAdviceLevel(weather);
+        let phaseText = '整體天氣穩定';
+        if (rainProb >= 80 || rainMm >= 5 || windKmh >= 40) phaseText = '短時風雨風險偏高';
+        else if (rainProb >= 50 || rainMm >= 1 || windKmh >= 28) phaseText = '局部有雨勢變化';
+        return `氣象快報：目前${weatherLabel}，${tempC.toFixed(1)}°C，降雨機率 ${rainProb}%、風速 ${windKmh} km/h；${phaseText}，施工判斷 ${advice.level}。`;
+    }
+
     function updateSiteWeatherUI(weather, errorText = '') {
         const info = document.getElementById('siteWeatherInfo');
         const safety = document.getElementById('siteWeatherSafety');
-        if (!info || !safety) return;
+        const news = document.getElementById('siteWeatherNews');
+        if (!info || !safety || !news) return;
         if (!weather) {
             applyWeatherScene('未知');
             info.innerText = `天氣：${errorText || '暫無資料'}`;
             info.style.color = '#ffd48a';
             safety.innerText = '施工建議：請先更新天氣';
             safety.style.color = '#ffd48a';
+            news.innerText = '氣象快報：目前無即時資料，請更新天氣後取得新聞式播報。';
+            news.style.color = '#ffd48a';
             return;
         }
         const weatherLabel = WEATHER_CODE_MAP[Number(weather.weatherCode)] || '天氣變化';
@@ -4808,6 +4826,8 @@
         applyWeatherScene(advice.level);
         safety.innerText = `施工建議：${advice.level}｜${advice.message}`;
         safety.style.color = advice.color;
+        news.innerText = createWeatherNewsBulletin(weather);
+        news.style.color = '#cfe6ff';
     }
 
     async function refreshSiteWeather(silent = false) {
