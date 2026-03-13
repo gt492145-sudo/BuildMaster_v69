@@ -552,9 +552,9 @@
     <img src="logo-app.png" class="logo-img" alt="Black Hole Logo">
     <div class="header-title">Construction Master V8.0 - BLACK HOLE POWER <span class="live-badge">正式版 LIVE</span> <span class="live-badge">v80 進階更新</span></div>
     <div class="level-switch">
-        <button id="levelBasicBtn" class="level-btn" onclick="setUserLevel('basic')">頁1 新手</button>
-        <button id="levelStandardBtn" class="level-btn" onclick="setUserLevel('standard')">頁2 工程</button>
-        <button id="levelProBtn" class="level-btn" onclick="setUserLevel('pro')">頁3 專家</button>
+        <button id="levelBasicBtn" class="level-btn" onclick="setUserLevel('1')">會員1（基礎）</button>
+        <button id="levelStandardBtn" class="level-btn" onclick="setUserLevel('2')">會員2（工程）</button>
+        <button id="levelProBtn" class="level-btn" onclick="setUserLevel('3')">會員3（專家）</button>
     </div>
     <div class="work-switch">
         <button id="workCalcBtn" class="work-btn active" onclick="window.location.href='index.html'">🧮 計算模式</button>
@@ -578,7 +578,7 @@
             <span>🧲 視圖模式：自動</span>
         </div>
 
-        <div class="drawer-item" data-mobile-action="scan">
+        <div class="drawer-item level-hide-basic" data-mobile-action="scan">
             <span>🌌 一鍵掃描 3D</span>
         </div>
 
@@ -647,7 +647,7 @@
             <button id="btn3D" class="tool-btn level-only-pro" onclick="toggle3DView()">🧊 3D檢視</button>
             <button id="btn360" class="tool-btn level-only-pro" onclick="toggle360Spin()">🌀 360翻轉</button>
             <button class="tool-btn level-only-pro" onclick="reset3DView()">🎯 重設視角</button>
-            <button id="btnAutoScan3D" class="tool-btn" style="border-color: #b388ff; color: #e040fb;" onclick="autoQuantumScan()">🌌 一鍵掃描 3D</button>
+            <button id="btnAutoScan3D" class="tool-btn level-hide-basic" style="border-color: #b388ff; color: #e040fb;" onclick="autoQuantumScan()">🌌 一鍵掃描 3D</button>
             <button id="btnGyro" class="tool-btn level-only-pro" onclick="toggleGyroMode()">🧭 陀螺儀: 關</button>
             <button class="tool-btn level-only-pro" onclick="calibrateGyroBaseline()">🎯 校正陀螺儀</button>
             <button class="tool-btn level-only-standard" onclick="startEdgeAIVision()">👁️ AI視覺點料</button>
@@ -979,8 +979,8 @@
             <div class="input-wrapper"><input type="text" id="customName" placeholder="部位名稱 (如: C2柱)"></div>
         </div>
 
-        <div class="group-title">材料單價查詢（試算表）</div>
-        <div class="input-row">
+        <div class="group-title level-hide-basic">材料單價查詢（試算表）</div>
+        <div class="input-row level-hide-basic">
             <div class="input-wrapper">
                 <label>地區資料來源</label>
                 <select id="regionSelect" onchange="handleRegionChange(this.value)">
@@ -999,7 +999,7 @@
                 <button class="tool-btn" style="width:100%;" onclick="autoDetectRegion()">📍 重新定位並套用</button>
             </div>
         </div>
-        <div class="input-row">
+        <div class="input-row level-hide-basic">
             <div class="input-wrapper">
                 <label>工地即時天氣</label>
                 <div id="siteWeatherInfo" class="bim-note" style="margin-top:4px;">天氣：尚未更新</div>
@@ -1011,7 +1011,7 @@
                 <button class="tool-btn" style="width:100%; border-color:#9ad4ff; color:#dff3ff;" onclick="refreshSiteWeather()">☁️ 更新工地天氣</button>
             </div>
         </div>
-        <div class="input-row">
+        <div class="input-row level-hide-basic">
             <div class="input-wrapper">
                 <label>搜尋材料關鍵字</label>
                 <input type="text" id="materialSearch" placeholder="例如：模板、混凝土、鋼筋..." oninput="filterMaterialCatalog(this.value)">
@@ -1023,12 +1023,15 @@
                 </select>
             </div>
         </div>
-        <div class="material-quick-bar">
+        <div class="material-quick-bar level-hide-basic">
             <div id="materialCountChip" class="material-chip">資料筆數：<strong>0</strong></div>
             <div id="materialPriceChip" class="material-chip">目前單價：<strong>尚未選取</strong></div>
             <div id="materialRegionChip" class="material-chip">地區：<strong>全台共用</strong>（預設）</div>
             <div id="materialSourceChip" class="material-chip">資料來源：<strong>未同步</strong></div>
             <button class="tool-btn" style="margin-left:auto;" onclick="applySelectedMaterialPrice()">📌 套用到單價欄</button>
+        </div>
+        <div class="bim-note level-only-basic" style="margin-top:6px; color:#ffd3a3;">
+            會員1（基礎）不顯示 3D 深層掃描與價目表模組。
         </div>
 
         <div class="group-title">
@@ -1684,17 +1687,33 @@
         demoModeEnabled = safeStorage.get(localStorage, DEMO_MODE_KEY, '1') === '1';
     }
 
+    function normalizeUserLevel(rawLevel) {
+        const raw = String(rawLevel || '').trim().toLowerCase();
+        if (raw === '1' || raw === 'basic' || raw.includes('頁1') || raw.includes('會員1')) return 'basic';
+        if (raw === '2' || raw === 'standard' || raw.includes('頁2') || raw.includes('會員2')) return 'standard';
+        if (raw === '3' || raw === 'pro' || raw.includes('頁3') || raw.includes('會員3')) return 'pro';
+        return 'basic';
+    }
+
+    function getUserLevelLabel(level) {
+        if (level === 'standard') return '會員2（工程）';
+        if (level === 'pro') return '會員3（專家）';
+        return '會員1（基礎）';
+    }
+
+    function getCurrentUserLevel() {
+        return normalizeUserLevel(safeStorage.get(localStorage, USER_LEVEL_KEY, 'basic'));
+    }
+
     function setUserLevel(level) {
-        const normalized = ['basic', 'standard', 'pro'].includes(level) ? level : 'basic';
+        const normalized = normalizeUserLevel(level);
         safeStorage.set(localStorage, USER_LEVEL_KEY, normalized);
         applyUserLevel();
-        const label = normalized === 'basic' ? '頁1 新手' : (normalized === 'standard' ? '頁2 工程' : '頁3 專家');
-        showToast(`已切換：${label}`);
+        showToast(`已切換：${getUserLevelLabel(normalized)}`);
     }
 
     function applyUserLevel() {
-        const level = safeStorage.get(localStorage, USER_LEVEL_KEY, 'basic');
-        const normalized = ['basic', 'standard', 'pro'].includes(level) ? level : 'basic';
+        const normalized = getCurrentUserLevel();
         safeStorage.set(localStorage, USER_LEVEL_KEY, normalized);
         document.body.setAttribute('data-user-level', normalized);
         const mapping = [
@@ -1715,9 +1734,9 @@
         localStorage.setItem(WORK_MODE_KEY, normalized);
         applyWorkMode();
         if (normalized === 'stake') {
-            const level = localStorage.getItem(USER_LEVEL_KEY) || 'basic';
+            const level = getCurrentUserLevel();
             if (level !== 'pro') {
-                showToast('已切換放樣模式（部分進階功能需頁3 專家）');
+                showToast('已切換放樣模式（部分進階功能需會員3）');
                 return;
             }
             showToast('已切換放樣模式');
@@ -6634,7 +6653,7 @@
     }
 
     function isAiCoachAllowedForCurrentLevel() {
-        const level = localStorage.getItem(USER_LEVEL_KEY) || 'basic';
+        const level = getCurrentUserLevel();
         return level === 'standard' || level === 'pro';
     }
 
@@ -6645,7 +6664,7 @@
         const askBtn = document.getElementById('coachAiAskBtn');
         const askInput = document.getElementById('coachAiInput');
         if (btn) btn.innerText = !allowedForLevel
-            ? 'AI解說: 限頁2/3'
+            ? 'AI解說: 限會員2/3'
             : (AI_API_ENABLED
             ? (aiCoachState.enabled ? 'AI解說: 開' : 'AI解說: 關')
             : 'AI解說: 停用');
@@ -6657,7 +6676,7 @@
         if (!isAiCoachAllowedForCurrentLevel()) {
             aiCoachState.enabled = false;
             applyAiCoachMode();
-            return showToast('AI 解說僅開放頁2/頁3使用');
+            return showToast('AI 解說僅開放會員2/會員3使用');
         }
         if (!AI_API_ENABLED) {
             localStorage.setItem(AI_COACH_ENABLED_KEY, '0');
@@ -6856,9 +6875,9 @@
         if (target.closest('button[onclick="deleteMemberCodeFromInput()"]')) return '刪除指定會員帳號，刪除後將不能用該帳號登入。';
         if (target.closest('#memberCodeBody')) return '這裡是目前可登入的會員帳號清單（本機儲存）。';
         if (target.closest('#coachToggle')) return '可在這裡一鍵開關解說員；開啟後點擊任何功能區都會出現說明。';
-        if (target.closest('#levelBasicBtn')) return '頁1 新手：保留最必要功能，適合快速上手與一般使用。';
-        if (target.closest('#levelStandardBtn')) return '頁2 工程：開啟量圖輔助、QA 報告與會員管理等進階工具。';
-        if (target.closest('#levelProBtn')) return '頁3 專家：顯示完整 BIM/規則/快照等高階模組。';
+        if (target.closest('#levelBasicBtn')) return '會員1（基礎）：保留最必要功能，適合快速上手。';
+        if (target.closest('#levelStandardBtn')) return '會員2（工程）：開啟量圖輔助、QA 報告與部分進階工具。';
+        if (target.closest('#levelProBtn')) return '會員3（專家）：顯示完整 BIM/規則/快照等高階模組。';
         if (target.closest('#workCalcBtn')) return '計算模式：聚焦工種試算、價目套用、清單與報表輸出。';
         if (target.closest('#workStakeBtn')) return '放樣模式：聚焦模型解析、放樣點抽取、QA 檢核與放樣輸出。';
         if (target.closest('#aiCoachToggle')) return 'AI 解說員：可在規則解說外補充更彈性的操作建議（需先設定 API Key）。';
@@ -7392,7 +7411,7 @@
     function getUserLevelGuideLines(level) {
         if (level === 'pro') {
             return [
-                '【頁3 專家｜放樣說明與排查】',
+                '【會員3（專家）｜放樣說明與排查】',
                 '',
                 'A. 推薦操作順序',
                 '1) 匯入模型檔 -> 生成放樣點',
@@ -7413,7 +7432,7 @@
         }
         if (level === 'standard') {
             return [
-                '【頁2 工程｜放樣說明與排查】',
+                '【會員2（工程）｜放樣說明與排查】',
                 '',
                 'A. 推薦操作順序',
                 '1) 先生成放樣點',
@@ -7432,7 +7451,7 @@
             ];
         }
         return [
-            '【頁1 新手｜放樣說明與排查】',
+            '【會員1（基礎）｜放樣說明與排查】',
             '',
             'A. 推薦操作順序',
             '1) 先按「產生放樣點」',
@@ -7451,8 +7470,7 @@
     }
 
     function showCalcResetGuide() {
-        const raw = safeStorage.get(localStorage, USER_LEVEL_KEY, 'basic');
-        const level = ['basic', 'standard', 'pro'].includes(raw) ? raw : 'basic';
+        const level = getCurrentUserLevel();
         alert(getUserLevelGuideLines(level).join('\n'));
     }
 
