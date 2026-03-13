@@ -94,10 +94,54 @@ struct TWDStakingPoint: Identifiable {
     let h: Double
 }
 
+enum HologramRenderMode: String, CaseIterable, Identifiable {
+    case performance
+    case showcase
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .performance:
+            return "效能"
+        case .showcase:
+            return "展示"
+        }
+    }
+}
+
+enum FacadeRebuildMode: String, CaseIterable, Identifiable {
+    case auto
+    case lockPerformance
+    case forceShowcase
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .auto:
+            return "自動"
+        case .lockPerformance:
+            return "鎖定降載"
+        case .forceShowcase:
+            return "強制展示"
+        }
+    }
+}
+
 private struct LocalScheduleTask {
     let id: String
     let name: String
     let durationDays: Int
+}
+
+private struct FacadeHologramSnapshot {
+    let anchorPosition: SIMD3<Float>?
+    let scale: Float
+    let yaw: Float
+    let pitch: Float
+    let roll: Float
+    let renderMode: HologramRenderMode
 }
 
 @MainActor
@@ -168,6 +212,12 @@ final class LiDARSessionManager: ObservableObject {
     @Published var facadeHologramStatusText: String = "立面全息：待命"
     @Published var facadeLifeModeEnabled: Bool = true
     @Published var facadeLifeModeStatusText: String = "生命感模式：開"
+    @Published var hologramRenderMode: HologramRenderMode = .performance
+    @Published var facadeRebuildMode: FacadeRebuildMode = .auto
+    @Published var facadeSnapshotAvailable: Bool = false
+    @Published var facadeQualityReportLines: [String] = []
+    @Published var facadeRebuildReady: Bool = true
+    @Published var facadeRebuildGuardText: String = "重建保護：就緒"
     @Published var ibmScheduleStatusText: String = "IBM 排程：待命"
     @Published var ibmSchedulePreviewLines: [String] = []
     @Published var meshVisualizationEnabled: Bool = false
@@ -237,6 +287,8 @@ final class LiDARSessionManager: ObservableObject {
     private let twd97RotationStorageKey = "lidar_rangefinder_twd97_rotation_deg"
     private let meshVisualizationStorageKey = "lidar_rangefinder_mesh_visualization_enabled"
     private let facadeLifeModeStorageKey = "lidar_rangefinder_facade_life_mode_enabled"
+    private let hologramRenderModeStorageKey = "lidar_rangefinder_hologram_render_mode"
+    private let facadeRebuildModeStorageKey = "lidar_rangefinder_facade_rebuild_mode"
     private var aiIssue: AIQAIssueType = .none
     private var pendingCorrectionEvaluation: PendingCorrectionEvaluation?
     private var autoCorrectionRoundsDone = 0
@@ -254,6 +306,12 @@ final class LiDARSessionManager: ObservableObject {
     private var facadeLifeStartTime: TimeInterval = 0
     private var facadeScanBandEntity: ModelEntity?
     private var facadeCurrentHeight: Float = 1.4
+    private var activeFacadeRenderMode: HologramRenderMode = .performance
+    private var facadeAutoDowngradedForStability = false
+    private var facadeSnapshotBeforeRebuild: FacadeHologramSnapshot?
+    private var facadeRebuildCooldownTimer: Timer?
+    private var facadeRebuildCooldownUntil: TimeInterval = 0
+    private var facadeRebuildTapTimes: [TimeInterval] = []
     private var overlayImageName: String?
     private var ifcElements: [IFCElementSpec] = []
     private var overlayConfigSignature: String = ""
@@ -368,6 +426,14 @@ final class LiDARSessionManager: ObservableObject {
             facadeLifeModeEnabled = UserDefaults.standard.bool(forKey: facadeLifeModeStorageKey)
         }
         facadeLifeModeStatusText = facadeLifeModeEnabled ? "生命感模式：開" : "生命感模式：關"
+        if let raw = UserDefaults.standard.string(forKey: hologramRenderModeStorageKey),
+           let mode = HologramRenderMode(rawValue: raw) {
+            hologramRenderMode = mode
+        }
+        if let raw = UserDefaults.standard.string(forKey: facadeRebuildModeStorageKey),
+           let mode = FacadeRebuildMode(rawValue: raw) {
+            facadeRebuildMode = mode
+        }
         if quantumModeEnabled {
             highestModeLockEnabled = true
             qaProfile = .ultra
@@ -388,6 +454,7 @@ final class LiDARSessionManager: ObservableObject {
     deinit {
         updateTimer?.invalidate()
         facadeLifeAnimationTimer?.invalidate()
+        facadeRebuildCooldownTimer?.invalidate()
     }
 
     func attachARView(_ view: ARView) {
@@ -700,6 +767,35 @@ final class LiDARSessionManager: ObservableObject {
         }
     }
 
+    func setHologramRenderMode(_ mode: HologramRenderMode) {
+        hologramRenderMode = mode
+        UserDefaults.standard.set(mode.rawValue, forKey: hologramRenderModeStorageKey)
+        if !facadeHologramEnabled {
+            activeFacadeRenderMode = mode
+            facadeAutoDowngradedForStability = false
+        }
+        if facadeHologramEnabled {
+            let modeText = activeFacadeRenderMode == .showcase ? "展示渲染模式" : "效能渲染模式"
+            let safetyText = facadeAutoDowngradedForStability ? "（穩定保護已降載）" : ""
+            facadeHologramStatusText = "立面全息：\(modeText)\(safetyText)"
+        }
+    }
+
+    func setFacadeRebuildMode(_ mode: FacadeRebuildMode) {
+        facadeRebuildMode = mode
+        UserDefaults.standard.set(mode.rawValue, forKey: facadeRebuildModeStorageKey)
+    }
+
+    func applyOnSiteStableHologramPreset() {
+        setHologramRenderMode(.performance)
+        setFacadeRebuildMode(.lockPerformance)
+        setFacadeLifeModeEnabled(true)
+        setMeshVisualizationEnabled(false)
+        facadeRebuildReady = true
+        facadeRebuildGuardText = "重建保護：就緒（現場穩定模式）"
+        facadeHologramStatusText = "立面全息：已套用現場穩定模式（效能＋鎖定降載＋生命感）"
+    }
+
     func setTWD97BaseE(_ value: Double) {
         twd97BaseE = value
         UserDefaults.standard.set(value, forKey: twd97BaseEStorageKey)
@@ -962,7 +1058,12 @@ final class LiDARSessionManager: ObservableObject {
         return FacadeLumaMap(width: targetWidth, height: targetHeight, bytes: bytes)
     }
 
-    private func buildFacadeHologramAnchor(image: UIImage, referenceTransform: simd_float4x4?) -> AnchorEntity {
+    private func buildFacadeHologramAnchor(
+        image: UIImage,
+        referenceTransform: simd_float4x4?,
+        requestedRenderMode: HologramRenderMode? = nil,
+        allowAutoDowngrade: Bool = true
+    ) -> AnchorEntity {
         let anchor = AnchorEntity(world: matrix_identity_float4x4)
         if let cameraTransform = referenceTransform {
             let forward = SIMD3<Float>(
@@ -996,12 +1097,32 @@ final class LiDARSessionManager: ObservableObject {
         body.position = [0, facadeHeight / 2, 0]
         root.addChild(body)
 
-        // Stability-first tessellation: keep entity count controlled on mobile GPUs.
-        let cols = max(6, min(10, Int((facadeWidth / 0.22).rounded())))
-        let rows = max(8, min(16, Int((facadeHeight / 0.2).rounded())))
+        let selectedRenderMode = requestedRenderMode ?? hologramRenderMode
+        let pixelWidth = max(1, Int((image.size.width * image.scale).rounded()))
+        let pixelHeight = max(1, Int((image.size.height * image.scale).rounded()))
+        let sourcePixels = Double(pixelWidth * pixelHeight)
+        let shouldAutoDowngrade = allowAutoDowngrade && selectedRenderMode == .showcase && sourcePixels > 6_000_000
+        let effectiveRenderMode: HologramRenderMode = shouldAutoDowngrade ? .performance : selectedRenderMode
+        activeFacadeRenderMode = effectiveRenderMode
+        facadeAutoDowngradedForStability = shouldAutoDowngrade
+
+        // Adaptive tessellation by render mode.
+        let cols: Int
+        let rows: Int
+        let lumaMaxDimension: Int
+        switch effectiveRenderMode {
+        case .performance:
+            cols = max(6, min(10, Int((facadeWidth / 0.22).rounded())))
+            rows = max(8, min(16, Int((facadeHeight / 0.2).rounded())))
+            lumaMaxDimension = 64
+        case .showcase:
+            cols = max(8, min(13, Int((facadeWidth / 0.19).rounded())))
+            rows = max(11, min(20, Int((facadeHeight / 0.17).rounded())))
+            lumaMaxDimension = 84
+        }
         let unitW = facadeWidth / Float(cols)
         let unitH = facadeHeight / Float(rows)
-        let lumaMap = makeFacadeLumaMap(from: image, maxDimension: 64)
+        let lumaMap = makeFacadeLumaMap(from: image, maxDimension: lumaMaxDimension)
 
         let depthBuckets: [Float] = [0.012, 0.022, 0.034]
         let toneBuckets: [CGFloat] = [0.66, 0.77, 0.88]
@@ -1020,7 +1141,8 @@ final class LiDARSessionManager: ObservableObject {
 
         let windowMesh = MeshResource.generateBox(size: [unitW * 0.62, unitH * 0.56, 0.009])
         let windowMat = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.82), roughness: 0.12, isMetallic: true)
-        var windowBudget = 120
+        let windowBudgetLimit = effectiveRenderMode == .showcase ? 180 : 120
+        var windowBudget = windowBudgetLimit
 
         for row in 0..<rows {
             let y = unitH * (Float(row) + 0.5)
@@ -1051,6 +1173,7 @@ final class LiDARSessionManager: ObservableObject {
                 }
             }
         }
+        let windowsPlaced = windowBudgetLimit - windowBudget
 
         // Structural fins and horizontal belts add stronger silhouette and real-world facade rhythm.
         let finCount = max(3, cols / 3)
@@ -1100,6 +1223,14 @@ final class LiDARSessionManager: ObservableObject {
         facadeLifePulseScale = 1.0
         applyFacadeHologramTransform()
         startFacadeLifeAnimationIfNeeded()
+        facadeQualityReportLines = [
+            "模式：\(effectiveRenderMode == .showcase ? "展示" : "效能")",
+            "穩定保護：\(shouldAutoDowngrade ? "已降載" : "未降載")",
+            "影像解析：\(pixelWidth)x\(pixelHeight)",
+            "格網密度：\(cols)x\(rows)（\(cols * rows) 塊）",
+            "亮度取樣：\(lumaMaxDimension)",
+            "窗格生成：\(windowsPlaced)"
+        ]
         return anchor
     }
 
@@ -1137,7 +1268,8 @@ final class LiDARSessionManager: ObservableObject {
             return
         }
         let t = Float(Date().timeIntervalSinceReferenceDate - facadeLifeStartTime)
-        facadeLifePulseScale = 1.0 + 0.012 * sinf(t * 1.8)
+        let pulseAmplitude: Float = activeFacadeRenderMode == .showcase ? 0.016 : 0.012
+        facadeLifePulseScale = 1.0 + pulseAmplitude * sinf(t * 1.8)
         applyFacadeHologramTransform()
         if let scanBand = facadeScanBandEntity {
             let travel = max(0.2, facadeCurrentHeight - 0.18)
@@ -1150,7 +1282,8 @@ final class LiDARSessionManager: ObservableObject {
     func adjustFacadeHologramScale(by factor: CGFloat) {
         guard facadeHologramEnabled, facadeHologramRoot != nil else { return }
         let safeFactor = max(0.6, min(1.6, Float(factor)))
-        facadeHologramScale = min(2.0, max(0.45, facadeHologramScale * safeFactor))
+        let maxScale: Float = activeFacadeRenderMode == .showcase ? 2.0 : 1.75
+        facadeHologramScale = min(maxScale, max(0.45, facadeHologramScale * safeFactor))
         applyFacadeHologramTransform()
     }
 
@@ -1206,16 +1339,65 @@ final class LiDARSessionManager: ObservableObject {
 
     private func clearFacadeHologramAnchor() {
         stopFacadeLifeAnimation()
+        facadeRebuildCooldownTimer?.invalidate()
+        facadeRebuildCooldownTimer = nil
+        facadeRebuildCooldownUntil = 0
+        facadeRebuildReady = true
+        facadeRebuildGuardText = "重建保護：就緒"
         facadeHologramAnchor?.removeFromParent()
         facadeHologramAnchor = nil
         facadeHologramRoot = nil
         facadeScanBandEntity = nil
+        facadeQualityReportLines = []
+        activeFacadeRenderMode = hologramRenderMode
+        facadeAutoDowngradedForStability = false
         facadeHologramScale = 1.0
         facadeHologramYaw = 0
         facadeHologramPitch = 0
         facadeHologramRoll = 0
         facadeHologramEnabled = false
         facadeHologramStatusText = "立面全息：關"
+    }
+
+    private func beginFacadeRebuildCooldown(seconds: TimeInterval, reason: String) {
+        let safeSeconds = max(0.6, seconds)
+        facadeRebuildCooldownUntil = Date().timeIntervalSinceReferenceDate + safeSeconds
+        facadeRebuildReady = false
+        facadeRebuildCooldownTimer?.invalidate()
+        facadeRebuildCooldownTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                let remaining = self.facadeRebuildCooldownUntil - Date().timeIntervalSinceReferenceDate
+                if remaining <= 0 {
+                    self.facadeRebuildCooldownTimer?.invalidate()
+                    self.facadeRebuildCooldownTimer = nil
+                    self.facadeRebuildCooldownUntil = 0
+                    self.facadeRebuildReady = true
+                    self.facadeRebuildGuardText = "重建保護：就緒"
+                    return
+                }
+                self.facadeRebuildGuardText = "\(reason)（\(String(format: "%.1f", remaining)) 秒）"
+            }
+        }
+    }
+
+    private func canRunFacadeRebuild() -> Bool {
+        let now = Date().timeIntervalSinceReferenceDate
+        if now < facadeRebuildCooldownUntil {
+            let remaining = facadeRebuildCooldownUntil - now
+            facadeRebuildGuardText = "重建保護：冷卻中（\(String(format: "%.1f", max(0, remaining))) 秒）"
+            facadeHologramStatusText = "立面全息：重建過快，請稍候"
+            return false
+        }
+        facadeRebuildTapTimes.append(now)
+        facadeRebuildTapTimes = facadeRebuildTapTimes.filter { now - $0 <= 6.0 }
+        let rapidCount = facadeRebuildTapTimes.filter { now - $0 <= 2.5 }.count
+        if rapidCount >= 3 {
+            beginFacadeRebuildCooldown(seconds: 3.5, reason: "重建保護：偵測連點，暫停重建")
+            facadeHologramStatusText = "立面全息：偵測連點，暫停重建以保穩定"
+            return false
+        }
+        return true
     }
 
     func toggleIFCSimulationFromUploadedBlueprint() {
@@ -1246,6 +1428,8 @@ final class LiDARSessionManager: ObservableObject {
 
     func toggleFacadeHologramFromBlueprint() {
         if facadeHologramEnabled {
+            facadeSnapshotBeforeRebuild = nil
+            facadeSnapshotAvailable = false
             clearFacadeHologramAnchor()
             return
         }
@@ -1261,10 +1445,131 @@ final class LiDARSessionManager: ObservableObject {
         arView.scene.addAnchor(anchor)
         facadeHologramAnchor = anchor
         facadeHologramEnabled = true
+        let modeText = activeFacadeRenderMode == .showcase ? "展示" : "效能"
+        let safetyText = facadeAutoDowngradedForStability ? "，穩定保護降載" : ""
         facadeHologramStatusText = facadeLifeModeEnabled
-            ? "立面全息：已生成（生命感模式）"
-            : "立面全息：已生成（單指旋轉｜雙指縮放/平移/翻轉）"
+            ? "立面全息：已生成（\(modeText)模式、生命感）\(safetyText)"
+            : "立面全息：已生成（\(modeText)模式，單指旋轉｜雙指縮放/平移/翻轉）\(safetyText)"
         startFacadeLifeAnimationIfNeeded()
+    }
+
+    func rebuildFacadeHologramPreservingPose() {
+        guard facadeHologramEnabled else {
+            facadeHologramStatusText = "立面全息：尚未生成，請先建立全息"
+            return
+        }
+        guard canRunFacadeRebuild() else { return }
+        guard let image = blueprintInputImage else {
+            facadeHologramStatusText = "立面全息：缺少立面圖，無法重建"
+            return
+        }
+        guard let arView else {
+            facadeHologramStatusText = "立面全息：AR 尚未就緒"
+            return
+        }
+
+        let savedAnchorPosition = facadeHologramAnchor?.position
+        let savedScale = facadeHologramScale
+        let savedYaw = facadeHologramYaw
+        let savedPitch = facadeHologramPitch
+        let savedRoll = facadeHologramRoll
+        facadeSnapshotBeforeRebuild = FacadeHologramSnapshot(
+            anchorPosition: savedAnchorPosition,
+            scale: savedScale,
+            yaw: savedYaw,
+            pitch: savedPitch,
+            roll: savedRoll,
+            renderMode: activeFacadeRenderMode
+        )
+        facadeSnapshotAvailable = true
+        let requestedRenderMode: HologramRenderMode?
+        let allowAutoDowngrade: Bool
+        switch facadeRebuildMode {
+        case .auto:
+            requestedRenderMode = nil
+            allowAutoDowngrade = true
+        case .lockPerformance:
+            requestedRenderMode = .performance
+            allowAutoDowngrade = false
+        case .forceShowcase:
+            requestedRenderMode = .showcase
+            allowAutoDowngrade = false
+        }
+
+        clearFacadeHologramAnchor()
+        facadeHologramScale = savedScale
+        facadeHologramYaw = savedYaw
+        facadeHologramPitch = savedPitch
+        facadeHologramRoll = savedRoll
+
+        let rebuiltAnchor = buildFacadeHologramAnchor(
+            image: image,
+            referenceTransform: arView.session.currentFrame?.camera.transform,
+            requestedRenderMode: requestedRenderMode,
+            allowAutoDowngrade: allowAutoDowngrade
+        )
+        if let savedAnchorPosition {
+            rebuiltAnchor.position = savedAnchorPosition
+        }
+        arView.scene.addAnchor(rebuiltAnchor)
+        facadeHologramAnchor = rebuiltAnchor
+        facadeHologramEnabled = true
+        applyFacadeHologramTransform()
+
+        let modeText = activeFacadeRenderMode == .showcase ? "展示" : "效能"
+        let rebuildModeText: String
+        switch facadeRebuildMode {
+        case .auto:
+            rebuildModeText = "自動"
+        case .lockPerformance:
+            rebuildModeText = "鎖定降載"
+        case .forceShowcase:
+            rebuildModeText = "強制展示"
+        }
+        let safetyText = facadeAutoDowngradedForStability ? "，穩定保護降載" : ""
+        facadeHologramStatusText = "立面全息：已重建（\(rebuildModeText)，保留姿態，\(modeText)模式）\(safetyText)"
+        startFacadeLifeAnimationIfNeeded()
+        beginFacadeRebuildCooldown(seconds: 1.2, reason: "重建保護：冷卻中")
+    }
+
+    func restoreFacadeHologramSnapshot() {
+        guard let snapshot = facadeSnapshotBeforeRebuild else {
+            facadeHologramStatusText = "立面全息：沒有可回復的快照"
+            return
+        }
+        guard let image = blueprintInputImage else {
+            facadeHologramStatusText = "立面全息：缺少立面圖，無法回復"
+            return
+        }
+        guard let arView else {
+            facadeHologramStatusText = "立面全息：AR 尚未就緒"
+            return
+        }
+
+        clearFacadeHologramAnchor()
+        facadeHologramScale = snapshot.scale
+        facadeHologramYaw = snapshot.yaw
+        facadeHologramPitch = snapshot.pitch
+        facadeHologramRoll = snapshot.roll
+
+        let restoredAnchor = buildFacadeHologramAnchor(
+            image: image,
+            referenceTransform: arView.session.currentFrame?.camera.transform,
+            requestedRenderMode: snapshot.renderMode,
+            allowAutoDowngrade: false
+        )
+        if let anchorPosition = snapshot.anchorPosition {
+            restoredAnchor.position = anchorPosition
+        }
+        arView.scene.addAnchor(restoredAnchor)
+        facadeHologramAnchor = restoredAnchor
+        facadeHologramEnabled = true
+        applyFacadeHologramTransform()
+        facadeHologramStatusText = "立面全息：已回復到重建前快照"
+        startFacadeLifeAnimationIfNeeded()
+
+        facadeSnapshotBeforeRebuild = nil
+        facadeSnapshotAvailable = false
     }
 
     func runLocalIBMScheduleSimulation() {

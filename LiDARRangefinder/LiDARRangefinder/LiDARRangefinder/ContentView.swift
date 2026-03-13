@@ -792,17 +792,66 @@ struct ContentView: View {
                     .tint(sessionManager.facadeHologramEnabled ? .orange : .indigo)
                     .frame(maxWidth: .infinity)
 
+                    Button("套用現場穩定模式（全息）") {
+                        sessionManager.applyOnSiteStableHologramPreset()
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.green)
+                    .frame(maxWidth: .infinity)
+
                     Toggle("生命感模式（動態光影）", isOn: Binding(
                         get: { sessionManager.facadeLifeModeEnabled },
                         set: { sessionManager.setFacadeLifeModeEnabled($0) }
                     ))
                         .tint(.mint)
 
+                    Picker("全息渲染模式", selection: Binding(
+                        get: { sessionManager.hologramRenderMode },
+                        set: { sessionManager.setHologramRenderMode($0) }
+                    )) {
+                        ForEach(HologramRenderMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
                     Text(sessionManager.facadeLifeModeStatusText)
                         .font(.caption2)
                         .foregroundStyle(.mint)
 
                     if sessionManager.facadeHologramEnabled {
+                        Picker("重建策略", selection: Binding(
+                            get: { sessionManager.facadeRebuildMode },
+                            set: { sessionManager.setFacadeRebuildMode($0) }
+                        )) {
+                            ForEach(FacadeRebuildMode.allCases) { mode in
+                                Text(mode.title).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        Button("一鍵重建立面全息（保留姿態）") {
+                            sessionManager.rebuildFacadeHologramPreservingPose()
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.teal)
+                        .frame(maxWidth: .infinity)
+                        .disabled(!sessionManager.facadeRebuildReady)
+
+                        if sessionManager.facadeSnapshotAvailable {
+                            Button("回復上次重建前快照") {
+                                sessionManager.restoreFacadeHologramSnapshot()
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.orange)
+                            .frame(maxWidth: .infinity)
+                            .disabled(!sessionManager.facadeRebuildReady)
+                        }
+
+                        Text(sessionManager.facadeRebuildGuardText)
+                            .font(.caption2)
+                            .foregroundStyle(sessionManager.facadeRebuildReady ? .green : .orange)
+
                         Button("重置立面姿態（回到前方）") {
                             sessionManager.resetFacadeHologramTransform()
                         }
@@ -814,6 +863,23 @@ struct ContentView: View {
                     Text(sessionManager.facadeHologramStatusText)
                         .font(.caption2)
                         .foregroundStyle(.indigo)
+
+                    if !sessionManager.facadeQualityReportLines.isEmpty {
+                        ScrollView(.vertical, showsIndicators: true) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(Array(sessionManager.facadeQualityReportLines.enumerated()), id: \.offset) { _, line in
+                                    Text(line)
+                                        .font(.caption2)
+                                        .foregroundStyle(.white.opacity(0.9))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                        }
+                        .frame(maxHeight: 120)
+                        .padding(8)
+                        .background(.black.opacity(0.16))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
 
                     Button("IBM 排程本地模擬") {
                         sessionManager.runLocalIBMScheduleSimulation()
