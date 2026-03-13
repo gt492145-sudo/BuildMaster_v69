@@ -8,3 +8,19 @@
 # Build artifacts
 DerivedData/
 build/
+
+# Secrets / credentials
+.env
+.env.*
+**/.env
+**/.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+GoogleService-Info.plist
+**/*credentials*.json
+Secrets/

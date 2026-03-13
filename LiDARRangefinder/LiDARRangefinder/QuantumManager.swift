@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 final class QuantumManager {
     static let shared = QuantumManager()
@@ -11,6 +12,58 @@ final class QuantumManager {
     private let defaultShots = 128
 
     private init() {}
+
+    private var keychainServiceName: String {
+        Bundle.main.bundleIdentifier ?? "buildmaster.lidar"
+    }
+
+    private func getSecureSecret(account: String) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainServiceName,
+            kSecAttrAccount as String: account,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecReturnData as String: true
+        ]
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        guard status == errSecSuccess,
+              let data = item as? Data,
+              let text = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func setSecureSecret(_ value: String, account: String) {
+        let data = Data(value.utf8)
+        let baseQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainServiceName,
+            kSecAttrAccount as String: account
+        ]
+        let updateAttrs: [String: Any] = [kSecValueData as String: data]
+        let status = SecItemUpdate(baseQuery as CFDictionary, updateAttrs as CFDictionary)
+        if status == errSecSuccess { return }
+        var addQuery = baseQuery
+        addQuery[kSecValueData as String] = data
+        _ = SecItemAdd(addQuery as CFDictionary, nil)
+    }
+
+    private func readSecureSecretWithMigration(account: String, legacyUserDefaultsKey: String) -> String? {
+        if let existing = getSecureSecret(account: account) {
+            return existing
+        }
+        guard let legacy = UserDefaults.standard.string(forKey: legacyUserDefaultsKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !legacy.isEmpty else {
+            return nil
+        }
+        setSecureSecret(legacy, account: account)
+        UserDefaults.standard.removeObject(forKey: legacyUserDefaultsKey)
+        return legacy
+    }
 
     /// Send blueprint context to IBM Runtime and return a readable summary.
     func optimizeBlueprint(blueprintName: String, completion: @escaping (Bool, String) -> Void) {
@@ -49,9 +102,10 @@ final class QuantumManager {
     }
 
     private func readAPIKey() throws -> String {
-        let key = UserDefaults.standard.string(forKey: apiKeyStorageKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !key.isEmpty else {
+        guard let key = readSecureSecretWithMigration(
+            account: apiKeyStorageKey,
+            legacyUserDefaultsKey: apiKeyStorageKey
+        ) else {
             throw QuantumManagerError.noAPIKey
         }
         return key

@@ -5,6 +5,7 @@ import CoreML
 import Foundation
 import Photos
 import RealityKit
+import Security
 import Speech
 import UIKit
 import SwiftUI
@@ -461,6 +462,68 @@ final class LiDARSessionManager: ObservableObject {
         loadCorrectionHistory()
         refreshCorrectionTrend()
         refreshAutoCorrectionStatus()
+    }
+
+    private var keychainServiceName: String {
+        Bundle.main.bundleIdentifier ?? "buildmaster.lidar"
+    }
+
+    private func setSecureSecret(_ value: String, account: String) {
+        let data = Data(value.utf8)
+        let baseQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainServiceName,
+            kSecAttrAccount as String: account
+        ]
+        let updateAttrs: [String: Any] = [kSecValueData as String: data]
+        let status = SecItemUpdate(baseQuery as CFDictionary, updateAttrs as CFDictionary)
+        if status == errSecSuccess { return }
+
+        var addQuery = baseQuery
+        addQuery[kSecValueData as String] = data
+        _ = SecItemAdd(addQuery as CFDictionary, nil)
+    }
+
+    private func getSecureSecret(account: String) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainServiceName,
+            kSecAttrAccount as String: account,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecReturnData as String: true
+        ]
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        guard status == errSecSuccess,
+              let data = item as? Data,
+              let text = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func clearSecureSecret(account: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainServiceName,
+            kSecAttrAccount as String: account
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+
+    private func readSecureSecretWithMigration(account: String, legacyUserDefaultsKey: String) -> String? {
+        if let existing = getSecureSecret(account: account) {
+            return existing
+        }
+        guard let legacy = UserDefaults.standard.string(forKey: legacyUserDefaultsKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !legacy.isEmpty else {
+            return nil
+        }
+        setSecureSecret(legacy, account: account)
+        UserDefaults.standard.removeObject(forKey: legacyUserDefaultsKey)
+        return legacy
     }
 
     deinit {
@@ -1843,8 +1906,10 @@ final class LiDARSessionManager: ObservableObject {
             ibmScheduleStatusText = "IBM 排程：請先開啟 IBM Cloud API"
             return
         }
-        guard let apiKey = UserDefaults.standard.string(forKey: quantumIBMAPIKeyStorageKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines), !apiKey.isEmpty else {
+        guard let apiKey = readSecureSecretWithMigration(
+            account: quantumIBMAPIKeyStorageKey,
+            legacyUserDefaultsKey: quantumIBMAPIKeyStorageKey
+        ) else {
             ibmScheduleStatusText = "IBM 排程：未設定 API Key"
             return
         }
@@ -2039,18 +2104,27 @@ final class LiDARSessionManager: ObservableObject {
 
     func setIBMQuantumAPIKey(_ key: String) {
         let sanitized = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        UserDefaults.standard.set(sanitized, forKey: quantumIBMAPIKeyStorageKey)
+        if sanitized.isEmpty {
+            clearSecureSecret(account: quantumIBMAPIKeyStorageKey)
+            UserDefaults.standard.removeObject(forKey: quantumIBMAPIKeyStorageKey)
+        } else {
+            setSecureSecret(sanitized, account: quantumIBMAPIKeyStorageKey)
+            UserDefaults.standard.removeObject(forKey: quantumIBMAPIKeyStorageKey)
+        }
         refreshQuantumProviderText()
     }
 
     func clearIBMQuantumAPIKey() {
+        clearSecureSecret(account: quantumIBMAPIKeyStorageKey)
         UserDefaults.standard.removeObject(forKey: quantumIBMAPIKeyStorageKey)
         refreshQuantumProviderText()
     }
 
     var hasIBMQuantumAPIKey: Bool {
-        guard let raw = UserDefaults.standard.string(forKey: quantumIBMAPIKeyStorageKey) else { return false }
-        return !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return readSecureSecretWithMigration(
+            account: quantumIBMAPIKeyStorageKey,
+            legacyUserDefaultsKey: quantumIBMAPIKeyStorageKey
+        ) != nil
     }
 
     var availableIBMBackends: [String] {
@@ -2252,23 +2326,34 @@ final class LiDARSessionManager: ObservableObject {
 
     func setOpenAIKey(_ key: String) {
         let sanitized = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        UserDefaults.standard.set(sanitized, forKey: aiOpenAIKeyStorageKey)
+        if sanitized.isEmpty {
+            clearSecureSecret(account: aiOpenAIKeyStorageKey)
+            UserDefaults.standard.removeObject(forKey: aiOpenAIKeyStorageKey)
+        } else {
+            setSecureSecret(sanitized, account: aiOpenAIKeyStorageKey)
+            UserDefaults.standard.removeObject(forKey: aiOpenAIKeyStorageKey)
+        }
     }
 
     func clearOpenAIKey() {
+        clearSecureSecret(account: aiOpenAIKeyStorageKey)
         UserDefaults.standard.removeObject(forKey: aiOpenAIKeyStorageKey)
     }
 
     var hasOpenAIKey: Bool {
-        guard let raw = UserDefaults.standard.string(forKey: aiOpenAIKeyStorageKey) else { return false }
-        return !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return readSecureSecretWithMigration(
+            account: aiOpenAIKeyStorageKey,
+            legacyUserDefaultsKey: aiOpenAIKeyStorageKey
+        ) != nil
     }
 
     func runAIAssistant(userGoal: String) {
         aiAssistantBusy = true
         aiAssistantText = "AI 助手：分析中..."
 
-        let cloudKey = aiCloudEnabled ? UserDefaults.standard.string(forKey: aiOpenAIKeyStorageKey) : nil
+        let cloudKey = aiCloudEnabled
+            ? readSecureSecretWithMigration(account: aiOpenAIKeyStorageKey, legacyUserDefaultsKey: aiOpenAIKeyStorageKey)
+            : nil
         let context = AIAdvisorContext(
             distanceMeters: latestDistanceMeters,
             pitchDegrees: latestPitchDegrees,
@@ -3305,8 +3390,10 @@ final class LiDARSessionManager: ObservableObject {
 
     private func runIBMQuantumRuntimeJob() async {
         guard quantumIBMCloudEnabled else { return }
-        guard let apiKey = UserDefaults.standard.string(forKey: quantumIBMAPIKeyStorageKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines), !apiKey.isEmpty else {
+        guard let apiKey = readSecureSecretWithMigration(
+            account: quantumIBMAPIKeyStorageKey,
+            legacyUserDefaultsKey: quantumIBMAPIKeyStorageKey
+        ) else {
             quantumIBMJobText = "IBM Job：未設定 API Key"
             quantumIBMResultText = "IBM Result：改用本地模式"
             return
