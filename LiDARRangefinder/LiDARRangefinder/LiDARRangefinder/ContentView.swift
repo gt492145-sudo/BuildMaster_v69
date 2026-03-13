@@ -910,6 +910,27 @@ struct ContentView: View {
                         .font(.caption2)
                         .foregroundStyle(.indigo)
 
+                    if sessionManager.facadeRealismOverallScore > 0 {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("IMAX 真實感：\(sessionManager.facadeRealismOverallScore)/100")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.cyan)
+                            Text(sessionManager.facadeRealismTierText)
+                                .font(.caption2)
+                                .foregroundStyle(.white.opacity(0.92))
+                            ForEach(Array(sessionManager.facadeRealismBreakdownLines.enumerated()), id: \.offset) { _, line in
+                                Text(line)
+                                    .font(.caption2)
+                                    .foregroundStyle(.white.opacity(0.82))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .padding(8)
+                        .background(.cyan.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+
                     if !sessionManager.facadeQualityReportLines.isEmpty {
                         ScrollView(.vertical, showsIndicators: true) {
                             VStack(alignment: .leading, spacing: 4) {

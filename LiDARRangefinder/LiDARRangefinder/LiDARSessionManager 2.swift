@@ -226,6 +226,9 @@ final class LiDARSessionManager: ObservableObject {
     @Published var facadeRebuildMode: FacadeRebuildMode = .auto
     @Published var facadeSnapshotAvailable: Bool = false
     @Published var facadeQualityReportLines: [String] = []
+    @Published var facadeRealismOverallScore: Int = 0
+    @Published var facadeRealismTierText: String = "真實感：待命"
+    @Published var facadeRealismBreakdownLines: [String] = []
     @Published var facadeRebuildReady: Bool = true
     @Published var facadeRebuildGuardText: String = "重建保護：就緒"
     @Published var ibmScheduleStatusText: String = "IBM 排程：待命"
@@ -1518,6 +1521,16 @@ final class LiDARSessionManager: ObservableObject {
         facadeLifePulseScale = 1.0
         applyFacadeHologramTransform()
         startFacadeLifeAnimationIfNeeded()
+        updateFacadeRealismDashboard(
+            depthSourceLabel: depthMap?.depthSourceLabel ?? "單張影像（亮度+邊緣）",
+            pixelWidth: pixelWidth,
+            pixelHeight: pixelHeight,
+            cols: cols,
+            rows: rows,
+            windowsPlaced: windowsPlaced,
+            effectiveRenderMode: effectiveRenderMode,
+            shouldAutoDowngrade: shouldAutoDowngrade
+        )
         facadeQualityReportLines = [
             "模式：\(effectiveRenderMode == .showcase ? "展示" : "效能")",
             "穩定保護：\(shouldAutoDowngrade ? "已降載" : "未降載")",
@@ -1525,7 +1538,8 @@ final class LiDARSessionManager: ObservableObject {
             "影像解析：\(pixelWidth)x\(pixelHeight)",
             "格網密度：\(cols)x\(rows)（\(cols * rows) 塊）",
             "亮度取樣：\(lumaMaxDimension)",
-            "窗格生成：\(windowsPlaced)"
+            "窗格生成：\(windowsPlaced)",
+            "真實感總分：\(facadeRealismOverallScore)/100（\(facadeRealismTierText.replacingOccurrences(of: "真實感評級：", with: ""))）"
         ]
         return anchor
     }
@@ -1573,6 +1587,76 @@ final class LiDARSessionManager: ObservableObject {
             scanBand.position.y = y
             scanBand.position.z = 0.17 + 0.0012 * sinf(t * 2.4)
         }
+    }
+
+    private func updateFacadeRealismDashboard(
+        depthSourceLabel: String,
+        pixelWidth: Int,
+        pixelHeight: Int,
+        cols: Int,
+        rows: Int,
+        windowsPlaced: Int,
+        effectiveRenderMode: HologramRenderMode,
+        shouldAutoDowngrade: Bool
+    ) {
+        let depthScore: Int = {
+            let source = depthSourceLabel.lowercased()
+            var score = source.contains("model") || source.contains("depth") ? 90 : 72
+            if pixelWidth * pixelHeight >= 2_000_000 { score += 4 }
+            if cols * rows >= 800 { score += 4 }
+            return max(0, min(100, score))
+        }()
+
+        let parallaxScore: Int = {
+            var score = 70
+            if facadeLifeModeEnabled { score += 12 }
+            if effectiveRenderMode == .showcase { score += 9 }
+            if !shouldAutoDowngrade { score += 6 }
+            return max(0, min(100, score))
+        }()
+
+        let occlusionScore: Int = {
+            var score = 58
+            if ifcSimulationEnabled { score += 20 }
+            if !ifcElements.isEmpty { score += 12 }
+            if windowsPlaced >= 20 { score += 4 }
+            return max(0, min(100, score))
+        }()
+
+        let lightingScore: Int = {
+            var score = 64
+            if facadeLifeModeEnabled { score += 14 }
+            if effectiveRenderMode == .showcase { score += 10 }
+            if !meshVisualizationEnabled { score += 4 }
+            return max(0, min(100, score))
+        }()
+
+        let overall = Int(
+            (Double(depthScore) * 0.36) +
+            (Double(parallaxScore) * 0.26) +
+            (Double(occlusionScore) * 0.20) +
+            (Double(lightingScore) * 0.18)
+        )
+        facadeRealismOverallScore = max(0, min(100, overall))
+        let tier: String
+        switch facadeRealismOverallScore {
+        case 90...:
+            tier = "IMAX 近真實"
+        case 80...:
+            tier = "高真實感"
+        case 70...:
+            tier = "可用級真實感"
+        default:
+            tier = "建議再優化"
+        }
+        facadeRealismTierText = "真實感評級：\(tier)"
+        facadeRealismBreakdownLines = [
+            "整體真實感：\(facadeRealismOverallScore)/100",
+            "深度重建：\(depthScore)/100",
+            "角度連動：\(parallaxScore)/100",
+            "空間遮擋：\(occlusionScore)/100",
+            "光影融合：\(lightingScore)/100"
+        ]
     }
 
     func adjustFacadeHologramScale(by factor: CGFloat) {
@@ -1645,6 +1729,9 @@ final class LiDARSessionManager: ObservableObject {
         facadeHologramRoot = nil
         facadeScanBandEntity = nil
         facadeQualityReportLines = []
+        facadeRealismOverallScore = 0
+        facadeRealismTierText = "真實感：待命"
+        facadeRealismBreakdownLines = []
         activeFacadeRenderMode = hologramRenderMode
         facadeAutoDowngradedForStability = false
         facadeHologramScale = 1.0

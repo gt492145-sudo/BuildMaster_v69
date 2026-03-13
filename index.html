@@ -194,6 +194,167 @@
     body.sunlight-readable #gyroInfo {
         font-weight: 800;
     }
+    body { --weather-rain-opacity: 0; --weather-rain-speed: 1.3s; --weather-rain-near-opacity: 0; --weather-rain-near-speed: 0.95s; --weather-glow-opacity: 0; --weather-fog-opacity: 0; }
+    header, .main-layout, .mobile-drawer, .mobile-test-log {
+        position: relative;
+        z-index: 1;
+    }
+    #weatherSceneLayer {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        overflow: hidden;
+    }
+    #weatherSceneLayer .weather-glow {
+        position: absolute;
+        inset: -10% -10% -10% -10%;
+        background:
+            radial-gradient(circle at 20% 18%, rgba(255, 230, 160, 0.36), rgba(255, 230, 160, 0.02) 42%),
+            radial-gradient(circle at 72% 8%, rgba(180, 235, 255, 0.22), rgba(180, 235, 255, 0.01) 45%);
+        opacity: var(--weather-glow-opacity);
+        transition: opacity 0.35s ease;
+        animation: weather-glow-breathe 8s ease-in-out infinite;
+    }
+    #weatherSceneLayer .weather-fog {
+        position: absolute;
+        inset: -8% -8% -8% -8%;
+        opacity: var(--weather-fog-opacity);
+        transition: opacity 0.35s ease;
+        background:
+            radial-gradient(ellipse at 18% 30%, rgba(220, 235, 255, 0.18), rgba(220, 235, 255, 0.01) 52%),
+            radial-gradient(ellipse at 78% 62%, rgba(210, 230, 248, 0.14), rgba(210, 230, 248, 0.01) 56%),
+            radial-gradient(ellipse at 46% 82%, rgba(200, 220, 238, 0.12), rgba(200, 220, 238, 0.01) 58%);
+        filter: blur(10px);
+        animation: weather-fog-drift 18s ease-in-out infinite;
+    }
+    @keyframes weather-glow-breathe {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.03); }
+    }
+    @keyframes weather-fog-drift {
+        0%, 100% { transform: translate3d(0, 0, 0); }
+        40% { transform: translate3d(-2.5%, 1.8%, 0); }
+        70% { transform: translate3d(2.2%, -1.6%, 0); }
+    }
+    body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: var(--weather-rain-opacity);
+        transition: opacity 0.35s ease;
+        z-index: 0;
+        background-image:
+            repeating-linear-gradient(
+                12deg,
+                rgba(170, 210, 255, 0.00) 0 14px,
+                rgba(170, 210, 255, 0.18) 14px 16px,
+                rgba(170, 210, 255, 0.00) 16px 24px
+            ),
+            repeating-linear-gradient(
+                10deg,
+                rgba(180, 220, 255, 0.00) 0 24px,
+                rgba(180, 220, 255, 0.12) 24px 26px,
+                rgba(180, 220, 255, 0.00) 26px 38px
+            );
+        background-size: 200% 200%;
+        will-change: background-position, opacity;
+        animation: weather-rain-fall var(--weather-rain-speed) linear infinite;
+    }
+    body::after {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: var(--weather-rain-near-opacity);
+        transition: opacity 0.35s ease;
+        z-index: 0;
+        background-image: repeating-linear-gradient(
+            14deg,
+            rgba(210, 235, 255, 0.00) 0 20px,
+            rgba(210, 235, 255, 0.22) 20px 23px,
+            rgba(210, 235, 255, 0.00) 23px 34px
+        );
+        background-size: 180% 180%;
+        filter: blur(0.35px);
+        will-change: background-position, opacity;
+        animation: weather-rain-fall-near var(--weather-rain-near-speed) linear infinite;
+    }
+    @keyframes weather-rain-fall {
+        from { background-position: 0 -20px, 0 -60px; }
+        to { background-position: 0 220px, 0 340px; }
+    }
+    @keyframes weather-rain-fall-near {
+        from { background-position: 0 -40px; }
+        to { background-position: 0 420px; }
+    }
+    body.weather-scene-good {
+        background-image: linear-gradient(rgba(6, 18, 24, 0.18), rgba(6, 18, 24, 0.18)), url('app-wallpaper.jpg');
+        --weather-glow-opacity: 0.22;
+        --weather-fog-opacity: 0.03;
+    }
+    body.weather-scene-good .main-layout {
+        box-shadow: inset 0 0 0 1px rgba(132, 243, 198, 0.22), 0 14px 34px rgba(35, 129, 109, 0.24);
+    }
+    body.weather-scene-good #siteWeatherInfo,
+    body.weather-scene-good #siteWeatherSafety {
+        text-shadow: 0 0 10px rgba(142, 255, 212, 0.4);
+    }
+    body.weather-scene-caution {
+        background-image: linear-gradient(rgba(38, 28, 8, 0.28), rgba(38, 28, 8, 0.28)), url('app-wallpaper.jpg');
+        --weather-rain-opacity: 0.16;
+        --weather-rain-speed: 1.25s;
+        --weather-rain-near-opacity: 0.12;
+        --weather-rain-near-speed: 0.95s;
+        --weather-glow-opacity: 0.08;
+        --weather-fog-opacity: 0.15;
+    }
+    body.weather-scene-caution .main-layout {
+        box-shadow: inset 0 0 0 1px rgba(255, 208, 126, 0.24), 0 14px 34px rgba(146, 102, 42, 0.28);
+    }
+    body.weather-scene-caution #siteWeatherInfo,
+    body.weather-scene-caution #siteWeatherSafety {
+        text-shadow: 0 0 12px rgba(255, 204, 123, 0.35);
+    }
+    body.weather-scene-bad {
+        background-image: linear-gradient(rgba(24, 10, 14, 0.42), rgba(24, 10, 14, 0.42)), url('app-wallpaper.jpg');
+        --weather-rain-opacity: 0.32;
+        --weather-rain-speed: 0.82s;
+        --weather-rain-near-opacity: 0.24;
+        --weather-rain-near-speed: 0.58s;
+        --weather-glow-opacity: 0.05;
+        --weather-fog-opacity: 0.2;
+    }
+    body.weather-scene-bad .main-layout {
+        box-shadow: inset 0 0 0 1px rgba(255, 132, 132, 0.26), 0 14px 38px rgba(128, 32, 32, 0.34);
+        animation: weather-bad-weak-flash 9s linear infinite;
+    }
+    body.weather-scene-bad #siteWeatherInfo,
+    body.weather-scene-bad #siteWeatherSafety {
+        animation: weather-alert-pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes weather-alert-pulse {
+        0%, 100% { text-shadow: 0 0 8px rgba(255, 145, 145, 0.35); }
+        50% { text-shadow: 0 0 16px rgba(255, 145, 145, 0.7); }
+    }
+    @keyframes weather-bad-weak-flash {
+        0%, 63%, 100% {
+            filter: brightness(1);
+        }
+        64% {
+            filter: brightness(1.055);
+        }
+        64.8% {
+            filter: brightness(1);
+        }
+        78% {
+            filter: brightness(1.032);
+        }
+        78.6% {
+            filter: brightness(1);
+        }
+    }
     body[data-user-level="basic"] .level-hide-basic { display: none !important; }
     body[data-user-level="basic"] .level-only-standard { display: none !important; }
     body[data-user-level="basic"] .level-only-pro { display: none !important; }
@@ -368,6 +529,11 @@
 </head>
 <body>
 
+<div id="weatherSceneLayer" aria-hidden="true">
+    <div class="weather-glow"></div>
+    <div class="weather-fog"></div>
+</div>
+
 <div id="securityLock" class="security-lock">
     <div class="security-panel">
         <h3>Construction Master 保護模式</h3>
@@ -483,16 +649,18 @@
             <button id="btnGyro" class="tool-btn level-only-pro" onclick="toggleGyroMode()">🧭 陀螺儀: 關</button>
             <button class="tool-btn level-only-pro" onclick="calibrateGyroBaseline()">🎯 校正陀螺儀</button>
             <button class="tool-btn level-only-standard" onclick="startEdgeAIVision()">👁️ AI視覺點料</button>
+            <button class="tool-btn level-hide-basic" style="border-color:#7ed6df; color:#dffcff;" onclick="autoInterpretBlueprintAndCalculate()">🤖 看圖自動判讀試算</button>
             <label class="tool-mini">對比 <input type="range" id="imgContrast" min="0.7" max="1.5" step="0.01" value="1" oninput="updateImageFilter('contrast', this.value)"></label>
             <label class="tool-mini">亮度 <input type="range" id="imgBrightness" min="0.7" max="1.4" step="0.01" value="1" oninput="updateImageFilter('brightness', this.value)"></label>
             <button class="tool-btn level-hide-basic" onclick="autoEnhanceImage()">✨ 自動優化</button>
             <button class="tool-btn level-hide-basic" onclick="resetImageFilter()">♻️ 重設畫質</button>
             <span id="measureAssistInfo" class="level-hide-basic" style="color:#bdeecf; font-size:0.8em;">量圖輔助: 未啟用</span>
             <span id="gyroInfo" class="level-only-pro" style="color:#9fd0ff; font-size:0.8em;">陀螺儀: 未啟用</span>
+            <span id="blueprint-quality-info" style="color:#c7d6e6; font-size:0.8em;">圖紙品質: 待檢查</span>
+            <span id="blueprint-auto-interpret-info" style="color:#bfe7ff; font-size:0.8em;">自動判讀: 尚未執行</span>
             <span id="scale-info" style="color:var(--highlight); font-size:0.8em; margin-left:auto;">比例: 未設定</span>
         </div>
         <div id="canvas-container">
-            <div class="quantum-scanner-line" aria-hidden="true"></div>
             <div id="img-wrapper">
                 <img id="blueprint">
                 <canvas id="drawCanvas"></canvas>
@@ -535,17 +703,17 @@
 
         <section class="level-only-pro work-mode-only-stake">
         <div class="group-title">
-            BIM 模型檢核（IFC）
+            BIM 模型檢核
             <span style="font-size: 0.6em; color: #98c8ff;">QA v1</span>
         </div>
         <div class="input-row">
             <div class="input-wrapper">
-                <label>上傳 IFC 模型</label>
+                <label>上傳模型檔</label>
                 <input type="file" id="ifcInput" accept=".ifc,.ifczip,.txt" onchange="loadIFCModel(event)">
             </div>
             <div class="input-wrapper">
                 <label>模型查詢（ID/類型）</label>
-                <input type="text" id="ifcSearch" placeholder="例如 #123 或 IFCWALL" oninput="searchIFCEntity(this.value)">
+                <input type="text" id="ifcSearch" placeholder="例如 #123 或 牆/柱/梁" oninput="searchIFCEntity(this.value)">
             </div>
         </div>
         <div class="bim-grid">
@@ -562,17 +730,17 @@
         </div>
         <div class="bim-table-wrap">
             <table>
-                <thead><tr><th>IFC 類型</th><th>數量</th></tr></thead>
+                <thead><tr><th>構件類型</th><th>數量</th></tr></thead>
                 <tbody id="bimTypeBody"></tbody>
             </table>
         </div>
         <div id="bimWarnings" class="bim-warn"></div>
         <div class="bim-rule-wrap">
-            <div class="bim-note" style="margin-top:0;">匹配規則編輯器（QA）：自訂 IFC 類型對應材料，優先於系統預設匹配。</div>
+            <div class="bim-note" style="margin-top:0;">匹配規則編輯器（QA）：自訂構件類型對應材料，優先於系統預設匹配。</div>
             <div class="bim-rule-grid">
                 <div>
-                    <label style="font-size:0.75em;color:var(--text-subtle);">IFC 類型（例：IFCWALL）</label>
-                    <input type="text" id="bimRuleIfcType" placeholder="輸入 IFC 類型">
+                    <label style="font-size:0.75em;color:var(--text-subtle);">構件類型（例：牆、柱、梁）</label>
+                    <input type="text" id="bimRuleIfcType" placeholder="輸入構件類型">
                 </div>
                 <div>
                     <label style="font-size:0.75em;color:var(--text-subtle);">對應材料</label>
@@ -589,23 +757,25 @@
             </div>
             <div class="bim-rule-table">
                 <table>
-                    <thead><tr><th>IFC 類型</th><th>對應材料</th><th>操作</th></tr></thead>
+                    <thead><tr><th>構件類型</th><th>對應材料</th><th>操作</th></tr></thead>
                     <tbody id="bimRuleBody"></tbody>
                 </table>
             </div>
         </div>
         <div class="bim-actions">
+            <button class="tool-btn" style="border-color:#80d8ff; color:#d8f3ff;" onclick="runBimTechAutoCalculation()">⚡ BIM 技術自動計算</button>
             <button class="tool-btn" onclick="generateBIMEstimate()">🧮 BIM 自動估價預覽</button>
             <button class="tool-btn" onclick="importBIMEstimateToList()">📥 匯入估價到清單</button>
         </div>
+        <div id="bimAutoCalcInfo" class="bim-note" style="margin-top:6px;">BIM 技術自動計算：尚未執行</div>
         <div class="bim-estimate-wrap">
             <table>
-                <thead><tr><th>IFC 類型</th><th>對應材料</th><th>數量</th><th>單價</th><th>小計</th></tr></thead>
+                <thead><tr><th>構件類型</th><th>對應材料</th><th>數量</th><th>單價</th><th>小計</th></tr></thead>
                 <tbody id="bimEstimateBody"></tbody>
             </table>
         </div>
         <div class="bim-rule-wrap" style="border-color: rgba(198, 170, 255, 0.38); background: rgba(173, 130, 255, 0.08);">
-            <div class="bim-note" style="margin-top:0;">BIM 放樣助手（MVP）：由 IFC 自動抽取放樣點，並輸出 QA 驗證報告。</div>
+            <div class="bim-note" style="margin-top:0;">BIM 放樣助手（MVP）：由模型自動抽取放樣點，並輸出 QA 驗證報告。</div>
             <div class="bim-actions">
                 <label class="tool-mini"><input id="layoutTypeColumn" type="checkbox" checked> 柱</label>
                 <label class="tool-mini"><input id="layoutTypeWall" type="checkbox" checked> 牆</label>
@@ -682,10 +852,10 @@
             </div>
         </div>
         <div class="bim-unmatched-wrap">
-            <div class="bim-note" style="margin-top:0;">未匹配修復精靈：針對未匹配 IFC 類型快速補規則。</div>
+            <div class="bim-note" style="margin-top:0;">未匹配修復精靈：針對未匹配構件類型快速補規則。</div>
             <div class="bim-unmatched-grid">
                 <div>
-                    <label style="font-size:0.75em;color:var(--text-subtle);">未匹配 IFC 類型</label>
+                    <label style="font-size:0.75em;color:var(--text-subtle);">未匹配構件類型</label>
                     <select id="bimUnmatchedType"></select>
                 </div>
                 <div>
@@ -743,7 +913,7 @@
                 </table>
             </div>
         </div>
-        <div class="bim-note">支援 IFC 文字解析：自動統計構件類型、讀取部分 Quantity 欄位，作為 QA 與算量前檢核。</div>
+        <div class="bim-note">支援模型文字解析：自動統計構件類型、讀取部分工程量欄位，作為 QA 與算量前檢核。</div>
         </section>
 
         <div class="group-title">
@@ -829,6 +999,17 @@
         </div>
         <div class="input-row">
             <div class="input-wrapper">
+                <label>工地即時天氣</label>
+                <div id="siteWeatherInfo" class="bim-note" style="margin-top:4px;">天氣：尚未更新</div>
+                <div id="siteWeatherSafety" class="bim-note" style="margin-top:4px; color:#bdeecf;">施工建議：請先更新天氣</div>
+            </div>
+            <div class="input-wrapper">
+                <label>天氣更新</label>
+                <button class="tool-btn" style="width:100%; border-color:#9ad4ff; color:#dff3ff;" onclick="refreshSiteWeather()">☁️ 更新工地天氣</button>
+            </div>
+        </div>
+        <div class="input-row">
+            <div class="input-wrapper">
                 <label>搜尋材料關鍵字</label>
                 <input type="text" id="materialSearch" placeholder="例如：模板、混凝土、鋼筋..." oninput="filterMaterialCatalog(this.value)">
             </div>
@@ -886,11 +1067,14 @@
             💡 即時算力：<span class="preview-val" id="prev_qty">0.00</span> <span id="prev_unit" style="color:var(--accent); font-weight:bold;">單位</span> | 
             小計：<span class="preview-val" id="prev_cost" style="color:var(--highlight)">$ 0</span>
         </div>
+        <div class="bim-note" style="margin-top:6px; color:#b9d8ef;">
+            價格說明：小計 = 計價數量 × 單價。鋼筋以 Kg 計價、模板以 M² 計價、混凝土/土方以 M³ 計價。
+        </div>
 
         <button id="addBtn" class="btn-add" onclick="calculateAndAdd()">🚀 吸入計算清單</button>
         
         <table>
-            <thead><tr><th>樓層</th><th>項目</th><th>數量</th><th>單價</th><th>金額</th><th>操作</th></tr></thead>
+            <thead><tr><th>樓層</th><th>項目</th><th>數量</th><th>單價</th><th>公式</th><th>金額</th><th>操作</th></tr></thead>
             <tbody id="listBody"></tbody>
         </table>
 
@@ -968,6 +1152,29 @@
         '台中市': 'prices-taichung.json',
         '台南市': 'prices-tainan.json',
         '高雄市': 'prices-kaohsiung.json'
+    };
+    const WEATHER_CODE_MAP = {
+        0: '晴朗',
+        1: '大致晴',
+        2: '局部多雲',
+        3: '陰天',
+        45: '霧',
+        48: '霧凇',
+        51: '毛毛雨',
+        53: '小雨',
+        55: '中雨',
+        61: '小雨',
+        63: '中雨',
+        65: '大雨',
+        71: '小雪',
+        73: '中雪',
+        75: '大雪',
+        80: '短暫雨',
+        81: '陣雨',
+        82: '強陣雨',
+        95: '雷雨',
+        96: '雷雨夾冰雹',
+        99: '強雷雨夾冰雹'
     };
     const DEFAULT_MATERIAL_CATALOG = [
         { name: '模板工程(透天)', price: 14000 },
@@ -2099,6 +2306,7 @@
         updateMaterialChips(materialCatalog.length, null);
         updateRegionChip();
         updateMaterialSourceChip();
+        await refreshSiteWeather(true);
         initBimRuleEditor();
     }
 
@@ -2341,7 +2549,7 @@
         bimEstimateRows.forEach(row => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td>${row.ifcType}</td>
+                <td>${formatIfcTypeDisplay(row.ifcType)}</td>
                 <td>${row.materialName}</td>
                 <td>${row.qty.toLocaleString()} ${row.unit}${row.priceUnit !== row.unit ? ` → ${Math.round(row.effectiveQty * 1000) / 1000} ${row.priceUnit}` : ''}${row.unitMismatch ? ' (單位不相容)' : ''}</td>
                 <td>${row.price ? row.price.toLocaleString() : '-'}</td>
@@ -2569,8 +2777,9 @@
             renderBIMSummary(bimModelData);
             renderBimLayoutTable();
             renderBimLayoutQaSummary();
-            addAuditLog('載入 IFC', `${file.name} / ${bimModelData.totalEntities} entities`);
-            showToast(`BIM 模型已載入：${file.name}`);
+            addAuditLog('載入模型', `${file.name} / ${bimModelData.totalEntities} 筆實體`);
+            const overallQa = getOverallQaSummary();
+            showToast(`模型已載入：${file.name}｜整體 QA ${overallQa.level} / ${overallQa.score}`);
         };
         reader.readAsText(file);
     }
@@ -2590,7 +2799,7 @@
         };
 
         if (!text.includes('ISO-10303-21') && !text.includes('IFC')) {
-            data.warnings.push('檔案看起來不是標準 IFC 文字格式，請確認來源。');
+            data.warnings.push('檔案看起來不是標準模型文字格式，請確認來源。');
         }
 
         const lines = text.replace(/\r/g, '').split('\n');
@@ -2633,10 +2842,10 @@
             }
         }
 
-        if (data.totalEntities === 0) data.warnings.push('沒有解析到 IFC Entity，請確認是否為純 IFC 檔。');
+        if (data.totalEntities === 0) data.warnings.push('沒有解析到模型實體，請確認檔案內容是否完整。');
         if (data.totalElements === 0) data.warnings.push('未找到常見構件（牆/梁/柱/板），可能是非建築模型或格式版本差異。');
-        if (data.qtyLength + data.qtyArea + data.qtyVolume + data.qtyCount === 0) data.warnings.push('未讀到 Quantity 實體，建議在 BIM 端先輸出算量屬性。');
-        if (duplicateIds > 0) data.warnings.push(`偵測到重複 Entity ID：${duplicateIds} 筆`);
+        if (data.qtyLength + data.qtyArea + data.qtyVolume + data.qtyCount === 0) data.warnings.push('未讀到工程量實體，建議先輸出算量屬性再匯入。');
+        if (duplicateIds > 0) data.warnings.push(`偵測到重複編號：${duplicateIds} 筆`);
 
         return data;
     }
@@ -2679,7 +2888,7 @@
         const topTypes = Object.entries(data.typeCounts).sort((a, b) => b[1] - a[1]).slice(0, 50);
         topTypes.forEach(([type, count]) => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${type}</td><td>${count}</td>`;
+            tr.innerHTML = `<td>${formatIfcTypeDisplay(type)}</td><td>${count}</td>`;
             typeBody.appendChild(tr);
         });
 
@@ -2692,18 +2901,20 @@
 
     function searchIFCEntity(keyword) {
         if (!bimModelData) return;
-        const q = String(keyword || '').trim().toUpperCase();
+        const rawQ = String(keyword || '').trim();
+        const q = normalizeIfcType(rawQ);
         const typeBody = document.getElementById('bimTypeBody');
-        if (!q) return renderBIMSummary(bimModelData);
+        if (!rawQ) return renderBIMSummary(bimModelData);
 
         // If searching by #id, show closest element match.
-        if (q.startsWith('#')) {
-            const found = bimModelData.elements.find(e => e.id.toUpperCase() === q);
+        if (rawQ.startsWith('#')) {
+            const qid = rawQ.toUpperCase();
+            const found = bimModelData.elements.find(e => e.id.toUpperCase() === qid);
             typeBody.innerHTML = '';
             const tr = document.createElement('tr');
             tr.innerHTML = found
-                ? `<td>${found.id} ${found.type}${found.name ? ` - ${found.name}` : ''}</td><td>1</td>`
-                : `<td>查無 ${q}</td><td>0</td>`;
+                ? `<td>${found.id} ${formatIfcTypeDisplay(found.type)}${found.name ? ` - ${found.name}` : ''}</td><td>1</td>`
+                : `<td>查無 ${rawQ}</td><td>0</td>`;
             typeBody.appendChild(tr);
             return;
         }
@@ -2712,12 +2923,12 @@
         typeBody.innerHTML = '';
         filtered.slice(0, 50).forEach(([type, count]) => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${type}</td><td>${count}</td>`;
+            tr.innerHTML = `<td>${formatIfcTypeDisplay(type)}</td><td>${count}</td>`;
             typeBody.appendChild(tr);
         });
         if (filtered.length === 0) {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>查無 ${q}</td><td>0</td>`;
+            tr.innerHTML = `<td>查無 ${rawQ}</td><td>0</td>`;
             typeBody.appendChild(tr);
         }
     }
@@ -2732,7 +2943,53 @@
     }
 
     function normalizeIfcType(type) {
-        return String(type || '').trim().toUpperCase();
+        const raw = String(type || '').trim();
+        if (!raw) return '';
+        const upper = raw.toUpperCase();
+        if (upper.startsWith('IFC')) return upper;
+
+        // Allow user-facing Chinese terms while keeping internal codes.
+        if (raw.includes('牆')) return 'IFCWALL';
+        if (raw.includes('樓板') || raw.includes('板')) return 'IFCSLAB';
+        if (raw.includes('梁')) return 'IFCBEAM';
+        if (raw.includes('柱')) return 'IFCCOLUMN';
+        if (raw.includes('樓梯')) return 'IFCSTAIR';
+        if (raw.includes('屋頂')) return 'IFCROOF';
+        if (raw.includes('基礎') || raw.includes('基脚')) return 'IFCFOOTING';
+        if (raw.includes('樁')) return 'IFCPILE';
+        if (raw.includes('門')) return 'IFCDOOR';
+        if (raw.includes('窗')) return 'IFCWINDOW';
+        if (raw.includes('帷幕')) return 'IFCCURTAINWALL';
+        if (raw.includes('構件')) return 'IFCMEMBER';
+        return upper;
+    }
+
+    function getIfcTypePlainName(type) {
+        const t = normalizeIfcType(type);
+        if (!t) return '未分類構件';
+        if (t.includes('IFCWALL')) return '牆';
+        if (t.includes('IFCSLAB')) return '樓板';
+        if (t.includes('IFCBEAM')) return '梁';
+        if (t.includes('IFCCOLUMN')) return '柱';
+        if (t.includes('IFCSTAIR')) return '樓梯';
+        if (t.includes('IFCROOF')) return '屋頂';
+        if (t.includes('IFCFOOTING')) return '基礎';
+        if (t.includes('IFCPILE')) return '樁';
+        if (t.includes('IFCDOOR')) return '門';
+        if (t.includes('IFCWINDOW')) return '窗';
+        if (t.includes('IFCCURTAINWALL')) return '帷幕牆';
+        if (t.includes('IFCMEMBER')) return '構件';
+        if (t.includes('IFCQUANTITYLENGTH')) return '工程量-長度';
+        if (t.includes('IFCQUANTITYAREA')) return '工程量-面積';
+        if (t.includes('IFCQUANTITYVOLUME')) return '工程量-體積';
+        if (t.includes('IFCQUANTITYCOUNT')) return '工程量-數量';
+        return '其他構件';
+    }
+
+    function formatIfcTypeDisplay(type) {
+        const t = normalizeIfcType(type);
+        if (!t) return '-';
+        return `${getIfcTypePlainName(t)}`;
     }
 
     function initBimRuleEditor() {
@@ -2794,7 +3051,7 @@
         unmatchedTypes.forEach(type => {
             const opt = document.createElement('option');
             opt.value = type;
-            opt.textContent = type;
+            opt.textContent = formatIfcTypeDisplay(type);
             sel.appendChild(opt);
         });
     }
@@ -2802,14 +3059,15 @@
     function applyUnmatchedRuleOnce() {
         const ifcType = normalizeIfcType(document.getElementById('bimUnmatchedType').value);
         const materialName = String(document.getElementById('bimUnmatchedMaterial').value || '').trim();
-        if (!ifcType) return showToast('目前沒有未匹配 IFC 類型');
+        if (!ifcType) return showToast('目前沒有未匹配構件類型');
         if (!materialName) return showToast('請先選擇要套用的材料');
         createDataSnapshot('修復未匹配前', true);
         bimRuleMap[ifcType] = materialName;
         persistBimRules();
         renderBimRuleTable();
-        addAuditLog('修復未匹配', `${ifcType} -> ${materialName}`);
-        showToast(`已套用規則：${ifcType} -> ${materialName}`);
+        const typeLabel = formatIfcTypeDisplay(ifcType);
+        addAuditLog('修復未匹配', `${typeLabel} -> ${materialName}`);
+        showToast(`已套用規則：${typeLabel} -> ${materialName}`);
         generateBIMEstimate();
     }
 
@@ -2863,14 +3121,14 @@
         }
         entries.forEach(([ifcType, materialName]) => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${ifcType}</td><td>${materialName}</td><td><button class="tool-btn" style="padding:4px 8px;" onclick="useBimRule('${ifcType}')">編輯</button></td>`;
+            tr.innerHTML = `<td>${formatIfcTypeDisplay(ifcType)}</td><td>${materialName}</td><td><button class="tool-btn" style="padding:4px 8px;" onclick="useBimRule('${ifcType}')">編輯</button></td>`;
             body.appendChild(tr);
         });
     }
 
     function useBimRule(ifcType) {
         const t = normalizeIfcType(ifcType);
-        document.getElementById('bimRuleIfcType').value = t;
+        document.getElementById('bimRuleIfcType').value = formatIfcTypeDisplay(t);
         const mat = bimRuleMap[t] || '';
         document.getElementById('bimRuleMaterial').value = mat;
     }
@@ -2878,7 +3136,7 @@
     function saveBimRule() {
         const t = normalizeIfcType(document.getElementById('bimRuleIfcType').value);
         const mat = String(document.getElementById('bimRuleMaterial').value || '').trim();
-        if (!t) return showToast('請輸入 IFC Type');
+        if (!t) return showToast('請輸入構件類型');
         if (!mat) return showToast('請選擇對應材料');
         const exists = materialCatalog.some(m => m.name === mat);
         if (!exists) return showToast('所選材料不在目前價目表中');
@@ -2886,20 +3144,22 @@
         bimRuleMap[t] = mat;
         persistBimRules();
         renderBimRuleTable();
-        addAuditLog('儲存規則', `${t} -> ${mat}`);
-        showToast(`已儲存規則：${t} -> ${mat}`);
+        const typeLabel = formatIfcTypeDisplay(t);
+        addAuditLog('儲存規則', `${typeLabel} -> ${mat}`);
+        showToast(`已儲存規則：${typeLabel} -> ${mat}`);
     }
 
     function deleteBimRule() {
         const t = normalizeIfcType(document.getElementById('bimRuleIfcType').value);
-        if (!t) return showToast('請先輸入要刪除的 IFC Type');
+        if (!t) return showToast('請先輸入要刪除的構件類型');
         if (!bimRuleMap[t]) return showToast('此規則不存在');
         createDataSnapshot('刪除規則前', true);
         delete bimRuleMap[t];
         persistBimRules();
         renderBimRuleTable();
-        addAuditLog('刪除規則', t);
-        showToast(`已刪除規則：${t}`);
+        const typeLabel = formatIfcTypeDisplay(t);
+        addAuditLog('刪除規則', typeLabel);
+        showToast(`已刪除規則：${typeLabel}`);
     }
 
     function exportBimRules() {
@@ -3024,7 +3284,7 @@
 
     function generateBIMEstimate() {
         if (!bimModelData || !bimModelData.totalEntities) {
-            return showToast('請先上傳 IFC 模型');
+            return showToast('請先上傳模型檔');
         }
         if (!materialCatalog.length) {
             return showToast('尚未載入材料價格資料');
@@ -3077,6 +3337,68 @@
         return 'MOLD';
     }
 
+    function setBimAutoCalcInfo(text, color) {
+        const box = document.getElementById('bimAutoCalcInfo');
+        if (!box) return;
+        box.innerText = text;
+        if (color) box.style.color = color;
+    }
+
+    function runBimTechAutoCalculation() {
+        if (!bimModelData || !bimModelData.totalEntities) {
+            setBimAutoCalcInfo('BIM 技術自動計算：請先上傳模型檔', '#ffd48a');
+            return showToast('請先上傳模型檔');
+        }
+        if (!materialCatalog.length) {
+            setBimAutoCalcInfo('BIM 技術自動計算：尚未載入材料價格', '#ffd48a');
+            return showToast('尚未載入材料價格資料');
+        }
+
+        generateBIMEstimate();
+        if (!bimEstimateRows.length) {
+            setBimAutoCalcInfo('BIM 技術自動計算：估價筆數為 0', '#ffd48a');
+            return showToast('目前沒有可計算的 BIM 估價項目');
+        }
+
+        createDataSnapshot('BIM技術自動計算前', true);
+        const floor = (document.getElementById('floor_tag') && document.getElementById('floor_tag').value.trim()) || 'BIM-AUTO';
+        const before = list.length;
+        const cleaned = list.filter(item => !String(item && item.name ? item.name : '').includes('[BIM-AUTO]'));
+        const removedAuto = before - cleaned.length;
+        list = cleaned;
+
+        let imported = 0;
+        for (const row of bimEstimateRows) {
+            if (!row.price || row.qty <= 0) continue;
+            list.push({
+                floor: escapeHTML(floor),
+                name: escapeHTML(`BIM-${formatIfcTypeDisplay(row.ifcType)} [${row.materialName}] [BIM-AUTO]`),
+                res: row.qty,
+                up: row.price,
+                totalCost: row.subtotal,
+                cat: inferCategoryFromName(row.materialName),
+                unit: row.unit
+            });
+            imported += 1;
+        }
+
+        if (!imported) {
+            setBimAutoCalcInfo('BIM 技術自動計算：沒有可匯入項目（請補齊材料對應）', '#ffd48a');
+            return showToast('沒有可匯入的 BIM 估價項目');
+        }
+
+        saveData();
+        renderTable();
+        const unmatched = bimEstimateRows.filter(r => !r.price).length;
+        const estimatedTotal = bimEstimateRows.reduce((sum, row) => sum + (Number(row.subtotal) || 0), 0);
+        addAuditLog('BIM技術自動計算', `估價 ${bimEstimateRows.length} 筆、匯入 ${imported} 筆、替換舊自動 ${removedAuto} 筆`);
+        setBimAutoCalcInfo(
+            `BIM 技術自動計算完成：估價 ${bimEstimateRows.length} 筆｜匯入 ${imported} 筆｜未匹配 ${unmatched} 筆｜預估 ${Math.round(estimatedTotal).toLocaleString()} 元`,
+            '#9ef5c2'
+        );
+        showToast(`BIM 技術自動計算完成：已匯入 ${imported} 筆（已替換舊自動 ${removedAuto} 筆）`);
+    }
+
     function importBIMEstimateToList() {
         if (!bimEstimateRows.length) {
             return showToast('請先執行 BIM 自動估價預覽');
@@ -3088,7 +3410,7 @@
             if (!row.price || row.qty <= 0) continue;
             list.push({
                 floor: escapeHTML(floor),
-                name: escapeHTML(`BIM-${row.ifcType} [${row.materialName}]`),
+                name: escapeHTML(`BIM-${formatIfcTypeDisplay(row.ifcType)} [${row.materialName}]`),
                 res: row.qty,
                 up: row.price,
                 totalCost: row.subtotal,
@@ -3447,8 +3769,8 @@
         const bimScore = bimModelData ? calcBIMQaScore(bimModelData) : 0;
         const layoutScore = bimLayoutQaResult ? Number(bimLayoutQaResult.qaScore || 0) : 0;
         const measureScore = calcMeasureQaScore();
-        const activeScores = [bimScore, layoutScore, measureScore].filter(v => Number.isFinite(v) && v > 0);
-        const overallScore = activeScores.length ? Math.round(activeScores.reduce((a, b) => a + b, 0) / activeScores.length) : 0;
+        const overall = getOverallQaSummary(bimScore, layoutScore, measureScore);
+        const overallScore = overall.score;
 
         const setText = (id, text) => {
             const el = document.getElementById(id);
@@ -3478,6 +3800,22 @@
         if (causeBox) {
             causeBox.innerText = causes.length ? `QA 關鍵因子 TOP3：${causes.slice(0, 3).join(' / ')}` : 'QA 關鍵因子：目前無明顯風險';
         }
+    }
+
+    function getOverallQaSummary(bimScoreInput, layoutScoreInput, measureScoreInput) {
+        const bimScore = Number.isFinite(Number(bimScoreInput))
+            ? Number(bimScoreInput)
+            : (bimModelData ? calcBIMQaScore(bimModelData) : 0);
+        const layoutScore = Number.isFinite(Number(layoutScoreInput))
+            ? Number(layoutScoreInput)
+            : (bimLayoutQaResult ? Number(bimLayoutQaResult.qaScore || 0) : 0);
+        const measureScore = Number.isFinite(Number(measureScoreInput))
+            ? Number(measureScoreInput)
+            : calcMeasureQaScore();
+        const activeScores = [bimScore, layoutScore, measureScore].filter(v => Number.isFinite(v) && v > 0);
+        const score = activeScores.length ? Math.round(activeScores.reduce((a, b) => a + b, 0) / activeScores.length) : 0;
+        const level = score > 0 ? getQaLevelByScore(score) : '-';
+        return { score, level };
     }
 
     function renderBimLayoutQaSummary() {
@@ -3765,7 +4103,7 @@
 
     async function runQuantumAutoStakeLayout() {
         if (!bimModelData || !Array.isArray(bimModelData.elements) || !bimModelData.elements.length) {
-            return showToast('⚠️ 核心雷達未偵測到目標：請先上傳 IFC 模型');
+            return showToast('⚠️ 核心雷達未偵測到目標：請先上傳模型檔');
         }
 
         const ibmKeyInput = document.getElementById('ibmQuantumKey');
@@ -3975,7 +4313,7 @@
 
     function generateBimLayoutPoints() {
         if (!bimModelData || !Array.isArray(bimModelData.elements) || !bimModelData.elements.length) {
-            return showToast('請先上傳 IFC 模型');
+            return showToast('請先上傳模型檔');
         }
         const sel = getLayoutTypeSelection();
         const targets = bimModelData.elements.filter(el => isLayoutTargetType(el.type, sel));
@@ -4309,6 +4647,7 @@
         const selector = document.getElementById('regionSelect');
         if (selector) selector.value = 'auto';
         await handleRegionChange('auto');
+        await refreshSiteWeather(true);
     }
 
     function updateRegionChip() {
@@ -4337,9 +4676,8 @@
         return '';
     }
 
-    async function detectRegionFromDevice() {
-        if (!navigator.geolocation) return '';
-
+    async function getDeviceCoordinates() {
+        if (!navigator.geolocation) return null;
         try {
             const pos = await new Promise((resolve, reject) => {
                 navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -4348,8 +4686,20 @@
                     maximumAge: 600000
                 });
             });
-            const { latitude, longitude } = pos.coords;
-            const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&accept-language=zh-TW`;
+            const latitude = Number(pos && pos.coords && pos.coords.latitude);
+            const longitude = Number(pos && pos.coords && pos.coords.longitude);
+            if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+            return { latitude, longitude };
+        } catch (_e) {
+            return null;
+        }
+    }
+
+    async function detectRegionFromDevice() {
+        try {
+            const coords = await getDeviceCoordinates();
+            if (!coords) return '';
+            const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${coords.latitude}&lon=${coords.longitude}&accept-language=zh-TW`;
             const res = await fetchWithRetry(url, {}, { retries: 1, timeoutMs: 5000 });
             if (!res.ok) return '';
             const data = await res.json();
@@ -4358,6 +4708,91 @@
             return normalizeRegionName(cityRaw);
         } catch (_e) {
             return '';
+        }
+    }
+
+    function getWeatherAdviceLevel(weather) {
+        if (!weather) return { level: '未知', message: '無天氣資料，請更新。', color: '#ffd48a' };
+        const rain = Number(weather.rainMm) || 0;
+        const rainProb = Number(weather.rainProb) || 0;
+        const wind = Number(weather.windKmh) || 0;
+        const code = Number(weather.weatherCode) || 0;
+        const badCode = [65, 75, 82, 95, 96, 99];
+        if (badCode.includes(code) || rain >= 5 || rainProb >= 80 || wind >= 40) {
+            return { level: '建議暫緩', message: '風雨風險高，建議延後外業。', color: '#ff9a9a' };
+        }
+        if (rain >= 1 || rainProb >= 50 || wind >= 28) {
+            return { level: '注意施工', message: '請加強防滑、防風與儀器固定。', color: '#ffd48a' };
+        }
+        return { level: '可施工', message: '天氣條件穩定，可依標準流程施工。', color: '#9ef5c2' };
+    }
+
+    function applyWeatherScene(level) {
+        const body = document.body;
+        if (!body) return;
+        body.classList.remove('weather-scene-good', 'weather-scene-caution', 'weather-scene-bad');
+        if (level === '可施工') body.classList.add('weather-scene-good');
+        else if (level === '注意施工') body.classList.add('weather-scene-caution');
+        else if (level === '建議暫緩') body.classList.add('weather-scene-bad');
+    }
+
+    function updateSiteWeatherUI(weather, errorText = '') {
+        const info = document.getElementById('siteWeatherInfo');
+        const safety = document.getElementById('siteWeatherSafety');
+        if (!info || !safety) return;
+        if (!weather) {
+            applyWeatherScene('未知');
+            info.innerText = `天氣：${errorText || '暫無資料'}`;
+            info.style.color = '#ffd48a';
+            safety.innerText = '施工建議：請先更新天氣';
+            safety.style.color = '#ffd48a';
+            return;
+        }
+        const weatherLabel = WEATHER_CODE_MAP[Number(weather.weatherCode)] || '天氣變化';
+        info.innerText = `天氣：${weatherLabel}｜${weather.tempC.toFixed(1)}°C（體感 ${weather.apparentC.toFixed(1)}°C）｜降雨 ${weather.rainMm.toFixed(1)}mm / ${Math.round(weather.rainProb)}%｜風速 ${Math.round(weather.windKmh)}km/h`;
+        info.style.color = '#cde8ff';
+        const advice = getWeatherAdviceLevel(weather);
+        applyWeatherScene(advice.level);
+        safety.innerText = `施工建議：${advice.level}｜${advice.message}`;
+        safety.style.color = advice.color;
+    }
+
+    async function refreshSiteWeather(silent = false) {
+        const coords = await getDeviceCoordinates();
+        if (!coords) {
+            updateSiteWeatherUI(null, '無法取得定位（請開啟定位權限）');
+            if (!silent) showToast('無法取得定位，請開啟定位權限後重試');
+            return;
+        }
+        try {
+            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}&current=temperature_2m,apparent_temperature,weather_code,precipitation,wind_speed_10m&hourly=precipitation_probability&forecast_days=1&timezone=auto`;
+            const res = await fetchWithRetry(weatherUrl, {}, { retries: 1, timeoutMs: 6500 });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const payload = await res.json();
+            const current = payload && payload.current ? payload.current : {};
+            const hourly = payload && payload.hourly ? payload.hourly : {};
+            const nowTime = String(current.time || '');
+            let rainProb = 0;
+            if (Array.isArray(hourly.time) && Array.isArray(hourly.precipitation_probability) && hourly.time.length === hourly.precipitation_probability.length) {
+                const idx = hourly.time.indexOf(nowTime);
+                rainProb = Number.isFinite(Number(hourly.precipitation_probability[idx]))
+                    ? Number(hourly.precipitation_probability[idx])
+                    : Number(hourly.precipitation_probability[0] || 0);
+            }
+            const weather = {
+                tempC: Number(current.temperature_2m) || 0,
+                apparentC: Number(current.apparent_temperature) || 0,
+                weatherCode: Number(current.weather_code) || 0,
+                rainMm: Number(current.precipitation) || 0,
+                windKmh: Number(current.wind_speed_10m) || 0,
+                rainProb: Number(rainProb) || 0
+            };
+            updateSiteWeatherUI(weather);
+            addAuditLog('工地天氣更新', `溫度 ${weather.tempC}°C / 降雨機率 ${Math.round(weather.rainProb)}% / 風速 ${Math.round(weather.windKmh)}km/h`);
+            if (!silent) showToast('工地即時天氣已更新');
+        } catch (_e) {
+            updateSiteWeatherUI(null, '天氣服務連線失敗，請稍後重試');
+            if (!silent) showToast('天氣服務暫時不可用，請稍後重試');
         }
     }
 
@@ -4434,7 +4869,14 @@
                 applyImageFilter();
                 reset3DView(true);
                 fitBlueprintToViewport();
-                showToast('圖紙載入完成，可拖曳/縮放（雙擊可回適配視圖）');
+                const qualityReport = updateBlueprintQualityStatus();
+                if (qualityReport && qualityReport.quality === '待重拍') {
+                    showToast(`圖紙品質偏低（${qualityReport.issues.join('、')}），建議重拍再量測`);
+                } else if (qualityReport && qualityReport.quality === '可用') {
+                    showToast(`圖紙已載入（${qualityReport.issues.join('、')}，可先量測）`);
+                } else {
+                    showToast('圖紙載入完成，可拖曳/縮放（雙擊可回適配視圖）');
+                }
             };
         };
         reader.readAsDataURL(file);
@@ -4471,6 +4913,260 @@
         canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
         const zoomInfo = document.getElementById('zoom-info');
         if (zoomInfo) zoomInfo.innerText = `縮放: ${Math.round(zoomLevel * 100)}%`;
+    }
+
+    function analyzeBlueprintImageQuality() {
+        if (!img.src || !img.naturalWidth || !img.naturalHeight) return null;
+        const maxSide = 240;
+        const ratio = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.max(48, Math.round(img.naturalWidth * ratio));
+        const h = Math.max(48, Math.round(img.naturalHeight * ratio));
+        const off = document.createElement('canvas');
+        off.width = w;
+        off.height = h;
+        const offCtx = off.getContext('2d', { willReadFrequently: true });
+        if (!offCtx) return null;
+        offCtx.drawImage(img, 0, 0, w, h);
+        const imageData = offCtx.getImageData(0, 0, w, h).data;
+        const gray = new Float32Array(w * h);
+        let sum = 0;
+        for (let i = 0, j = 0; i < imageData.length; i += 4, j += 1) {
+            const g = imageData[i] * 0.299 + imageData[i + 1] * 0.587 + imageData[i + 2] * 0.114;
+            gray[j] = g;
+            sum += g;
+        }
+        const mean = sum / gray.length;
+        let variance = 0;
+        for (let i = 0; i < gray.length; i += 1) {
+            const d = gray[i] - mean;
+            variance += d * d;
+        }
+        variance /= gray.length;
+
+        // Blur score by Laplacian variance: lower value means blurrier image.
+        let lapSum = 0;
+        let lapSqSum = 0;
+        let lapCount = 0;
+        for (let y = 1; y < h - 1; y += 1) {
+            for (let x = 1; x < w - 1; x += 1) {
+                const idx = y * w + x;
+                const lap = (
+                    gray[idx - w] +
+                    gray[idx - 1] -
+                    4 * gray[idx] +
+                    gray[idx + 1] +
+                    gray[idx + w]
+                );
+                lapSum += lap;
+                lapSqSum += lap * lap;
+                lapCount += 1;
+            }
+        }
+        const lapMean = lapCount ? lapSum / lapCount : 0;
+        const lapVar = lapCount ? (lapSqSum / lapCount) - lapMean * lapMean : 0;
+
+        const tooDark = mean < 55;
+        const tooBright = mean > 205;
+        const lowContrast = variance < 420;
+        const blurry = lapVar < 130;
+        const issues = [];
+        if (tooDark) issues.push('過暗');
+        if (tooBright) issues.push('過曝');
+        if (lowContrast) issues.push('對比不足');
+        if (blurry) issues.push('模糊');
+        const quality = issues.length === 0 ? '良好' : (issues.length === 1 ? '可用' : '待重拍');
+        return { quality, issues, meanLuma: mean, contrastVar: variance, blurVar: lapVar };
+    }
+
+    function updateBlueprintQualityStatus() {
+        const box = document.getElementById('blueprint-quality-info');
+        const report = analyzeBlueprintImageQuality();
+        if (!box) return report;
+        if (!report) {
+            box.innerText = '圖紙品質: 待檢查';
+            box.style.color = '#c7d6e6';
+            return null;
+        }
+        if (report.quality === '良好') {
+            box.innerText = '圖紙品質: 良好 ✅';
+            box.style.color = '#90f0b2';
+        } else if (report.quality === '可用') {
+            box.innerText = `圖紙品質: 可用（${report.issues.join('、')}）`;
+            box.style.color = '#ffd48a';
+        } else {
+            box.innerText = `圖紙品質: 待重拍（${report.issues.join('、')}）`;
+            box.style.color = '#ff9a9a';
+        }
+        return report;
+    }
+
+    function detectBlueprintPrimaryBounds() {
+        if (!img.src || !img.naturalWidth || !img.naturalHeight) return null;
+        const maxSide = 360;
+        const ratio = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.max(72, Math.round(img.naturalWidth * ratio));
+        const h = Math.max(72, Math.round(img.naturalHeight * ratio));
+        const off = document.createElement('canvas');
+        off.width = w;
+        off.height = h;
+        const offCtx = off.getContext('2d', { willReadFrequently: true });
+        if (!offCtx) return null;
+        offCtx.drawImage(img, 0, 0, w, h);
+        const imageData = offCtx.getImageData(0, 0, w, h).data;
+        const gray = new Float32Array(w * h);
+        for (let i = 0, j = 0; i < imageData.length; i += 4, j += 1) {
+            gray[j] = imageData[i] * 0.299 + imageData[i + 1] * 0.587 + imageData[i + 2] * 0.114;
+        }
+
+        const grad = new Float32Array(w * h);
+        let gradSum = 0;
+        let gradSq = 0;
+        let gradCount = 0;
+        for (let y = 1; y < h - 1; y += 1) {
+            for (let x = 1; x < w - 1; x += 1) {
+                const i = y * w + x;
+                const gx = (
+                    -gray[i - w - 1] + gray[i - w + 1] +
+                    -2 * gray[i - 1] + 2 * gray[i + 1] +
+                    -gray[i + w - 1] + gray[i + w + 1]
+                );
+                const gy = (
+                    gray[i - w - 1] + 2 * gray[i - w] + gray[i - w + 1] -
+                    gray[i + w - 1] - 2 * gray[i + w] - gray[i + w + 1]
+                );
+                const g = Math.sqrt(gx * gx + gy * gy);
+                grad[i] = g;
+                gradSum += g;
+                gradSq += g * g;
+                gradCount += 1;
+            }
+        }
+        if (!gradCount) return null;
+        const gradMean = gradSum / gradCount;
+        const gradStd = Math.sqrt(Math.max(0, gradSq / gradCount - gradMean * gradMean));
+        const edgeThreshold = Math.max(20, gradMean + gradStd * 1.15);
+        const rowEnergy = new Float32Array(h);
+        const colEnergy = new Float32Array(w);
+        let edgePixels = 0;
+        for (let y = 1; y < h - 1; y += 1) {
+            for (let x = 1; x < w - 1; x += 1) {
+                const i = y * w + x;
+                if (grad[i] >= edgeThreshold) {
+                    rowEnergy[y] += 1;
+                    colEnergy[x] += 1;
+                    edgePixels += 1;
+                }
+            }
+        }
+        if (edgePixels < 50) return null;
+
+        const rowMax = Math.max(...rowEnergy);
+        const colMax = Math.max(...colEnergy);
+        if (rowMax <= 0 || colMax <= 0) return null;
+        const rowCut = Math.max(2, rowMax * 0.2);
+        const colCut = Math.max(2, colMax * 0.2);
+
+        let top = 0;
+        let bottom = h - 1;
+        let left = 0;
+        let right = w - 1;
+        while (top < h && rowEnergy[top] < rowCut) top += 1;
+        while (bottom > top && rowEnergy[bottom] < rowCut) bottom -= 1;
+        while (left < w && colEnergy[left] < colCut) left += 1;
+        while (right > left && colEnergy[right] < colCut) right -= 1;
+        if (top >= bottom || left >= right) return null;
+
+        const boxW = right - left + 1;
+        const boxH = bottom - top + 1;
+        const areaRatio = (boxW * boxH) / Math.max(1, w * h);
+        if (areaRatio < 0.025) return null;
+
+        const scaleBack = 1 / ratio;
+        const widthPx = boxW * scaleBack;
+        const heightPx = boxH * scaleBack;
+        return {
+            x: left * scaleBack,
+            y: top * scaleBack,
+            widthPx,
+            heightPx,
+            longPx: Math.max(widthPx, heightPx),
+            shortPx: Math.min(widthPx, heightPx),
+            coverage: areaRatio
+        };
+    }
+
+    function updateBlueprintAutoInterpretStatus(text, color = '#bfe7ff') {
+        const box = document.getElementById('blueprint-auto-interpret-info');
+        if (!box) return;
+        box.innerText = text;
+        box.style.color = color;
+    }
+
+    function autoInterpretBlueprintAndCalculate() {
+        if (!img.src) return showToast('請先上傳圖紙再做自動判讀');
+        const qualityReport = updateBlueprintQualityStatus();
+        const bounds = detectBlueprintPrimaryBounds();
+        if (!bounds) {
+            updateBlueprintAutoInterpretStatus('自動判讀: 偵測失敗（請先提升對比或框選量測）', '#ffd48a');
+            return showToast('未偵測到明顯主體輪廓，建議先用✨自動優化後重試');
+        }
+
+        let scale = scalePixelsPerUnit;
+        if (!Number.isFinite(scale) || scale <= 0) {
+            const knownLong = prompt(
+                `已抓到主體長邊約 ${Math.round(bounds.longPx)} px。\n請輸入這條邊的實際長度（m）來自動定比例：`,
+                '1'
+            );
+            const knownLongMeters = parseFloat(knownLong);
+            if (Number.isFinite(knownLongMeters) && knownLongMeters > 0) {
+                scalePixelsPerUnit = bounds.longPx / knownLongMeters;
+                scale = scalePixelsPerUnit;
+                document.getElementById('scale-info').innerText = '✅ 比例已設（自動判讀）';
+            } else {
+                updateBlueprintAutoInterpretStatus(`自動判讀: 僅像素(${Math.round(bounds.widthPx)}×${Math.round(bounds.heightPx)} px)`, '#ffd48a');
+                return showToast('尚未設定比例，已提供像素判讀；輸入實際尺寸後可自動換算公尺');
+            }
+        }
+
+        const longM = bounds.longPx / scale;
+        const shortM = bounds.shortPx / scale;
+        const type = String(document.getElementById('calcType').value || '');
+        const v1El = document.getElementById('v1');
+        const v2El = document.getElementById('v2');
+        const v3El = document.getElementById('v3');
+        const qtyEl = document.getElementById('qty');
+
+        if (type.startsWith('R_')) {
+            // Rebar formulas require manual spec (v1), so only fill likely length/count fields.
+            v2El.value = longM.toFixed(2);
+            if (!Number(v3El.value)) v3El.value = '1';
+            if (!Number(qtyEl.value)) qtyEl.value = '1';
+        } else if (type === 'M_BEAM_SIDES') {
+            v1El.value = longM.toFixed(2);
+            v3El.value = shortM.toFixed(2);
+            if (!Number(qtyEl.value)) qtyEl.value = '1';
+        } else if (type === 'M_WALL') {
+            v1El.value = longM.toFixed(2);
+            v2El.value = shortM.toFixed(2);
+            if (!Number(qtyEl.value)) qtyEl.value = '1';
+        } else {
+            v1El.value = longM.toFixed(2);
+            v2El.value = shortM.toFixed(2);
+            if (!Number(v3El.value)) v3El.value = '1.00';
+            if (!Number(qtyEl.value)) qtyEl.value = '1';
+        }
+        previewCalc();
+
+        const qualityNote = qualityReport ? `｜品質${qualityReport.quality}` : '';
+        updateBlueprintAutoInterpretStatus(
+            `自動判讀: ${bounds.widthPx.toFixed(0)}×${bounds.heightPx.toFixed(0)} px → ${longM.toFixed(2)}×${shortM.toFixed(2)} m${qualityNote}`,
+            '#9fffc0'
+        );
+        if (type.startsWith('R_')) {
+            showToast(`已判讀長邊 ${longM.toFixed(2)}m（鋼筋規格仍需手動填 v1）`);
+        } else {
+            showToast(`已自動判讀並帶入：${longM.toFixed(2)}m × ${shortM.toFixed(2)}m`);
+        }
     }
 
     function fitBlueprintToViewport() {
@@ -4823,6 +5519,7 @@
         imageFilterState = { contrast: 1.18, brightness: 1.05 };
         syncImageFilterUI();
         applyImageFilter();
+        updateBlueprintQualityStatus();
         showToast('✨ 圖面已自動優化（更清楚）');
     }
 
@@ -4831,6 +5528,7 @@
         imageFilterState = { contrast: 1, brightness: 1 };
         syncImageFilterUI();
         applyImageFilter();
+        updateBlueprintQualityStatus();
         showToast('已重設圖面畫質');
     }
 
@@ -5060,6 +5758,12 @@
         if (fileInput) fileInput.value = '';
         const zoomInfo = document.getElementById('zoom-info');
         if (zoomInfo) zoomInfo.innerText = '縮放: 100%';
+        const qualityInfo = document.getElementById('blueprint-quality-info');
+        if (qualityInfo) {
+            qualityInfo.innerText = '圖紙品質: 待檢查';
+            qualityInfo.style.color = '#c7d6e6';
+        }
+        updateBlueprintAutoInterpretStatus('自動判讀: 尚未執行', '#bfe7ff');
         reset3DView(true);
         showToast('已移除上傳圖紙');
     }
@@ -5624,6 +6328,67 @@
         );
     }
 
+    function getPriceUnitByType(type) {
+        if (String(type || '').startsWith('R_')) return 'Kg';
+        if (String(type || '').startsWith('M_')) return 'M²';
+        return 'M³';
+    }
+
+    function buildCalcFormulaText(type, v1, v2, v3, n) {
+        const nText = Number.isFinite(n) ? n : 0;
+        switch (type) {
+        case 'C_BASE':
+            return `(${v1}×${v2}×${v3})×${nText}`;
+        case 'C_STAIR':
+            return `((高+寬)×深/2)×${nText}`;
+        case 'E_EXC':
+            return `(${v1}×${v2}×${v3})×${nText}`;
+        case 'R_SLAB':
+            return `單位重(分徑)×長度×層數×數量`;
+        case 'R_MAIN':
+            return `單位重(分徑)×單支長×支數×數量`;
+        case 'R_HOOP':
+            return `單位重(分徑)×單圈長×圈數×數量`;
+        case 'M_COL':
+            return `((A+B)×2×高)×數量`;
+        case 'M_BEAM_SIDES':
+            return `(樑長×樑高×2)×數量`;
+        case 'M_BEAM_ALL':
+            return `((高×2+寬)×長)×數量`;
+        case 'M_WALL':
+            return `(長×高)×數量`;
+        default:
+            return `依 ${type} 計算`;
+        }
+    }
+
+    function getFormulaVariableHint(type) {
+        switch (type) {
+        case 'C_BASE':
+            return 'A=長(m), B=寬(m), 高=深(m), N=數量';
+        case 'C_STAIR':
+            return '高=踏階高總和, 寬=踏階水平投影, 深=樓梯寬, N=座數';
+        case 'E_EXC':
+            return 'A=開挖長, B=開挖寬, 高=開挖深, N=區塊數';
+        case 'R_SLAB':
+            return '分徑=鋼筋規格(分), 長度=單排長度, 層數=1或2, N=排數';
+        case 'R_MAIN':
+            return '分徑=主筋規格, 單支長=含搭接長, 支數=單構件根數, N=構件數';
+        case 'R_HOOP':
+            return '分徑=箍筋規格, 單圈長=展開長, 圈數=單構件圈數, N=構件數';
+        case 'M_COL':
+            return 'A/B=柱兩邊尺寸, 高=柱高, N=柱數';
+        case 'M_BEAM_SIDES':
+            return '樑長=梁長度, 樑高=側模高度, N=梁數';
+        case 'M_BEAM_ALL':
+            return '高=梁高, 寬=梁寬, 長=梁長, N=梁數';
+        case 'M_WALL':
+            return '長=牆長, 高=牆高, N=片數';
+        default:
+            return '變數定義請依當前欄位標籤（v1/v2/v3/N）';
+        }
+    }
+
     function calculateAndAdd() {
         const type = document.getElementById('calcType').value;
         const typeText = document.getElementById('calcType').options[document.getElementById('calcType').selectedIndex].text.split(' (')[0]; 
@@ -5659,10 +6424,17 @@
         if (customName !== "") { name = `${name} [${customName}]`; }
 
         const totalCost = res * up;
+        const priceUnit = getPriceUnitByType(type);
+        const calcFormula = buildCalcFormulaText(type, v1, v2, v3, n);
+        const formulaHint = getFormulaVariableHint(type);
+        const costBreakdown = `${Math.abs(res).toFixed(3)} ${priceUnit} × ${up}`;
         
         // 安全處理使用者輸入
         const safeName = escapeHTML(name);
         const safeFloor = escapeHTML(floor);
+        const safeFormula = escapeHTML(calcFormula);
+        const safeFormulaHint = escapeHTML(formulaHint);
+        const safeBreakdown = escapeHTML(costBreakdown);
 
         list.push({ 
             floor: safeFloor, 
@@ -5671,7 +6443,11 @@
             up: up, 
             totalCost: totalCost, 
             cat: result.cat, 
-            unit: result.unit 
+            unit: result.unit,
+            priceUnit: priceUnit,
+            formula: safeFormula,
+            formulaHint: safeFormulaHint,
+            breakdown: safeBreakdown
         });
         
         saveData(); renderTable(); 
@@ -5704,8 +6480,9 @@
                 <td>${item.floor}</td>
                 <td style="color:${item.res < 0 ? '#ff4757' : 'white'}">${item.name}${cloudTag}</td>
                 <td>${item.res.toFixed(2)} <span style="font-size:0.8em;color:#888;">${item.unit||''}</span></td>
-                <td>${item.up}</td>
-                <td style="color:var(--money); font-weight:bold;">${Math.round(item.totalCost).toLocaleString()}</td>
+                <td>${item.up} <span style="font-size:0.78em;color:#9bc2e5;">/ ${item.priceUnit || item.unit || '-'}</span></td>
+                <td style="font-size:0.8em;color:#cde3f5;" title="${item.formulaHint || ''}">${item.formula || '-'} <span style="color:#9bc2e5;">ⓘ</span></td>
+                <td style="color:var(--money); font-weight:bold;">${Math.round(item.totalCost).toLocaleString()}<div style="font-size:0.75em;color:#8fb3cf;">${item.breakdown || ''}</div></td>
                 <td>${removeBtn}</td>
             `;
             tbody.appendChild(tr);
@@ -5941,28 +6718,28 @@
     }
 
     function resolveCoachMessage(target) {
-        if (target.closest('#ifcInput')) return '這裡上傳 IFC 模型，系統會做 BIM QA 解析與構件統計。';
-        if (target.closest('#ifcSearch')) return '可輸入 IFC 類型或 #ID 查詢模型，例如 IFCWALL、#123。';
-        if (target.closest('#bimRuleIfcType')) return '先輸入 IFC 類型，例如 IFCWALL、IFCBEAM。';
+        if (target.closest('#ifcInput')) return '這裡上傳模型檔，系統會做 BIM QA 解析與構件統計。';
+        if (target.closest('#ifcSearch')) return '可輸入構件類型或 #ID 查詢模型，例如 牆、柱、梁、#123。';
+        if (target.closest('#bimRuleIfcType')) return '先輸入構件類型，例如 牆、柱、梁。';
         if (target.closest('#bimRuleMaterial')) return '選擇要對應的材料，估價時會優先套用這條規則。';
         if (target.closest('button[onclick="saveBimRule()"]')) return '儲存規則後，BIM 自動估價會優先採用你的自訂映射。';
-        if (target.closest('button[onclick="deleteBimRule()"]')) return '刪除指定 IFC Type 的自訂規則，會回到系統預設匹配。';
+        if (target.closest('button[onclick="deleteBimRule()"]')) return '刪除指定構件類型的自訂規則，會回到系統預設匹配。';
         if (target.closest('button[onclick="exportBimRules()"]')) return '匯出目前 BIM 規則檔（JSON），可跨裝置共用。';
         if (target.closest('button[onclick="triggerImportBimRules()"]')) return '匯入規則檔（JSON），快速套用既有 BIM 匹配設定。';
         if (target.closest('button[onclick="resetBimRules()"]')) return '清空全部 BIM 規則，恢復系統預設匹配。';
-        if (target.closest('button[onclick="generateBIMEstimate()"]')) return '依 IFC 類型與材料單價自動產生估價預覽表。';
+        if (target.closest('button[onclick="generateBIMEstimate()"]')) return '依構件類型與材料單價自動產生估價預覽表。';
         if (target.closest('button[onclick="importBIMEstimateToList()"]')) return '把 BIM 估價結果一鍵匯入主清單，直接進入總價彙整。';
         if (target.closest('button[onclick="runQuantumAutoStakeLayout()"]')) return '核心自進放樣：自動執行生成點位、高精度修正、分群 QA 與放樣 QA。';
-        if (target.closest('button[onclick="generateBimLayoutPoints()"]')) return '從 IFC 自動抽取放樣點（柱心、牆端點、梁端點）。';
+        if (target.closest('button[onclick="generateBimLayoutPoints()"]')) return '從模型自動抽取放樣點（柱心、牆端點、梁端點）。';
         if (target.closest('button[onclick="runBimLayoutQa()"]')) return '執行放樣 QA，檢查重複點、缺漏與越界，產生分數。';
         if (target.closest('button[onclick="exportBimLayoutPoints()"]')) return '匯出放樣點 CSV，可交給儀器或現場施工使用。';
         if (target.closest('button[onclick="exportBimLayoutQaReport()"]')) return '匯出放樣 QA 報告 CSV，作為交付與稽核依據。';
         if (target.closest('#bimLayoutBody')) return '這裡是放樣點預覽表，最多先顯示前 200 筆。';
         if (target.closest('#bimLayoutQaSummary')) return '這裡會顯示放樣 QA 的分數與關鍵指標。';
-        if (target.closest('#bimUnmatchedType')) return '這裡列出尚未匹配的 IFC 類型，先選一個要修正的類型。';
+        if (target.closest('#bimUnmatchedType')) return '這裡列出尚未匹配的構件類型，先選一個要修正的類型。';
         if (target.closest('#bimUnmatchedMaterial')) return '這裡選要套用的材料，選好後可單筆或批次修復。';
-        if (target.closest('button[onclick="applyUnmatchedRuleOnce()"]')) return '把選定材料套用到目前這個未匹配 IFC Type，並立即重算。';
-        if (target.closest('button[onclick="applyUnmatchedRuleAll()"]')) return '把同一材料批次套用到所有未匹配 IFC Type，適合快速補齊規則。';
+        if (target.closest('button[onclick="applyUnmatchedRuleOnce()"]')) return '把選定材料套用到目前這個未匹配構件類型，並立即重算。';
+        if (target.closest('button[onclick="applyUnmatchedRuleAll()"]')) return '把同一材料批次套用到所有未匹配構件類型，適合快速補齊規則。';
         if (target.closest('#unitFrom') || target.closest('#unitTo')) return '先選來源與目標單位，再按換算。若單位不同類型會提示不相容。';
         if (target.closest('button[onclick="runUnitConvert()"]')) return '單位換算器：先選來源/目標單位，快速核對數值是否一致。';
         if (target.closest('button[onclick="createDataSnapshot(\'手動快照\')"]')) return '手動建立版本快照，會保存規則、估價與清單狀態。';
@@ -5976,6 +6753,8 @@
 
         if (target.closest('#regionSelect')) return '可選地區價目；若地區資料筆數太少，系統會自動改用全台完整價目。';
         if (target.closest('button[onclick="autoDetectRegion()"]')) return '按這裡用定位自動判斷地區並套用價目。';
+        if (target.closest('button[onclick="refreshSiteWeather()"]')) return '更新工地即時天氣，會顯示降雨、風速與施工建議。';
+        if (target.closest('#siteWeatherInfo') || target.closest('#siteWeatherSafety')) return '這裡顯示工地即時天氣與施工建議，建議進場前先確認。';
         if (target.closest('#materialSearch')) return '輸入關鍵字搜尋材料，例如：模板、混凝土、鋼筋。';
         if (target.closest('#materialSelect')) return '從清單挑選材料，右側會顯示目前單價與單位。';
         if (target.closest('#materialCountChip')) return '這裡顯示目前載入的價目筆數，正常應該是多筆資料。';
@@ -6008,7 +6787,7 @@
         if (target.closest('#levelStandardBtn')) return '頁2 工程：開啟量圖輔助、QA 報告與會員管理等進階工具。';
         if (target.closest('#levelProBtn')) return '頁3 專家：顯示完整 BIM/規則/快照等高階模組。';
         if (target.closest('#workCalcBtn')) return '計算模式：聚焦工種試算、價目套用、清單與報表輸出。';
-        if (target.closest('#workStakeBtn')) return '放樣模式：聚焦 IFC、放樣點抽取、QA 檢核與放樣輸出。';
+        if (target.closest('#workStakeBtn')) return '放樣模式：聚焦模型解析、放樣點抽取、QA 檢核與放樣輸出。';
         if (target.closest('#aiCoachToggle')) return 'AI 解說員：可在規則解說外補充更彈性的操作建議（需先設定 API Key）。';
         if (target.closest('#coachAiInput')) return '你可以直接輸入問題，例如「這個按鈕怎麼用？」再按問AI。';
         if (target.closest('#coachAiAskBtn')) return '送出你輸入的問題給 AI 解說員，回覆會顯示在氣泡中。';
@@ -6537,54 +7316,71 @@
         }
     }
 
+    function getUserLevelGuideLines(level) {
+        if (level === 'pro') {
+            return [
+                '【頁3 專家｜放樣說明與排查】',
+                '',
+                'A. 推薦操作順序',
+                '1) 匯入模型檔 -> 生成放樣點',
+                '2) 控制點配準（建議 3 點）',
+                '3) 跑偏差熱圖 + 置信度分層',
+                '4) 產生補點建議 -> 現場抽驗 -> 匯出施工包',
+                '',
+                'B. 專家頁常見問題',
+                '• 配準後 RMS 偏高：補第3控制點，並重做配準',
+                '• 熱圖偏紅偏多：先跑「強化放樣」再重跑熱圖',
+                '• 高信心點太少：先做高精度修正 + 分群 QA',
+                '',
+                'C. 驗收門檻',
+                '• RMS <= 0.05 再進場',
+                '• 高信心點比例建議 >= 60%',
+                '• 抽驗 5 點至少 4 點通過'
+            ];
+        }
+        if (level === 'standard') {
+            return [
+                '【頁2 工程｜放樣說明與排查】',
+                '',
+                'A. 推薦操作順序',
+                '1) 先生成放樣點',
+                '2) 做高精度修正 + 自動分群',
+                '3) 執行放樣 QA',
+                '4) 需要時再做控制點配準',
+                '',
+                'B. 工程頁常見問題',
+                '• 放樣點重複：先做高精度修正',
+                '• QA 分數低：先分群，再重跑 QA',
+                '• 匯出前不放心：先跑偏差熱圖看紅黃綠',
+                '',
+                'C. 驗收門檻',
+                '• QA 建議 >= A',
+                '• 紅色偏差點需先處理再施工'
+            ];
+        }
+        return [
+            '【頁1 新手｜放樣說明與排查】',
+            '',
+            'A. 推薦操作順序',
+            '1) 先按「產生放樣點」',
+            '2) 再按「強化放樣」',
+            '3) 最後按「執行放樣 QA」',
+            '',
+            'B. 新手頁常見問題',
+            '• 沒有放樣點：先確認模型檔已載入',
+            '• 點太亂：先按強化放樣',
+            '• 不知道能不能施工：看 QA 等級與偏差熱圖',
+            '',
+            'C. 新手檢查',
+            '• QA 至少 B',
+            '• 紅點不多再出圖'
+        ];
+    }
+
     function showCalcResetGuide() {
-        alert([
-            '【計算模式｜使用與錯誤說明（詳細版）】',
-            '',
-            'A. 使用前檢查',
-            '1) 手機與頁面版本',
-            '• 確認已是最新版本（重新整理一次）',
-            '• 若仍像舊版：清網站快取後重開',
-            '2) 畫面可見度',
-            '• 日照強：先開「☀️ 戶外高亮」',
-            '• 視野被擋：先切「🧲 視圖模式：釋放」',
-            '3) 測試資料策略',
-            '• 本輪測試建議使用同一張圖紙',
-            '• 若比較不同圖，務必分輪記錄',
-            '',
-            'B. 標準使用順序（避免誤判）',
-            '1) 先做「📏 定比例」：點兩點 + 輸入真實長度',
-            '2) 再做「📐 測量」：點起終點，確認 v1/v2 有寫入',
-            '3) 再測 3D 功能：3D檢視、360、掃描、拖曳',
-            '4) 最後測延伸功能：雷射尺、AI、匯出',
-            '',
-            'C. 視圖模式使用規則',
-            '• 一般：完整面板，適合設定參數',
-            '• 釋放：最大視野，適合現場瞄準',
-            '• 自動：量測時自動釋放，平常回一般',
-            '',
-            'D. 錯誤使用說明與快速排查',
-            '1) 測量數值不變',
-            '• 檢查是否已定比例',
-            '• 檢查是否仍在 3D 模式（量測需平面）',
-            '2) 觸控像卡住',
-            '• 先關 360 旋轉，再重試拖曳',
-            '• 切「視圖模式：一般」確認是否被遮罩',
-            '3) 結果跳動大',
-            '• 重新定比例',
-            '• 拉近測點，避免跨太大距離',
-            '',
-            'E. 測試紀錄建議格式（便於回報）',
-            '• 輪次：R1 / R2 ...',
-            '• 操作：定比例/測量/3D/匯出',
-            '• 結果：成功/失敗 + 截圖',
-            '• 備註：當時視圖模式、是否高亮、是否清快取',
-            '',
-            'F. 驗收建議門檻',
-            '• 定比例後測量可穩定連續輸出',
-            '• 主要按鈕無「按了沒反應」',
-            '• 視圖模式切換後畫面與行為一致'
-        ].join('\n'));
+        const raw = safeStorage.get(localStorage, USER_LEVEL_KEY, 'basic');
+        const level = ['basic', 'standard', 'pro'].includes(raw) ? raw : 'basic';
+        alert(getUserLevelGuideLines(level).join('\n'));
     }
 
     async function runMobileQuickAction(action) {
