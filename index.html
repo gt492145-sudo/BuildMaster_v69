@@ -57,6 +57,8 @@
     .material-quick-bar { display: flex; gap: 10px; align-items: center; margin-top: 8px; margin-bottom: 12px; }
     .material-chip { padding: 7px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.05); color: #dce8f7; font-size: 0.8em; }
     .material-chip strong { color: #ffd08b; }
+    .material-chip.material-chip-warning { border-color: rgba(255, 132, 132, 0.55); background: rgba(255, 72, 72, 0.14); color: #ffd8d8; }
+    .material-chip.material-chip-warning strong { color: #ffe6a7; }
     .bim-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0 10px; }
     .control-grid { display: grid; grid-template-columns: repeat(6, minmax(96px, 1fr)); gap: 8px; margin: 8px 0; }
     .status-pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(255,255,255,0.2); border-radius: 999px; padding: 5px 10px; font-size: 0.76em; color: #cfe4f8; background: rgba(255,255,255,0.04); }
@@ -1193,7 +1195,13 @@
     let materialCatalog = [...DEFAULT_MATERIAL_CATALOG];
     let currentRegionLabel = '全台共用';
     let currentRegionMode = '預設';
-    let currentMaterialSourceMeta = { file: '內建預設', generatedAt: '' };
+    let currentMaterialSourceMeta = {
+        file: '內建預設',
+        generatedAt: '',
+        updateMode: '',
+        seasonalFactor: '',
+        fallbackReason: ''
+    };
     let bimModelData = null;
     let bimEstimateRows = [];
     let bimLayoutPoints = [];
@@ -4576,7 +4584,16 @@
                     const generatedAt = String(
                         (payload && typeof payload === 'object' && payload.generated_at) ? payload.generated_at : ''
                     ).trim();
-                    loaded.push({ file, items: normalized, sourceFile, generatedAt });
+                    const updateMode = String(
+                        (payload && typeof payload === 'object' && payload.price_update_mode) ? payload.price_update_mode : ''
+                    ).trim();
+                    const seasonalFactor = String(
+                        (payload && typeof payload === 'object' && payload.seasonal_factor !== undefined) ? payload.seasonal_factor : ''
+                    ).trim();
+                    const fallbackReason = String(
+                        (payload && typeof payload === 'object' && payload.fallback_reason) ? payload.fallback_reason : ''
+                    ).trim();
+                    loaded.push({ file, items: normalized, sourceFile, generatedAt, updateMode, seasonalFactor, fallbackReason });
                 }
             } catch (e) {
                 console.warn(`載入 ${file} 失敗`, e);
@@ -4596,26 +4613,56 @@
                     showToast(`偵測到地區單價僅 ${best.items.length} 筆，已改用全台完整價目 ${fallbackGlobal.items.length} 筆`);
                     currentMaterialSourceMeta = {
                         file: fallbackGlobal.sourceFile || fallbackGlobal.file,
-                        generatedAt: fallbackGlobal.generatedAt || ''
+                        generatedAt: fallbackGlobal.generatedAt || '',
+                        updateMode: fallbackGlobal.updateMode || '',
+                        seasonalFactor: fallbackGlobal.seasonalFactor || '',
+                        fallbackReason: fallbackGlobal.fallbackReason || ''
                     };
+                    if (currentMaterialSourceMeta.updateMode === 'fallback_seasonal_factor') {
+                        const factorText = currentMaterialSourceMeta.seasonalFactor
+                            ? `（係數 x${currentMaterialSourceMeta.seasonalFactor}）`
+                            : '';
+                        showToast(`提醒：目前為季度估算價${factorText}，正式報價請上傳審核 CSV`);
+                    }
                     return fallbackGlobal.items;
                 }
             }
 
             currentMaterialSourceMeta = {
                 file: best.sourceFile || best.file,
-                generatedAt: best.generatedAt || ''
+                generatedAt: best.generatedAt || '',
+                updateMode: best.updateMode || '',
+                seasonalFactor: best.seasonalFactor || '',
+                fallbackReason: best.fallbackReason || ''
             };
+            if (currentMaterialSourceMeta.updateMode === 'fallback_seasonal_factor') {
+                const factorText = currentMaterialSourceMeta.seasonalFactor
+                    ? `（係數 x${currentMaterialSourceMeta.seasonalFactor}）`
+                    : '';
+                showToast(`提醒：目前為季度估算價${factorText}，正式報價請上傳審核 CSV`);
+            }
             showToast(`已同步${regionLabel}價格（${best.items.length} 筆）`);
             return best.items;
         }
 
         try {
-            currentMaterialSourceMeta = { file: '內建預設', generatedAt: '' };
+            currentMaterialSourceMeta = {
+                file: '內建預設',
+                generatedAt: '',
+                updateMode: '',
+                seasonalFactor: '',
+                fallbackReason: ''
+            };
             showToast(`使用內建單價（離線模式：${DEFAULT_MATERIAL_CATALOG.length} 筆）`);
             return [...DEFAULT_MATERIAL_CATALOG];
         } catch (_e) {
-            currentMaterialSourceMeta = { file: '內建預設', generatedAt: '' };
+            currentMaterialSourceMeta = {
+                file: '內建預設',
+                generatedAt: '',
+                updateMode: '',
+                seasonalFactor: '',
+                fallbackReason: ''
+            };
             return [...DEFAULT_MATERIAL_CATALOG];
         }
     }
@@ -4662,7 +4709,13 @@
         const file = String(currentMaterialSourceMeta.file || '未同步');
         const generatedAt = String(currentMaterialSourceMeta.generatedAt || '').trim();
         const timeText = generatedAt ? ` / ${generatedAt}` : '';
-        chip.innerHTML = `資料來源：<strong>${file}</strong>${timeText}`;
+        const isFallback = String(currentMaterialSourceMeta.updateMode || '').trim() === 'fallback_seasonal_factor';
+        const factor = String(currentMaterialSourceMeta.seasonalFactor || '').trim();
+        const warningText = isFallback
+            ? ` ｜ <strong>估算價模式</strong>${factor ? ` (x${factor})` : ''}`
+            : '';
+        chip.innerHTML = `資料來源：<strong>${file}</strong>${timeText}${warningText}`;
+        chip.classList.toggle('material-chip-warning', isFallback);
     }
 
     function normalizeRegionName(name) {
