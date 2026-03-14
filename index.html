@@ -65,6 +65,29 @@
     .bim-card { border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.04); border-radius: 8px; padding: 8px; font-size: 0.78em; color: #d9e8f6; }
     .bim-card strong { display: block; font-size: 1.1em; color: #ffd287; margin-top: 4px; }
     .bim-note { font-size: 0.78em; color: var(--text-subtle); margin-top: 6px; }
+    .weather-news-marquee {
+        position: relative;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    #siteWeatherNews {
+        display: inline-block;
+        min-width: 100%;
+        padding-left: 100%;
+        will-change: transform;
+        animation: weather-news-marquee 16s linear infinite;
+    }
+    @keyframes weather-news-marquee {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-100%); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        #siteWeatherNews {
+            animation: none;
+            padding-left: 0;
+            min-width: 0;
+        }
+    }
     .bim-table-wrap { max-height: 180px; overflow: auto; border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; margin-top: 8px; }
     .bim-table-wrap table { margin-top: 0; }
     .bim-warn { margin-top: 8px; border: 1px solid rgba(255, 140, 140, 0.45); background: rgba(255, 80, 80, 0.08); color: #ffd5d5; border-radius: 8px; padding: 8px; font-size: 0.78em; min-height: 18px; }
@@ -1003,12 +1026,14 @@
             <div class="input-wrapper">
                 <label>工地即時天氣</label>
                 <div id="siteWeatherInfo" class="bim-note" style="margin-top:4px;">天氣：尚未更新</div>
-                <div id="siteWeatherSafety" class="bim-note" style="margin-top:4px; color:#bdeecf;">施工建議：請先更新天氣</div>
-                <div id="siteWeatherNews" class="bim-note" style="margin-top:4px; color:#cfe6ff;">氣象快報：待更新</div>
+                <div id="siteWeatherSafety" class="bim-note" style="margin-top:4px; color:#bdeecf;">施工建議：天氣自動更新中</div>
+                <div class="bim-note weather-news-marquee" style="margin-top:4px; color:#cfe6ff;">
+                    <span id="siteWeatherNews">氣象快報：待更新</span>
+                </div>
             </div>
             <div class="input-wrapper">
-                <label>天氣更新</label>
-                <button class="tool-btn" style="width:100%; border-color:#9ad4ff; color:#dff3ff;" onclick="refreshSiteWeather()">☁️ 更新工地天氣</button>
+                <label>天氣更新方式</label>
+                <div class="bim-note" style="margin-top:4px; color:#9ad4ff;">已啟用自動更新（載入時 + 週期刷新）</div>
             </div>
         </div>
         <div class="input-row level-hide-basic">
@@ -1339,8 +1364,10 @@
     let chaosMonkeyMode = false;
     let chaosMonkeyTimer = null;
     let chaosMonkeyTickCount = 0;
+    let siteWeatherAutoRefreshTimer = null;
     const CHAOS_MONKEY_ENABLED = false;
     let laserChaosStats = { dirtyBlocked: 0, successWrites: 0 };
+    const SITE_WEATHER_REFRESH_MS = 12 * 60 * 1000;
 
     function safeToast(message) {
         const now = Date.now();
@@ -2335,7 +2362,15 @@
         updateRegionChip();
         updateMaterialSourceChip();
         await refreshSiteWeather(true);
+        startSiteWeatherAutoRefresh();
         initBimRuleEditor();
+    }
+
+    function startSiteWeatherAutoRefresh() {
+        if (siteWeatherAutoRefreshTimer) clearInterval(siteWeatherAutoRefreshTimer);
+        siteWeatherAutoRefreshTimer = setInterval(() => {
+            refreshSiteWeather(true);
+        }, SITE_WEATHER_REFRESH_MS);
     }
 
     function initUtilityWidgets() {
@@ -4823,6 +4858,17 @@
         return `氣象快報：目前${weatherLabel}，${tempC.toFixed(1)}°C，降雨機率 ${rainProb}%、風速 ${windKmh} km/h；${phaseText}，施工判斷 ${advice.level}。`;
     }
 
+    function setSiteWeatherNewsText(text, color) {
+        const news = document.getElementById('siteWeatherNews');
+        if (!news) return;
+        news.innerText = text;
+        if (color) news.style.color = color;
+        // Restart marquee each time bulletin text changes.
+        news.style.animation = 'none';
+        void news.offsetWidth;
+        news.style.animation = 'weather-news-marquee 16s linear infinite';
+    }
+
     function updateSiteWeatherUI(weather, errorText = '') {
         const info = document.getElementById('siteWeatherInfo');
         const safety = document.getElementById('siteWeatherSafety');
@@ -4832,10 +4878,9 @@
             applyWeatherScene('未知');
             info.innerText = `天氣：${errorText || '暫無資料'}`;
             info.style.color = '#ffd48a';
-            safety.innerText = '施工建議：請先更新天氣';
+            safety.innerText = '施工建議：天氣暫時無法更新，系統會自動重試';
             safety.style.color = '#ffd48a';
-            news.innerText = '氣象快報：目前無即時資料，請更新天氣後取得新聞式播報。';
-            news.style.color = '#ffd48a';
+            setSiteWeatherNewsText('氣象快報：目前無即時資料，系統將自動重試更新。', '#ffd48a');
             return;
         }
         const weatherLabel = WEATHER_CODE_MAP[Number(weather.weatherCode)] || '天氣變化';
@@ -4845,8 +4890,7 @@
         applyWeatherScene(advice.level);
         safety.innerText = `施工建議：${advice.level}｜${advice.message}`;
         safety.style.color = advice.color;
-        news.innerText = createWeatherNewsBulletin(weather);
-        news.style.color = '#cfe6ff';
+        setSiteWeatherNewsText(createWeatherNewsBulletin(weather), '#cfe6ff');
     }
 
     async function refreshSiteWeather(silent = false) {
@@ -6845,8 +6889,7 @@
 
         if (target.closest('#regionSelect')) return '可選地區價目；若地區資料筆數太少，系統會自動改用全台完整價目。';
         if (target.closest('button[onclick="autoDetectRegion()"]')) return '按這裡用定位自動判斷地區並套用價目。';
-        if (target.closest('button[onclick="refreshSiteWeather()"]')) return '更新工地即時天氣，會顯示降雨、風速與施工建議。';
-        if (target.closest('#siteWeatherInfo') || target.closest('#siteWeatherSafety')) return '這裡顯示工地即時天氣與施工建議，建議進場前先確認。';
+        if (target.closest('#siteWeatherInfo') || target.closest('#siteWeatherSafety') || target.closest('#siteWeatherNews')) return '這裡顯示工地即時天氣與施工建議，系統會自動更新。';
         if (target.closest('#materialSearch')) return '輸入關鍵字搜尋材料，例如：模板、混凝土、鋼筋。';
         if (target.closest('#materialSelect')) return '從清單挑選材料，右側會顯示目前單價與單位。';
         if (target.closest('#materialCountChip')) return '這裡顯示目前載入的價目筆數，正常應該是多筆資料。';

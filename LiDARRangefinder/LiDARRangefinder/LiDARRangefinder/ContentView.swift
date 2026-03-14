@@ -1534,43 +1534,28 @@ struct ContentView: View {
     private var blueprintScanLightOverlay: some View {
         GeometryReader { geo in
             TimelineView(.animation(minimumInterval: 0.03, paused: !isViewActive)) { context in
-                let cycle = 2.1
+                let cycle = 2.6
                 let progress = context.date.timeIntervalSinceReferenceDate
                     .truncatingRemainder(dividingBy: cycle) / cycle
                 let y = geo.size.height * progress
-                let pulse = 0.85 + 0.15 * sin(progress * .pi * 2.0)
-                let coreOpacity = 0.42 * pulse
-                let glowOpacity = 0.55 * pulse
 
                 ZStack {
                     Rectangle()
                         .fill(
                             LinearGradient(
-                                colors: [.clear, .purple.opacity(glowOpacity), .clear],
+                                colors: [.clear, .purple.opacity(0.4), .clear],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
                         )
-                        .frame(height: 34)
-                        .blur(radius: 2.2)
-                        .offset(y: y - 17)
+                        .frame(height: 28)
+                        .blur(radius: 1.4)
+                        .offset(y: y - 14)
 
                     Rectangle()
-                        .fill(
-                            LinearGradient(
-                                colors: [.clear, .purple.opacity(coreOpacity), .white.opacity(0.52 * pulse), .purple.opacity(coreOpacity), .clear],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(height: 2.2)
-                        .offset(y: y - 1.1)
-                        .blur(radius: 0.2)
-
-                    Rectangle()
-                        .fill(.white.opacity(0.26 * pulse))
-                        .frame(height: 0.8)
-                        .offset(y: y - 0.4)
+                        .fill(.purple.opacity(0.32))
+                        .frame(height: 1.2)
+                        .offset(y: y - 0.6)
                 }
                 .blendMode(.screen)
                 .allowsHitTesting(false)
