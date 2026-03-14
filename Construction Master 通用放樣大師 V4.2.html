@@ -144,14 +144,14 @@
             padding: 8px 9px;
             text-align: left;
         }
-        body.mobile-focus-mode header,
+        /* Stake page keeps the top identity/header visible in mobile focus mode. */
         body.mobile-focus-mode .global-settings {
             display: none !important;
         }
         body.mobile-focus-mode .tabs {
             display: none !important;
         }
-        body.mobile-focus-mode { padding-top: 4px; }
+        body.mobile-focus-mode { padding-top: 10px; }
     }
     
     .global-settings { background: rgba(0,0,0,0.5); padding: 15px; border: 1px dashed var(--accent); border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; }
@@ -225,7 +225,7 @@
     </div>
 </div>
 
-<div class="global-settings">
+<div class="global-settings" style="margin-top: 10px;">
     <div style="width: 100%; color: var(--accent); font-weight: bold; margin-bottom: 5px;">📍 專案基準點設定 (Global Settings)</div>
     <div><label>政府座標 E: </label><input type="number" id="gE" value="204000" step="0.001"></div>
     <div><label>政府座標 N: </label><input type="number" id="gN" value="2682000" step="0.001"></div>
