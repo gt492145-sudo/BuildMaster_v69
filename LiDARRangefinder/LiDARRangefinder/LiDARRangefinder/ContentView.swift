@@ -12,6 +12,17 @@ struct ContentView: View {
         case vertical
     }
 
+    private enum ModalSheetTarget {
+        case records
+        case correctionHistory
+        case aiAssistant
+        case rebarConfig
+        case volumeScan
+        case crackInspector
+        case quantumMode
+        case testChecklist
+    }
+
     @EnvironmentObject private var sessionManager: LiDARSessionManager
     @EnvironmentObject private var measurementStore: MeasurementStore
     @Environment(\.scenePhase) private var scenePhase
@@ -254,8 +265,7 @@ struct ContentView: View {
         .onDisappear {
             isViewActive = false
             stopSafetyMonkey()
-            showingAIAssistant = false
-            showingCorrectionHistory = false
+            closeAllModalSheets()
             sessionManager.suspendSessionForViewDisappearance()
         }
         .onAppear {
@@ -271,27 +281,56 @@ struct ContentView: View {
         }
     }
 
-    private func presentAIAssistantSafely() {
-        guard isViewActive, !showingAIAssistant else { return }
-        DispatchQueue.main.async {
-            guard self.isViewActive, !self.showingAIAssistant else { return }
-            self.showingAIAssistant = true
+    private func closeAllModalSheets() {
+        showingRecords = false
+        showingCorrectionHistory = false
+        showingAIAssistant = false
+        showingRebarConfig = false
+        showingVolumeScan = false
+        showingCrackInspector = false
+        showingQuantumMode = false
+        showingTestChecklist = false
+    }
+
+    private func openModalSheet(_ target: ModalSheetTarget) {
+        switch target {
+        case .records:
+            showingRecords = true
+        case .correctionHistory:
+            showingCorrectionHistory = true
+        case .aiAssistant:
+            showingAIAssistant = true
+        case .rebarConfig:
+            showingRebarConfig = true
+        case .volumeScan:
+            showingVolumeScan = true
+        case .crackInspector:
+            showingCrackInspector = true
+        case .quantumMode:
+            showingQuantumMode = true
+        case .testChecklist:
+            showingTestChecklist = true
         }
     }
 
-    private func presentCorrectionHistorySafely() {
-        guard isViewActive, !showingCorrectionHistory else { return }
+    private func presentModalSheetSafely(_ target: ModalSheetTarget) {
+        guard isViewActive else { return }
         DispatchQueue.main.async {
-            guard self.isViewActive, !self.showingCorrectionHistory else { return }
-            self.showingAIAssistant = false
-            self.showingRebarConfig = false
-            self.showingVolumeScan = false
-            self.showingCrackInspector = false
-            self.showingQuantumMode = false
-            self.showingTestChecklist = false
-            self.showingMonkeyAccessSheet = false
-            self.showingCorrectionHistory = true
+            guard self.isViewActive else { return }
+            self.closeAllModalSheets()
+            DispatchQueue.main.async {
+                guard self.isViewActive else { return }
+                self.openModalSheet(target)
+            }
         }
+    }
+
+    private func presentAIAssistantSafely() {
+        presentModalSheetSafely(.aiAssistant)
+    }
+
+    private func presentCorrectionHistorySafely() {
+        presentModalSheetSafely(.correctionHistory)
     }
 
     private func syncMeasureDraftFromManager(force: Bool) {
@@ -542,8 +581,10 @@ struct ContentView: View {
         .frame(maxHeight: isTopPanelExpanded ? 320 : 150, alignment: .top)
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(.regularMaterial)
+        )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(.white.opacity(0.15), lineWidth: 1)
@@ -1078,7 +1119,7 @@ struct ContentView: View {
                     }
 
                     Button("✅ 測試打勾表") {
-                        showingTestChecklist = true
+                        presentModalSheetSafely(.testChecklist)
                     }
                     .buttonStyle(.bordered)
                     .frame(maxWidth: .infinity)
@@ -1098,7 +1139,7 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity)
 
                         Button("量測紀錄") {
-                            showingRecords = true
+                            presentModalSheetSafely(.records)
                         }
                         .buttonStyle(.bordered)
                         .frame(maxWidth: .infinity)
@@ -1111,21 +1152,21 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity)
 
                     Button("3D 體積掃描儀") {
-                        showingVolumeScan = true
+                        presentModalSheetSafely(.volumeScan)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.teal)
                     .frame(maxWidth: .infinity)
 
                     Button("AI 裂縫抓漏") {
-                        showingCrackInspector = true
+                        presentModalSheetSafely(.crackInspector)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
                     .frame(maxWidth: .infinity)
 
                     Button(sessionManager.quantumModeEnabled ? "核心引擎（運行中）" : "核心引擎戰術模式") {
-                        showingQuantumMode = true
+                        presentModalSheetSafely(.quantumMode)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.purple)
@@ -1209,7 +1250,7 @@ struct ContentView: View {
                 .foregroundStyle(.mint)
 
             Button("鋼筋透視參數") {
-                showingRebarConfig = true
+                presentModalSheetSafely(.rebarConfig)
             }
             .buttonStyle(.bordered)
             .frame(maxWidth: .infinity)
@@ -1318,7 +1359,7 @@ struct ContentView: View {
                         }
 
                         Button {
-                            showingAIAssistant = true
+                            presentAIAssistantSafely()
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                                 isTacticalMenuOpen = false
                             }
