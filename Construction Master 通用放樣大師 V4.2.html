@@ -19,6 +19,52 @@
     .status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.06); color: #d7ebff; font-size: 0.72em; }
     .status-pill.accent { border-color: rgba(255, 184, 114, 0.65); color: #ffd8a7; }
     .status-pill.info { border-color: rgba(112, 213, 255, 0.65); color: #d7f4ff; }
+    .global-weather-ticker {
+        position: sticky;
+        top: 0;
+        z-index: 2100;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+        padding: 6px 12px;
+        border: 1px solid rgba(148, 200, 255, 0.32);
+        border-radius: 10px;
+        background: rgba(8, 16, 30, 0.92);
+        backdrop-filter: blur(7px) saturate(115%);
+    }
+    .global-weather-ticker .ticker-label {
+        flex: 0 0 auto;
+        font-size: 0.76em;
+        color: #9ad4ff;
+        font-weight: 700;
+    }
+    .weather-news-marquee {
+        position: relative;
+        overflow: hidden;
+        white-space: nowrap;
+        flex: 1;
+    }
+    .weather-news-text {
+        display: inline-block;
+        min-width: 100%;
+        padding-left: 100%;
+        will-change: transform;
+        animation: weather-news-marquee 16s linear infinite;
+        color: #cfe6ff;
+        font-size: 0.8em;
+    }
+    @keyframes weather-news-marquee {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-100%); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .weather-news-text {
+            animation: none;
+            padding-left: 0;
+            min-width: 0;
+        }
+    }
     .live-badge { display: inline-flex; align-items: center; margin-left: 10px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(222, 189, 255, 0.72); background: linear-gradient(135deg, rgba(108, 60, 188, 0.9), rgba(139, 92, 246, 0.9)); color: #f7ebff; font-size: 0.46em; letter-spacing: 0.8px; vertical-align: middle; }
     .mobile-func-drawer { display: none; }
     body.sunlight-readable {
@@ -123,7 +169,7 @@
     button { padding: 10px 15px; background: var(--btn); color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; }
     button:hover { filter: brightness(1.2); }
     
-    canvas { background: #111; border: 1px solid #444; width: 100%; max-width: 500px; height: 300px; cursor: crosshair; }
+    canvas { background: #111; border: 1px solid #444; width: 100%; max-width: 860px; height: 460px; cursor: crosshair; }
     table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.85em; background: #000; }
     th { background: #333; color: var(--accent); padding: 6px; border: 1px solid #555; }
     td { border: 1px solid #555; padding: 6px; text-align: center; }
@@ -149,6 +195,13 @@
         <span class="status-pill">CSV 匯出就緒</span>
     </div>
 </header>
+
+<div id="globalWeatherTicker" class="global-weather-ticker">
+    <span class="ticker-label">☁️ 工地氣象</span>
+    <div class="weather-news-marquee">
+        <span id="globalWeatherTickerText" class="weather-news-text">氣象快報：資料更新中...</span>
+    </div>
+</div>
 
 <div id="mobileFuncDrawer" class="mobile-func-drawer" aria-hidden="true">
     <button class="mobile-func-tab" type="button" onclick="toggleMobileFuncDrawer()">功能</button>
@@ -190,7 +243,15 @@
 <div id="tab-radar" class="tab-content active">
     <div style="display: flex; flex-wrap: wrap; gap: 20px;">
         <div style="flex: 1; min-width: 300px;">
-            <canvas id="radarCanvas" width="500" height="300"></canvas>
+            <div class="input-group" style="margin-bottom:8px; flex-wrap:wrap;">
+                <input type="file" id="radarImageInput" accept="image/*" onchange="loadRadarBackground(event)" style="min-width:190px;">
+                <button type="button" onclick="changeRadarViewScale(0.15)">🔍 放大畫面</button>
+                <button type="button" onclick="changeRadarViewScale(-0.15)">🔎 縮小畫面</button>
+                <button type="button" onclick="resetRadarViewScale()">↺ 重設比例</button>
+                <button type="button" style="background:#7f8c8d;" onclick="clearRadarBackground()">🗑️ 清除圖紙</button>
+                <span id="radarZoomInfo" style="color:#d7f4ff; font-size:0.82em;">畫面比例：100%</span>
+            </div>
+            <canvas id="radarCanvas" width="760" height="460"></canvas>
             <div id="hudDisplay" style="color:var(--radar); font-family:monospace; margin-top:5px; font-size:0.9em;">自動縮放啟動中... 滑鼠移至圖面追蹤座標</div>
         </div>
         <div style="flex: 1; min-width: 300px;">
@@ -247,6 +308,17 @@
     const MOBILE_VIEW_MODE_KEY = 'cm_stake:mobile_view_mode';
     const OWNER_LOCK_HASH_KEY = 'cm_owner_lock_hash_v1';
     const OWNER_UNLOCK_SESSION_KEY = 'cm_owner_lock_unlocked_v1';
+    const STAKE_WEATHER_REFRESH_MS = 12 * 60 * 1000;
+    let stakeWeatherAutoRefreshTimer = null;
+    const STAKE_WEATHER_CODE_MAP = {
+        0: '晴朗', 1: '晴時多雲', 2: '多雲', 3: '陰天',
+        45: '霧', 48: '霧凇',
+        51: '毛毛雨', 53: '小雨', 55: '細雨',
+        61: '小雨', 63: '中雨', 65: '大雨',
+        71: '小雪', 73: '中雪', 75: '大雪',
+        80: '陣雨', 81: '強陣雨', 82: '豪雨',
+        95: '雷雨', 96: '雷雨夾冰雹', 99: '強雷雨夾冰雹'
+    };
 
     function switchTab(evt, tabId) {
         document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -269,6 +341,93 @@
         document.getElementById(tabId).classList.add('active');
         targetBtn.classList.add('active');
         syncMobileViewModeForStake(tabId);
+    }
+
+    function setStakeWeatherTickerText(text, color = '#cfe6ff') {
+        const node = document.getElementById('globalWeatherTickerText');
+        if (!node) return;
+        node.innerText = text;
+        node.style.color = color;
+        node.style.animation = 'none';
+        void node.offsetWidth;
+        node.style.animation = 'weather-news-marquee 16s linear infinite';
+    }
+
+    async function getStakeDeviceCoordinates() {
+        if (!navigator.geolocation) return null;
+        return new Promise((resolve) => {
+            let done = false;
+            const finish = (value) => {
+                if (done) return;
+                done = true;
+                resolve(value);
+            };
+            const timer = setTimeout(() => finish(null), 7000);
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    clearTimeout(timer);
+                    finish({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+                },
+                () => {
+                    clearTimeout(timer);
+                    finish(null);
+                },
+                { enableHighAccuracy: false, timeout: 6500, maximumAge: 8 * 60 * 1000 }
+            );
+        });
+    }
+
+    function createStakeWeatherNews(weather) {
+        if (!weather) return '氣象快報：目前無法取得天氣資料，系統會自動重試。';
+        const rainProb = Math.round(Number(weather.rainProb) || 0);
+        const rainMm = Number(weather.rainMm) || 0;
+        const windKmh = Math.round(Number(weather.windKmh) || 0);
+        const tempC = Number(weather.tempC) || 0;
+        const label = STAKE_WEATHER_CODE_MAP[Number(weather.weatherCode)] || '天氣變化';
+        let advice = '可施工';
+        if (rainProb >= 80 || rainMm >= 5 || windKmh >= 40) advice = '建議暫緩';
+        else if (rainProb >= 50 || rainMm >= 1 || windKmh >= 28) advice = '注意施工';
+        return `氣象快報：目前${label}，${tempC.toFixed(1)}°C，降雨機率 ${rainProb}%、風速 ${windKmh} km/h；放樣建議 ${advice}。`;
+    }
+
+    async function refreshStakeWeatherTicker(silent = true) {
+        const coords = await getStakeDeviceCoordinates();
+        if (!coords) {
+            setStakeWeatherTickerText('氣象快報：定位不可用，系統會持續自動重試。', '#ffd48a');
+            return;
+        }
+        try {
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}&current=temperature_2m,weather_code,precipitation,wind_speed_10m&hourly=precipitation_probability&forecast_days=1&timezone=auto`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`weather http ${res.status}`);
+            const data = await res.json();
+            const current = data.current || {};
+            const rainProb = Array.isArray(data.hourly?.precipitation_probability)
+                ? Number(data.hourly.precipitation_probability[0] || 0)
+                : 0;
+            const weather = {
+                tempC: Number(current.temperature_2m) || 0,
+                weatherCode: Number(current.weather_code) || 0,
+                rainMm: Number(current.precipitation) || 0,
+                windKmh: Number(current.wind_speed_10m) || 0,
+                rainProb
+            };
+            setStakeWeatherTickerText(createStakeWeatherNews(weather), '#cfe6ff');
+        } catch (_e) {
+            setStakeWeatherTickerText('氣象快報：天氣服務暫時不可用，系統會自動重試。', '#ffd48a');
+            if (!silent && typeof alert === 'function') {
+                // Stake page has no toast utility; keep fallback minimal.
+                console.warn('天氣服務暫時不可用');
+            }
+        }
+    }
+
+    function startStakeWeatherAutoRefresh() {
+        if (stakeWeatherAutoRefreshTimer) clearInterval(stakeWeatherAutoRefreshTimer);
+        refreshStakeWeatherTicker(true);
+        stakeWeatherAutoRefreshTimer = setInterval(() => {
+            refreshStakeWeatherTicker(true);
+        }, STAKE_WEATHER_REFRESH_MS);
     }
 
     function getConfig() {
@@ -316,6 +475,10 @@
     let radarPoints = [];
     const canvas = document.getElementById('radarCanvas');
     const ctx = canvas.getContext('2d');
+    const RADAR_CANVAS_BASE_W = 760;
+    const RADAR_CANVAS_BASE_H = 460;
+    let radarCanvasViewScale = 1;
+    let radarBackgroundImage = null;
     let currentScale = 1, currentCx = 0, currentCy = 0;
     
     function buildMaster_3D_Converter(x, y, z, config) {
@@ -332,9 +495,15 @@
         const config = getConfig();
         
         ctx.clearRect(0,0,canvas.width,canvas.height);
+        if (radarBackgroundImage) {
+            ctx.save();
+            ctx.globalAlpha = 0.32;
+            ctx.drawImage(radarBackgroundImage, 0, 0, canvas.width, canvas.height);
+            ctx.restore();
+        }
         ctx.strokeStyle = '#113311';
-        for(let i=0; i<500; i+=20) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,300); ctx.stroke(); }
-        for(let i=0; i<300; i+=20) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(500,i); ctx.stroke(); }
+        for(let i=0; i<canvas.width; i+=20) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke(); }
+        for(let i=0; i<canvas.height; i+=20) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke(); }
 
         if (radarPoints.length === 0) return;
 
@@ -374,11 +543,60 @@
         document.getElementById('pName').value=''; document.getElementById('pX').value=''; document.getElementById('pY').value='';
     }
 
+    function loadRadarBackground(event) {
+        const file = event?.target?.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+                radarBackgroundImage = img;
+                updateRadarUI();
+            };
+            img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function clearRadarBackground() {
+        radarBackgroundImage = null;
+        const input = document.getElementById('radarImageInput');
+        if (input) input.value = '';
+        updateRadarUI();
+    }
+
+    function applyRadarViewScale() {
+        canvas.style.width = `${Math.round(RADAR_CANVAS_BASE_W * radarCanvasViewScale)}px`;
+        canvas.style.height = `${Math.round(RADAR_CANVAS_BASE_H * radarCanvasViewScale)}px`;
+        const chip = document.getElementById('radarZoomInfo');
+        if (chip) chip.innerText = `畫面比例：${Math.round(radarCanvasViewScale * 100)}%`;
+    }
+
+    function changeRadarViewScale(delta) {
+        radarCanvasViewScale = Math.min(2.4, Math.max(0.75, Number((radarCanvasViewScale + delta).toFixed(2))));
+        applyRadarViewScale();
+    }
+
+    function resetRadarViewScale() {
+        radarCanvasViewScale = 1;
+        applyRadarViewScale();
+    }
+
+    function canvasClientToWorld(e) {
+        const r = canvas.getBoundingClientRect();
+        const localX = (e.clientX - r.left) * (canvas.width / r.width);
+        const localY = (e.clientY - r.top) * (canvas.height / r.height);
+        return {
+            x: currentCx + (localX - canvas.width / 2) / currentScale,
+            y: currentCy - (localY - canvas.height / 2) / currentScale
+        };
+    }
+
     canvas.addEventListener('mousemove', (e) => {
         if(radarPoints.length === 0) return;
-        const r = canvas.getBoundingClientRect();
-        let realX = currentCx + (e.clientX - r.left - canvas.width/2) / currentScale;
-        let realY = currentCy - (e.clientY - r.top - canvas.height/2) / -currentScale;
+        const world = canvasClientToWorld(e);
+        let realX = world.x;
+        let realY = world.y;
         const g = buildMaster_3D_Converter(realX, realY, 0, getConfig());
         document.getElementById('hudDisplay').innerText = `圖面(${realX.toFixed(1)}, ${realY.toFixed(1)}) ➔ E:${g.E}, N:${g.N}`;
     });
@@ -768,8 +986,12 @@
         if (document.visibilityState !== 'visible') {
             sessionStorage.removeItem(OWNER_UNLOCK_SESSION_KEY);
             updateOwnerLockButton();
+            return;
         }
+        refreshStakeWeatherTicker(true);
     });
+    startStakeWeatherAutoRefresh();
+    applyRadarViewScale();
     updateRadarUI();
 </script>
 </body>

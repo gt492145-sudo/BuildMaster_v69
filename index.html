@@ -70,7 +70,7 @@
         overflow: hidden;
         white-space: nowrap;
     }
-    #siteWeatherNews {
+    .weather-news-text {
         display: inline-block;
         min-width: 100%;
         padding-left: 100%;
@@ -81,8 +81,31 @@
         0% { transform: translateX(0); }
         100% { transform: translateX(-100%); }
     }
+    .global-weather-ticker {
+        position: sticky;
+        top: 0;
+        z-index: 2100;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 12px;
+        border-top: 1px solid rgba(148, 200, 255, 0.32);
+        border-bottom: 1px solid rgba(148, 200, 255, 0.32);
+        background: rgba(8, 16, 30, 0.92);
+        backdrop-filter: blur(7px) saturate(115%);
+    }
+    .global-weather-ticker .ticker-label {
+        flex: 0 0 auto;
+        font-size: 0.76em;
+        color: #9ad4ff;
+        font-weight: 700;
+    }
+    .global-weather-ticker .weather-news-marquee {
+        flex: 1;
+        margin-top: 0;
+    }
     @media (prefers-reduced-motion: reduce) {
-        #siteWeatherNews {
+        .weather-news-text {
             animation: none;
             padding-left: 0;
             min-width: 0;
@@ -328,12 +351,12 @@
     }
     body.weather-scene-caution {
         background-image: linear-gradient(rgba(38, 28, 8, 0.28), rgba(38, 28, 8, 0.28)), url('app-wallpaper.jpg');
-        --weather-rain-opacity: 0.16;
-        --weather-rain-speed: 1.25s;
-        --weather-rain-near-opacity: 0.12;
-        --weather-rain-near-speed: 0.95s;
-        --weather-glow-opacity: 0.08;
-        --weather-fog-opacity: 0.15;
+        --weather-rain-opacity: 0.26;
+        --weather-rain-speed: 1.05s;
+        --weather-rain-near-opacity: 0.20;
+        --weather-rain-near-speed: 0.78s;
+        --weather-glow-opacity: 0.14;
+        --weather-fog-opacity: 0.22;
     }
     body.weather-scene-caution .main-layout {
         box-shadow: inset 0 0 0 1px rgba(255, 208, 126, 0.24), 0 14px 34px rgba(146, 102, 42, 0.28);
@@ -344,16 +367,16 @@
     }
     body.weather-scene-bad {
         background-image: linear-gradient(rgba(24, 10, 14, 0.42), rgba(24, 10, 14, 0.42)), url('app-wallpaper.jpg');
-        --weather-rain-opacity: 0.32;
-        --weather-rain-speed: 0.82s;
-        --weather-rain-near-opacity: 0.24;
-        --weather-rain-near-speed: 0.58s;
-        --weather-glow-opacity: 0.05;
-        --weather-fog-opacity: 0.2;
+        --weather-rain-opacity: 0.45;
+        --weather-rain-speed: 0.62s;
+        --weather-rain-near-opacity: 0.34;
+        --weather-rain-near-speed: 0.42s;
+        --weather-glow-opacity: 0.08;
+        --weather-fog-opacity: 0.28;
     }
     body.weather-scene-bad .main-layout {
         box-shadow: inset 0 0 0 1px rgba(255, 132, 132, 0.26), 0 14px 38px rgba(128, 32, 32, 0.34);
-        animation: weather-bad-weak-flash 9s linear infinite;
+        animation: weather-bad-weak-flash 6s linear infinite;
     }
     body.weather-scene-bad #siteWeatherInfo,
     body.weather-scene-bad #siteWeatherSafety {
@@ -592,6 +615,13 @@
         <button id="contrastAutoToggle" class="mode-btn" onclick="toggleAutoContrastMode()">自動: 關</button>
     </div>
 </header>
+
+<div id="globalWeatherTicker" class="global-weather-ticker">
+    <span class="ticker-label">☁️ 工地氣象</span>
+    <div class="bim-note weather-news-marquee" style="margin-top:0; color:#cfe6ff;">
+        <span id="globalWeatherTickerText" class="weather-news-text">氣象快報：資料更新中...</span>
+    </div>
+</div>
 
 <div id="mobileFuncDrawer" class="mobile-drawer" aria-hidden="true">
     <button id="mobileFuncTab" class="mobile-func-tab" type="button" onclick="toggleMobileFuncDrawer()">功能</button>
@@ -1028,7 +1058,7 @@
                 <div id="siteWeatherInfo" class="bim-note" style="margin-top:4px;">天氣：尚未更新</div>
                 <div id="siteWeatherSafety" class="bim-note" style="margin-top:4px; color:#bdeecf;">施工建議：天氣自動更新中</div>
                 <div class="bim-note weather-news-marquee" style="margin-top:4px; color:#cfe6ff;">
-                    <span id="siteWeatherNews">氣象快報：待更新</span>
+                    <span id="siteWeatherNews" class="weather-news-text">氣象快報：待更新</span>
                 </div>
             </div>
             <div class="input-wrapper">
@@ -4859,14 +4889,17 @@
     }
 
     function setSiteWeatherNewsText(text, color) {
-        const news = document.getElementById('siteWeatherNews');
-        if (!news) return;
-        news.innerText = text;
-        if (color) news.style.color = color;
-        // Restart marquee each time bulletin text changes.
-        news.style.animation = 'none';
-        void news.offsetWidth;
-        news.style.animation = 'weather-news-marquee 16s linear infinite';
+        const applyText = (node) => {
+            if (!node) return;
+            node.innerText = text;
+            if (color) node.style.color = color;
+            // Restart marquee each time bulletin text changes.
+            node.style.animation = 'none';
+            void node.offsetWidth;
+            node.style.animation = 'weather-news-marquee 16s linear infinite';
+        };
+        applyText(document.getElementById('siteWeatherNews'));
+        applyText(document.getElementById('globalWeatherTickerText'));
     }
 
     function updateSiteWeatherUI(weather, errorText = '') {
