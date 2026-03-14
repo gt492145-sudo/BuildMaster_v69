@@ -152,6 +152,7 @@
             display: none !important;
         }
         body.mobile-focus-mode { padding-top: 10px; }
+        .radar-canvas-wrap { max-height: 52vh; }
     }
     
     .global-settings { background: rgba(0,0,0,0.5); padding: 15px; border: 1px dashed var(--accent); border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; }
@@ -169,7 +170,18 @@
     button { padding: 10px 15px; background: var(--btn); color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; }
     button:hover { filter: brightness(1.2); }
     
-    canvas { background: #111; border: 1px solid #444; width: 100%; max-width: 860px; height: 460px; cursor: crosshair; }
+    .radar-canvas-wrap {
+        width: 100%;
+        max-width: 100%;
+        max-height: min(58vh, 560px);
+        overflow: auto;
+        border: 1px solid rgba(255,255,255,0.16);
+        border-radius: 8px;
+        background: rgba(6, 12, 22, 0.75);
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-x pan-y;
+    }
+    canvas { display: block; background: #111; border: 1px solid #444; width: 100%; max-width: 860px; height: 460px; cursor: crosshair; touch-action: pan-x pan-y pinch-zoom; }
     table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.85em; background: #000; }
     th { background: #333; color: var(--accent); padding: 6px; border: 1px solid #555; }
     td { border: 1px solid #555; padding: 6px; text-align: center; }
@@ -251,7 +263,9 @@
                 <button type="button" style="background:#7f8c8d;" onclick="clearRadarBackground()">🗑️ 清除圖紙</button>
                 <span id="radarZoomInfo" style="color:#d7f4ff; font-size:0.82em;">畫面比例：100%</span>
             </div>
-            <canvas id="radarCanvas" width="760" height="460"></canvas>
+            <div class="radar-canvas-wrap">
+                <canvas id="radarCanvas" width="760" height="460"></canvas>
+            </div>
             <div id="hudDisplay" style="color:var(--radar); font-family:monospace; margin-top:5px; font-size:0.9em;">自動縮放啟動中... 滑鼠移至圖面追蹤座標</div>
         </div>
         <div style="flex: 1; min-width: 300px;">
@@ -266,6 +280,26 @@
                 <tbody id="reportBody"></tbody>
             </table>
             <button style="width:100%; background:#27ae60; margin-top:10px;" onclick="exportCSV()">💽 匯出 CSV (儀器用)</button>
+            <div style="margin-top:12px; border:1px solid rgba(255,255,255,0.2); border-radius:8px; padding:10px; background:rgba(0,0,0,0.28);">
+                <div style="color:var(--accent); font-weight:800; margin-bottom:8px;">📐 圖旁尺寸快速算面積</div>
+                <div class="input-group">
+                    <span style="width:40px;">長</span>
+                    <input type="number" id="quickLen" placeholder="例如 8.5">
+                </div>
+                <div class="input-group">
+                    <span style="width:40px;">寬</span>
+                    <input type="number" id="quickWid" placeholder="例如 3.2">
+                </div>
+                <div class="input-group">
+                    <span style="width:70px;">尺寸單位</span>
+                    <select id="quickUnit" style="padding:8px; background:#222; color:#fff; border:1px solid #555; flex:1;">
+                        <option value="m">公尺 (m)</option>
+                        <option value="cm">公分 (cm)</option>
+                    </select>
+                    <button type="button" style="background:#8e44ad;" onclick="runQuickRectArea()">🧮 計算</button>
+                </div>
+                <div id="quickAreaResult" class="result-box" style="margin-top:8px; font-size:1em;">等待計算...</div>
+            </div>
         </div>
     </div>
 </div>
@@ -561,7 +595,16 @@
     function clearRadarBackground() {
         radarBackgroundImage = null;
         const input = document.getElementById('radarImageInput');
-        if (input) input.value = '';
+        if (input) {
+            // iOS Safari occasionally keeps stale file input state;
+            // replace the node to force a full reset.
+            const fresh = input.cloneNode(true);
+            input.parentNode.replaceChild(fresh, input);
+        }
+        const zoomChip = document.getElementById('radarZoomInfo');
+        if (zoomChip) zoomChip.innerText = `畫面比例：${Math.round(radarCanvasViewScale * 100)}%｜圖紙：已清除`;
+        const hud = document.getElementById('hudDisplay');
+        if (hud) hud.innerText = '圖紙底圖已清除，僅保留放樣格網與點位資料。';
         updateRadarUI();
     }
 
@@ -645,6 +688,22 @@
     function runSlope() {
         const h = parseFloat(document.getElementById('sH').value)||0, d = parseFloat(document.getElementById('sD').value)||0, s = parseFloat(document.getElementById('sS').value)||0;
         document.getElementById('resSlope').innerHTML = `目標高程: <span style="color:#fff">${(h + d*(s/100)).toFixed(3)} m</span>`;
+    }
+
+    function runQuickRectArea() {
+        const lenRaw = parseFloat(document.getElementById('quickLen').value);
+        const widRaw = parseFloat(document.getElementById('quickWid').value);
+        const unit = document.getElementById('quickUnit').value;
+        const out = document.getElementById('quickAreaResult');
+        if (!out) return;
+        if (!Number.isFinite(lenRaw) || !Number.isFinite(widRaw) || lenRaw <= 0 || widRaw <= 0) {
+            out.innerHTML = '請輸入有效的長、寬尺寸（需大於 0）。';
+            return;
+        }
+        const lenM = unit === 'cm' ? (lenRaw / 100) : lenRaw;
+        const widM = unit === 'cm' ? (widRaw / 100) : widRaw;
+        const areaM2 = lenM * widM;
+        out.innerHTML = `面積: <span style="color:#fff">${areaM2.toFixed(2)} 平方公尺</span><br>坪數: <span style="color:#fff">${(areaM2 * 0.3025).toFixed(2)} 坪</span>`;
     }
 
     function isMobileViewport() {
