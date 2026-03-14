@@ -255,6 +255,7 @@ struct ContentView: View {
             isViewActive = false
             stopSafetyMonkey()
             showingAIAssistant = false
+            showingCorrectionHistory = false
             sessionManager.suspendSessionForViewDisappearance()
         }
         .onAppear {
@@ -275,6 +276,21 @@ struct ContentView: View {
         DispatchQueue.main.async {
             guard self.isViewActive, !self.showingAIAssistant else { return }
             self.showingAIAssistant = true
+        }
+    }
+
+    private func presentCorrectionHistorySafely() {
+        guard isViewActive, !showingCorrectionHistory else { return }
+        DispatchQueue.main.async {
+            guard self.isViewActive, !self.showingCorrectionHistory else { return }
+            self.showingAIAssistant = false
+            self.showingRebarConfig = false
+            self.showingVolumeScan = false
+            self.showingCrackInspector = false
+            self.showingQuantumMode = false
+            self.showingTestChecklist = false
+            self.showingMonkeyAccessSheet = false
+            self.showingCorrectionHistory = true
         }
     }
 
@@ -568,7 +584,8 @@ struct ContentView: View {
 
             ScrollView(.vertical, showsIndicators: true) {
                 LazyVStack(spacing: 10) {
-                    switch selectedControlPage {
+                    if isViewActive {
+                        switch selectedControlPage {
                 case .measure:
                     measureControlSection
                 case .ai:
@@ -1088,7 +1105,7 @@ struct ContentView: View {
                     }
 
                     Button("AI 矯正比對歷史") {
-                        showingCorrectionHistory = true
+                        presentCorrectionHistorySafely()
                     }
                     .buttonStyle(.bordered)
                     .frame(maxWidth: .infinity)
@@ -1113,6 +1130,7 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.purple)
                     .frame(maxWidth: .infinity)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -2055,7 +2073,7 @@ struct ContentView: View {
 
                 if !sessionManager.crackFindings.isEmpty {
                     Section("漏點定位清單") {
-                        ForEach(Array(sessionManager.crackFindings.enumerated()), id: \.element.id) { index, finding in
+                        ForEach(Array(sessionManager.crackFindings.enumerated()), id: \.offset) { index, finding in
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("#\(index + 1) \(crackZoneText(for: finding.box))")
                                     .font(.footnote.bold())
@@ -2104,14 +2122,21 @@ struct ContentView: View {
                     .scaledToFit()
                     .frame(width: geo.size.width, height: geo.size.height)
 
-                ForEach(Array(findings.enumerated()), id: \.element.id) { index, finding in
+                ForEach(Array(findings.enumerated()), id: \.offset) { index, finding in
                     let rect = rectForNormalizedBox(finding.box, in: fitted)
+                    let safeRectWidth = rect.width.isFinite ? max(1, rect.width) : 1
+                    let safeRectHeight = rect.height.isFinite ? max(1, rect.height) : 1
+                    let safeRectMidX = rect.midX.isFinite ? rect.midX : (geo.size.width / 2)
+                    let safeRectMidY = rect.midY.isFinite ? rect.midY : (geo.size.height / 2)
+                    let safeRectMinY = rect.minY.isFinite ? rect.minY : 24
+                    let safeLabelX = max(54, min(safeRectMidX, max(54, geo.size.width - 54)))
+                    let safeLabelY = max(12, safeRectMinY - 12)
                     let labelColor: Color =
                         finding.severity == "高" ? .red : (finding.severity == "中" ? .orange : .yellow)
                     Rectangle()
                         .stroke(labelColor, lineWidth: 2)
-                        .frame(width: rect.width, height: rect.height)
-                        .position(x: rect.midX, y: rect.midY)
+                        .frame(width: safeRectWidth, height: safeRectHeight)
+                        .position(x: safeRectMidX, y: safeRectMidY)
 
                     Text("#\(index + 1) \(crackZoneText(for: finding.box))")
                         .font(.caption2.bold())
@@ -2121,8 +2146,8 @@ struct ContentView: View {
                         .foregroundStyle(labelColor)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                         .position(
-                            x: max(54, min(rect.midX, geo.size.width - 54)),
-                            y: max(12, rect.minY - 12)
+                            x: safeLabelX,
+                            y: safeLabelY
                         )
                 }
             }
