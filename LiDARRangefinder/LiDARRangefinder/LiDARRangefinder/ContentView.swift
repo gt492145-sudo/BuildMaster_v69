@@ -254,6 +254,7 @@ struct ContentView: View {
         .onDisappear {
             isViewActive = false
             stopSafetyMonkey()
+            showingAIAssistant = false
             sessionManager.suspendSessionForViewDisappearance()
         }
         .onAppear {
@@ -269,6 +270,14 @@ struct ContentView: View {
         }
     }
 
+    private func presentAIAssistantSafely() {
+        guard isViewActive, !showingAIAssistant else { return }
+        DispatchQueue.main.async {
+            guard self.isViewActive, !self.showingAIAssistant else { return }
+            self.showingAIAssistant = true
+        }
+    }
+
     private func syncMeasureDraftFromManager(force: Bool) {
         if measureDraftInitialized && !force { return }
         draftDesignTargetDistanceMeters = sessionManager.designTargetDistanceMeters
@@ -279,55 +288,24 @@ struct ContentView: View {
         measureDraftInitialized = true
     }
 
-    private func commitDraftDesignDistanceIfNeeded() {
+    private func applyMeasureDraftToSession() {
         guard measureDraftInitialized else { return }
-        let next = draftDesignTargetDistanceMeters
-        if abs(next - sessionManager.designTargetDistanceMeters) < 0.0001 { return }
-        deferSessionMutation { manager in
-            manager.setDesignTargetDistanceMeters(next)
+        if abs(draftDesignTargetDistanceMeters - sessionManager.designTargetDistanceMeters) >= 0.0001 {
+            sessionManager.setDesignTargetDistanceMeters(draftDesignTargetDistanceMeters)
         }
-    }
-
-    private func commitDraftDeviationToleranceIfNeeded() {
-        guard measureDraftInitialized else { return }
-        let next = draftDeviationToleranceCm
-        if abs(next - sessionManager.deviationToleranceCm) < 0.0001 { return }
-        deferSessionMutation { manager in
-            manager.setDeviationToleranceCm(next)
+        if abs(draftDeviationToleranceCm - sessionManager.deviationToleranceCm) >= 0.0001 {
+            sessionManager.setDeviationToleranceCm(draftDeviationToleranceCm)
         }
-    }
-
-    private func commitDraftHighPrecisionIfNeeded() {
-        guard measureDraftInitialized else { return }
-        let next = draftHighPrecisionContinuousModeEnabled
-        if next == sessionManager.highPrecisionContinuousModeEnabled { return }
-        deferSessionMutation { manager in
-            manager.setHighPrecisionContinuousModeEnabled(next)
+        if draftHighPrecisionContinuousModeEnabled != sessionManager.highPrecisionContinuousModeEnabled {
+            sessionManager.setHighPrecisionContinuousModeEnabled(draftHighPrecisionContinuousModeEnabled)
         }
-    }
-
-    private func commitDraftHighestModeLockIfNeeded() {
-        guard measureDraftInitialized else { return }
-        let next = draftHighestModeLockEnabled
-        if next == sessionManager.highestModeLockEnabled { return }
-        deferSessionMutation { manager in
-            manager.setHighestModeLockEnabled(next)
-            DispatchQueue.main.async {
-                self.syncMeasureDraftFromManager(force: true)
-            }
+        if draftHighestModeLockEnabled != sessionManager.highestModeLockEnabled {
+            sessionManager.setHighestModeLockEnabled(draftHighestModeLockEnabled)
         }
-    }
-
-    private func commitDraftQAProfileIfNeeded() {
-        guard measureDraftInitialized else { return }
-        let next = draftQAProfile
-        if next == sessionManager.qaProfile { return }
-        deferSessionMutation { manager in
-            manager.setQAProfile(next)
-            DispatchQueue.main.async {
-                self.syncMeasureDraftFromManager(force: true)
-            }
+        if draftQAProfile != sessionManager.qaProfile {
+            sessionManager.setQAProfile(draftQAProfile)
         }
+        syncMeasureDraftFromManager(force: true)
     }
 
     private var mainPagePicker: some View {
@@ -620,7 +598,7 @@ struct ContentView: View {
                     .tint(.indigo)
 
                     Button("AI 助手版（現場建議）") {
-                        showingAIAssistant = true
+                        presentAIAssistantSafely()
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.purple)
@@ -1152,16 +1130,12 @@ struct ContentView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(String(format: "設計距離：%.2f m", draftDesignTargetDistanceMeters))
-                Slider(value: $draftDesignTargetDistanceMeters, in: 0.2...20, step: 0.05) { editing in
-                    if !editing { commitDraftDesignDistanceIfNeeded() }
-                }
+                Slider(value: $draftDesignTargetDistanceMeters, in: 0.2...20, step: 0.05)
             }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(String(format: "偏差容差：±%.1f cm", draftDeviationToleranceCm))
-                Slider(value: $draftDeviationToleranceCm, in: 0.5...20, step: 0.5) { editing in
-                    if !editing { commitDraftDeviationToleranceIfNeeded() }
-                }
+                Slider(value: $draftDeviationToleranceCm, in: 0.5...20, step: 0.5)
             }
 
             Toggle(isOn: $draftHighPrecisionContinuousModeEnabled) {
@@ -1185,7 +1159,14 @@ struct ContentView: View {
             .tint(.blue)
             .disabled(draftHighestModeLockEnabled)
 
+            Button("套用量測設定") {
+                applyMeasureDraftToSession()
+            }
+            .buttonStyle(.bordered)
+            .frame(maxWidth: .infinity)
+
             Button("記錄量測") {
+                applyMeasureDraftToSession()
                 performRecordMeasurement()
             }
             .buttonStyle(.borderedProminent)
@@ -1209,15 +1190,6 @@ struct ContentView: View {
         }
         .onAppear {
             syncMeasureDraftFromManager(force: false)
-        }
-        .onChange(of: draftHighPrecisionContinuousModeEnabled) {
-            commitDraftHighPrecisionIfNeeded()
-        }
-        .onChange(of: draftHighestModeLockEnabled) {
-            commitDraftHighestModeLockIfNeeded()
-        }
-        .onChange(of: draftQAProfile) {
-            commitDraftQAProfileIfNeeded()
         }
     }
 
