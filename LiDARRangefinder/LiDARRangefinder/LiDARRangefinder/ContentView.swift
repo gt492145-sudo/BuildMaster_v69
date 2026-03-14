@@ -626,7 +626,9 @@ struct ContentView: View {
             ScrollView(.vertical, showsIndicators: true) {
                 LazyVStack(spacing: 10) {
                     if isViewActive {
-                        switch selectedControlPage {
+                        AnyView(
+                            Group {
+                                switch selectedControlPage {
                 case .measure:
                     measureControlSection
                 case .ai:
@@ -1171,7 +1173,9 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.purple)
                     .frame(maxWidth: .infinity)
-                        }
+                                }
+                            }
+                        )
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
