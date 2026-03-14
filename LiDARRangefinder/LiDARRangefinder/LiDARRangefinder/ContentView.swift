@@ -567,20 +567,24 @@ struct ContentView: View {
             }
 
             ScrollView(.vertical, showsIndicators: true) {
-                VStack(spacing: 10) {
+                LazyVStack(spacing: 10) {
                     switch selectedControlPage {
                 case .measure:
                     measureControlSection
                 case .ai:
                     Button("AI QA 一鍵矯正") {
-                        sessionManager.applyAIQACorrection()
+                        deferSessionMutation { manager in
+                            manager.applyAIQACorrection()
+                        }
                     }
                     .buttonStyle(.bordered)
                     .frame(maxWidth: .infinity)
                     .disabled(!sessionManager.aiCanAutoCorrect)
 
                     Button(sessionManager.autoCorrectionEnabled ? "停止自動連續矯正" : "啟動自動連續矯正") {
-                        sessionManager.toggleAutoCorrection()
+                        deferSessionMutation { manager in
+                            manager.toggleAutoCorrection()
+                        }
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(sessionManager.autoCorrectionEnabled ? .red : .blue)
@@ -588,7 +592,11 @@ struct ContentView: View {
 
                     Picker("自動矯正策略", selection: Binding(
                         get: { sessionManager.autoCorrectionStrategy },
-                        set: { sessionManager.setAutoCorrectionStrategy($0) }
+                        set: { value in
+                            deferSessionMutation { manager in
+                                manager.setAutoCorrectionStrategy(value)
+                            }
+                        }
                     )) {
                         ForEach(AIAutoCorrectionStrategy.allCases) { strategy in
                             Text(strategy.displayName).tag(strategy)
