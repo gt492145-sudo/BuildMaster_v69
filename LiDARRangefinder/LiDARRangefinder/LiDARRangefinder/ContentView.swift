@@ -69,6 +69,7 @@ struct ContentView: View {
     @State private var monkeyPasswordInput = ""
     @State private var monkeyPasswordConfirmInput = ""
     @State private var monkeyPasswordError = ""
+    @State private var showingMonkeyReportSheet = false
     @State private var showingIFCFileImporter = false
     @State private var selectedBlueprintPhotoItem: PhotosPickerItem?
     @State private var blueprintPlanWidthMeters: Double = 8.85
@@ -188,6 +189,12 @@ struct ContentView: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackgroundInteraction(.enabled)
         }
+        .sheet(isPresented: $showingMonkeyReportSheet) {
+            monkeyReportSheetView
+                .presentationDetents([.fraction(0.36), .medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled)
+        }
         .fileImporter(
             isPresented: $showingIFCFileImporter,
             allowedContentTypes: supportedIFCImportTypes,
@@ -290,6 +297,7 @@ struct ContentView: View {
         showingCrackInspector = false
         showingQuantumMode = false
         showingTestChecklist = false
+        showingMonkeyReportSheet = false
     }
 
     private func openModalSheet(_ target: ModalSheetTarget) {
@@ -1091,7 +1099,7 @@ struct ContentView: View {
 
                     HStack(spacing: 10) {
                         Button("📋 生成猴子測試報告") {
-                            buildMonkeyTestReport()
+                            buildMonkeyTestReport(showSheet: true)
                         }
                         .buttonStyle(.bordered)
                         .frame(maxWidth: .infinity)
@@ -2535,6 +2543,42 @@ struct ContentView: View {
         }
     }
 
+    private var monkeyReportSheetView: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 10) {
+                if monkeyReportLines.isEmpty {
+                    Text("目前尚無猴子測試報告")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ScrollView(.vertical, showsIndicators: true) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(Array(monkeyReportLines.enumerated()), id: \.offset) { _, line in
+                                Text(line)
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.92))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                    }
+                    .padding(10)
+                    .background(.black.opacity(0.2))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+            }
+            .padding(14)
+            .navigationTitle("猴子測試報告")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("關閉") {
+                        showingMonkeyReportSheet = false
+                    }
+                }
+            }
+        }
+    }
+
     private enum MainPage: String, CaseIterable, Identifiable {
         case page1
         case page2
@@ -2693,7 +2737,7 @@ struct ContentView: View {
         safetyMonkeyLastAction = "已停止"
         appendMonkeyAction("已停止")
         monkeyLastStoppedAt = Date()
-        buildMonkeyTestReport()
+        buildMonkeyTestReport(showSheet: true)
     }
 
     private func runSafetyMonkeyTick(sessionManager: LiDARSessionManager?) {
@@ -2754,7 +2798,7 @@ struct ContentView: View {
         }
     }
 
-    private func buildMonkeyTestReport() {
+    private func buildMonkeyTestReport(showSheet: Bool = false) {
         let now = Date()
         let startedAt = monkeySessionStartedAt ?? now
         let endedAt = monkeyLastStoppedAt ?? now
@@ -2775,5 +2819,11 @@ struct ContentView: View {
             }
         }
         monkeyReportLines = lines
+        if showSheet {
+            DispatchQueue.main.async {
+                guard self.isViewActive else { return }
+                self.showingMonkeyReportSheet = true
+            }
+        }
     }
 }
