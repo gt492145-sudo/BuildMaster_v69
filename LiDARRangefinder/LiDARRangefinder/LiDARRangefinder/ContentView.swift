@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 import simd
 import CryptoKit
 import Foundation
+import Dispatch
 
 struct ContentView: View {
     private enum TacticalDragAxis {
@@ -64,7 +65,6 @@ struct ContentView: View {
     @State private var tacticalMenuDragOffset: CGFloat = 0
     @State private var tacticalMenuDragAxis: TacticalDragAxis?
     @State private var isViewActive = false
-    @State private var pendingSessionMutationTask: Task<Void, Never>?
     private let minRecordScore = 85
     private let tacticalMenuWidth: CGFloat = 230
     private let touchOpenCloseThreshold: CGFloat = 34
@@ -243,7 +243,6 @@ struct ContentView: View {
         }
         .onDisappear {
             isViewActive = false
-            pendingSessionMutationTask?.cancel()
             stopSafetyMonkey()
             sessionManager.suspendSessionForViewDisappearance()
         }
@@ -252,12 +251,11 @@ struct ContentView: View {
         }
     }
 
-    private func deferSessionMutation(_ mutation: @escaping @MainActor (LiDARSessionManager) -> Void) {
-        pendingSessionMutationTask?.cancel()
-        pendingSessionMutationTask = Task { @MainActor in
-            await Task.yield()
-            guard isViewActive, !Task.isCancelled else { return }
-            mutation(sessionManager)
+    private func deferSessionMutation(_ mutation: @escaping (LiDARSessionManager) -> Void) {
+        guard isViewActive else { return }
+        DispatchQueue.main.async {
+            guard self.isViewActive else { return }
+            mutation(self.sessionManager)
         }
     }
 
