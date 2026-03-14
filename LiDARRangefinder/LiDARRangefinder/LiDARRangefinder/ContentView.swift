@@ -65,6 +65,12 @@ struct ContentView: View {
     @State private var tacticalMenuDragOffset: CGFloat = 0
     @State private var tacticalMenuDragAxis: TacticalDragAxis?
     @State private var isViewActive = false
+    @State private var measureDraftInitialized = false
+    @State private var draftDesignTargetDistanceMeters: Double = 2.0
+    @State private var draftDeviationToleranceCm: Double = 3.0
+    @State private var draftHighPrecisionContinuousModeEnabled = true
+    @State private var draftHighestModeLockEnabled = false
+    @State private var draftQAProfile: QATuningProfile = .ultra
     private let minRecordScore = 85
     private let tacticalMenuWidth: CGFloat = 230
     private let touchOpenCloseThreshold: CGFloat = 34
@@ -190,6 +196,9 @@ struct ContentView: View {
         }
         .onChange(of: selectedControlPage) {
             syncAutoClearViewMode(for: selectedControlPage)
+            if selectedControlPage == .measure {
+                syncMeasureDraftFromManager(force: true)
+            }
         }
         .onChange(of: autoClearViewDuringMeasure) {
             syncAutoClearViewMode(for: selectedControlPage)
@@ -230,6 +239,7 @@ struct ContentView: View {
             clearViewAutoApplied = false
             setClearViewMode(false)
             syncAutoClearViewMode(for: selectedControlPage)
+            syncMeasureDraftFromManager(force: true)
             sessionManager.resumeSessionIfNeeded()
         }
         .onChange(of: scenePhase) {
@@ -256,6 +266,67 @@ struct ContentView: View {
         DispatchQueue.main.async {
             guard self.isViewActive else { return }
             mutation(self.sessionManager)
+        }
+    }
+
+    private func syncMeasureDraftFromManager(force: Bool) {
+        if measureDraftInitialized && !force { return }
+        draftDesignTargetDistanceMeters = sessionManager.designTargetDistanceMeters
+        draftDeviationToleranceCm = sessionManager.deviationToleranceCm
+        draftHighPrecisionContinuousModeEnabled = sessionManager.highPrecisionContinuousModeEnabled
+        draftHighestModeLockEnabled = sessionManager.highestModeLockEnabled
+        draftQAProfile = sessionManager.qaProfile
+        measureDraftInitialized = true
+    }
+
+    private func commitDraftDesignDistanceIfNeeded() {
+        guard measureDraftInitialized else { return }
+        let next = draftDesignTargetDistanceMeters
+        if abs(next - sessionManager.designTargetDistanceMeters) < 0.0001 { return }
+        deferSessionMutation { manager in
+            manager.setDesignTargetDistanceMeters(next)
+        }
+    }
+
+    private func commitDraftDeviationToleranceIfNeeded() {
+        guard measureDraftInitialized else { return }
+        let next = draftDeviationToleranceCm
+        if abs(next - sessionManager.deviationToleranceCm) < 0.0001 { return }
+        deferSessionMutation { manager in
+            manager.setDeviationToleranceCm(next)
+        }
+    }
+
+    private func commitDraftHighPrecisionIfNeeded() {
+        guard measureDraftInitialized else { return }
+        let next = draftHighPrecisionContinuousModeEnabled
+        if next == sessionManager.highPrecisionContinuousModeEnabled { return }
+        deferSessionMutation { manager in
+            manager.setHighPrecisionContinuousModeEnabled(next)
+        }
+    }
+
+    private func commitDraftHighestModeLockIfNeeded() {
+        guard measureDraftInitialized else { return }
+        let next = draftHighestModeLockEnabled
+        if next == sessionManager.highestModeLockEnabled { return }
+        deferSessionMutation { manager in
+            manager.setHighestModeLockEnabled(next)
+            DispatchQueue.main.async {
+                self.syncMeasureDraftFromManager(force: true)
+            }
+        }
+    }
+
+    private func commitDraftQAProfileIfNeeded() {
+        guard measureDraftInitialized else { return }
+        let next = draftQAProfile
+        if next == sessionManager.qaProfile { return }
+        deferSessionMutation { manager in
+            manager.setQAProfile(next)
+            DispatchQueue.main.async {
+                self.syncMeasureDraftFromManager(force: true)
+            }
         }
     }
 
@@ -1080,70 +1151,39 @@ struct ContentView: View {
                 .tint(.cyan)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(String(format: "設計距離：%.2f m", sessionManager.designTargetDistanceMeters))
-                Slider(value: Binding(
-                    get: { sessionManager.designTargetDistanceMeters },
-                    set: { newValue in
-                        deferSessionMutation { manager in
-                            manager.setDesignTargetDistanceMeters(newValue)
-                        }
-                    }
-                ), in: 0.2...20, step: 0.05)
+                Text(String(format: "設計距離：%.2f m", draftDesignTargetDistanceMeters))
+                Slider(value: $draftDesignTargetDistanceMeters, in: 0.2...20, step: 0.05) { editing in
+                    if !editing { commitDraftDesignDistanceIfNeeded() }
+                }
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(String(format: "偏差容差：±%.1f cm", sessionManager.deviationToleranceCm))
-                Slider(value: Binding(
-                    get: { sessionManager.deviationToleranceCm },
-                    set: { newValue in
-                        deferSessionMutation { manager in
-                            manager.setDeviationToleranceCm(newValue)
-                        }
-                    }
-                ), in: 0.5...20, step: 0.5)
+                Text(String(format: "偏差容差：±%.1f cm", draftDeviationToleranceCm))
+                Slider(value: $draftDeviationToleranceCm, in: 0.5...20, step: 0.5) { editing in
+                    if !editing { commitDraftDeviationToleranceIfNeeded() }
+                }
             }
 
-            Toggle(isOn: Binding(
-                get: { sessionManager.highPrecisionContinuousModeEnabled },
-                set: { newValue in
-                    deferSessionMutation { manager in
-                        manager.setHighPrecisionContinuousModeEnabled(newValue)
-                    }
-                }
-            )) {
+            Toggle(isOn: $draftHighPrecisionContinuousModeEnabled) {
                 Text("高精度連續模式（記錄前 3 次取中位數）")
                     .font(.footnote.bold())
             }
             .tint(.green)
 
-            Toggle(isOn: Binding(
-                get: { sessionManager.highestModeLockEnabled },
-                set: { newValue in
-                    deferSessionMutation { manager in
-                        manager.setHighestModeLockEnabled(newValue)
-                    }
-                }
-            )) {
+            Toggle(isOn: $draftHighestModeLockEnabled) {
                 Text("最高等級鎖定（固定超嚴格）")
                     .font(.footnote.bold())
             }
             .tint(.yellow)
 
-            Picker("QA 模式", selection: Binding(
-                get: { sessionManager.qaProfile },
-                set: { newValue in
-                    deferSessionMutation { manager in
-                        manager.setQAProfile(newValue)
-                    }
-                }
-            )) {
+            Picker("QA 模式", selection: $draftQAProfile) {
                 ForEach(QATuningProfile.allCases) { mode in
                     Text(mode.displayName).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
             .tint(.blue)
-            .disabled(sessionManager.highestModeLockEnabled)
+            .disabled(draftHighestModeLockEnabled)
 
             Button("記錄量測") {
                 performRecordMeasurement()
@@ -1166,6 +1206,18 @@ struct ContentView: View {
             }
             .buttonStyle(.bordered)
             .frame(maxWidth: .infinity)
+        }
+        .onAppear {
+            syncMeasureDraftFromManager(force: false)
+        }
+        .onChange(of: draftHighPrecisionContinuousModeEnabled) {
+            commitDraftHighPrecisionIfNeeded()
+        }
+        .onChange(of: draftHighestModeLockEnabled) {
+            commitDraftHighestModeLockIfNeeded()
+        }
+        .onChange(of: draftQAProfile) {
+            commitDraftQAProfileIfNeeded()
         }
     }
 
