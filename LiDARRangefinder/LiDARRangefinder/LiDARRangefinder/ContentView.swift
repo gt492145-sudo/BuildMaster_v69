@@ -63,6 +63,8 @@ struct ContentView: View {
     @State private var blueprintPlanHeightMeters: Double = 24.925
     @State private var tacticalMenuDragOffset: CGFloat = 0
     @State private var tacticalMenuDragAxis: TacticalDragAxis?
+    @State private var isViewActive = false
+    @State private var pendingSessionMutationTask: Task<Void, Never>?
     private let minRecordScore = 85
     private let tacticalMenuWidth: CGFloat = 230
     private let touchOpenCloseThreshold: CGFloat = 34
@@ -224,18 +226,24 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            isViewActive = true
             clearViewAutoApplied = false
             setClearViewMode(false)
             syncAutoClearViewMode(for: selectedControlPage)
             sessionManager.resumeSessionIfNeeded()
         }
         .onChange(of: scenePhase) {
-            if scenePhase != .active {
+            if scenePhase == .active {
+                sessionManager.resumeSessionIfNeeded()
+            } else {
                 stopSafetyMonkey()
                 isMonkeyUnlocked = false
+                sessionManager.suspendSessionForViewDisappearance()
             }
         }
         .onDisappear {
+            isViewActive = false
+            pendingSessionMutationTask?.cancel()
             stopSafetyMonkey()
             sessionManager.suspendSessionForViewDisappearance()
         }
@@ -245,7 +253,10 @@ struct ContentView: View {
     }
 
     private func deferSessionMutation(_ mutation: @escaping @MainActor (LiDARSessionManager) -> Void) {
-        Task { @MainActor in
+        pendingSessionMutationTask?.cancel()
+        pendingSessionMutationTask = Task { @MainActor in
+            await Task.yield()
+            guard isViewActive, !Task.isCancelled else { return }
             mutation(sessionManager)
         }
     }
