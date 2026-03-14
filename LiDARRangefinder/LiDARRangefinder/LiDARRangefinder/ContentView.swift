@@ -521,97 +521,7 @@ struct ContentView: View {
                 VStack(spacing: 10) {
                     switch selectedControlPage {
                 case .measure:
-                    Toggle("量測時自動釋放畫面", isOn: $autoClearViewDuringMeasure)
-                        .font(.footnote.bold())
-                        .tint(.cyan)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(String(format: "設計距離：%.2f m", sessionManager.designTargetDistanceMeters))
-                        Slider(value: Binding(
-                            get: { sessionManager.designTargetDistanceMeters },
-                            set: { newValue in
-                                deferSessionMutation { manager in
-                                    manager.setDesignTargetDistanceMeters(newValue)
-                                }
-                            }
-                        ), in: 0.2...20, step: 0.05)
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(String(format: "偏差容差：±%.1f cm", sessionManager.deviationToleranceCm))
-                        Slider(value: Binding(
-                            get: { sessionManager.deviationToleranceCm },
-                            set: { newValue in
-                                deferSessionMutation { manager in
-                                    manager.setDeviationToleranceCm(newValue)
-                                }
-                            }
-                        ), in: 0.5...20, step: 0.5)
-                    }
-
-                    Toggle(isOn: Binding(
-                        get: { sessionManager.highPrecisionContinuousModeEnabled },
-                        set: { newValue in
-                            deferSessionMutation { manager in
-                                manager.setHighPrecisionContinuousModeEnabled(newValue)
-                            }
-                        }
-                    )) {
-                        Text("高精度連續模式（記錄前 3 次取中位數）")
-                            .font(.footnote.bold())
-                    }
-                    .tint(.green)
-
-                    Toggle(isOn: Binding(
-                        get: { sessionManager.highestModeLockEnabled },
-                        set: { newValue in
-                            deferSessionMutation { manager in
-                                manager.setHighestModeLockEnabled(newValue)
-                            }
-                        }
-                    )) {
-                        Text("最高等級鎖定（固定超嚴格）")
-                            .font(.footnote.bold())
-                    }
-                    .tint(.yellow)
-
-                    Picker("QA 模式", selection: Binding(
-                        get: { sessionManager.qaProfile },
-                        set: { newValue in
-                            deferSessionMutation { manager in
-                                manager.setQAProfile(newValue)
-                            }
-                        }
-                    )) {
-                        ForEach(QATuningProfile.allCases) { mode in
-                            Text(mode.displayName).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .tint(.blue)
-                    .disabled(sessionManager.highestModeLockEnabled)
-
-                    Button("記錄量測") {
-                        performRecordMeasurement()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .frame(maxWidth: .infinity)
-                    .disabled(!canRecordMeasurement)
-
-                    if !canRecordMeasurement {
-                        Text(recordBlockReasonText)
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
-                    Text(sessionManager.highPrecisionStatusText)
-                        .font(.caption2)
-                        .foregroundStyle(.mint)
-
-                    Button("鋼筋透視參數") {
-                        showingRebarConfig = true
-                    }
-                    .buttonStyle(.bordered)
-                    .frame(maxWidth: .infinity)
+                    measureControlSection
                 case .ai:
                     Button("AI QA 一鍵矯正") {
                         sessionManager.applyAIQACorrection()
@@ -1161,6 +1071,102 @@ struct ContentView: View {
                 .stroke(.white.opacity(0.15), lineWidth: 1)
         )
         .shadow(color: .cyan.opacity(0.25), radius: 12, x: 0, y: 6)
+    }
+
+    private var measureControlSection: some View {
+        Group {
+            Toggle("量測時自動釋放畫面", isOn: $autoClearViewDuringMeasure)
+                .font(.footnote.bold())
+                .tint(.cyan)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(String(format: "設計距離：%.2f m", sessionManager.designTargetDistanceMeters))
+                Slider(value: Binding(
+                    get: { sessionManager.designTargetDistanceMeters },
+                    set: { newValue in
+                        deferSessionMutation { manager in
+                            manager.setDesignTargetDistanceMeters(newValue)
+                        }
+                    }
+                ), in: 0.2...20, step: 0.05)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(String(format: "偏差容差：±%.1f cm", sessionManager.deviationToleranceCm))
+                Slider(value: Binding(
+                    get: { sessionManager.deviationToleranceCm },
+                    set: { newValue in
+                        deferSessionMutation { manager in
+                            manager.setDeviationToleranceCm(newValue)
+                        }
+                    }
+                ), in: 0.5...20, step: 0.5)
+            }
+
+            Toggle(isOn: Binding(
+                get: { sessionManager.highPrecisionContinuousModeEnabled },
+                set: { newValue in
+                    deferSessionMutation { manager in
+                        manager.setHighPrecisionContinuousModeEnabled(newValue)
+                    }
+                }
+            )) {
+                Text("高精度連續模式（記錄前 3 次取中位數）")
+                    .font(.footnote.bold())
+            }
+            .tint(.green)
+
+            Toggle(isOn: Binding(
+                get: { sessionManager.highestModeLockEnabled },
+                set: { newValue in
+                    deferSessionMutation { manager in
+                        manager.setHighestModeLockEnabled(newValue)
+                    }
+                }
+            )) {
+                Text("最高等級鎖定（固定超嚴格）")
+                    .font(.footnote.bold())
+            }
+            .tint(.yellow)
+
+            Picker("QA 模式", selection: Binding(
+                get: { sessionManager.qaProfile },
+                set: { newValue in
+                    deferSessionMutation { manager in
+                        manager.setQAProfile(newValue)
+                    }
+                }
+            )) {
+                ForEach(QATuningProfile.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .tint(.blue)
+            .disabled(sessionManager.highestModeLockEnabled)
+
+            Button("記錄量測") {
+                performRecordMeasurement()
+            }
+            .buttonStyle(.borderedProminent)
+            .frame(maxWidth: .infinity)
+            .disabled(!canRecordMeasurement)
+
+            if !canRecordMeasurement {
+                Text(recordBlockReasonText)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+            Text(sessionManager.highPrecisionStatusText)
+                .font(.caption2)
+                .foregroundStyle(.mint)
+
+            Button("鋼筋透視參數") {
+                showingRebarConfig = true
+            }
+            .buttonStyle(.bordered)
+            .frame(maxWidth: .infinity)
+        }
     }
 
     private var landscapeCombatOverlay: some View {
