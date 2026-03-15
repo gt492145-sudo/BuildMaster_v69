@@ -522,10 +522,11 @@ struct ContentView: View {
     }
 
     private var topPanel: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let compactTopStats = !isTopPanelExpanded
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("LiDAR 雷射測距鏡")
-                    .font(.headline)
+                    .font(.subheadline.bold())
                     .foregroundStyle(.white)
                 Spacer()
                 Button(isTopPanelExpanded ? "收合" : "展開") {
@@ -538,12 +539,15 @@ struct ContentView: View {
             ScrollView(showsIndicators: isTopPanelExpanded) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("距離: \(sessionManager.distanceText)")
-                        .font(.title2.bold())
+                        .font(compactTopStats ? .headline.weight(.semibold) : .title2.bold())
                         .foregroundStyle(.green)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                     HStack {
                         Text("Pitch: \(sessionManager.pitchText)")
                         Text("Roll: \(sessionManager.rollText)")
                     }
+                    .font(compactTopStats ? .caption : .footnote)
                     .foregroundStyle(.white.opacity(0.9))
                     Picker("狀態分頁", selection: $selectedStatusPage) {
                         ForEach(StatusPage.allCases) { page in
@@ -556,16 +560,16 @@ struct ContentView: View {
                         switch selectedStatusPage {
                         case .measure:
                             Text("QA 等級: \(sessionManager.qaLevelText)")
-                                .font(.subheadline.bold())
+                                .font(compactTopStats ? .caption.bold() : .subheadline.bold())
                                 .foregroundStyle(qaLevelColor(sessionManager.qaLevel))
                             Text("QA 模式: \(sessionManager.qaProfile.displayName)")
-                                .font(.footnote)
+                                .font(compactTopStats ? .caption2 : .footnote)
                                 .foregroundStyle(.white.opacity(0.85))
                             Text(sessionManager.highestModeLockEnabled ? "模式鎖定：最高等級" : "模式鎖定：關")
                                 .font(.caption2)
                                 .foregroundStyle(sessionManager.highestModeLockEnabled ? .yellow : .secondary)
                             Text("QA 分數: \(sessionManager.qaScore) / 100")
-                                .font(.subheadline.bold())
+                                .font(compactTopStats ? .caption.bold() : .subheadline.bold())
                                 .foregroundStyle(qaScoreColor(sessionManager.qaScore))
                             Text(sessionManager.rebarSpecText)
                                 .font(.caption2)
@@ -578,7 +582,7 @@ struct ContentView: View {
                                 .foregroundStyle(abs(sessionManager.deviationValueCm) <= sessionManager.deviationToleranceCm ? .mint : .red)
                             deviationGaugeView
                             Text(qaHintText(sessionManager.qaScore))
-                                .font(.footnote.bold())
+                                .font(compactTopStats ? .caption.bold() : .footnote.bold())
                                 .foregroundStyle(qaHintColor(sessionManager.qaScore))
                         case .ai:
                             Text(sessionManager.aiDiagnosisText)
@@ -635,8 +639,8 @@ struct ContentView: View {
                 }
             }
         }
-        .frame(maxHeight: isTopPanelExpanded ? 320 : 150, alignment: .top)
-        .padding(12)
+        .frame(maxHeight: isTopPanelExpanded ? 320 : 126, alignment: .top)
+        .padding(isTopPanelExpanded ? 12 : 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
