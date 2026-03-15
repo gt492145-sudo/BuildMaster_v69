@@ -1,7 +1,6 @@
 import SwiftUI
 import RealityKit
 import ARKit
-import Combine
 import UIKit
 
 struct HologramARViewContainer: UIViewRepresentable {
@@ -32,11 +31,11 @@ struct HologramARViewContainer: UIViewRepresentable {
 final class HologramCoordinator: NSObject, ARSessionDelegate {
     weak var arView: ARView?
     private var loadedModel: ModelEntity?
-    private var modelLoadCancellable: AnyCancellable?
+    private var modelLoadTask: Task<Void, Never>?
     private var didPlaceModel = false
 
     deinit {
-        modelLoadCancellable?.cancel()
+        modelLoadTask?.cancel()
     }
 
     func setupSession(blueprint: UIImage, width: Double, modelName: String) {
@@ -59,13 +58,18 @@ final class HologramCoordinator: NSObject, ARSessionDelegate {
         arView.session.delegate = self
         arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
 
-        modelLoadCancellable = ModelEntity.loadModelAsync(named: modelName)
-            .sink(
-                receiveCompletion: { _ in },
-                receiveValue: { [weak self] entity in
-                    self?.loadedModel = entity
+        modelLoadTask?.cancel()
+        modelLoadTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let entity = try await ModelEntity(named: modelName)
+                if !Task.isCancelled {
+                    self.loadedModel = entity
                 }
-            )
+            } catch {
+                // Keep silent to avoid noisy logs when optional models are missing.
+            }
+        }
     }
 
     func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
