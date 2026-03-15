@@ -61,6 +61,8 @@ struct MeasurementRecord: Identifiable, Codable {
     let qaLevel: QAPrecisionLevel
     let qaProfile: QATuningProfile
     let qaScore: Int
+    let nonce: String
+    let signature: String?
 
     init(
         id: UUID = UUID(),
@@ -70,7 +72,9 @@ struct MeasurementRecord: Identifiable, Codable {
         rollDegrees: Double,
         qaLevel: QAPrecisionLevel,
         qaProfile: QATuningProfile,
-        qaScore: Int
+        qaScore: Int,
+        nonce: String = UUID().uuidString,
+        signature: String? = nil
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -80,6 +84,8 @@ struct MeasurementRecord: Identifiable, Codable {
         self.qaLevel = qaLevel
         self.qaProfile = qaProfile
         self.qaScore = qaScore
+        self.nonce = nonce
+        self.signature = signature
     }
 
     enum CodingKeys: String, CodingKey {
@@ -91,6 +97,8 @@ struct MeasurementRecord: Identifiable, Codable {
         case qaLevel
         case qaProfile
         case qaScore
+        case nonce
+        case signature
     }
 
     init(from decoder: Decoder) throws {
@@ -103,6 +111,41 @@ struct MeasurementRecord: Identifiable, Codable {
         qaLevel = try container.decodeIfPresent(QAPrecisionLevel.self, forKey: .qaLevel) ?? .normal
         qaProfile = try container.decodeIfPresent(QATuningProfile.self, forKey: .qaProfile) ?? .standard
         qaScore = try container.decodeIfPresent(Int.self, forKey: .qaScore) ?? 0
+        nonce = try container.decodeIfPresent(String.self, forKey: .nonce) ?? UUID().uuidString
+        signature = try container.decodeIfPresent(String.self, forKey: .signature)
+    }
+
+    var integrityPayload: String {
+        [
+            id.uuidString.lowercased(),
+            String(createdAt.timeIntervalSince1970),
+            Self.stableNumber(distanceMeters),
+            Self.stableNumber(pitchDegrees),
+            Self.stableNumber(rollDegrees),
+            qaLevel.rawValue,
+            qaProfile.rawValue,
+            String(qaScore),
+            nonce
+        ].joined(separator: "|")
+    }
+
+    func withSignature(_ signature: String) -> MeasurementRecord {
+        MeasurementRecord(
+            id: id,
+            createdAt: createdAt,
+            distanceMeters: distanceMeters,
+            pitchDegrees: pitchDegrees,
+            rollDegrees: rollDegrees,
+            qaLevel: qaLevel,
+            qaProfile: qaProfile,
+            qaScore: qaScore,
+            nonce: nonce,
+            signature: signature
+        )
+    }
+
+    private static func stableNumber(_ value: Double) -> String {
+        String(format: "%.6f", locale: Locale(identifier: "en_US_POSIX"), value)
     }
 }
 

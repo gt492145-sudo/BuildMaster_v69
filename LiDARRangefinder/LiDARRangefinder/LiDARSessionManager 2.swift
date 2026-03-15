@@ -10,7 +10,9 @@ import Speech
 import UIKit
 import SwiftUI
 import Combine
+import CryptoKit
 import Vision
+import DeviceCheck
 private enum AIQAIssueType {
     case none
     case noSurface
@@ -153,6 +155,13 @@ private struct MultiViewSample {
 
 @MainActor
 final class LiDARSessionManager: ObservableObject {
+    private static let iso8601Formatter = ISO8601DateFormatter()
+    private static let scheduleDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM/dd"
+        return formatter
+    }()
+
     @Published var distanceText: String = "-- m"
     @Published var pitchText: String = "--°"
     @Published var rollText: String = "--°"
@@ -265,6 +274,16 @@ final class LiDARSessionManager: ObservableObject {
 
     private weak var arView: ARView?
     private let ciContext = CIContext()
+    private let secureURLSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.urlCache = nil
+        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForResource = 45
+        config.waitsForConnectivity = true
+        return URLSession(configuration: config)
+    }()
+    private let retryableHTTPStatusCodes: Set<Int> = [408, 425, 429, 500, 502, 503, 504]
     private var updateTimer: Timer?
     private var isSessionSuspended = false
     private var recentDistances: [Double] = []
@@ -479,13 +498,78 @@ final class LiDARSessionManager: ObservableObject {
             kSecAttrService as String: keychainServiceName,
             kSecAttrAccount as String: account
         ]
-        let updateAttrs: [String: Any] = [kSecValueData as String: data]
+        let updateAttrs: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
         let status = SecItemUpdate(baseQuery as CFDictionary, updateAttrs as CFDictionary)
         if status == errSecSuccess { return }
 
         var addQuery = baseQuery
         addQuery[kSecValueData as String] = data
+        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         _ = SecItemAdd(addQuery as CFDictionary, nil)
+    }
+
+    private func applyRequestSecurityHeaders(_ request: inout URLRequest, bodyData: Data?) {
+        let nonce = UUID().uuidString.lowercased()
+        let timestamp = String(Int(Date().timeIntervalSince1970))
+        request.setValue(nonce, forHTTPHeaderField: "X-Client-Nonce")
+        request.setValue(timestamp, forHTTPHeaderField: "X-Client-Timestamp")
+        if let bodyData {
+            let digest = SHA256.hash(data: bodyData)
+            let encoded = Data(digest).base64EncodedString()
+            request.setValue(encoded, forHTTPHeaderField: "X-Body-SHA256")
+        }
+    }
+
+    private func fetchDeviceCheckToken() async -> String? {
+        guard DCDevice.current.isSupported else { return nil }
+        return await withCheckedContinuation { continuation in
+            DCDevice.current.generateToken { data, _ in
+                guard let data else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(returning: data.base64EncodedString())
+            }
+        }
+    }
+
+    private func shouldRetryNetworkError(_ error: Error) -> Bool {
+        guard let urlError = error as? URLError else { return false }
+        switch urlError.code {
+        case .timedOut, .networkConnectionLost, .notConnectedToInternet, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func performSecureRequest(_ request: URLRequest, maxRetries: Int = 2) async throws -> (Data, URLResponse) {
+        var attempt = 0
+        while true {
+            do {
+                let (data, response) = try await secureURLSession.data(for: request)
+                if let http = response as? HTTPURLResponse,
+                   retryableHTTPStatusCodes.contains(http.statusCode),
+                   attempt < maxRetries {
+                    attempt += 1
+                    let backoffMs = UInt64(250 * attempt)
+                    try await Task.sleep(nanoseconds: backoffMs * 1_000_000)
+                    continue
+                }
+                return (data, response)
+            } catch {
+                if attempt < maxRetries && shouldRetryNetworkError(error) {
+                    attempt += 1
+                    let backoffMs = UInt64(250 * attempt)
+                    try await Task.sleep(nanoseconds: backoffMs * 1_000_000)
+                    continue
+                }
+                throw error
+            }
+        }
     }
 
     private func getSecureSecret(account: String) -> String? {
@@ -791,7 +875,11 @@ final class LiDARSessionManager: ObservableObject {
 
     func setBlueprintInputImage(_ image: UIImage) {
         blueprintInputImage = image
-        blueprintUploadStatusText = "圖紙已上傳：可進行 3D 牆體生成"
+        let quality = evaluateBlueprintImageQuality(image)
+        blueprintUploadStatusText = quality.statusText
+        if multiViewSamples.isEmpty {
+            multiViewStatusText = quality.multiViewHint
+        }
     }
 
     func appendCurrentBlueprintToMultiViewSet() {
@@ -821,7 +909,6 @@ final class LiDARSessionManager: ObservableObject {
             return
         }
 
-        let iso = ISO8601DateFormatter()
         let summaries: [[String: Any]] = multiViewSamples.enumerated().map { idx, sample in
             let w = max(1, Int((sample.image.size.width * sample.image.scale).rounded()))
             let h = max(1, Int((sample.image.size.height * sample.image.scale).rounded()))
@@ -845,7 +932,7 @@ final class LiDARSessionManager: ObservableObject {
             }
             return [
                 "index": idx + 1,
-                "captured_at": iso.string(from: sample.capturedAt),
+                "captured_at": Self.iso8601Formatter.string(from: sample.capturedAt),
                 "width": w,
                 "height": h,
                 "orientation_hint": orientation,
@@ -856,7 +943,7 @@ final class LiDARSessionManager: ObservableObject {
 
         let payload: [String: Any] = [
             "capture_id": UUID().uuidString,
-            "created_at": iso.string(from: Date()),
+            "created_at": Self.iso8601Formatter.string(from: Date()),
             "sample_count": summaries.count,
             "samples": summaries
         ]
@@ -1978,8 +2065,7 @@ final class LiDARSessionManager: ObservableObject {
 
     func runLocalIBMScheduleSimulation() {
         ibmScheduleStatusText = "IBM 排程：模擬中..."
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MM/dd"
+        let formatter = Self.scheduleDateFormatter
 
         let tasks: [LocalScheduleTask] = [
             .init(id: "T001", name: "放樣/定位", durationDays: 1),
@@ -2042,8 +2128,12 @@ final class LiDARSessionManager: ObservableObject {
             ]
             ibmScheduleStatusText = "IBM 排程：雲端完成"
         } catch {
-            ibmScheduleStatusText = "IBM 排程：雲端失敗（\(error.localizedDescription)）"
-            ibmSchedulePreviewLines = ["雲端錯誤：\(error.localizedDescription)"]
+            let message = userFacingCloudError(error)
+            ibmScheduleStatusText = "IBM 排程：雲端失敗（\(message)）"
+            ibmSchedulePreviewLines = [
+                "雲端錯誤：\(message)",
+                "建議：先確認網路，再檢查 API Key / Backend / Shots 設定"
+            ]
         }
     }
 
@@ -2775,7 +2865,7 @@ final class LiDARSessionManager: ObservableObject {
                 await MainActor.run {
                     self.isBlueprintQuantumJobRunning = false
                     self.quantumIBMJobText = "IBM Job：藍圖 \(imageName) 最佳化失敗"
-                    self.quantumIBMResultText = "IBM Result：\(error.localizedDescription)"
+                    self.quantumIBMResultText = "IBM Result：\(self.userFacingCloudError(error))"
                     self.quantumStatusText = "核心引擎：藍圖最佳化失敗，已維持本地模式"
                 }
             }
@@ -3530,7 +3620,7 @@ final class LiDARSessionManager: ObservableObject {
             }
         } catch {
             quantumIBMJobText = "IBM Job：送出失敗"
-            quantumIBMResultText = "IBM Result：\(error.localizedDescription)"
+            quantumIBMResultText = "IBM Result：\(userFacingCloudError(error))"
             quantumStatusText = quantumModeEnabled
                 ? "核心引擎：IBM 連線失敗，已回退本地模式"
                 : "IBM 雲端：送件失敗，請檢查 Key/Backend"
@@ -3551,9 +3641,14 @@ final class LiDARSessionManager: ObservableObject {
                 "pubs": [["circuit": "bell", "shots": shots]]
             ]
         ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let bodyData = try JSONSerialization.data(withJSONObject: body)
+        request.httpBody = bodyData
+        applyRequestSecurityHeaders(&request, bodyData: bodyData)
+        if let token = await fetchDeviceCheckToken() {
+            request.setValue(token, forHTTPHeaderField: "X-DeviceCheck-Token")
+        }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await performSecureRequest(request)
         guard let http = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }
@@ -3580,8 +3675,12 @@ final class LiDARSessionManager: ObservableObject {
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
             request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            applyRequestSecurityHeaders(&request, bodyData: nil)
+            if let token = await fetchDeviceCheckToken() {
+                request.setValue(token, forHTTPHeaderField: "X-DeviceCheck-Token")
+            }
 
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await performSecureRequest(request)
             guard let http = response as? HTTPURLResponse else {
                 throw URLError(.badServerResponse)
             }
@@ -3603,8 +3702,12 @@ final class LiDARSessionManager: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        applyRequestSecurityHeaders(&request, bodyData: nil)
+        if let token = await fetchDeviceCheckToken() {
+            request.setValue(token, forHTTPHeaderField: "X-DeviceCheck-Token")
+        }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await performSecureRequest(request)
         guard let http = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }
@@ -3647,6 +3750,64 @@ final class LiDARSessionManager: ObservableObject {
 
     private func clampDeviationToleranceCm(_ value: Double) -> Double {
         min(20.0, max(0.5, value))
+    }
+
+    private func evaluateBlueprintImageQuality(_ image: UIImage) -> (statusText: String, multiViewHint: String) {
+        let pixelWidth = max(1, Int((image.size.width * image.scale).rounded()))
+        let pixelHeight = max(1, Int((image.size.height * image.scale).rounded()))
+        let minSide = min(pixelWidth, pixelHeight)
+        let megapixels = (Double(pixelWidth) * Double(pixelHeight)) / 1_000_000.0
+        let ratio = Double(max(pixelWidth, pixelHeight)) / Double(max(1, minSide))
+
+        var hints: [String] = []
+        if megapixels < 1.2 || minSide < 900 {
+            hints.append("解析度偏低，建議用較近距離或高畫質重拍")
+        }
+        if ratio > 2.25 {
+            hints.append("畫面比例偏長，建議改用較完整正視圖")
+        }
+
+        if hints.isEmpty {
+            return (
+                "圖紙已上傳：品質良好，可進行 3D 牆體生成",
+                "多視角重建：可加入目前圖紙作為高品質樣本"
+            )
+        }
+
+        return (
+            "圖紙已上傳：可使用（\(hints[0])）",
+            "多視角重建：建議先補拍清晰正視圖，再加入樣本"
+        )
+    }
+
+    private func userFacingCloudError(_ error: Error) -> String {
+        if let runtimeError = error as? IBMRuntimeError {
+            switch runtimeError.statusCode {
+            case 401:
+                return "API Key 無效或已過期"
+            case 403:
+                return "帳號權限不足或 Runtime 未授權"
+            case 429:
+                return "請求過多，請稍後再試"
+            default:
+                return runtimeError.message
+            }
+        }
+
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet:
+                return "網路未連線"
+            case .timedOut:
+                return "連線逾時"
+            case .cannotFindHost, .cannotConnectToHost:
+                return "找不到雲端主機"
+            default:
+                return "雲端連線失敗（\(urlError.code.rawValue)）"
+            }
+        }
+
+        return error.localizedDescription
     }
 
     private func buildIBMHTTPError(statusCode: Int, data: Data) -> IBMRuntimeError {
@@ -4176,9 +4337,14 @@ final class LiDARSessionManager: ObservableObject {
             ],
             temperature: 0.2
         )
-        request.httpBody = try JSONEncoder().encode(body)
+        let bodyData = try JSONEncoder().encode(body)
+        request.httpBody = bodyData
+        applyRequestSecurityHeaders(&request, bodyData: bodyData)
+        if let token = await fetchDeviceCheckToken() {
+            request.setValue(token, forHTTPHeaderField: "X-DeviceCheck-Token")
+        }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await performSecureRequest(request)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
         }

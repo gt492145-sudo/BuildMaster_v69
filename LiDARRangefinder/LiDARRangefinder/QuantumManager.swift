@@ -1,5 +1,7 @@
 import Foundation
+import CryptoKit
 import Security
+import DeviceCheck
 
 final class QuantumManager {
     static let shared = QuantumManager()
@@ -10,6 +12,16 @@ final class QuantumManager {
     private let shotsStorageKey = "lidar_rangefinder_quantum_ibm_shots"
     private let defaultBackend = "ibm_kyiv"
     private let defaultShots = 128
+    private let retryableHTTPStatusCodes: Set<Int> = [408, 425, 429, 500, 502, 503, 504]
+    private let secureURLSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.urlCache = nil
+        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForResource = 45
+        config.waitsForConnectivity = true
+        return URLSession(configuration: config)
+    }()
 
     private init() {}
 
@@ -43,12 +55,77 @@ final class QuantumManager {
             kSecAttrService as String: keychainServiceName,
             kSecAttrAccount as String: account
         ]
-        let updateAttrs: [String: Any] = [kSecValueData as String: data]
+        let updateAttrs: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
         let status = SecItemUpdate(baseQuery as CFDictionary, updateAttrs as CFDictionary)
         if status == errSecSuccess { return }
         var addQuery = baseQuery
         addQuery[kSecValueData as String] = data
+        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         _ = SecItemAdd(addQuery as CFDictionary, nil)
+    }
+
+    private func applyRequestSecurityHeaders(_ request: inout URLRequest, bodyData: Data?) {
+        let nonce = UUID().uuidString.lowercased()
+        let timestamp = String(Int(Date().timeIntervalSince1970))
+        request.setValue(nonce, forHTTPHeaderField: "X-Client-Nonce")
+        request.setValue(timestamp, forHTTPHeaderField: "X-Client-Timestamp")
+        if let bodyData {
+            let digest = SHA256.hash(data: bodyData)
+            let encoded = Data(digest).base64EncodedString()
+            request.setValue(encoded, forHTTPHeaderField: "X-Body-SHA256")
+        }
+    }
+
+    private func fetchDeviceCheckToken() async -> String? {
+        guard DCDevice.current.isSupported else { return nil }
+        return await withCheckedContinuation { continuation in
+            DCDevice.current.generateToken { data, _ in
+                guard let data else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(returning: data.base64EncodedString())
+            }
+        }
+    }
+
+    private func shouldRetry(_ error: Error) -> Bool {
+        guard let urlError = error as? URLError else { return false }
+        switch urlError.code {
+        case .timedOut, .networkConnectionLost, .notConnectedToInternet, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func performSecureRequest(_ request: URLRequest, maxRetries: Int = 2) async throws -> (Data, URLResponse) {
+        var attempt = 0
+        while true {
+            do {
+                let (data, response) = try await secureURLSession.data(for: request)
+                if let http = response as? HTTPURLResponse,
+                   retryableHTTPStatusCodes.contains(http.statusCode),
+                   attempt < maxRetries {
+                    attempt += 1
+                    let backoffMs = UInt64(250 * attempt)
+                    try await Task.sleep(nanoseconds: backoffMs * 1_000_000)
+                    continue
+                }
+                return (data, response)
+            } catch {
+                if attempt < maxRetries && shouldRetry(error) {
+                    attempt += 1
+                    let backoffMs = UInt64(250 * attempt)
+                    try await Task.sleep(nanoseconds: backoffMs * 1_000_000)
+                    continue
+                }
+                throw error
+            }
+        }
     }
 
     private func readSecureSecretWithMigration(account: String, legacyUserDefaultsKey: String) -> String? {
@@ -157,9 +234,14 @@ final class QuantumManager {
                 ]
             ]
         ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let bodyData = try JSONSerialization.data(withJSONObject: body)
+        request.httpBody = bodyData
+        applyRequestSecurityHeaders(&request, bodyData: bodyData)
+        if let token = await fetchDeviceCheckToken() {
+            request.setValue(token, forHTTPHeaderField: "X-DeviceCheck-Token")
+        }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await performSecureRequest(request)
         let payload = try validateHTTP(data: data, response: response)
         if let jobID = payload["id"] as? String, !jobID.isEmpty { return jobID }
         if let jobID = payload["job_id"] as? String, !jobID.isEmpty { return jobID }
@@ -178,8 +260,12 @@ final class QuantumManager {
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            applyRequestSecurityHeaders(&request, bodyData: nil)
+            if let token = await fetchDeviceCheckToken() {
+                request.setValue(token, forHTTPHeaderField: "X-DeviceCheck-Token")
+            }
 
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await performSecureRequest(request)
             let payload = try validateHTTP(data: data, response: response)
             let status = ((payload["state"] as? String) ?? (payload["status"] as? String) ?? "queued").lowercased()
             lastStatus = status
@@ -197,8 +283,12 @@ final class QuantumManager {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        applyRequestSecurityHeaders(&request, bodyData: nil)
+        if let token = await fetchDeviceCheckToken() {
+            request.setValue(token, forHTTPHeaderField: "X-DeviceCheck-Token")
+        }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await performSecureRequest(request)
         let payload = try validateHTTP(data: data, response: response)
         if let quasi = payload["quasi_dists"] {
             return "quasi_dists=\(String(describing: quasi))"

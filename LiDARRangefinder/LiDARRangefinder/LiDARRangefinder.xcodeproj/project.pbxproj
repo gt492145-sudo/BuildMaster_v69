@@ -11,9 +11,9 @@
 		51B353492F5F9DEA009CC3D8 /* MeasurementRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B353482F5F9DEA009CC3D8 /* MeasurementRecord.swift */; };
 		51B353502F5F9E5C009CC3D8 /* ARViewContainer 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B3534E2F5F9E5C009CC3D8 /* ARViewContainer 2.swift */; };
 		51B353512F5F9E5C009CC3D8 /* LiDARSessionManager 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B3534F2F5F9E5C009CC3D8 /* LiDARSessionManager 2.swift */; };
-		51B353582F5FA100009CC3D8 /* QuantumManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B353572F5FA100009CC3D8 /* QuantumManager.swift */; };
 		51B353532F5F9E99009CC3D8 /* Contents.json in Resources */ = {isa = PBXBuildFile; fileRef = 51B353522F5F9E99009CC3D8 /* Contents.json */; };
 		51B353562F5F9EBC009CC3D8 /* MeasurementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B353552F5F9EBC009CC3D8 /* MeasurementStore.swift */; };
+		51B353582F5FA100009CC3D8 /* QuantumManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B353572F5FA100009CC3D8 /* QuantumManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -22,9 +22,9 @@
 		51B353482F5F9DEA009CC3D8 /* MeasurementRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasurementRecord.swift; sourceTree = "<group>"; };
 		51B3534E2F5F9E5C009CC3D8 /* ARViewContainer 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ARViewContainer 2.swift"; sourceTree = "<group>"; };
 		51B3534F2F5F9E5C009CC3D8 /* LiDARSessionManager 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LiDARSessionManager 2.swift"; sourceTree = "<group>"; };
-		51B353572F5FA100009CC3D8 /* QuantumManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuantumManager.swift; sourceTree = "<group>"; };
 		51B353522F5F9E99009CC3D8 /* Contents.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Contents.json; sourceTree = "<group>"; };
 		51B353552F5F9EBC009CC3D8 /* MeasurementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasurementStore.swift; sourceTree = "<group>"; };
+		51B353572F5FA100009CC3D8 /* QuantumManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuantumManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -291,6 +291,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Construction Master";
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "需要使用相機進行工地雷射測量";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "需要麥克風接收核心引擎語音口令";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "需要語音辨識啟用核心引擎戰術模式";
@@ -331,6 +332,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Construction Master";
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "需要使用相機進行工地雷射測量";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "需要麥克風接收核心引擎語音口令";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "需要語音辨識啟用核心引擎戰術模式";

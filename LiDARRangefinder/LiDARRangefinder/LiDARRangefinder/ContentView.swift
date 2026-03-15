@@ -77,6 +77,7 @@ struct ContentView: View {
     @State private var tacticalMenuDragOffset: CGFloat = 0
     @State private var tacticalMenuDragAxis: TacticalDragAxis?
     @State private var isViewActive = false
+    @State private var isModalPresentationInFlight = false
     @State private var measureDraftInitialized = false
     @State private var draftDesignTargetDistanceMeters: Double = 2.0
     @State private var draftDeviationToleranceCm: Double = 3.0
@@ -92,8 +93,18 @@ struct ContentView: View {
         GeometryReader { proxy in
             let isLandscape = proxy.size.width > proxy.size.height
             ZStack {
-                ARViewContainer()
+                if sessionManager.facadeHologramEnabled,
+                   let blueprintImage = sessionManager.blueprintInputImage {
+                    HologramARViewContainer(
+                        blueprintImage: blueprintImage,
+                        physicalWidth: blueprintPlanWidthMeters,
+                        modelName: "YourBuildingModel"
+                    )
                     .ignoresSafeArea()
+                } else {
+                    ARViewContainer()
+                        .ignoresSafeArea()
+                }
 
                 crosshair
 
@@ -262,8 +273,10 @@ struct ContentView: View {
         }
         .onChange(of: scenePhase) {
             if scenePhase == .active {
+                isModalPresentationInFlight = false
                 sessionManager.resumeSessionIfNeeded()
             } else {
+                isModalPresentationInFlight = false
                 stopSafetyMonkey()
                 isMonkeyUnlocked = false
                 sessionManager.suspendSessionForViewDisappearance()
@@ -271,6 +284,7 @@ struct ContentView: View {
         }
         .onDisappear {
             isViewActive = false
+            isModalPresentationInFlight = false
             stopSafetyMonkey()
             closeAllModalSheets()
             sessionManager.suspendSessionForViewDisappearance()
@@ -281,15 +295,16 @@ struct ContentView: View {
     }
 
     private func deferSessionMutation(_ mutation: @escaping (LiDARSessionManager) -> Void) {
-        guard isViewActive else { return }
+        guard isViewActive, scenePhase == .active else { return }
         DispatchQueue.main.async {
-            guard self.isViewActive else { return }
+            guard self.isViewActive, self.scenePhase == .active else { return }
             mutation(self.sessionManager)
         }
     }
 
     private func closeAllModalSheets() {
         showingRecords = false
+        showingShareSheet = false
         showingCorrectionHistory = false
         showingAIAssistant = false
         showingRebarConfig = false
@@ -297,7 +312,29 @@ struct ContentView: View {
         showingCrackInspector = false
         showingQuantumMode = false
         showingTestChecklist = false
+        showingMonkeyAccessSheet = false
         showingMonkeyReportSheet = false
+    }
+
+    private func isModalSheetPresented(_ target: ModalSheetTarget) -> Bool {
+        switch target {
+        case .records:
+            return showingRecords
+        case .correctionHistory:
+            return showingCorrectionHistory
+        case .aiAssistant:
+            return showingAIAssistant
+        case .rebarConfig:
+            return showingRebarConfig
+        case .volumeScan:
+            return showingVolumeScan
+        case .crackInspector:
+            return showingCrackInspector
+        case .quantumMode:
+            return showingQuantumMode
+        case .testChecklist:
+            return showingTestChecklist
+        }
     }
 
     private func openModalSheet(_ target: ModalSheetTarget) {
@@ -322,13 +359,25 @@ struct ContentView: View {
     }
 
     private func presentModalSheetSafely(_ target: ModalSheetTarget) {
-        guard isViewActive else { return }
+        guard isViewActive, scenePhase == .active else { return }
+        guard !isModalPresentationInFlight else { return }
+        guard !isModalSheetPresented(target) else { return }
+        isModalPresentationInFlight = true
         DispatchQueue.main.async {
-            guard self.isViewActive else { return }
+            guard self.isViewActive, self.scenePhase == .active else {
+                self.isModalPresentationInFlight = false
+                return
+            }
             self.closeAllModalSheets()
-            DispatchQueue.main.async {
-                guard self.isViewActive else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
+                guard self.isViewActive, self.scenePhase == .active else {
+                    self.isModalPresentationInFlight = false
+                    return
+                }
                 self.openModalSheet(target)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    self.isModalPresentationInFlight = false
+                }
             }
         }
     }
