@@ -11,7 +11,7 @@ struct ARViewContainer: UIViewRepresentable {
 
     func makeUIView(context: Context) -> ARView {
         let view = ARView(frame: .zero)
-        view.environment.sceneUnderstanding.options.insert(.occlusion)
+        view.environment.sceneUnderstanding.options.formUnion([.occlusion, .receivesLighting])
         // Keep camera feed crisp for field alignment.
         view.renderOptions.insert(.disableMotionBlur)
         view.renderOptions.insert(.disableDepthOfField)

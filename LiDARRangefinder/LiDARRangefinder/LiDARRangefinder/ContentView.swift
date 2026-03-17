@@ -12,8 +12,9 @@ struct ContentView: View {
         case vertical
     }
 
-    private enum ModalSheetTarget {
+    private enum ModalSheetTarget: String, Identifiable {
         case records
+        case share
         case correctionHistory
         case aiAssistant
         case rebarConfig
@@ -21,22 +22,20 @@ struct ContentView: View {
         case crackInspector
         case quantumMode
         case testChecklist
+        case siteDeploymentChecklist
+        case monkeyAccess
+        case monkeyReport
+
+        var id: String { rawValue }
     }
 
     @EnvironmentObject private var sessionManager: LiDARSessionManager
     @EnvironmentObject private var measurementStore: MeasurementStore
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var showingRecords = false
-    @State private var showingShareSheet = false
-    @State private var showingCorrectionHistory = false
-    @State private var showingAIAssistant = false
-    @State private var showingRebarConfig = false
-    @State private var showingVolumeScan = false
-    @State private var showingCrackInspector = false
-    @State private var showingQuantumMode = false
-    @State private var showingTestChecklist = false
+    @State private var activeSheet: ModalSheetTarget?
     @State private var completedTestItems: Set<TestChecklistItem> = []
+    @State private var completedSiteChecklistItems: Set<SiteChecklistItem> = []
     @State private var quantumCommandInput = ""
     @State private var ibmQuantumAPIKeyInput = ""
     @State private var aiGoalInput = ""
@@ -58,18 +57,17 @@ struct ContentView: View {
     @State private var safetyMonkeyTickCount = 0
     @State private var safetyMonkeyLastAction = "待命"
     @State private var safetyMonkeyTask: Task<Void, Never>?
+    @State private var monkeyStressLevel: MonkeyStressLevel = .balanced
     @State private var monkeySessionStartedAt: Date?
     @State private var monkeyLastStoppedAt: Date?
     @State private var monkeyActionHistory: [String] = []
     @State private var monkeyReportLines: [String] = []
     @State private var monkeyHasPassword = false
     @State private var isMonkeyUnlocked = false
-    @State private var showingMonkeyAccessSheet = false
     @State private var monkeyLockMode: MonkeyLockMode = .unlock
     @State private var monkeyPasswordInput = ""
     @State private var monkeyPasswordConfirmInput = ""
     @State private var monkeyPasswordError = ""
-    @State private var showingMonkeyReportSheet = false
     @State private var showingIFCFileImporter = false
     @State private var selectedBlueprintPhotoItem: PhotosPickerItem?
     @State private var blueprintPlanWidthMeters: Double = 8.85
@@ -77,7 +75,7 @@ struct ContentView: View {
     @State private var tacticalMenuDragOffset: CGFloat = 0
     @State private var tacticalMenuDragAxis: TacticalDragAxis?
     @State private var isViewActive = false
-    @State private var isModalPresentationInFlight = false
+    @State private var sheetSwitchTask: Task<Void, Never>?
     @State private var measureDraftInitialized = false
     @State private var draftDesignTargetDistanceMeters: Double = 2.0
     @State private var draftDeviationToleranceCm: Double = 3.0
@@ -93,18 +91,8 @@ struct ContentView: View {
         GeometryReader { proxy in
             let isLandscape = proxy.size.width > proxy.size.height
             ZStack {
-                if sessionManager.facadeHologramEnabled,
-                   let blueprintImage = sessionManager.blueprintInputImage {
-                    HologramARViewContainer(
-                        blueprintImage: blueprintImage,
-                        physicalWidth: blueprintPlanWidthMeters,
-                        modelName: "YourBuildingModel"
-                    )
+                ARViewContainer()
                     .ignoresSafeArea()
-                } else {
-                    ARViewContainer()
-                        .ignoresSafeArea()
-                }
 
                 crosshair
 
@@ -149,62 +137,60 @@ struct ContentView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingRecords) {
-            recordsView
-        }
-        .sheet(isPresented: $showingShareSheet) {
-            ShareSheet(items: [measurementStore.csvString()])
-        }
-        .sheet(isPresented: $showingCorrectionHistory) {
-            correctionHistoryView
-        }
-        .sheet(isPresented: $showingAIAssistant) {
-            aiAssistantView
-                .presentationDetents([.fraction(0.32), .medium, .large], selection: $assistantSheetDetent)
-                .presentationDragIndicator(.visible)
-                .presentationBackgroundInteraction(.enabled)
-        }
-        .sheet(isPresented: $showingRebarConfig) {
-            rebarConfigView
-                .presentationDetents([.fraction(0.32), .medium, .large], selection: $rebarSheetDetent)
-                .presentationDragIndicator(.visible)
-                .presentationBackgroundInteraction(.enabled)
-        }
-        .sheet(isPresented: $showingVolumeScan) {
-            volumeScanView
-                .presentationDetents([.fraction(0.28), .medium, .large], selection: $volumeSheetDetent)
-                .presentationDragIndicator(.visible)
-                .presentationBackgroundInteraction(.enabled)
-        }
-        .sheet(isPresented: $showingCrackInspector) {
-            crackInspectorView
-                .presentationDetents([.fraction(0.32), .medium, .large], selection: $crackSheetDetent)
-                .presentationDragIndicator(.visible)
-                .presentationBackgroundInteraction(.enabled)
-        }
-        .sheet(isPresented: $showingQuantumMode) {
-            quantumModeView
-                .presentationDetents([.fraction(0.32), .medium, .large], selection: $quantumSheetDetent)
-                .presentationDragIndicator(.visible)
-                .presentationBackgroundInteraction(.enabled)
-        }
-        .sheet(isPresented: $showingTestChecklist) {
-            testChecklistView
-                .presentationDetents([.fraction(0.4), .medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackgroundInteraction(.enabled)
-        }
-        .sheet(isPresented: $showingMonkeyAccessSheet) {
-            monkeyAccessSheetView
-                .presentationDetents([.fraction(0.36), .medium])
-                .presentationDragIndicator(.visible)
-                .presentationBackgroundInteraction(.enabled)
-        }
-        .sheet(isPresented: $showingMonkeyReportSheet) {
-            monkeyReportSheetView
-                .presentationDetents([.fraction(0.36), .medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackgroundInteraction(.enabled)
+        .sheet(item: $activeSheet) { target in
+            switch target {
+            case .records:
+                recordsView
+            case .share:
+                ShareSheet(items: [measurementStore.csvString()])
+            case .correctionHistory:
+                correctionHistoryView
+            case .aiAssistant:
+                aiAssistantView
+                    .presentationDetents([.fraction(0.32), .medium, .large], selection: $assistantSheetDetent)
+                    .presentationDragIndicator(.visible)
+                    .presentationBackgroundInteraction(.enabled)
+            case .rebarConfig:
+                rebarConfigView
+                    .presentationDetents([.fraction(0.32), .medium, .large], selection: $rebarSheetDetent)
+                    .presentationDragIndicator(.visible)
+                    .presentationBackgroundInteraction(.enabled)
+            case .volumeScan:
+                volumeScanView
+                    .presentationDetents([.fraction(0.28), .medium, .large], selection: $volumeSheetDetent)
+                    .presentationDragIndicator(.visible)
+                    .presentationBackgroundInteraction(.enabled)
+            case .crackInspector:
+                crackInspectorView
+                    .presentationDetents([.fraction(0.32), .medium, .large], selection: $crackSheetDetent)
+                    .presentationDragIndicator(.visible)
+                    .presentationBackgroundInteraction(.enabled)
+            case .quantumMode:
+                quantumModeView
+                    .presentationDetents([.fraction(0.32), .medium, .large], selection: $quantumSheetDetent)
+                    .presentationDragIndicator(.visible)
+                    .presentationBackgroundInteraction(.enabled)
+            case .testChecklist:
+                testChecklistView
+                    .presentationDetents([.fraction(0.4), .medium, .large])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackgroundInteraction(.enabled)
+            case .siteDeploymentChecklist:
+                siteDeploymentChecklistView
+                    .presentationDetents([.fraction(0.45), .medium, .large])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackgroundInteraction(.enabled)
+            case .monkeyAccess:
+                monkeyAccessSheetView
+                    .presentationDetents([.fraction(0.36), .medium])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackgroundInteraction(.enabled)
+            case .monkeyReport:
+                monkeyReportSheetView
+                    .presentationDetents([.fraction(0.36), .medium, .large])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackgroundInteraction(.enabled)
+            }
         }
         .fileImporter(
             isPresented: $showingIFCFileImporter,
@@ -232,30 +218,21 @@ struct ContentView: View {
         .onChange(of: autoClearViewDuringMeasure) {
             syncAutoClearViewMode(for: selectedControlPage)
         }
-        .onChange(of: showingVolumeScan) {
-            if showingVolumeScan {
+        .onChange(of: activeSheet) {
+            switch activeSheet {
+            case .volumeScan:
                 volumeSheetDetent = .fraction(0.28)
-            }
-        }
-        .onChange(of: showingAIAssistant) {
-            if showingAIAssistant {
+            case .aiAssistant:
                 assistantSheetDetent = .fraction(0.32)
-            }
-        }
-        .onChange(of: showingRebarConfig) {
-            if showingRebarConfig {
+            case .rebarConfig:
                 rebarSheetDetent = .fraction(0.32)
-            }
-        }
-        .onChange(of: showingCrackInspector) {
-            if showingCrackInspector {
+            case .crackInspector:
                 crackSheetDetent = .fraction(0.32)
                 sessionManager.refreshCrackPreviewFromCurrentFrame()
-            }
-        }
-        .onChange(of: showingQuantumMode) {
-            if showingQuantumMode {
+            case .quantumMode:
                 quantumSheetDetent = .fraction(0.32)
+            default:
+                break
             }
         }
         .onChange(of: selectedBlueprintPhotoItem) {
@@ -263,20 +240,23 @@ struct ContentView: View {
                 await handleBlueprintPhotoSelection()
             }
         }
+        .onChange(of: blueprintPlanWidthMeters) {
+            sessionManager.setUploadedBlueprintPhysicalWidthMeters(blueprintPlanWidthMeters)
+        }
         .onAppear {
             isViewActive = true
             clearViewAutoApplied = false
             setClearViewMode(false)
             syncAutoClearViewMode(for: selectedControlPage)
             syncMeasureDraftFromManager(force: true)
+            refreshMonkeyAccessState()
+            sessionManager.setUploadedBlueprintPhysicalWidthMeters(blueprintPlanWidthMeters)
             sessionManager.resumeSessionIfNeeded()
         }
         .onChange(of: scenePhase) {
             if scenePhase == .active {
-                isModalPresentationInFlight = false
                 sessionManager.resumeSessionIfNeeded()
             } else {
-                isModalPresentationInFlight = false
                 stopSafetyMonkey()
                 isMonkeyUnlocked = false
                 sessionManager.suspendSessionForViewDisappearance()
@@ -284,13 +264,9 @@ struct ContentView: View {
         }
         .onDisappear {
             isViewActive = false
-            isModalPresentationInFlight = false
             stopSafetyMonkey()
             closeAllModalSheets()
             sessionManager.suspendSessionForViewDisappearance()
-        }
-        .onAppear {
-            refreshMonkeyAccessState()
         }
     }
 
@@ -303,81 +279,39 @@ struct ContentView: View {
     }
 
     private func closeAllModalSheets() {
-        showingRecords = false
-        showingShareSheet = false
-        showingCorrectionHistory = false
-        showingAIAssistant = false
-        showingRebarConfig = false
-        showingVolumeScan = false
-        showingCrackInspector = false
-        showingQuantumMode = false
-        showingTestChecklist = false
-        showingMonkeyAccessSheet = false
-        showingMonkeyReportSheet = false
+        sheetSwitchTask?.cancel()
+        sheetSwitchTask = nil
+        activeSheet = nil
     }
 
     private func isModalSheetPresented(_ target: ModalSheetTarget) -> Bool {
-        switch target {
-        case .records:
-            return showingRecords
-        case .correctionHistory:
-            return showingCorrectionHistory
-        case .aiAssistant:
-            return showingAIAssistant
-        case .rebarConfig:
-            return showingRebarConfig
-        case .volumeScan:
-            return showingVolumeScan
-        case .crackInspector:
-            return showingCrackInspector
-        case .quantumMode:
-            return showingQuantumMode
-        case .testChecklist:
-            return showingTestChecklist
-        }
+        activeSheet == target
     }
 
     private func openModalSheet(_ target: ModalSheetTarget) {
-        switch target {
-        case .records:
-            showingRecords = true
-        case .correctionHistory:
-            showingCorrectionHistory = true
-        case .aiAssistant:
-            showingAIAssistant = true
-        case .rebarConfig:
-            showingRebarConfig = true
-        case .volumeScan:
-            showingVolumeScan = true
-        case .crackInspector:
-            showingCrackInspector = true
-        case .quantumMode:
-            showingQuantumMode = true
-        case .testChecklist:
-            showingTestChecklist = true
-        }
+        activeSheet = target
     }
 
     private func presentModalSheetSafely(_ target: ModalSheetTarget) {
         guard isViewActive, scenePhase == .active else { return }
-        guard !isModalPresentationInFlight else { return }
         guard !isModalSheetPresented(target) else { return }
-        isModalPresentationInFlight = true
-        DispatchQueue.main.async {
-            guard self.isViewActive, self.scenePhase == .active else {
-                self.isModalPresentationInFlight = false
-                return
-            }
-            self.closeAllModalSheets()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
-                guard self.isViewActive, self.scenePhase == .active else {
-                    self.isModalPresentationInFlight = false
-                    return
-                }
+
+        sheetSwitchTask?.cancel()
+        sheetSwitchTask = nil
+
+        if activeSheet == nil {
+            openModalSheet(target)
+            return
+        }
+
+        // Avoid rapid cross-sheet replacement glitches by switching in two phases.
+        activeSheet = nil
+        sheetSwitchTask = Task {
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            await MainActor.run {
+                guard self.isViewActive, self.scenePhase == .active else { return }
                 self.openModalSheet(target)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                    self.isModalPresentationInFlight = false
-                }
+                self.sheetSwitchTask = nil
             }
         }
     }
@@ -462,7 +396,7 @@ struct ContentView: View {
 
     private var clearViewRecordButton: some View {
         Button {
-            if showingVolumeScan {
+            if activeSheet == .volumeScan {
                 sessionManager.runVolumeScanOnce()
                 return
             }
@@ -482,12 +416,12 @@ struct ContentView: View {
                 setClearViewMode(false)
             }
         } label: {
-            Image(systemName: showingVolumeScan ? "viewfinder.circle.fill" : "camera.metering.center.weighted")
+            Image(systemName: activeSheet == .volumeScan ? "viewfinder.circle.fill" : "camera.metering.center.weighted")
                 .font(.title2.bold())
                 .foregroundStyle(.white)
                 .frame(width: 74, height: 74)
                 .background(
-                    showingVolumeScan
+                    activeSheet == .volumeScan
                         ? LinearGradient(colors: [.blue.opacity(0.98), .cyan.opacity(0.86)], startPoint: .topLeading, endPoint: .bottomTrailing)
                         : (
                             canRecordMeasurement
@@ -606,6 +540,16 @@ struct ContentView: View {
                             Text(sessionManager.arPOCStatusText)
                                 .font(.caption2.bold())
                                 .foregroundStyle(.cyan)
+                            Text(sessionManager.runtimeQASummaryText)
+                                .font(.caption2.bold())
+                                .foregroundStyle(.mint)
+                            if !sessionManager.runtimeQAReasons.isEmpty {
+                                ForEach(Array(sessionManager.runtimeQAReasons.prefix(2).enumerated()), id: \.offset) { _, reason in
+                                    Text("• \(reason)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.yellow)
+                                }
+                            }
                             Text(sessionManager.arMismatchSummaryText)
                                 .font(.caption2.bold())
                                 .foregroundStyle(sessionManager.arMismatchAlerts.isEmpty ? .green : .red)
@@ -667,20 +611,12 @@ struct ContentView: View {
                     Button("匯入IFC") {
                         showingIFCFileImporter = true
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.indigo)
-                    .frame(maxWidth: .infinity)
+                    .prominentActionStyle(.indigo)
 
-                    Button(sessionManager.ifcSimulationEnabled ? "關閉IFC-3D" : "生成IFC-3D") {
-                        if sessionManager.ifcModelElementCount == 0 && sessionManager.blueprintInputImage == nil {
-                            showingIFCFileImporter = true
-                        } else {
-                            sessionManager.toggleIFCSimulationFromUploadedBlueprint()
-                        }
+                    Button(ifc3DButtonTitle) {
+                        handleIFCSimulationToggle()
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(sessionManager.ifcSimulationEnabled ? .orange : .teal)
-                    .frame(maxWidth: .infinity)
+                    .prominentActionStyle(sessionManager.ifcSimulationEnabled ? .orange : .teal)
                 }
             }
 
@@ -736,9 +672,7 @@ struct ContentView: View {
                     Button("匯入 IFC/JSON 工程檔") {
                         showingIFCFileImporter = true
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.indigo)
-                    .frame(maxWidth: .infinity)
+                    .prominentActionStyle(.indigo)
 
                     Text(sessionManager.ifcModelSummaryText)
                         .font(.caption2)
@@ -857,6 +791,47 @@ struct ContentView: View {
                         .font(.caption2)
                         .foregroundStyle(.cyan)
 
+                    Picker("前線判圖模式", selection: Binding(
+                        get: { sessionManager.frontlineBlueprintQAMode },
+                        set: { sessionManager.setFrontlineBlueprintQAMode($0) }
+                    )) {
+                        ForEach(FrontlineBlueprintQAMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Text(sessionManager.blueprintFrontlineQAText)
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+
+                    ForEach(Array(sessionManager.blueprintFrontlineDetailLines.enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.82))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Text(sessionManager.stage1PreprocessStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.yellow)
+
+                    Text(sessionManager.stage2QAGateStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+
+                    Text(sessionManager.stage3ARBuildStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.green)
+
+                    Text(sessionManager.stage4ModelBuildStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.teal)
+
+                    Text(sessionManager.stage5RenderStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(.mint)
+
                     HStack(spacing: 10) {
                         Button("加入多視角樣本") {
                             sessionManager.appendCurrentBlueprintToMultiViewSet()
@@ -946,36 +921,55 @@ struct ContentView: View {
                         .font(.caption2)
                         .foregroundStyle(.teal)
 
-                    Button(sessionManager.ifcSimulationEnabled ? "關閉IFC-3D" : "生成IFC-3D") {
-                        sessionManager.toggleIFCSimulationFromUploadedBlueprint()
+                    Button(ifc3DButtonTitle) {
+                        handleIFCSimulationToggle()
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(sessionManager.ifcSimulationEnabled ? .orange : .blue)
-                    .frame(maxWidth: .infinity)
+                    .prominentActionStyle(sessionManager.ifcSimulationEnabled ? .orange : .blue)
 
                     Text(sessionManager.ifcSimulationStatusText)
                         .font(.caption2)
                         .foregroundStyle(.blue)
 
-                    Button(sessionManager.facadeHologramEnabled ? "關閉立面全息" : "生成立面全息") {
+                    Button(facadeHologramButtonTitle) {
                         sessionManager.toggleFacadeHologramFromBlueprint()
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(sessionManager.facadeHologramEnabled ? .orange : .indigo)
-                    .frame(maxWidth: .infinity)
+                    .prominentActionStyle(sessionManager.facadeHologramEnabled ? .orange : .indigo)
 
                     Button("套用現場穩定模式（全息）") {
                         sessionManager.applyOnSiteStableHologramPreset()
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.green)
-                    .frame(maxWidth: .infinity)
+                    .borderedActionStyle(.green)
 
                     Toggle("生命感模式（動態光影）", isOn: Binding(
                         get: { sessionManager.facadeLifeModeEnabled },
                         set: { sessionManager.setFacadeLifeModeEnabled($0) }
                     ))
                         .tint(.mint)
+
+                    Toggle("室內穿行模式（走近看隔間）", isOn: Binding(
+                        get: { sessionManager.interiorWalkthroughEnabled },
+                        set: { sessionManager.setInteriorWalkthroughEnabled($0) }
+                    ))
+                        .tint(.cyan)
+
+                    Toggle("沉浸穿行模式（類真實錄影感）", isOn: Binding(
+                        get: { sessionManager.cinematicWalkthroughEnabled },
+                        set: { sessionManager.setCinematicWalkthroughEnabled($0) }
+                    ))
+                        .tint(.purple)
+
+                    Toggle("自動升降級（穩定10秒自動升展示）", isOn: Binding(
+                        get: { sessionManager.adaptiveRenderModeEnabled },
+                        set: { sessionManager.setAdaptiveRenderModeEnabled($0) }
+                    ))
+                        .tint(.orange)
+
+                    Button("一鍵套用沉浸穿行預設") {
+                        sessionManager.applyImmersiveWalkthroughPreset()
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.purple)
+                    .frame(maxWidth: .infinity)
 
                     Picker("全息渲染模式", selection: Binding(
                         get: { sessionManager.hologramRenderMode },
@@ -987,9 +981,10 @@ struct ContentView: View {
                     }
                     .pickerStyle(.segmented)
 
-                    Text(sessionManager.facadeLifeModeStatusText)
-                        .font(.caption2)
-                        .foregroundStyle(.mint)
+                    captionStatus(sessionManager.facadeLifeModeStatusText, color: .mint)
+                    captionStatus(sessionManager.interiorWalkthroughStatusText, color: .cyan)
+                    captionStatus(sessionManager.cinematicWalkthroughStatusText, color: .purple)
+                    captionStatus(sessionManager.adaptiveRenderStatusText, color: .orange)
 
                     if sessionManager.facadeHologramEnabled {
                         Picker("重建策略", selection: Binding(
@@ -1135,6 +1130,13 @@ struct ContentView: View {
                     .font(.caption2)
                     .foregroundStyle(isMonkeyUnlocked ? .mint : .secondary)
 
+                    Picker("猴子強度", selection: $monkeyStressLevel) {
+                        ForEach(MonkeyStressLevel.allCases) { level in
+                            Text(level.title).tag(level)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
                     Button(safetyMonkeyEnabled ? "🐒 安全猴子：停止" : "🐒 安全猴子：啟動") {
                         toggleSafetyMonkey()
                     }
@@ -1143,13 +1145,11 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity)
                     .disabled(!isMonkeyUnlocked)
 
-                    Text("猴子狀態：\(safetyMonkeyEnabled ? "運行中" : "關")｜動作次數：\(safetyMonkeyTickCount)")
-                        .font(.caption2)
-                        .foregroundStyle(safetyMonkeyEnabled ? .yellow : .secondary)
-
-                    Text("最近動作：\(safetyMonkeyLastAction)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    captionStatus(
+                        "猴子狀態：\(safetyMonkeyEnabled ? "運行中" : "關")｜強度：\(monkeyStressLevel.title)｜動作次數：\(safetyMonkeyTickCount)",
+                        color: safetyMonkeyEnabled ? .yellow : .secondary
+                    )
+                    captionStatus("最近動作：\(safetyMonkeyLastAction)", color: .secondary)
 
                     HStack(spacing: 10) {
                         Button("📋 生成猴子測試報告") {
@@ -1184,6 +1184,12 @@ struct ContentView: View {
 
                     Button("✅ 測試打勾表") {
                         presentModalSheetSafely(.testChecklist)
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
+
+                    Button("🏗️ 工地部署檢查清單") {
+                        presentModalSheetSafely(.siteDeploymentChecklist)
                     }
                     .buttonStyle(.bordered)
                     .frame(maxWidth: .infinity)
@@ -1447,13 +1453,13 @@ struct ContentView: View {
                         Button {
                             selectedMainPage = .page2
                             selectedControlPage = .tools
-                            sessionManager.toggleIFCSimulationFromUploadedBlueprint()
+                            handleIFCSimulationToggle()
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                                 isTacticalMenuOpen = false
                             }
                         } label: {
                             tacticalActionLabel(
-                                sessionManager.ifcSimulationEnabled ? "🧱 關閉IFC-3D" : "🧱 生成IFC-3D",
+                                "🧱 \(ifc3DButtonTitle)",
                                 color: .teal
                             )
                         }
@@ -1467,7 +1473,7 @@ struct ContentView: View {
                             }
                         } label: {
                             tacticalActionLabel(
-                                sessionManager.facadeHologramEnabled ? "🏢 關閉立面全息" : "🏢 生成立面全息",
+                                "🏢 \(facadeHologramButtonTitle)",
                                 color: .indigo
                             )
                         }
@@ -1683,7 +1689,7 @@ struct ContentView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("匯出 CSV") {
-                        showingShareSheet = true
+                        presentModalSheetSafely(.share)
                     }
                 }
             }
@@ -1727,11 +1733,121 @@ struct ContentView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("關閉") {
-                        showingTestChecklist = false
+                        activeSheet = nil
                     }
                 }
             }
         }
+    }
+
+    private var siteDeploymentChecklistView: some View {
+        NavigationStack {
+            Form {
+                Section("圖紙與標記品質") {
+                    ForEach(SiteChecklistItem.markerGroupItems) { item in
+                        Toggle(item.title, isOn: Binding(
+                            get: { completedSiteChecklistItems.contains(item) },
+                            set: { isOn in
+                                if isOn {
+                                    completedSiteChecklistItems.insert(item)
+                                } else {
+                                    completedSiteChecklistItems.remove(item)
+                                }
+                            }
+                        ))
+                    }
+                }
+
+                Section("現場環境") {
+                    ForEach(SiteChecklistItem.environmentGroupItems) { item in
+                        Toggle(item.title, isOn: Binding(
+                            get: { completedSiteChecklistItems.contains(item) },
+                            set: { isOn in
+                                if isOn {
+                                    completedSiteChecklistItems.insert(item)
+                                } else {
+                                    completedSiteChecklistItems.remove(item)
+                                }
+                            }
+                        ))
+                    }
+                }
+
+                Section("模型與操作空間") {
+                    ForEach(SiteChecklistItem.performanceGroupItems) { item in
+                        Toggle(item.title, isOn: Binding(
+                            get: { completedSiteChecklistItems.contains(item) },
+                            set: { isOn in
+                                if isOn {
+                                    completedSiteChecklistItems.insert(item)
+                                } else {
+                                    completedSiteChecklistItems.remove(item)
+                                }
+                            }
+                        ))
+                    }
+                }
+
+                Section("部署狀態") {
+                    Text("完成 \(completedSiteChecklistItems.count) / \(SiteChecklistItem.allCases.count)")
+                        .font(.headline)
+                    Text(siteReadinessSummaryText)
+                        .font(.footnote.bold())
+                        .foregroundStyle(siteReadinessColor)
+                    Text(siteReadinessHintText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("工地部署檢查")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("全部清空") {
+                        completedSiteChecklistItems.removeAll()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("關閉") {
+                        activeSheet = nil
+                    }
+                }
+            }
+        }
+    }
+
+    private var siteReadinessSummaryText: String {
+        let doneCount = completedSiteChecklistItems.count
+        switch doneCount {
+        case SiteChecklistItem.allCases.count:
+            return "現場可進行全息展示（低風險）"
+        case 6...8:
+            return "可展示但建議先補齊風險項目"
+        default:
+            return "不建議直接展示，先完成關鍵檢查"
+        }
+    }
+
+    private var siteReadinessHintText: String {
+        if completedSiteChecklistItems.count == SiteChecklistItem.allCases.count {
+            return "建議先用 1 分鐘試投影確認追蹤穩定，再正式展示。"
+        }
+        if completedSiteChecklistItems.contains(.avoidDirectSunlight) == false {
+            return "目前最關鍵缺項：請避開正午直射日光。"
+        }
+        if completedSiteChecklistItems.contains(.markerPhysicalWidthVerified) == false {
+            return "目前最關鍵缺項：請再次核對實體圖紙寬度。"
+        }
+        if completedSiteChecklistItems.contains(.modelLodOptimized) == false {
+            return "目前最關鍵缺項：請先切換簡化模型或降低細節。"
+        }
+        return "建議補齊剩餘檢查項，降低漂移與過熱機率。"
+    }
+
+    private var siteReadinessColor: Color {
+        let doneCount = completedSiteChecklistItems.count
+        if doneCount == SiteChecklistItem.allCases.count { return .green }
+        if doneCount >= 6 { return .orange }
+        return .red
     }
 
     private var correctionHistoryView: some View {
@@ -1946,7 +2062,7 @@ struct ContentView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("關閉") {
-                        showingAIAssistant = false
+                        activeSheet = nil
                     }
                 }
             }
@@ -2026,7 +2142,7 @@ struct ContentView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") {
-                        showingRebarConfig = false
+                        activeSheet = nil
                     }
                 }
             }
@@ -2090,7 +2206,7 @@ struct ContentView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") {
-                        showingVolumeScan = false
+                        activeSheet = nil
                     }
                 }
             }
@@ -2245,7 +2361,7 @@ struct ContentView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") {
-                        showingCrackInspector = false
+                        activeSheet = nil
                     }
                 }
             }
@@ -2497,7 +2613,7 @@ struct ContentView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") {
-                        showingQuantumMode = false
+                        activeSheet = nil
                     }
                 }
             }
@@ -2537,13 +2653,7 @@ struct ContentView: View {
     private func resetAllForRetest(clearChecks: Bool) {
         measurementStore.clearAll()
         sessionManager.resetForTesting()
-        showingVolumeScan = false
-        showingCrackInspector = false
-        showingQuantumMode = false
-        showingAIAssistant = false
-        showingRebarConfig = false
-        showingCorrectionHistory = false
-        showingTestChecklist = false
+        activeSheet = nil
         selectedMainPage = .page1
         selectedStatusPage = .measure
         selectedControlPage = .measure
@@ -2551,6 +2661,7 @@ struct ContentView: View {
         setClearViewMode(false)
         if clearChecks {
             completedTestItems.removeAll()
+            completedSiteChecklistItems.removeAll()
         }
     }
 
@@ -2588,6 +2699,55 @@ struct ContentView: View {
         }
     }
 
+    private enum SiteChecklistItem: String, CaseIterable, Identifiable {
+        case markerIsMatte
+        case markerHasDistinctCorners
+        case markerPhysicalWidthVerified
+        case avoidDirectSunlight
+        case lidarPathIsClean
+        case dryNoRainOrDustBurst
+        case modelLodOptimized
+        case frontClearanceChecked
+        case quickPilotRunPassed
+
+        var id: String { rawValue }
+
+        static var markerGroupItems: [SiteChecklistItem] {
+            [.markerIsMatte, .markerHasDistinctCorners, .markerPhysicalWidthVerified]
+        }
+
+        static var environmentGroupItems: [SiteChecklistItem] {
+            [.avoidDirectSunlight, .lidarPathIsClean, .dryNoRainOrDustBurst]
+        }
+
+        static var performanceGroupItems: [SiteChecklistItem] {
+            [.modelLodOptimized, .frontClearanceChecked, .quickPilotRunPassed]
+        }
+
+        var title: String {
+            switch self {
+            case .markerIsMatte:
+                return "圖紙使用消光材質（無護貝反光）"
+            case .markerHasDistinctCorners:
+                return "四角具高對比、不重複特徵（Logo/標記）"
+            case .markerPhysicalWidthVerified:
+                return "physicalWidth 已與實體寬度逐一核對"
+            case .avoidDirectSunlight:
+                return "展示位置已避開正午直射陽光"
+            case .lidarPathIsClean:
+                return "LiDAR 前方無強反光/玻璃干擾"
+            case .dryNoRainOrDustBurst:
+                return "現場無雨滴與大量粉塵干擾"
+            case .modelLodOptimized:
+                return "已使用簡化模型（減面/LOD）"
+            case .frontClearanceChecked:
+                return "立面前方淨空足夠，避免虛實重疊遮擋"
+            case .quickPilotRunPassed:
+                return "已完成 1 分鐘試投影且追蹤穩定"
+            }
+        }
+    }
+
     private enum MonkeyLockMode {
         case setup
         case unlock
@@ -2619,7 +2779,7 @@ struct ContentView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("取消") {
-                        showingMonkeyAccessSheet = false
+                        activeSheet = nil
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -2660,7 +2820,7 @@ struct ContentView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("關閉") {
-                        showingMonkeyReportSheet = false
+                        activeSheet = nil
                     }
                 }
             }
@@ -2676,6 +2836,42 @@ struct ContentView: View {
             switch self {
             case .page1: return "第1頁"
             case .page2: return "第2頁"
+            }
+        }
+    }
+
+    private enum MonkeyStressLevel: String, CaseIterable, Identifiable {
+        case stable
+        case balanced
+        case aggressive
+        case brutal
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .stable: return "穩定"
+            case .balanced: return "平衡"
+            case .aggressive: return "高壓"
+            case .brutal: return "暴力"
+            }
+        }
+
+        var tickNanos: UInt64 {
+            switch self {
+            case .stable: return 4_600_000_000
+            case .balanced: return 3_200_000_000
+            case .aggressive: return 1_900_000_000
+            case .brutal: return 700_000_000
+            }
+        }
+
+        var burstCount: Int {
+            switch self {
+            case .stable: return 1
+            case .balanced: return 1
+            case .aggressive: return 2
+            case .brutal: return 4
             }
         }
     }
@@ -2700,7 +2896,7 @@ struct ContentView: View {
         appendMonkeyAction("已啟動")
         safetyMonkeyTask = Task {
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 3_200_000_000)
+                try? await Task.sleep(nanoseconds: monkeyStressLevel.tickNanos)
                 if Task.isCancelled { break }
                 await MainActor.run {
                     runSafetyMonkeyTick(sessionManager: sessionManager)
@@ -2721,7 +2917,7 @@ struct ContentView: View {
         monkeyPasswordInput = ""
         monkeyPasswordConfirmInput = ""
         monkeyPasswordError = ""
-        showingMonkeyAccessSheet = true
+        presentModalSheetSafely(.monkeyAccess)
     }
 
     private func lockMonkeyAccess() {
@@ -2746,7 +2942,7 @@ struct ContentView: View {
             monkeyHasPassword = true
             isMonkeyUnlocked = true
             monkeyPasswordError = ""
-            showingMonkeyAccessSheet = false
+            activeSheet = nil
             safetyMonkeyLastAction = "密碼已設定並解鎖"
         case .unlock:
             let pass = monkeyPasswordInput.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -2758,7 +2954,7 @@ struct ContentView: View {
             if sha256String(pass) == savedHash {
                 isMonkeyUnlocked = true
                 monkeyPasswordError = ""
-                showingMonkeyAccessSheet = false
+                activeSheet = nil
                 safetyMonkeyLastAction = "密碼解鎖成功"
             } else {
                 monkeyPasswordError = "密碼錯誤"
@@ -2791,6 +2987,32 @@ struct ContentView: View {
             types.append(ifcType)
         }
         return types
+    }
+
+    private var ifc3DButtonTitle: String {
+        sessionManager.ifcSimulationEnabled ? "關閉IFC-3D" : "生成IFC-3D"
+    }
+
+    private var facadeHologramButtonTitle: String {
+        sessionManager.facadeHologramEnabled ? "關閉立面全息" : "生成立面全息"
+    }
+
+    private func captionStatus(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.caption2)
+            .foregroundStyle(color)
+    }
+
+    private func handleIFCSimulationToggle() {
+        if sessionManager.ifcSimulationEnabled {
+            sessionManager.toggleIFCSimulationFromUploadedBlueprint()
+            return
+        }
+        if sessionManager.ifcModelElementCount == 0 && sessionManager.blueprintInputImage == nil {
+            showingIFCFileImporter = true
+            return
+        }
+        sessionManager.toggleIFCSimulationFromUploadedBlueprint()
     }
 
     private func handleIFCImportResult(_ result: Result<[URL], Error>) {
@@ -2830,7 +3052,7 @@ struct ContentView: View {
 
     private func runSafetyMonkeyTick(sessionManager: LiDARSessionManager?) {
         guard safetyMonkeyEnabled else { return }
-        enum MonkeyAction: CaseIterable {
+        enum MonkeyAction {
             case switchMainPage
             case switchControlPage
             case toggleClearView
@@ -2839,43 +3061,130 @@ struct ContentView: View {
             case openCrackSheet
             case scanVolume
             case refreshCrackPreview
+            case toggleFacadeHologram
+            case switchRenderMode
+            case toggleAdaptiveRender
+            case toggleImmersiveWalkthrough
+            case rebuildFacadeFromCurrentBlueprint
         }
-        guard let action = MonkeyAction.allCases.randomElement() else { return }
-        safetyMonkeyTickCount += 1
+        let baseActions: [MonkeyAction] = [
+            .switchMainPage,
+            .switchControlPage,
+            .toggleClearView,
+            .toggleTopPanel,
+            .openVolumeSheet,
+            .openCrackSheet,
+            .scanVolume,
+            .refreshCrackPreview
+        ]
+        let arActions: [MonkeyAction] = [
+            .toggleFacadeHologram,
+            .switchRenderMode,
+            .toggleAdaptiveRender,
+            .toggleImmersiveWalkthrough,
+            .rebuildFacadeFromCurrentBlueprint
+        ]
+        let actionPool: [MonkeyAction]
+        switch monkeyStressLevel {
+        case .stable:
+            actionPool = baseActions
+        case .balanced:
+            actionPool = baseActions + Array(arActions.prefix(3))
+        case .aggressive:
+            actionPool = baseActions + arActions
+        case .brutal:
+            // Bias toward heavy AR actions in brutal mode.
+            actionPool = baseActions + arActions + arActions + Array(arActions.suffix(3))
+        }
+        guard !actionPool.isEmpty else { return }
+        var recentBatchActions: [String] = []
+        for _ in 0..<monkeyStressLevel.burstCount {
+            guard let action = actionPool.randomElement() else { continue }
+            safetyMonkeyTickCount += 1
 
-        switch action {
-        case .switchMainPage:
-            selectedMainPage = (selectedMainPage == .page1) ? .page2 : .page1
-            safetyMonkeyLastAction = "切換主頁到 \(selectedMainPage.title)"
-        case .switchControlPage:
-            selectedControlPage = ControlPage.allCases.randomElement() ?? .measure
-            safetyMonkeyLastAction = "切換功能頁到 \(selectedControlPage.title)"
-        case .toggleClearView:
-            clearViewAutoApplied = false
-            setClearViewMode(!isClearViewMode)
-            safetyMonkeyLastAction = isClearViewMode ? "開啟釋放畫面" : "關閉釋放畫面"
-        case .toggleTopPanel:
-            isTopPanelExpanded.toggle()
-            safetyMonkeyLastAction = isTopPanelExpanded ? "展開上方面板" : "收合上方面板"
-        case .openVolumeSheet:
-            showingVolumeScan.toggle()
-            if showingVolumeScan { volumeSheetDetent = .fraction(0.28) }
-            safetyMonkeyLastAction = showingVolumeScan ? "開啟體積掃描視窗" : "關閉體積掃描視窗"
-        case .openCrackSheet:
-            showingCrackInspector.toggle()
-            if showingCrackInspector {
-                crackSheetDetent = .fraction(0.32)
+            switch action {
+            case .switchMainPage:
+                selectedMainPage = (selectedMainPage == .page1) ? .page2 : .page1
+                safetyMonkeyLastAction = "切換主頁到 \(selectedMainPage.title)"
+            case .switchControlPage:
+                selectedControlPage = ControlPage.allCases.randomElement() ?? .measure
+                safetyMonkeyLastAction = "切換功能頁到 \(selectedControlPage.title)"
+            case .toggleClearView:
+                clearViewAutoApplied = false
+                setClearViewMode(!isClearViewMode)
+                safetyMonkeyLastAction = isClearViewMode ? "開啟釋放畫面" : "關閉釋放畫面"
+            case .toggleTopPanel:
+                isTopPanelExpanded.toggle()
+                safetyMonkeyLastAction = isTopPanelExpanded ? "展開上方面板" : "收合上方面板"
+            case .openVolumeSheet:
+                if activeSheet == .volumeScan {
+                    activeSheet = nil
+                } else {
+                    presentModalSheetSafely(.volumeScan)
+                    volumeSheetDetent = .fraction(0.28)
+                }
+                safetyMonkeyLastAction = activeSheet == .volumeScan ? "開啟體積掃描視窗" : "關閉體積掃描視窗"
+            case .openCrackSheet:
+                if activeSheet == .crackInspector {
+                    activeSheet = nil
+                } else {
+                    presentModalSheetSafely(.crackInspector)
+                    crackSheetDetent = .fraction(0.32)
+                    sessionManager?.refreshCrackPreviewFromCurrentFrame()
+                }
+                safetyMonkeyLastAction = activeSheet == .crackInspector ? "開啟裂縫視窗" : "關閉裂縫視窗"
+            case .scanVolume:
+                sessionManager?.runVolumeScanOnce()
+                safetyMonkeyLastAction = "觸發一次體積掃描"
+            case .refreshCrackPreview:
                 sessionManager?.refreshCrackPreviewFromCurrentFrame()
+                safetyMonkeyLastAction = "更新裂縫鏡頭預覽"
+            case .toggleFacadeHologram:
+                guard sessionManager?.blueprintInputImage != nil else {
+                    safetyMonkeyLastAction = "略過全息切換（尚未上傳藍圖）"
+                    break
+                }
+                sessionManager?.toggleFacadeHologramFromBlueprint()
+                safetyMonkeyLastAction = sessionManager?.facadeHologramEnabled == true ? "啟動全息立面" : "停止全息立面"
+            case .switchRenderMode:
+                guard let sessionManager else {
+                    safetyMonkeyLastAction = "略過渲染切換（Session 不可用）"
+                    break
+                }
+                let nextMode = sessionManager.hologramRenderMode == .performance ? HologramRenderMode.showcase : .performance
+                sessionManager.setHologramRenderMode(nextMode)
+                safetyMonkeyLastAction = "切換渲染模式到 \(nextMode.title)"
+            case .toggleAdaptiveRender:
+                guard let sessionManager else {
+                    safetyMonkeyLastAction = "略過自動升降級（Session 不可用）"
+                    break
+                }
+                let nextEnabled = !sessionManager.adaptiveRenderModeEnabled
+                sessionManager.setAdaptiveRenderModeEnabled(nextEnabled)
+                safetyMonkeyLastAction = nextEnabled ? "開啟自動升降級" : "關閉自動升降級"
+            case .toggleImmersiveWalkthrough:
+                guard let sessionManager else {
+                    safetyMonkeyLastAction = "略過沉浸穿行（Session 不可用）"
+                    break
+                }
+                let nextEnabled = !sessionManager.cinematicWalkthroughEnabled
+                sessionManager.setCinematicWalkthroughEnabled(nextEnabled)
+                safetyMonkeyLastAction = nextEnabled ? "開啟沉浸穿行" : "關閉沉浸穿行"
+            case .rebuildFacadeFromCurrentBlueprint:
+                guard sessionManager?.facadeHologramEnabled == true else {
+                    safetyMonkeyLastAction = "略過重建（全息未啟動）"
+                    break
+                }
+                sessionManager?.rebuildFacadeHologramPreservingPose()
+                safetyMonkeyLastAction = "觸發全息重建（保留姿態）"
             }
-            safetyMonkeyLastAction = showingCrackInspector ? "開啟裂縫視窗" : "關閉裂縫視窗"
-        case .scanVolume:
-            sessionManager?.runVolumeScanOnce()
-            safetyMonkeyLastAction = "觸發一次體積掃描"
-        case .refreshCrackPreview:
-            sessionManager?.refreshCrackPreviewFromCurrentFrame()
-            safetyMonkeyLastAction = "更新裂縫鏡頭預覽"
+            recentBatchActions.append(safetyMonkeyLastAction)
+            appendMonkeyAction(safetyMonkeyLastAction)
         }
-        appendMonkeyAction(safetyMonkeyLastAction)
+        if monkeyStressLevel == .brutal, !recentBatchActions.isEmpty {
+            let collapsed = recentBatchActions.prefix(2).joined(separator: "｜")
+            safetyMonkeyLastAction = "暴力連擊：\(collapsed)"
+        }
     }
 
     private func appendMonkeyAction(_ action: String) {
@@ -2891,12 +3200,29 @@ struct ContentView: View {
         let startedAt = monkeySessionStartedAt ?? now
         let endedAt = monkeyLastStoppedAt ?? now
         let duration = max(0, endedAt.timeIntervalSince(startedAt))
+        let actionsPerMinute = duration > 0 ? (Double(safetyMonkeyTickCount) / duration) * 60.0 : 0
+        let verdict: String
+        let verdictReason: String
+        if duration >= 420, safetyMonkeyTickCount >= 120 {
+            verdict = "Pass"
+            verdictReason = "長時穩定且動作覆蓋達標"
+        } else if duration >= 240, safetyMonkeyTickCount >= 70 {
+            verdict = "Warning"
+            verdictReason = "基本可用，建議再做長時壓測"
+        } else {
+            verdict = "Fail"
+            verdictReason = "壓測覆蓋不足，需補測"
+        }
         var lines: [String] = []
         lines.append("猴子測試報告")
+        lines.append("驗收結論：\(verdict)（\(verdictReason)）")
+        lines.append("驗收門檻：Pass≥420秒且≥120動作；Warning≥240秒且≥70動作")
+        lines.append("測試強度：\(monkeyStressLevel.title)（間隔約 \(String(format: "%.1f", Double(monkeyStressLevel.tickNanos) / 1_000_000_000)) 秒，連擊 \(monkeyStressLevel.burstCount) 次/tick）")
         lines.append("開始：\(startedAt.formatted(date: .abbreviated, time: .standard))")
         lines.append("結束：\(endedAt.formatted(date: .abbreviated, time: .standard))")
         lines.append(String(format: "運行時長：%.1f 秒", duration))
         lines.append("動作次數：\(safetyMonkeyTickCount)")
+        lines.append(String(format: "平均頻率：%.1f 次/分鐘", actionsPerMinute))
         lines.append("最後狀態：\(safetyMonkeyLastAction)")
         if monkeyActionHistory.isEmpty {
             lines.append("近期動作：無")
@@ -2910,8 +3236,24 @@ struct ContentView: View {
         if showSheet {
             DispatchQueue.main.async {
                 guard self.isViewActive else { return }
-                self.showingMonkeyReportSheet = true
+                self.presentModalSheetSafely(.monkeyReport)
             }
         }
+    }
+}
+
+private extension View {
+    func prominentActionStyle(_ tint: Color) -> some View {
+        self
+            .buttonStyle(.borderedProminent)
+            .tint(tint)
+            .frame(maxWidth: .infinity)
+    }
+
+    func borderedActionStyle(_ tint: Color) -> some View {
+        self
+            .buttonStyle(.bordered)
+            .tint(tint)
+            .frame(maxWidth: .infinity)
     }
 }

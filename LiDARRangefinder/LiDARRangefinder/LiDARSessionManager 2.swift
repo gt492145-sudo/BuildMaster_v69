@@ -133,6 +133,34 @@ enum FacadeRebuildMode: String, CaseIterable, Identifiable {
     }
 }
 
+private enum FacadeBuildWorkTier {
+    case base
+    case standard
+    case full
+}
+
+private struct FacadeGridConfig {
+    let cols: Int
+    let rows: Int
+    let lumaMaxDimension: Int
+}
+
+enum FrontlineBlueprintQAMode: String, CaseIterable, Identifiable {
+    case standard
+    case enterprise
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .standard:
+            return "標準"
+        case .enterprise:
+            return "企業"
+        }
+    }
+}
+
 private struct LocalScheduleTask {
     let id: String
     let name: String
@@ -151,6 +179,38 @@ private struct FacadeHologramSnapshot {
 private struct MultiViewSample {
     let image: UIImage
     let capturedAt: Date
+    let isHighQuality: Bool
+}
+
+private enum BlueprintQAGrade: String {
+    case a
+    case b
+    case c
+
+    var label: String {
+        switch self {
+        case .a:
+            return "A"
+        case .b:
+            return "B"
+        case .c:
+            return "C"
+        }
+    }
+}
+
+private struct BlueprintQualityAssessment {
+    let statusText: String
+    let multiViewHint: String
+    let isHighQuality: Bool
+    let score: Int
+    let lineFeatureScore: Int
+    let contrastScore: Int
+    let clarityScore: Int
+    let resolutionScore: Int
+    let grade: BlueprintQAGrade
+    let isBOrAbove: Bool
+    let blockingReason: String?
 }
 
 @MainActor
@@ -161,6 +221,7 @@ final class LiDARSessionManager: ObservableObject {
         formatter.dateFormat = "MM/dd"
         return formatter
     }()
+    private static let uploadedBlueprintRuntimeReferenceName = "UploadedBlueprintRuntime"
 
     @Published var distanceText: String = "-- m"
     @Published var pitchText: String = "--°"
@@ -173,6 +234,8 @@ final class LiDARSessionManager: ObservableObject {
     @Published var qaLevelText: String = "一般"
     @Published var qaProfile: QATuningProfile = .ultra
     @Published var qaScore: Int = 0
+    @Published var runtimeQASummaryText: String = "現場QA：待命"
+    @Published var runtimeQAReasons: [String] = []
     @Published var aiDiagnosisText: String = "AI QA：初始化中"
     @Published var aiCorrectionText: String = "建議：請先鎖定量測目標"
     @Published var aiLastActionText: String = ""
@@ -208,6 +271,16 @@ final class LiDARSessionManager: ObservableObject {
     @Published var volumeScanPreviewPoints: [SIMD2<Double>] = []
     @Published var blueprintInputImage: UIImage?
     @Published var blueprintUploadStatusText: String = "圖紙：尚未上傳"
+    @Published var blueprintFrontlineQAText: String = "前線QA：待命"
+    @Published var blueprintFrontlineDetailLines: [String] = []
+    @Published var blueprintBacklinePrepStatusText: String = "後線追蹤優化：待命"
+    @Published var frontlineBlueprintQAMode: FrontlineBlueprintQAMode = .enterprise
+    @Published var stage1PreprocessStatusText: String = "第1段 判圖（清洗）：待命"
+    @Published var stage2QAGateStatusText: String = "第2段 判斷（QA放行）：待命"
+    @Published var stage3ARBuildStatusText: String = "第3段 追蹤（AR定位）：待命"
+    @Published var stage4ModelBuildStatusText: String = "第4段 建模（空間重建）：待命"
+    @Published var stage5RenderStatusText: String = "第5段 渲染（畫面輸出）：待命"
+    @Published var uploadedBlueprintPhysicalWidthMeters: Double = 0.30
     @Published var multiViewSampleCount: Int = 0
     @Published var multiViewStatusText: String = "多視角重建：尚未收集樣本"
     @Published var multiViewPackagePreviewLines: [String] = []
@@ -231,6 +304,12 @@ final class LiDARSessionManager: ObservableObject {
     @Published var facadeHologramStatusText: String = "立面全息：待命"
     @Published var facadeLifeModeEnabled: Bool = true
     @Published var facadeLifeModeStatusText: String = "生命感模式：開"
+    @Published var interiorWalkthroughEnabled: Bool = true
+    @Published var interiorWalkthroughStatusText: String = "室內穿行：待命"
+    @Published var cinematicWalkthroughEnabled: Bool = false
+    @Published var cinematicWalkthroughStatusText: String = "沉浸穿行：關"
+    @Published var adaptiveRenderModeEnabled: Bool = true
+    @Published var adaptiveRenderStatusText: String = "自動升降級：開（待命）"
     @Published var hologramRenderMode: HologramRenderMode = .performance
     @Published var facadeRebuildMode: FacadeRebuildMode = .auto
     @Published var facadeSnapshotAvailable: Bool = false
@@ -286,6 +365,18 @@ final class LiDARSessionManager: ObservableObject {
     private let retryableHTTPStatusCodes: Set<Int> = [408, 425, 429, 500, 502, 503, 504]
     private var updateTimer: Timer?
     private var isSessionSuspended = false
+    private var hasConfiguredSession = false
+    private var blueprintWidthUpdateTask: Task<Void, Never>?
+    private var lastMeasurementTickAt: TimeInterval = 0
+    private var sustainedLagCount = 0
+    private var autoLagProtectionTriggered = false
+    private var latestRuntimeLagMs: Double = 0
+    private var lagProtectionUntil: TimeInterval = 0
+    private var overloadGuardUntil: TimeInterval = 0
+    private var lagWarmupTicksRemaining: Int = 0
+    private var lagRecoveryStableTicks = 0
+    private var skipHeavyTickToggle = false
+    private var pollingInterval: TimeInterval = 0.12
     private var recentDistances: [Double] = []
     private var recentRawDistances: [Double] = []
     private let qaProfileStorageKey = "lidar_rangefinder_qa_profile"
@@ -320,6 +411,10 @@ final class LiDARSessionManager: ObservableObject {
     private let twd97RotationStorageKey = "lidar_rangefinder_twd97_rotation_deg"
     private let meshVisualizationStorageKey = "lidar_rangefinder_mesh_visualization_enabled"
     private let facadeLifeModeStorageKey = "lidar_rangefinder_facade_life_mode_enabled"
+    private let frontlineBlueprintQAModeStorageKey = "lidar_rangefinder_frontline_blueprint_qa_mode"
+    private let adaptiveRenderModeStorageKey = "lidar_rangefinder_adaptive_render_mode_enabled"
+    private let interiorWalkthroughStorageKey = "lidar_rangefinder_interior_walkthrough_enabled"
+    private let cinematicWalkthroughStorageKey = "lidar_rangefinder_cinematic_walkthrough_enabled"
     private let hologramRenderModeStorageKey = "lidar_rangefinder_hologram_render_mode"
     private let facadeRebuildModeStorageKey = "lidar_rangefinder_facade_rebuild_mode"
     private var aiIssue: AIQAIssueType = .none
@@ -338,6 +433,9 @@ final class LiDARSessionManager: ObservableObject {
     private var facadeLifeAnimationTimer: Timer?
     private var facadeLifeStartTime: TimeInterval = 0
     private var facadeScanBandEntity: ModelEntity?
+    private var facadeExteriorEntities: [Entity] = []
+    private var facadeInteriorEntities: [Entity] = []
+    private var isInsideFacadeWalkthroughZone = false
     private var facadeCurrentHeight: Float = 1.4
     private var activeFacadeRenderMode: HologramRenderMode = .performance
     private var facadeAutoDowngradedForStability = false
@@ -345,6 +443,9 @@ final class LiDARSessionManager: ObservableObject {
     private var facadeRebuildCooldownTimer: Timer?
     private var facadeRebuildCooldownUntil: TimeInterval = 0
     private var facadeRebuildTapTimes: [TimeInterval] = []
+    private var adaptiveStableTicks = 0
+    private var adaptiveHighLagTicks = 0
+    private var adaptiveLastSwitchAt: TimeInterval = 0
     private var multiViewSamples: [MultiViewSample] = []
     private var cachedFacadeDepthVNModel: VNCoreMLModel?
     private var cachedFacadeDepthModelName: String?
@@ -462,6 +563,24 @@ final class LiDARSessionManager: ObservableObject {
             facadeLifeModeEnabled = UserDefaults.standard.bool(forKey: facadeLifeModeStorageKey)
         }
         facadeLifeModeStatusText = facadeLifeModeEnabled ? "生命感模式：開" : "生命感模式：關"
+        if UserDefaults.standard.object(forKey: adaptiveRenderModeStorageKey) != nil {
+            adaptiveRenderModeEnabled = UserDefaults.standard.bool(forKey: adaptiveRenderModeStorageKey)
+        }
+        adaptiveRenderStatusText = adaptiveRenderModeEnabled ? "自動升降級：開（待命）" : "自動升降級：關"
+        if let raw = UserDefaults.standard.string(forKey: frontlineBlueprintQAModeStorageKey),
+           let mode = FrontlineBlueprintQAMode(rawValue: raw) {
+            frontlineBlueprintQAMode = mode
+        }
+        if UserDefaults.standard.object(forKey: interiorWalkthroughStorageKey) != nil {
+            interiorWalkthroughEnabled = UserDefaults.standard.bool(forKey: interiorWalkthroughStorageKey)
+        }
+        interiorWalkthroughStatusText = interiorWalkthroughEnabled ? "室內穿行：開" : "室內穿行：關"
+        if UserDefaults.standard.object(forKey: cinematicWalkthroughStorageKey) != nil {
+            cinematicWalkthroughEnabled = UserDefaults.standard.bool(forKey: cinematicWalkthroughStorageKey)
+        }
+        cinematicWalkthroughStatusText = cinematicWalkthroughEnabled
+            ? "沉浸穿行：開（建議搭配螢幕錄影）"
+            : "沉浸穿行：關"
         if let raw = UserDefaults.standard.string(forKey: hologramRenderModeStorageKey),
            let mode = HologramRenderMode(rawValue: raw) {
             hologramRenderMode = mode
@@ -618,6 +737,8 @@ final class LiDARSessionManager: ObservableObject {
         updateTimer?.invalidate()
         facadeLifeAnimationTimer?.invalidate()
         facadeRebuildCooldownTimer?.invalidate()
+        blueprintWidthUpdateTask?.cancel()
+        blueprintWidthUpdateTask = nil
     }
 
     func attachARView(_ view: ARView) {
@@ -874,12 +995,29 @@ final class LiDARSessionManager: ObservableObject {
     }
 
     func setBlueprintInputImage(_ image: UIImage) {
-        blueprintInputImage = image
-        let quality = evaluateBlueprintImageQuality(image)
-        blueprintUploadStatusText = quality.statusText
+        cancelBlueprintWidthUpdateTask()
+        stage1PreprocessStatusText = "第1段 判圖（清洗）：處理中"
+        let processedImage = preprocessBlueprintForFrontline(image)
+        blueprintInputImage = processedImage
+        stage1PreprocessStatusText = "第1段 判圖（清洗）：完成（線條強化）"
+        blueprintBacklinePrepStatusText = frontlineBlueprintQAMode == .enterprise
+            ? "後線追蹤優化：企業級線條增強已啟用"
+            : "後線追蹤優化：標準前處理"
+
+        let quality = evaluateBlueprintImageQuality(processedImage)
+        applyBlueprintQualityAssessment(quality)
         if multiViewSamples.isEmpty {
             multiViewStatusText = quality.multiViewHint
         }
+        reconfigureSessionForBlueprintChange(status: "已更新即時標靶：請對準新圖紙")
+    }
+
+    func setUploadedBlueprintPhysicalWidthMeters(_ meters: Double) {
+        let clamped = min(20.0, max(0.05, meters))
+        guard abs(clamped - uploadedBlueprintPhysicalWidthMeters) > 0.0001 else { return }
+        uploadedBlueprintPhysicalWidthMeters = clamped
+        guard blueprintInputImage != nil else { return }
+        scheduleBlueprintWidthSessionUpdate()
     }
 
     func appendCurrentBlueprintToMultiViewSet() {
@@ -887,12 +1025,24 @@ final class LiDARSessionManager: ObservableObject {
             multiViewStatusText = "多視角重建：請先上傳當前角度照片"
             return
         }
+        let quality = evaluateBlueprintImageQuality(image)
+        applyBlueprintQualityAssessment(quality)
         if multiViewSamples.count >= 12 {
             _ = multiViewSamples.removeFirst()
         }
-        multiViewSamples.append(MultiViewSample(image: image, capturedAt: Date()))
+        multiViewSamples.append(
+            MultiViewSample(
+                image: image,
+                capturedAt: Date(),
+                isHighQuality: quality.isHighQuality
+            )
+        )
         multiViewSampleCount = multiViewSamples.count
-        multiViewStatusText = "多視角重建：已加入樣本 \(multiViewSamples.count)/12"
+        if quality.isHighQuality {
+            multiViewStatusText = "多視角重建：已加入高品質樣本 \(multiViewSamples.count)/12（品質良好可進行3D牆體深層）"
+        } else {
+            multiViewStatusText = "多視角重建：已加入樣本 \(multiViewSamples.count)/12（建議補拍更清晰正視圖）"
+        }
     }
 
     func clearMultiViewSamples() {
@@ -909,7 +1059,16 @@ final class LiDARSessionManager: ObservableObject {
             return
         }
 
-        let summaries: [[String: Any]] = multiViewSamples.enumerated().map { idx, sample in
+        let prioritizedSamples = multiViewSamples.sorted { lhs, rhs in
+            if lhs.isHighQuality != rhs.isHighQuality {
+                return lhs.isHighQuality && !rhs.isHighQuality
+            }
+            return lhs.capturedAt < rhs.capturedAt
+        }
+
+        let highQualityCount = prioritizedSamples.filter(\.isHighQuality).count
+
+        let summaries: [[String: Any]] = prioritizedSamples.enumerated().map { idx, sample in
             let w = max(1, Int((sample.image.size.width * sample.image.scale).rounded()))
             let h = max(1, Int((sample.image.size.height * sample.image.scale).rounded()))
             let ratio = Float(h) / Float(max(1, w))
@@ -935,6 +1094,7 @@ final class LiDARSessionManager: ObservableObject {
                 "captured_at": Self.iso8601Formatter.string(from: sample.capturedAt),
                 "width": w,
                 "height": h,
+                "quality_tag": sample.isHighQuality ? "high" : "normal",
                 "orientation_hint": orientation,
                 "avg_luma": Double(avgLuma),
                 "depth_source": map?.depthSourceLabel ?? "單張影像（亮度+邊緣）"
@@ -945,6 +1105,7 @@ final class LiDARSessionManager: ObservableObject {
             "capture_id": UUID().uuidString,
             "created_at": Self.iso8601Formatter.string(from: Date()),
             "sample_count": summaries.count,
+            "high_quality_sample_count": highQualityCount,
             "samples": summaries
         ]
 
@@ -959,12 +1120,13 @@ final class LiDARSessionManager: ObservableObject {
             multiViewPackagePreviewLines = ["封包生成失敗：JSON 序列化錯誤"]
         }
 
-        multiViewStatusText = "多視角重建：封包已生成（\(summaries.count) 視角）"
+        multiViewStatusText = "多視角重建：封包已生成（\(summaries.count) 視角，高品質 \(highQualityCount)）"
     }
 
     func clearBlueprintInputImage() {
-        blueprintInputImage = nil
-        blueprintUploadStatusText = "圖紙：已清除"
+        cancelBlueprintWidthUpdateTask()
+        resetBlueprintFrontlineState(uploadStatusText: "圖紙：已清除")
+        reconfigureSessionForBlueprintChange(status: "已清除即時標靶：恢復預設標靶辨識")
     }
 
     func importIFCModelData(_ data: Data, fileName: String) {
@@ -1018,6 +1180,12 @@ final class LiDARSessionManager: ObservableObject {
     }
 
     func setFacadeLifeModeEnabled(_ enabled: Bool) {
+        if enabled, isOverloadGuardActive() {
+            facadeLifeModeEnabled = false
+            facadeLifeModeStatusText = "生命感模式：關（過載冷卻中）"
+            facadeHologramStatusText = "立面全息：過載冷卻中，暫停生命感特效"
+            return
+        }
         facadeLifeModeEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: facadeLifeModeStorageKey)
         facadeLifeModeStatusText = enabled ? "生命感模式：開" : "生命感模式：關"
@@ -1034,7 +1202,78 @@ final class LiDARSessionManager: ObservableObject {
         }
     }
 
+    func setInteriorWalkthroughEnabled(_ enabled: Bool) {
+        interiorWalkthroughEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: interiorWalkthroughStorageKey)
+        if !enabled {
+            isInsideFacadeWalkthroughZone = false
+            interiorWalkthroughStatusText = "室內穿行：關"
+        } else {
+            interiorWalkthroughStatusText = "室內穿行：開（等待進入）"
+        }
+        updateFacadeWalkthroughVisuals()
+    }
+
+    func setFrontlineBlueprintQAMode(_ mode: FrontlineBlueprintQAMode) {
+        frontlineBlueprintQAMode = mode
+        UserDefaults.standard.set(mode.rawValue, forKey: frontlineBlueprintQAModeStorageKey)
+        if let image = blueprintInputImage {
+            let quality = evaluateBlueprintImageQuality(image)
+            applyBlueprintQualityAssessment(quality)
+        }
+    }
+
+    func setAdaptiveRenderModeEnabled(_ enabled: Bool) {
+        adaptiveRenderModeEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: adaptiveRenderModeStorageKey)
+        adaptiveStableTicks = 0
+        adaptiveHighLagTicks = 0
+        adaptiveRenderStatusText = enabled ? "自動升降級：開（待命）" : "自動升降級：關"
+    }
+
+    func setCinematicWalkthroughEnabled(_ enabled: Bool) {
+        if enabled, isOverloadGuardActive() {
+            cinematicWalkthroughEnabled = false
+            UserDefaults.standard.set(false, forKey: cinematicWalkthroughStorageKey)
+            cinematicWalkthroughStatusText = "沉浸穿行：過載冷卻中（暫停）"
+            facadeHologramStatusText = "立面全息：過載冷卻中，暫停沉浸穿行"
+            return
+        }
+        cinematicWalkthroughEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: cinematicWalkthroughStorageKey)
+        if enabled {
+            interiorWalkthroughEnabled = true
+            UserDefaults.standard.set(true, forKey: interiorWalkthroughStorageKey)
+            interiorWalkthroughStatusText = "室內穿行：開（沉浸模式）"
+            cinematicWalkthroughStatusText = "沉浸穿行：開（請用系統螢幕錄影）"
+            facadeHologramStatusText = facadeHologramEnabled
+                ? "立面全息：沉浸穿行中"
+                : "立面全息：待命（沉浸穿行已開）"
+        } else {
+            cinematicWalkthroughStatusText = "沉浸穿行：關"
+        }
+        updateFacadeWalkthroughVisuals()
+    }
+
+    func applyImmersiveWalkthroughPreset() {
+        setCinematicWalkthroughEnabled(true)
+        setInteriorWalkthroughEnabled(true)
+        setFacadeLifeModeEnabled(false)
+        setMeshVisualizationEnabled(false)
+        if !facadeHologramEnabled {
+            facadeHologramStatusText = "立面全息：請先生成全息再進行穿行"
+        } else {
+            facadeHologramStatusText = "立面全息：已套用沉浸穿行預設（外殼淡化／內部分隔強化）"
+        }
+    }
+
     func setHologramRenderMode(_ mode: HologramRenderMode) {
+        if mode == .showcase, isOverloadGuardActive() {
+            hologramRenderMode = .performance
+            UserDefaults.standard.set(HologramRenderMode.performance.rawValue, forKey: hologramRenderModeStorageKey)
+            facadeHologramStatusText = "立面全息：過載冷卻中，暫停展示模式"
+            return
+        }
         hologramRenderMode = mode
         UserDefaults.standard.set(mode.rawValue, forKey: hologramRenderModeStorageKey)
         if !facadeHologramEnabled {
@@ -1422,7 +1661,11 @@ final class LiDARSessionManager: ObservableObject {
         return (bytes, "CoreML \(modelInfo.name)")
     }
 
-    private func makeFacadeDepthMap(from image: UIImage, maxDimension: Int = 96) -> FacadeDepthMap? {
+    private func makeFacadeDepthMap(
+        from image: UIImage,
+        maxDimension: Int = 96,
+        preferModelDepth: Bool = true
+    ) -> FacadeDepthMap? {
         guard let cgImage = image.cgImage else { return nil }
         let sourceWidth = cgImage.width
         let sourceHeight = cgImage.height
@@ -1450,7 +1693,9 @@ final class LiDARSessionManager: ObservableObject {
         context.interpolationQuality = .medium
         context.draw(cgImage, in: CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight))
         let edgeBytes = computeSobelEdges(from: lumaBytes, width: targetWidth, height: targetHeight)
-        let modelDepth = makeDepthBytesFromModel(cgImage: cgImage, targetWidth: targetWidth, targetHeight: targetHeight)
+        let modelDepth = preferModelDepth
+            ? makeDepthBytesFromModel(cgImage: cgImage, targetWidth: targetWidth, targetHeight: targetHeight)
+            : nil
 
         return FacadeDepthMap(
             width: targetWidth,
@@ -1462,11 +1707,152 @@ final class LiDARSessionManager: ObservableObject {
         )
     }
 
+    private func facadeBuildWorkTier(
+        renderMode: HologramRenderMode,
+        coldStartLowLoad: Bool
+    ) -> FacadeBuildWorkTier {
+        if isOverloadGuardActive() || autoLagProtectionTriggered || latestRuntimeLagMs >= 1500 {
+            return .base
+        }
+        if coldStartLowLoad || renderMode == .performance || latestRuntimeLagMs >= 650 {
+            return .standard
+        }
+        return .full
+    }
+
+    private func facadeGridConfig(
+        workTier: FacadeBuildWorkTier,
+        renderMode: HologramRenderMode,
+        coldStartLowLoad: Bool,
+        facadeWidth: Float,
+        facadeHeight: Float
+    ) -> FacadeGridConfig {
+        switch workTier {
+        case .base:
+            return FacadeGridConfig(
+                cols: max(4, min(6, Int((facadeWidth / 0.32).rounded()))),
+                rows: max(5, min(9, Int((facadeHeight / 0.30).rounded()))),
+                lumaMaxDimension: 36
+            )
+        case .standard:
+            switch renderMode {
+            case .performance:
+                if coldStartLowLoad {
+                    return FacadeGridConfig(
+                        cols: max(5, min(7, Int((facadeWidth / 0.28).rounded()))),
+                        rows: max(6, min(11, Int((facadeHeight / 0.26).rounded()))),
+                        lumaMaxDimension: 40
+                    )
+                }
+                return FacadeGridConfig(
+                    cols: max(6, min(10, Int((facadeWidth / 0.22).rounded()))),
+                    rows: max(8, min(16, Int((facadeHeight / 0.2).rounded()))),
+                    lumaMaxDimension: 64
+                )
+            case .showcase:
+                if coldStartLowLoad {
+                    return FacadeGridConfig(
+                        cols: max(6, min(8, Int((facadeWidth / 0.25).rounded()))),
+                        rows: max(8, min(13, Int((facadeHeight / 0.22).rounded()))),
+                        lumaMaxDimension: 48
+                    )
+                }
+                return FacadeGridConfig(
+                    cols: max(8, min(13, Int((facadeWidth / 0.19).rounded()))),
+                    rows: max(11, min(20, Int((facadeHeight / 0.17).rounded()))),
+                    lumaMaxDimension: 84
+                )
+            }
+        case .full:
+            switch renderMode {
+            case .performance:
+                return FacadeGridConfig(
+                    cols: max(7, min(11, Int((facadeWidth / 0.2).rounded()))),
+                    rows: max(10, min(17, Int((facadeHeight / 0.18).rounded()))),
+                    lumaMaxDimension: 72
+                )
+            case .showcase:
+                return FacadeGridConfig(
+                    cols: max(8, min(13, Int((facadeWidth / 0.19).rounded()))),
+                    rows: max(11, min(20, Int((facadeHeight / 0.17).rounded()))),
+                    lumaMaxDimension: 92
+                )
+            }
+        }
+    }
+
+    private func facadeWindowBudgetLimit(
+        workTier: FacadeBuildWorkTier,
+        renderMode: HologramRenderMode,
+        coldStartLowLoad: Bool
+    ) -> Int {
+        switch workTier {
+        case .base:
+            return 0
+        case .standard:
+            if coldStartLowLoad {
+                return renderMode == .showcase ? 70 : 45
+            }
+            return renderMode == .showcase ? 180 : 120
+        case .full:
+            return renderMode == .showcase ? 220 : 150
+        }
+    }
+
+    private func facadeFinCount(
+        workTier: FacadeBuildWorkTier,
+        cols: Int,
+        coldStartLowLoad: Bool
+    ) -> Int {
+        switch workTier {
+        case .base:
+            return max(2, cols / 4)
+        case .standard:
+            return coldStartLowLoad ? max(2, cols / 4) : max(3, cols / 3)
+        case .full:
+            return max(4, cols / 2)
+        }
+    }
+
+    private func facadeBeltCount(
+        workTier: FacadeBuildWorkTier,
+        rows: Int,
+        coldStartLowLoad: Bool
+    ) -> Int {
+        switch workTier {
+        case .base:
+            return max(2, rows / 5)
+        case .standard:
+            return coldStartLowLoad ? max(3, rows / 5) : max(4, rows / 4)
+        case .full:
+            return max(5, rows / 3)
+        }
+    }
+
+    private func facadePartitionCount(
+        workTier: FacadeBuildWorkTier,
+        renderMode: HologramRenderMode,
+        coldStartLowLoad: Bool
+    ) -> Int {
+        switch workTier {
+        case .base:
+            return 1
+        case .standard:
+            if coldStartLowLoad {
+                return renderMode == .showcase ? 3 : 2
+            }
+            return renderMode == .showcase ? 4 : 3
+        case .full:
+            return renderMode == .showcase ? 5 : 4
+        }
+    }
+
     private func buildFacadeHologramAnchor(
         image: UIImage,
         referenceTransform: simd_float4x4?,
         requestedRenderMode: HologramRenderMode? = nil,
-        allowAutoDowngrade: Bool = true
+        allowAutoDowngrade: Bool = true,
+        coldStartLowLoad: Bool = false
     ) -> AnchorEntity {
         let anchor = AnchorEntity(world: matrix_identity_float4x4)
         if let cameraTransform = referenceTransform {
@@ -1488,6 +1874,9 @@ final class LiDARSessionManager: ObservableObject {
         let root = Entity()
         facadeHologramRoot = root
         anchor.addChild(root)
+        facadeExteriorEntities = []
+        facadeInteriorEntities = []
+        isInsideFacadeWalkthroughZone = false
 
         let imageRatio = max(0.35, min(2.2, Double(image.size.height / max(1, image.size.width))))
         let facadeWidth: Float = 1.9
@@ -1500,6 +1889,7 @@ final class LiDARSessionManager: ObservableObject {
         let body = ModelEntity(mesh: bodyMesh, materials: [bodyMat])
         body.position = [0, facadeHeight / 2, 0]
         root.addChild(body)
+        facadeExteriorEntities.append(body)
 
         let selectedRenderMode = requestedRenderMode ?? hologramRenderMode
         let pixelWidth = max(1, Int((image.size.width * image.scale).rounded()))
@@ -1509,24 +1899,27 @@ final class LiDARSessionManager: ObservableObject {
         let effectiveRenderMode: HologramRenderMode = shouldAutoDowngrade ? .performance : selectedRenderMode
         activeFacadeRenderMode = effectiveRenderMode
         facadeAutoDowngradedForStability = shouldAutoDowngrade
+        let workTier = facadeBuildWorkTier(renderMode: effectiveRenderMode, coldStartLowLoad: coldStartLowLoad)
+        stage4ModelBuildStatusText = "第4段 建模（空間重建）：子工序A 主體建置"
 
-        // Adaptive tessellation by render mode.
-        let cols: Int
-        let rows: Int
-        let lumaMaxDimension: Int
-        switch effectiveRenderMode {
-        case .performance:
-            cols = max(6, min(10, Int((facadeWidth / 0.22).rounded())))
-            rows = max(8, min(16, Int((facadeHeight / 0.2).rounded())))
-            lumaMaxDimension = 64
-        case .showcase:
-            cols = max(8, min(13, Int((facadeWidth / 0.19).rounded())))
-            rows = max(11, min(20, Int((facadeHeight / 0.17).rounded())))
-            lumaMaxDimension = 84
-        }
+        let gridConfig = facadeGridConfig(
+            workTier: workTier,
+            renderMode: effectiveRenderMode,
+            coldStartLowLoad: coldStartLowLoad,
+            facadeWidth: facadeWidth,
+            facadeHeight: facadeHeight
+        )
+        let cols = gridConfig.cols
+        let rows = gridConfig.rows
+        let lumaMaxDimension = gridConfig.lumaMaxDimension
         let unitW = facadeWidth / Float(cols)
         let unitH = facadeHeight / Float(rows)
-        let depthMap = makeFacadeDepthMap(from: image, maxDimension: lumaMaxDimension)
+        stage4ModelBuildStatusText = "第4段 建模（空間重建）：子工序B 深度圖與格網"
+        let depthMap = makeFacadeDepthMap(
+            from: image,
+            maxDimension: lumaMaxDimension,
+            preferModelDepth: !coldStartLowLoad && workTier != .base
+        )
 
         let depthBuckets: [Float] = [0.012, 0.022, 0.034]
         let toneBuckets: [CGFloat] = [0.66, 0.77, 0.88]
@@ -1545,9 +1938,14 @@ final class LiDARSessionManager: ObservableObject {
 
         let windowMesh = MeshResource.generateBox(size: [unitW * 0.62, unitH * 0.56, 0.009])
         let windowMat = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.82), roughness: 0.12, isMetallic: true)
-        let windowBudgetLimit = effectiveRenderMode == .showcase ? 180 : 120
+        let windowBudgetLimit = facadeWindowBudgetLimit(
+            workTier: workTier,
+            renderMode: effectiveRenderMode,
+            coldStartLowLoad: coldStartLowLoad
+        )
         var windowBudget = windowBudgetLimit
 
+        stage4ModelBuildStatusText = "第4段 建模（空間重建）：子工序C 立面單元生成"
         for row in 0..<rows {
             let y = unitH * (Float(row) + 0.5)
             for col in 0..<cols {
@@ -1570,11 +1968,13 @@ final class LiDARSessionManager: ObservableObject {
                 let tile = ModelEntity(mesh: tileMeshes[depthIndex], materials: [tileMaterials[toneIndex]])
                 tile.position = [x, y, tileZ]
                 root.addChild(tile)
+                facadeExteriorEntities.append(tile)
 
                 if recess > 0.018, windowBudget > 0, ((row + col) % 2 == 0) {
                     let window = ModelEntity(mesh: windowMesh, materials: [windowMat])
                     window.position = [x, y, depth / 2 - recess - 0.006]
                     root.addChild(window)
+                    facadeExteriorEntities.append(window)
                     windowBudget -= 1
                 }
             }
@@ -1582,7 +1982,8 @@ final class LiDARSessionManager: ObservableObject {
         let windowsPlaced = windowBudgetLimit - windowBudget
 
         // Structural fins and horizontal belts add stronger silhouette and real-world facade rhythm.
-        let finCount = max(3, cols / 3)
+        stage4ModelBuildStatusText = "第4段 建模（空間重建）：子工序D 結構骨架"
+        let finCount = facadeFinCount(workTier: workTier, cols: cols, coldStartLowLoad: coldStartLowLoad)
         let finMesh = MeshResource.generateBox(size: [0.028, facadeHeight, depth * 1.08])
         let finMat = SimpleMaterial(color: UIColor.darkGray.withAlphaComponent(0.95), roughness: 0.44, isMetallic: false)
         for i in 1..<finCount {
@@ -1590,9 +1991,10 @@ final class LiDARSessionManager: ObservableObject {
             let fin = ModelEntity(mesh: finMesh, materials: [finMat])
             fin.position = [x, facadeHeight / 2, depth / 2 + 0.022]
             root.addChild(fin)
+            facadeExteriorEntities.append(fin)
         }
 
-        let beltCount = max(4, rows / 4)
+        let beltCount = facadeBeltCount(workTier: workTier, rows: rows, coldStartLowLoad: coldStartLowLoad)
         let beltMesh = MeshResource.generateBox(size: [facadeWidth * 0.98, 0.018, depth * 1.05])
         let beltMat = SimpleMaterial(color: UIColor.white.withAlphaComponent(0.9), roughness: 0.3, isMetallic: false)
         for i in 1..<beltCount {
@@ -1600,24 +2002,57 @@ final class LiDARSessionManager: ObservableObject {
             let belt = ModelEntity(mesh: beltMesh, materials: [beltMat])
             belt.position = [0, y, depth / 2 + 0.012]
             root.addChild(belt)
+            facadeExteriorEntities.append(belt)
         }
 
         // Add high-contrast outline frame so the facade silhouette stays readable on site.
-        let edgeThickness: Float = 0.03
-        let edgeMat = SimpleMaterial(color: UIColor.black.withAlphaComponent(0.85), roughness: 0.35, isMetallic: false)
-        let sideEdgeMesh = MeshResource.generateBox(size: [edgeThickness, facadeHeight, depth * 1.04])
-        let topBottomEdgeMesh = MeshResource.generateBox(size: [facadeWidth + edgeThickness, edgeThickness, depth * 1.04])
-        for side: Float in [-1, 1] {
-            let sideEdge = ModelEntity(mesh: sideEdgeMesh, materials: [edgeMat])
-            sideEdge.position = [side * (facadeWidth / 2), facadeHeight / 2, 0]
-            root.addChild(sideEdge)
+        if workTier != .base {
+            let edgeThickness: Float = 0.03
+            let edgeMat = SimpleMaterial(color: UIColor.black.withAlphaComponent(0.85), roughness: 0.35, isMetallic: false)
+            let sideEdgeMesh = MeshResource.generateBox(size: [edgeThickness, facadeHeight, depth * 1.04])
+            let topBottomEdgeMesh = MeshResource.generateBox(size: [facadeWidth + edgeThickness, edgeThickness, depth * 1.04])
+            for side: Float in [-1, 1] {
+                let sideEdge = ModelEntity(mesh: sideEdgeMesh, materials: [edgeMat])
+                sideEdge.position = [side * (facadeWidth / 2), facadeHeight / 2, 0]
+                root.addChild(sideEdge)
+                facadeExteriorEntities.append(sideEdge)
+            }
+            let topEdge = ModelEntity(mesh: topBottomEdgeMesh, materials: [edgeMat])
+            topEdge.position = [0, facadeHeight, 0]
+            root.addChild(topEdge)
+            facadeExteriorEntities.append(topEdge)
+            let bottomEdge = ModelEntity(mesh: topBottomEdgeMesh, materials: [edgeMat])
+            bottomEdge.position = [0, 0, 0]
+            root.addChild(bottomEdge)
+            facadeExteriorEntities.append(bottomEdge)
         }
-        let topEdge = ModelEntity(mesh: topBottomEdgeMesh, materials: [edgeMat])
-        topEdge.position = [0, facadeHeight, 0]
-        root.addChild(topEdge)
-        let bottomEdge = ModelEntity(mesh: topBottomEdgeMesh, materials: [edgeMat])
-        bottomEdge.position = [0, 0, 0]
-        root.addChild(bottomEdge)
+
+        // Add a lightweight interior partition set for walk-in visualization.
+        let partitionCount = facadePartitionCount(
+            workTier: workTier,
+            renderMode: effectiveRenderMode,
+            coldStartLowLoad: coldStartLowLoad
+        )
+        stage4ModelBuildStatusText = "第4段 建模（空間重建）：子工序E 室內分隔"
+        let partitionMesh = MeshResource.generateBox(size: [facadeWidth * 0.82, 0.028, 0.012])
+        let partitionMat = SimpleMaterial(color: UIColor.white.withAlphaComponent(0.94), roughness: 0.22, isMetallic: false)
+        for i in 0..<partitionCount {
+            let y = facadeHeight * (Float(i + 1) / Float(partitionCount + 1))
+            let partition = ModelEntity(mesh: partitionMesh, materials: [partitionMat])
+            partition.position = [0, y, -depth * 0.08]
+            root.addChild(partition)
+            facadeInteriorEntities.append(partition)
+        }
+        let coreWallMesh = MeshResource.generateBox(size: [0.014, facadeHeight * 0.92, depth * 0.72])
+        let coreWallMat = SimpleMaterial(color: UIColor.systemTeal.withAlphaComponent(0.84), roughness: 0.3, isMetallic: false)
+        if workTier != .base {
+            for side: Float in [-1, 1] {
+                let coreWall = ModelEntity(mesh: coreWallMesh, materials: [coreWallMat])
+                coreWall.position = [side * facadeWidth * 0.18, facadeHeight * 0.48, -depth * 0.06]
+                root.addChild(coreWall)
+                facadeInteriorEntities.append(coreWall)
+            }
+        }
 
         let scanMesh = MeshResource.generateBox(size: [facadeWidth * 0.98, 0.06, 0.008])
         let scanMat = SimpleMaterial(color: UIColor.cyan.withAlphaComponent(0.42), roughness: 0.15, isMetallic: true)
@@ -1625,9 +2060,11 @@ final class LiDARSessionManager: ObservableObject {
         scanBand.position = [0, 0.08, depth / 2 + 0.04]
         root.addChild(scanBand)
         facadeScanBandEntity = scanBand
+        facadeExteriorEntities.append(scanBand)
 
         facadeLifePulseScale = 1.0
         applyFacadeHologramTransform()
+        updateFacadeWalkthroughVisuals()
         startFacadeLifeAnimationIfNeeded()
         updateFacadeRealismDashboard(
             depthSourceLabel: depthMap?.depthSourceLabel ?? "單張影像（亮度+邊緣）",
@@ -1639,9 +2076,19 @@ final class LiDARSessionManager: ObservableObject {
             effectiveRenderMode: effectiveRenderMode,
             shouldAutoDowngrade: shouldAutoDowngrade
         )
+        let workTierLabel: String
+        switch workTier {
+        case .base:
+            workTierLabel = "基礎分工（過載保護）"
+        case .standard:
+            workTierLabel = "標準分工"
+        case .full:
+            workTierLabel = "完整分工"
+        }
         facadeQualityReportLines = [
             "模式：\(effectiveRenderMode == .showcase ? "展示" : "效能")",
-            "穩定保護：\(shouldAutoDowngrade ? "已降載" : "未降載")",
+            "建模分工：\(workTierLabel)",
+            "穩定保護：\(shouldAutoDowngrade ? "已降載" : (effectiveRenderMode == .performance ? "已在效能模式" : "未觸發"))",
             "深度估計：\(depthMap?.depthSourceLabel ?? "單張影像（亮度+邊緣）")",
             "影像解析：\(pixelWidth)x\(pixelHeight)",
             "格網密度：\(cols)x\(rows)（\(cols * rows) 塊）",
@@ -1649,6 +2096,8 @@ final class LiDARSessionManager: ObservableObject {
             "窗格生成：\(windowsPlaced)",
             "真實感總分：\(facadeRealismOverallScore)/100（\(facadeRealismTierText.replacingOccurrences(of: "真實感評級：", with: ""))）"
         ]
+        stage4ModelBuildStatusText = "第4段 建模（空間重建）：完成（\(workTierLabel)）"
+        stage5RenderStatusText = "第5段 渲染（畫面輸出）：完成（\(effectiveRenderMode == .showcase ? "展示" : "效能")）"
         return anchor
     }
 
@@ -1659,6 +2108,51 @@ final class LiDARSessionManager: ObservableObject {
         let pitch = simd_quatf(angle: facadeHologramPitch, axis: [1, 0, 0])
         let roll = simd_quatf(angle: facadeHologramRoll, axis: [0, 0, 1])
         root.orientation = yaw * pitch * roll
+    }
+
+    private func setOpacity(_ alpha: Float, for entities: [Entity]) {
+        let clamped = max(0.05, min(1.0, alpha))
+        for entity in entities {
+            entity.components.set(OpacityComponent(opacity: clamped))
+        }
+    }
+
+    private func updateFacadeWalkthroughVisuals() {
+        guard facadeHologramEnabled, !facadeExteriorEntities.isEmpty else { return }
+        guard interiorWalkthroughEnabled else {
+            setOpacity(1.0, for: facadeExteriorEntities)
+            setOpacity(0.65, for: facadeInteriorEntities)
+            return
+        }
+        guard let arView, let anchor = facadeHologramAnchor else { return }
+        let frame = arView.session.currentFrame
+        let cameraTransform = frame?.camera.transform
+        guard let cameraTransform else { return }
+
+        let cameraPos = SIMD3<Float>(
+            cameraTransform.columns.3.x,
+            cameraTransform.columns.3.y,
+            cameraTransform.columns.3.z
+        )
+        let anchorPos = anchor.position(relativeTo: nil)
+        let distance = simd_length(cameraPos - anchorPos)
+        let insideThreshold = cinematicWalkthroughEnabled
+            ? max(Float(1.2), min(Float(2.4), facadeCurrentHeight * Float(0.95)))
+            : max(Float(0.95), min(Float(1.85), facadeCurrentHeight * Float(0.72)))
+        let nowInside = distance <= insideThreshold
+        isInsideFacadeWalkthroughZone = nowInside
+
+        if nowInside {
+            setOpacity(cinematicWalkthroughEnabled ? 0.08 : 0.18, for: facadeExteriorEntities)
+            setOpacity(1.0, for: facadeInteriorEntities)
+            interiorWalkthroughStatusText = cinematicWalkthroughEnabled ? "室內穿行：沉浸透視中" : "室內穿行：內部透視中"
+        } else {
+            setOpacity(cinematicWalkthroughEnabled ? 0.78 : 0.92, for: facadeExteriorEntities)
+            setOpacity(cinematicWalkthroughEnabled ? 0.62 : 0.5, for: facadeInteriorEntities)
+            interiorWalkthroughStatusText = cinematicWalkthroughEnabled
+                ? "室內穿行：接近建築，將切入沉浸透視"
+                : "室內穿行：接近建築可看內部"
+        }
     }
 
     private func startFacadeLifeAnimationIfNeeded() {
@@ -1830,12 +2324,16 @@ final class LiDARSessionManager: ObservableObject {
         facadeRebuildCooldownTimer?.invalidate()
         facadeRebuildCooldownTimer = nil
         facadeRebuildCooldownUntil = 0
+        overloadGuardUntil = 0
         facadeRebuildReady = true
         facadeRebuildGuardText = "重建保護：就緒"
         facadeHologramAnchor?.removeFromParent()
         facadeHologramAnchor = nil
         facadeHologramRoot = nil
         facadeScanBandEntity = nil
+        facadeExteriorEntities = []
+        facadeInteriorEntities = []
+        isInsideFacadeWalkthroughZone = false
         facadeQualityReportLines = []
         facadeRealismOverallScore = 0
         facadeRealismTierText = "真實感：待命"
@@ -1848,6 +2346,13 @@ final class LiDARSessionManager: ObservableObject {
         facadeHologramRoll = 0
         facadeHologramEnabled = false
         facadeHologramStatusText = "立面全息：關"
+        interiorWalkthroughStatusText = interiorWalkthroughEnabled ? "室內穿行：開（等待建立全息）" : "室內穿行：關"
+        cinematicWalkthroughStatusText = cinematicWalkthroughEnabled ? "沉浸穿行：開（等待建立全息）" : "沉浸穿行：關"
+        if ifcSimulationEnabled {
+            setARPipelineRunning(label: "IFC")
+        } else {
+            resetBlueprintPipelineStatus()
+        }
     }
 
     private func beginFacadeRebuildCooldown(seconds: TimeInterval, reason: String) {
@@ -1874,6 +2379,12 @@ final class LiDARSessionManager: ObservableObject {
 
     private func canRunFacadeRebuild() -> Bool {
         let now = Date().timeIntervalSinceReferenceDate
+        if now < overloadGuardUntil {
+            let remaining = overloadGuardUntil - now
+            facadeRebuildGuardText = "重建保護：過載冷卻中（\(String(format: "%.1f", max(0, remaining))) 秒）"
+            facadeHologramStatusText = "立面全息：過載冷卻中，稍候再重建"
+            return false
+        }
         if now < facadeRebuildCooldownUntil {
             let remaining = facadeRebuildCooldownUntil - now
             facadeRebuildGuardText = "重建保護：冷卻中（\(String(format: "%.1f", max(0, remaining))) 秒）"
@@ -1891,17 +2402,83 @@ final class LiDARSessionManager: ObservableObject {
         return true
     }
 
+    private func isOverloadGuardActive() -> Bool {
+        Date().timeIntervalSinceReferenceDate < overloadGuardUntil
+    }
+
+    private func applyBlueprintQualityAssessment(_ quality: BlueprintQualityAssessment) {
+        let modeLabel = frontlineBlueprintQAMode == .enterprise ? "企業" : "標準"
+        blueprintUploadStatusText = quality.statusText
+        blueprintFrontlineQAText = "前線QA[\(modeLabel)]：\(quality.grade.label)（總分\(quality.score)/100｜線特徵\(quality.lineFeatureScore)）\(quality.isBOrAbove ? "，可放行" : "，未達B級，禁止生成")"
+        blueprintFrontlineDetailLines = makeBlueprintFrontlineDetailLines(quality)
+        stage2QAGateStatusText = quality.isBOrAbove
+            ? "第2段 判斷（QA放行）：放行（\(quality.grade.label)級）"
+            : "第2段 判斷（QA放行）：阻擋（未達B級）"
+        if quality.isBOrAbove {
+            setARPipelineReady()
+        } else {
+            setARPipelineBlocked(reason: "需達B級")
+        }
+    }
+
+    private func setARPipelineReady() {
+        stage3ARBuildStatusText = "第3段 追蹤（AR定位）：待命（可啟動）"
+        stage4ModelBuildStatusText = "第4段 建模（空間重建）：待命（可啟動）"
+        stage5RenderStatusText = "第5段 渲染（畫面輸出）：待命（可啟動）"
+    }
+
+    private func setARPipelineRunning(label: String) {
+        stage3ARBuildStatusText = "第3段 追蹤（AR定位）：運行中（\(label)）"
+        stage4ModelBuildStatusText = "第4段 建模（空間重建）：運行中（\(label)）"
+        stage5RenderStatusText = "第5段 渲染（畫面輸出）：運行中（\(label)）"
+    }
+
+    private func setARPipelineBlocked(reason: String) {
+        stage3ARBuildStatusText = "第3段 追蹤（AR定位）：封鎖（\(reason)）"
+        stage4ModelBuildStatusText = "第4段 建模（空間重建）：封鎖（\(reason)）"
+        stage5RenderStatusText = "第5段 渲染（畫面輸出）：封鎖（\(reason)）"
+    }
+
+    private func resetBlueprintPipelineStatus() {
+        stage1PreprocessStatusText = "第1段 判圖（清洗）：待命"
+        stage2QAGateStatusText = "第2段 判斷（QA放行）：待命"
+        stage3ARBuildStatusText = "第3段 追蹤（AR定位）：待命"
+        stage4ModelBuildStatusText = "第4段 建模（空間重建）：待命"
+        stage5RenderStatusText = "第5段 渲染（畫面輸出）：待命"
+    }
+
+    private func resetBlueprintFrontlineState(uploadStatusText: String) {
+        blueprintInputImage = nil
+        blueprintUploadStatusText = uploadStatusText
+        blueprintFrontlineQAText = "前線QA：待命"
+        blueprintFrontlineDetailLines = []
+        blueprintBacklinePrepStatusText = "後線追蹤優化：待命"
+        resetBlueprintPipelineStatus()
+    }
+
+    private func frontlineBlueprintQAGateReason() -> String? {
+        guard let image = blueprintInputImage else { return "尚未上傳圖紙" }
+        let quality = evaluateBlueprintImageQuality(image)
+        applyBlueprintQualityAssessment(quality)
+        return quality.isBOrAbove ? nil : quality.blockingReason
+    }
+
     func toggleIFCSimulationFromUploadedBlueprint() {
         if ifcSimulationEnabled {
             clearIFCSimulationAnchor()
             return
         }
         guard blueprintInputImage != nil || !ifcElements.isEmpty else {
-            ifcSimulationStatusText = "IFC 模擬：請先匯入 IFC（若無 IFC 才用上傳圖）"
+            setIFCStatus("IFC 模擬：請先匯入 IFC（若無 IFC 才用上傳圖）")
+            return
+        }
+        if ifcElements.isEmpty, let gateReason = frontlineBlueprintQAGateReason() {
+            setIFCStatus("IFC 模擬：前線QA未達B級（\(gateReason)）")
+            setARPipelineBlocked(reason: gateReason)
             return
         }
         guard let arView else {
-            ifcSimulationStatusText = "IFC 模擬：AR 尚未就緒"
+            setIFCStatus("IFC 模擬：AR 尚未就緒")
             return
         }
         let anchor = buildIFCSimulationAnchor(referenceTransform: arView.session.currentFrame?.camera.transform)
@@ -1909,11 +2486,14 @@ final class LiDARSessionManager: ObservableObject {
         ifcSimulationAnchor = anchor
         ifcSimulationEnabled = true
         if ifcElements.isEmpty, blueprintInputImage != nil {
-            ifcSimulationStatusText = "IFC 模擬：已依上傳圖紙生成 3D（自動變化）"
+            setIFCStatus("IFC 模擬：已依上傳圖紙生成 3D（自動變化）")
+            setARPipelineRunning(label: "IFC-3D")
         } else if ifcElements.isEmpty {
-            ifcSimulationStatusText = "IFC 模擬：已生成牆體/鋼筋/水管（示意）"
+            setIFCStatus("IFC 模擬：已生成牆體/鋼筋/水管（示意）")
+            setARPipelineRunning(label: "IFC示意")
         } else {
-            ifcSimulationStatusText = "IFC 模擬：已套用 IFC 模型生成 3D"
+            setIFCStatus("IFC 模擬：已套用 IFC 模型生成 3D")
+            setARPipelineRunning(label: "IFC模型")
         }
     }
 
@@ -1925,28 +2505,46 @@ final class LiDARSessionManager: ObservableObject {
             return
         }
         guard let image = blueprintInputImage else {
-            facadeHologramStatusText = "立面全息：請先上傳立面圖"
+            setFacadeStatus("立面全息：請先上傳立面圖")
+            return
+        }
+        if let gateReason = frontlineBlueprintQAGateReason() {
+            setFacadeStatus("立面全息：前線QA未達B級（\(gateReason)）")
+            setARPipelineBlocked(reason: gateReason)
             return
         }
         guard let arView else {
-            facadeHologramStatusText = "立面全息：AR 尚未就緒"
+            setFacadeStatus("立面全息：AR 尚未就緒")
             return
         }
-        let anchor = buildFacadeHologramAnchor(image: image, referenceTransform: arView.session.currentFrame?.camera.transform)
+        stage3ARBuildStatusText = "第3段 追蹤（AR定位）：運行中（錨點定位）"
+        stage4ModelBuildStatusText = "第4段 建模（空間重建）：排程中（分工建置）"
+        stage5RenderStatusText = "第5段 渲染（畫面輸出）：等待模型完成"
+        let anchor = buildFacadeHologramAnchor(
+            image: image,
+            referenceTransform: arView.session.currentFrame?.camera.transform,
+            coldStartLowLoad: true
+        )
         arView.scene.addAnchor(anchor)
         facadeHologramAnchor = anchor
         facadeHologramEnabled = true
         let modeText = activeFacadeRenderMode == .showcase ? "展示" : "效能"
         let safetyText = facadeAutoDowngradedForStability ? "，穩定保護降載" : ""
-        facadeHologramStatusText = facadeLifeModeEnabled
+        setFacadeStatus(facadeLifeModeEnabled
             ? "立面全息：已生成（\(modeText)模式、生命感）\(safetyText)"
-            : "立面全息：已生成（\(modeText)模式，單指旋轉｜雙指縮放/平移/翻轉）\(safetyText)"
+            : "立面全息：已生成（\(modeText)模式，單指旋轉｜雙指縮放/平移/翻轉）\(safetyText)")
+        setARPipelineRunning(label: "立面全息（冷啟動低載）")
         startFacadeLifeAnimationIfNeeded()
     }
 
     func rebuildFacadeHologramPreservingPose() {
         guard facadeHologramEnabled else {
             facadeHologramStatusText = "立面全息：尚未生成，請先建立全息"
+            return
+        }
+        if let gateReason = frontlineBlueprintQAGateReason() {
+            facadeHologramStatusText = "立面全息：前線QA未達B級（\(gateReason)）"
+            setARPipelineBlocked(reason: gateReason)
             return
         }
         guard canRunFacadeRebuild() else { return }
@@ -1958,6 +2556,9 @@ final class LiDARSessionManager: ObservableObject {
             facadeHologramStatusText = "立面全息：AR 尚未就緒"
             return
         }
+        stage3ARBuildStatusText = "第3段 追蹤（AR定位）：運行中（重建定位）"
+        stage4ModelBuildStatusText = "第4段 建模（空間重建）：排程中（分工重建）"
+        stage5RenderStatusText = "第5段 渲染（畫面輸出）：等待重建完成"
 
         let savedAnchorPosition = facadeHologramAnchor?.position
         let savedScale = facadeHologramScale
@@ -2036,6 +2637,9 @@ final class LiDARSessionManager: ObservableObject {
             facadeHologramStatusText = "立面全息：AR 尚未就緒"
             return
         }
+        stage3ARBuildStatusText = "第3段 追蹤（AR定位）：運行中（快照回復）"
+        stage4ModelBuildStatusText = "第4段 建模（空間重建）：排程中（分工回復）"
+        stage5RenderStatusText = "第5段 渲染（畫面輸出）：等待回復完成"
 
         clearFacadeHologramAnchor()
         facadeHologramScale = snapshot.scale
@@ -2648,8 +3252,7 @@ final class LiDARSessionManager: ObservableObject {
         refreshVolumeAreaM2()
 
         // Uploaded blueprint state
-        blueprintInputImage = nil
-        blueprintUploadStatusText = "圖紙：尚未上傳"
+        resetBlueprintFrontlineState(uploadStatusText: "圖紙：尚未上傳")
         multiViewSamples = []
         multiViewSampleCount = 0
         multiViewStatusText = "多視角重建：尚未收集樣本"
@@ -2690,6 +3293,7 @@ final class LiDARSessionManager: ObservableObject {
         quantumLastCommandText = ""
         quantumHistory.removeAll()
         persistQuantumHistory()
+        hasConfiguredSession = false
     }
 
     private func configureSession(on view: ARView) {
@@ -2709,15 +3313,27 @@ final class LiDARSessionManager: ObservableObject {
             inGroupNamed: "ARBIueprints",
             bundle: nil
         )
-        let referenceImages = primaryReferenceImages ?? fallbackReferenceImages
-        if let images = referenceImages {
-            configuration.detectionImages = images
+        var referenceImages = primaryReferenceImages ?? fallbackReferenceImages ?? []
+        if let uploadedRuntimeImage = makeUploadedBlueprintRuntimeReferenceImage() {
+            referenceImages.insert(uploadedRuntimeImage)
+        }
+
+        if !referenceImages.isEmpty {
+            configuration.detectionImages = referenceImages
+            // Single-target optimization: prioritize one active blueprint for stability.
             configuration.maximumNumberOfTrackedImages = 1
-            print("✅ 阿基系統回報：成功掛載 AR 藍圖標靶！")
+            print("✅ 阿基系統回報：成功掛載 AR 藍圖標靶（\(referenceImages.count)）！")
         } else {
             print("❌ 阿基系統警告：找不到 AR 藍圖標靶資源群組！")
         }
-        if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
+        if ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) {
+            configuration.sceneReconstruction = .meshWithClassification
+            if meshVisualizationEnabled {
+                view.debugOptions.insert(.showSceneUnderstanding)
+            } else {
+                view.debugOptions.remove(.showSceneUnderstanding)
+            }
+        } else if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
             configuration.sceneReconstruction = .mesh
             if meshVisualizationEnabled {
                 view.debugOptions.insert(.showSceneUnderstanding)
@@ -2727,15 +3343,117 @@ final class LiDARSessionManager: ObservableObject {
         }
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
             configuration.frameSemantics.insert(.sceneDepth)
+        } else if ARWorldTrackingConfiguration.supportsFrameSemantics(.personSegmentationWithDepth) {
+            // Fallback occlusion path for non-LiDAR devices.
+            configuration.frameSemantics.insert(.personSegmentationWithDepth)
         }
 
-        view.session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
+        view.environment.sceneUnderstanding.options.formUnion([.occlusion, .receivesLighting])
+        let runOptions: ARSession.RunOptions = hasConfiguredSession ? [] : [.resetTracking, .removeExistingAnchors]
+        view.session.run(configuration, options: runOptions)
+        hasConfiguredSession = true
         statusText = "LiDAR 量測中"
+    }
+
+    private func makeUploadedBlueprintRuntimeReferenceImage() -> ARReferenceImage? {
+        guard let image = blueprintInputImage else { return nil }
+        guard let cgImage = cgImageForRuntimeReference(from: image) else { return nil }
+        let reference = ARReferenceImage(
+            cgImage,
+            orientation: .up,
+            physicalWidth: CGFloat(uploadedBlueprintPhysicalWidthMeters)
+        )
+        reference.name = Self.uploadedBlueprintRuntimeReferenceName
+        return reference
+    }
+
+    private func reconfigureSessionForBlueprintChange(status: String? = nil) {
+        guard let arView else { return }
+        configureSession(on: arView)
+        if let status {
+            statusText = status
+        }
+    }
+
+    private func setFacadeStatus(_ text: String) {
+        facadeHologramStatusText = text
+    }
+
+    private func setIFCStatus(_ text: String) {
+        ifcSimulationStatusText = text
+    }
+
+    private func cancelBlueprintWidthUpdateTask() {
+        blueprintWidthUpdateTask?.cancel()
+        blueprintWidthUpdateTask = nil
+    }
+
+    private func scheduleBlueprintWidthSessionUpdate() {
+        cancelBlueprintWidthUpdateTask()
+        blueprintWidthUpdateTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 220_000_000)
+            await MainActor.run {
+                guard let self, let arView = self.arView else { return }
+                self.configureSession(on: arView)
+            }
+        }
+    }
+
+    private func cgImageForRuntimeReference(from image: UIImage) -> CGImage? {
+        let baseCGImage: CGImage?
+        if let cgImage = image.cgImage {
+            baseCGImage = cgImage
+        } else {
+            let renderer = UIGraphicsImageRenderer(size: image.size)
+            let redrawn = renderer.image { _ in
+                image.draw(in: CGRect(origin: .zero, size: image.size))
+            }
+            baseCGImage = redrawn.cgImage
+        }
+        guard let inputCG = baseCGImage else { return nil }
+
+        // Suppress glare and emphasize linework before ARReferenceImage creation.
+        let inputCI = CIImage(cgImage: inputCG)
+        let exposure = CIFilter(name: "CIExposureAdjust")
+        exposure?.setValue(inputCI, forKey: kCIInputImageKey)
+        exposure?.setValue(-0.35, forKey: kCIInputEVKey)
+        let exposureOutput = exposure?.outputImage ?? inputCI
+
+        let color = CIFilter(name: "CIColorControls")
+        color?.setValue(exposureOutput, forKey: kCIInputImageKey)
+        color?.setValue(0.0, forKey: kCIInputSaturationKey)
+        color?.setValue(1.2, forKey: kCIInputContrastKey)
+        color?.setValue(-0.02, forKey: kCIInputBrightnessKey)
+        let contrastOutput = color?.outputImage ?? exposureOutput
+
+        let sharpen = CIFilter(name: "CIUnsharpMask")
+        sharpen?.setValue(contrastOutput, forKey: kCIInputImageKey)
+        sharpen?.setValue(0.7, forKey: kCIInputIntensityKey)
+        sharpen?.setValue(1.0, forKey: kCIInputRadiusKey)
+        let finalImage = sharpen?.outputImage ?? contrastOutput
+
+        return ciContext.createCGImage(finalImage, from: finalImage.extent) ?? inputCG
     }
 
     private func beginPolling() {
         updateTimer?.invalidate()
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
+        lastMeasurementTickAt = 0
+        sustainedLagCount = 0
+        autoLagProtectionTriggered = false
+        latestRuntimeLagMs = 0
+        runtimeQASummaryText = "現場QA：待命"
+        runtimeQAReasons = []
+        interiorWalkthroughStatusText = interiorWalkthroughEnabled ? "室內穿行：開（等待建立全息）" : "室內穿行：關"
+        cinematicWalkthroughStatusText = cinematicWalkthroughEnabled ? "沉浸穿行：開（建議搭配螢幕錄影）" : "沉浸穿行：關"
+        adaptiveStableTicks = 0
+        adaptiveHighLagTicks = 0
+        adaptiveLastSwitchAt = 0
+        adaptiveRenderStatusText = adaptiveRenderModeEnabled ? "自動升降級：開（待命）" : "自動升降級：關"
+        lagProtectionUntil = 0
+        lagRecoveryStableTicks = 0
+        skipHeavyTickToggle = false
+        lagWarmupTicksRemaining = max(4, Int(ceil(1.2 / max(0.08, pollingInterval))))
+        updateTimer = Timer.scheduledTimer(withTimeInterval: pollingInterval, repeats: true) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
                 self.updateMeasurement()
@@ -2744,6 +3462,8 @@ final class LiDARSessionManager: ObservableObject {
     }
 
     private func updateMeasurement() {
+        detectAndHandleRuntimeLag()
+        if shouldTemporarilySkipMeasurementWork() { return }
         guard let arView, let frame = arView.session.currentFrame else { return }
         updateARImagePOCOverlay(from: frame)
 
@@ -2784,7 +3504,250 @@ final class LiDARSessionManager: ObservableObject {
         rollText = String(format: "%.1f°", latestRollDegrees)
         refreshDeviationStatus()
         refreshQALevel()
+        refreshRuntimeQAGrade()
+        updateFacadeWalkthroughVisuals()
         refreshQuantumTelemetry()
+    }
+
+    private func detectAndHandleRuntimeLag() {
+        let now = Date().timeIntervalSinceReferenceDate
+        defer { lastMeasurementTickAt = now }
+        guard lastMeasurementTickAt > 0 else { return }
+        let tickInterval = now - lastMeasurementTickAt
+        latestRuntimeLagMs = tickInterval * 1000.0
+
+        // Ignore startup/foreground warmup ticks to avoid false lag spikes.
+        if lagWarmupTicksRemaining > 0 {
+            lagWarmupTicksRemaining -= 1
+            latestRuntimeLagMs = 0
+            sustainedLagCount = 0
+            lagRecoveryStableTicks = 0
+            return
+        }
+
+        if tickInterval >= 4.2 {
+            applyExtremeOverloadProtection(reason: "偵測到爆量延遲（\(Int(tickInterval * 1000))ms）")
+            return
+        }
+
+        // Timer target is 0.12s; >=0.55s indicates heavy runtime lag.
+        if tickInterval >= 0.55 {
+            sustainedLagCount += 1
+            lagRecoveryStableTicks = 0
+        } else {
+            sustainedLagCount = max(0, sustainedLagCount - 1)
+            if autoLagProtectionTriggered {
+                lagRecoveryStableTicks += 1
+            }
+        }
+
+        let shouldTriggerProtection = tickInterval >= 2.5 || sustainedLagCount >= 3
+        if shouldTriggerProtection, !autoLagProtectionTriggered {
+            autoLagProtectionTriggered = true
+            adaptiveStableTicks = 0
+            adaptiveHighLagTicks = 0
+            applyEmergencyPerformanceProtection(
+                reason: tickInterval >= 2.5
+                    ? "偵測到極高延遲（\(Int(tickInterval * 1000))ms）"
+                    : "偵測到連續高延遲"
+            )
+            return
+        }
+
+        if !autoLagProtectionTriggered {
+            evaluateAdaptiveRenderScaling(now: now)
+            return
+        }
+        if now >= lagProtectionUntil, lagRecoveryStableTicks >= 8 {
+            autoLagProtectionTriggered = false
+            sustainedLagCount = 0
+            lagRecoveryStableTicks = 0
+            lagProtectionUntil = 0
+            skipHeavyTickToggle = false
+            setPollingInterval(0.12)
+            statusText = "LiDAR 延遲保護已解除"
+            adaptiveRenderStatusText = adaptiveRenderModeEnabled ? "自動升降級：開（恢復監控）" : "自動升降級：關"
+        }
+    }
+
+    private func applyEmergencyPerformanceProtection(reason: String) {
+        guard facadeHologramEnabled || ifcSimulationEnabled else { return }
+        lagProtectionUntil = Date().timeIntervalSinceReferenceDate + 6.0
+        lagRecoveryStableTicks = 0
+        skipHeavyTickToggle = false
+        setPollingInterval(0.22)
+        setHologramRenderMode(.performance)
+        setFacadeRebuildMode(.lockPerformance)
+        setFacadeLifeModeEnabled(false)
+        setMeshVisualizationEnabled(false)
+        facadeHologramStatusText = "立面全息：已自動降載保護（\(reason)）"
+        adaptiveRenderStatusText = adaptiveRenderModeEnabled ? "自動升降級：保護中（已強制效能）" : "自動升降級：關"
+        if ifcSimulationEnabled {
+            setIFCStatus("IFC 模擬：高延遲保護中（已降載）")
+        }
+        statusText = "LiDAR 高延遲保護已啟用"
+    }
+
+    private func applyExtremeOverloadProtection(reason: String) {
+        guard facadeHologramEnabled || ifcSimulationEnabled else { return }
+        autoLagProtectionTriggered = true
+        sustainedLagCount = max(sustainedLagCount, 3)
+        lagProtectionUntil = Date().timeIntervalSinceReferenceDate + 10.0
+        overloadGuardUntil = Date().timeIntervalSinceReferenceDate + 18.0
+        lagRecoveryStableTicks = 0
+        skipHeavyTickToggle = false
+        setPollingInterval(0.30)
+        setHologramRenderMode(.performance)
+        setFacadeRebuildMode(.lockPerformance)
+        setFacadeLifeModeEnabled(false)
+        setMeshVisualizationEnabled(false)
+        setCinematicWalkthroughEnabled(false)
+        setInteriorWalkthroughEnabled(false)
+        beginFacadeRebuildCooldown(seconds: 8.0, reason: "重建保護：系統過載降溫中")
+        facadeHologramStatusText = "立面全息：已啟用極限保護（\(reason)）"
+        adaptiveRenderStatusText = adaptiveRenderModeEnabled ? "自動升降級：極限保護中（暫停升級）" : "自動升降級：關"
+        statusText = "LiDAR 極限過載保護已啟用"
+    }
+
+    private func evaluateAdaptiveRenderScaling(now: TimeInterval) {
+        guard adaptiveRenderModeEnabled, facadeHologramEnabled else { return }
+
+        if latestRuntimeLagMs >= 420 {
+            adaptiveHighLagTicks += 1
+            adaptiveStableTicks = 0
+        } else if latestRuntimeLagMs <= 190 {
+            adaptiveStableTicks += 1
+            adaptiveHighLagTicks = max(0, adaptiveHighLagTicks - 1)
+        } else {
+            adaptiveStableTicks = max(0, adaptiveStableTicks - 1)
+            adaptiveHighLagTicks = max(0, adaptiveHighLagTicks - 1)
+        }
+
+        let minSwitchInterval: TimeInterval = 8.0
+        guard now - adaptiveLastSwitchAt >= minSwitchInterval else { return }
+
+        if activeFacadeRenderMode == .showcase, adaptiveHighLagTicks >= 3 {
+            if rebuildFacadeForAdaptiveRender(mode: .performance) {
+                adaptiveLastSwitchAt = now
+                adaptiveHighLagTicks = 0
+                adaptiveStableTicks = 0
+                adaptiveRenderStatusText = "自動升降級：已降至效能（延遲偏高）"
+            }
+            return
+        }
+
+        if activeFacadeRenderMode == .performance,
+           hologramRenderMode == .showcase,
+           adaptiveStableTicks >= 80 {
+            if rebuildFacadeForAdaptiveRender(mode: .showcase) {
+                adaptiveLastSwitchAt = now
+                adaptiveStableTicks = 0
+                adaptiveHighLagTicks = 0
+                adaptiveRenderStatusText = "自動升降級：已升至展示（穩定10秒）"
+            }
+        }
+    }
+
+    private func rebuildFacadeForAdaptiveRender(mode: HologramRenderMode) -> Bool {
+        guard facadeHologramEnabled else { return false }
+        guard let image = blueprintInputImage, let arView else { return false }
+
+        let savedAnchorPosition = facadeHologramAnchor?.position
+        let savedScale = facadeHologramScale
+        let savedYaw = facadeHologramYaw
+        let savedPitch = facadeHologramPitch
+        let savedRoll = facadeHologramRoll
+
+        clearFacadeHologramAnchor()
+        facadeHologramScale = savedScale
+        facadeHologramYaw = savedYaw
+        facadeHologramPitch = savedPitch
+        facadeHologramRoll = savedRoll
+
+        let rebuiltAnchor = buildFacadeHologramAnchor(
+            image: image,
+            referenceTransform: arView.session.currentFrame?.camera.transform,
+            requestedRenderMode: mode,
+            allowAutoDowngrade: false
+        )
+        if let savedAnchorPosition {
+            rebuiltAnchor.position = savedAnchorPosition
+        }
+        arView.scene.addAnchor(rebuiltAnchor)
+        facadeHologramAnchor = rebuiltAnchor
+        facadeHologramEnabled = true
+        applyFacadeHologramTransform()
+        setARPipelineRunning(label: mode == .showcase ? "展示自動升級" : "效能自動降級")
+        return true
+    }
+
+    private func refreshRuntimeQAGrade() {
+        var score = qaScore
+        var reasons: [String] = []
+
+        if autoLagProtectionTriggered {
+            score -= 18
+            reasons.append("效能保護觸發中")
+        }
+
+        if latestRuntimeLagMs >= 3000 {
+            score -= 26
+            reasons.append("延遲過高（\(Int(latestRuntimeLagMs))ms）")
+        } else if latestRuntimeLagMs >= 1200 {
+            score -= 14
+            reasons.append("延遲偏高（\(Int(latestRuntimeLagMs))ms）")
+        } else if latestRuntimeLagMs >= 600 {
+            score -= 7
+            reasons.append("延遲略高（\(Int(latestRuntimeLagMs))ms）")
+        }
+
+        if !arMismatchAlerts.isEmpty {
+            score -= min(20, arMismatchAlerts.count * 6)
+            reasons.append("AR 偏位告警 \(arMismatchAlerts.count) 項")
+        }
+
+        if latestDistanceMeters == nil {
+            score -= 12
+            reasons.append("尚未鎖定量測表面")
+        }
+
+        if abs(deviationValueCm) > deviationToleranceCm {
+            score -= 10
+            reasons.append("偏差超容差")
+        }
+
+        score = min(100, max(0, score))
+        let grade: String
+        if score >= 85 {
+            grade = "Pro"
+        } else if score >= 65 {
+            grade = "Precise"
+        } else {
+            grade = "Normal"
+        }
+
+        runtimeQASummaryText = "現場QA：\(grade)（\(score)/100）"
+        if reasons.isEmpty {
+            runtimeQAReasons = ["目前穩定，可持續展示"]
+        } else {
+            runtimeQAReasons = Array(reasons.prefix(3))
+        }
+    }
+
+    private func shouldTemporarilySkipMeasurementWork() -> Bool {
+        let now = Date().timeIntervalSinceReferenceDate
+        guard now < lagProtectionUntil else { return false }
+        // During emergency window, process every other tick to reduce CPU pressure.
+        skipHeavyTickToggle.toggle()
+        return skipHeavyTickToggle
+    }
+
+    private func setPollingInterval(_ interval: TimeInterval) {
+        let safeInterval = min(0.35, max(0.08, interval))
+        guard abs(safeInterval - pollingInterval) > 0.0001 else { return }
+        pollingInterval = safeInterval
+        guard !isSessionSuspended else { return }
+        beginPolling()
     }
 
     private func radiansToDegrees(_ value: Double) -> Double {
@@ -3076,13 +4039,17 @@ final class LiDARSessionManager: ObservableObject {
     }
 
     private func addIFCEntities(from elements: [IFCElementSpec], to root: Entity) {
-        for element in elements {
+        var boxMeshCache: [String: MeshResource] = [:]
+        var pipeMeshCache: [String: MeshResource] = [:]
+        let cappedElements = Array(elements.prefix(220))
+
+        for element in cappedElements {
             switch element.type {
             case .wall where ifcShowWalls:
                 let width = Float(max(0.05, element.width ?? 1.2))
                 let height = Float(max(0.2, element.height ?? 2.8))
                 let depth = Float(max(0.03, element.depth ?? 0.16))
-                let mesh = MeshResource.generateBox(size: [width, height, depth])
+                guard let mesh = cachedIFCBoxMesh(width: width, height: height, depth: depth, cache: &boxMeshCache) else { continue }
                 let material = SimpleMaterial(color: UIColor.systemBlue.withAlphaComponent(0.4), roughness: 0.24, isMetallic: false)
                 let entity = ModelEntity(mesh: mesh, materials: [material])
                 applyIFCTransform(for: element, to: entity, defaultY: Double(height / 2))
@@ -3091,7 +4058,7 @@ final class LiDARSessionManager: ObservableObject {
                 let width = Float(max(0.005, element.width ?? 0.012))
                 let height = Float(max(0.1, element.height ?? (element.length ?? 1.2)))
                 let depth = Float(max(0.005, element.depth ?? 0.012))
-                let mesh = MeshResource.generateBox(size: [width, height, depth])
+                guard let mesh = cachedIFCBoxMesh(width: width, height: height, depth: depth, cache: &boxMeshCache) else { continue }
                 let material = SimpleMaterial(color: .systemRed, roughness: 0.14, isMetallic: true)
                 let entity = ModelEntity(mesh: mesh, materials: [material])
                 applyIFCTransform(for: element, to: entity, defaultY: Double(height / 2))
@@ -3099,7 +4066,7 @@ final class LiDARSessionManager: ObservableObject {
             case .pipe where ifcShowPipes:
                 let radius = Float(max(0.003, element.radius ?? 0.03))
                 let length = Float(max(0.05, element.length ?? element.width ?? 1.2))
-                let mesh = MeshResource.generateCylinder(height: length, radius: radius)
+                guard let mesh = cachedIFCPipeMesh(radius: radius, length: length, cache: &pipeMeshCache) else { continue }
                 let material = SimpleMaterial(color: .systemGreen, roughness: 0.12, isMetallic: true)
                 let entity = ModelEntity(mesh: mesh, materials: [material])
                 entity.orientation = simd_quatf(angle: .pi / 2, axis: [0, 0, 1])
@@ -3109,6 +4076,37 @@ final class LiDARSessionManager: ObservableObject {
                 continue
             }
         }
+    }
+
+    private func cachedIFCBoxMesh(
+        width: Float,
+        height: Float,
+        depth: Float,
+        cache: inout [String: MeshResource]
+    ) -> MeshResource? {
+        guard width.isFinite, height.isFinite, depth.isFinite else { return nil }
+        let meshKey = String(format: "w-%.4f-h-%.4f-d-%.4f", width, height, depth)
+        if let cached = cache[meshKey] {
+            return cached
+        }
+        let generated = MeshResource.generateBox(size: [width, height, depth])
+        cache[meshKey] = generated
+        return generated
+    }
+
+    private func cachedIFCPipeMesh(
+        radius: Float,
+        length: Float,
+        cache: inout [String: MeshResource]
+    ) -> MeshResource? {
+        guard radius.isFinite, length.isFinite else { return nil }
+        let meshKey = String(format: "r-%.4f-l-%.4f", radius, length)
+        if let cached = cache[meshKey] {
+            return cached
+        }
+        let generated = MeshResource.generateCylinder(height: length, radius: radius)
+        cache[meshKey] = generated
+        return generated
     }
 
     private func applyIFCTransform(for element: IFCElementSpec, to entity: ModelEntity, defaultY: Double) {
@@ -3222,17 +4220,20 @@ final class LiDARSessionManager: ObservableObject {
             ifcElements = []
             return
         }
-        ifcElements = normalized
-        ifcModelElementCount = normalized.count
-        let wallCount = normalized.filter { $0.type == .wall }.count
-        let rebarCount = normalized.filter { $0.type == .rebar }.count
-        let pipeCount = normalized.filter { $0.type == .pipe }.count
+        let cap = 220
+        let capped = Array(normalized.prefix(cap))
+        ifcElements = capped
+        ifcModelElementCount = capped.count
+        let wallCount = capped.filter { $0.type == .wall }.count
+        let rebarCount = capped.filter { $0.type == .rebar }.count
+        let pipeCount = capped.filter { $0.type == .pipe }.count
         let projectTitle = payload.projectName ?? "未命名工程"
         let schemaTag = payload.schemaVersion ?? "basic"
+        let trimmedHint = normalized.count > cap ? "｜已限流 \(cap)/\(normalized.count)" : ""
         if let tolerance = payload.toleranceCm, tolerance > 0 {
-            ifcModelSummaryText = "IFC[\(schemaTag)] \(projectTitle)：牆 \(wallCount)｜鋼筋 \(rebarCount)｜水管 \(pipeCount)｜容差 ±\(Int(tolerance))cm"
+            ifcModelSummaryText = "IFC[\(schemaTag)] \(projectTitle)：牆 \(wallCount)｜鋼筋 \(rebarCount)｜水管 \(pipeCount)｜容差 ±\(Int(tolerance))cm\(trimmedHint)"
         } else {
-            ifcModelSummaryText = "IFC[\(schemaTag)] \(projectTitle)：牆 \(wallCount)｜鋼筋 \(rebarCount)｜水管 \(pipeCount)"
+            ifcModelSummaryText = "IFC[\(schemaTag)] \(projectTitle)：牆 \(wallCount)｜鋼筋 \(rebarCount)｜水管 \(pipeCount)\(trimmedHint)"
         }
         if ifcSimulationEnabled {
             regenerateIFCSimulationAnchor()
@@ -3292,7 +4293,12 @@ final class LiDARSessionManager: ObservableObject {
     }
 
     private func normalizeIFCElement(_ element: IFCElementSpec) -> IFCElementSpec {
-        IFCElementSpec(
+        let safeRotation: Double = {
+            let raw = element.rotationDeg ?? 0
+            guard raw.isFinite else { return 0 }
+            return min(360, max(-360, raw))
+        }()
+        return IFCElementSpec(
             type: element.type,
             width: max(0.003, element.width ?? 0),
             height: max(0.003, element.height ?? 0),
@@ -3302,7 +4308,7 @@ final class LiDARSessionManager: ObservableObject {
             x: element.x ?? 0,
             y: element.y ?? 0,
             z: element.z ?? 0,
-            rotationDeg: element.rotationDeg ?? 0
+            rotationDeg: safeRotation
         )
     }
 
@@ -3310,7 +4316,12 @@ final class LiDARSessionManager: ObservableObject {
         ifcSimulationAnchor?.removeFromParent()
         ifcSimulationAnchor = nil
         ifcSimulationEnabled = false
-        ifcSimulationStatusText = "IFC 模擬：已清除"
+        setIFCStatus("IFC 模擬：已清除")
+        if facadeHologramEnabled {
+            setARPipelineRunning(label: "立面全息")
+        } else {
+            resetBlueprintPipelineStatus()
+        }
     }
 
     private func invalidateOverlayAnchor() {
@@ -3752,32 +4763,374 @@ final class LiDARSessionManager: ObservableObject {
         min(20.0, max(0.5, value))
     }
 
-    private func evaluateBlueprintImageQuality(_ image: UIImage) -> (statusText: String, multiViewHint: String) {
+    private func preprocessBlueprintForFrontline(_ image: UIImage) -> UIImage {
+        guard let inputCG = image.cgImage else { return image }
+        let inputCI = CIImage(cgImage: inputCG)
+
+        let exposure = CIFilter(name: "CIExposureAdjust")
+        exposure?.setValue(inputCI, forKey: kCIInputImageKey)
+        exposure?.setValue(-0.28, forKey: kCIInputEVKey)
+        let exposureOutput = exposure?.outputImage ?? inputCI
+
+        let color = CIFilter(name: "CIColorControls")
+        color?.setValue(exposureOutput, forKey: kCIInputImageKey)
+        color?.setValue(0.0, forKey: kCIInputSaturationKey)
+        color?.setValue(1.28, forKey: kCIInputContrastKey)
+        color?.setValue(-0.02, forKey: kCIInputBrightnessKey)
+        let contrastOutput = color?.outputImage ?? exposureOutput
+
+        let sharpen = CIFilter(name: "CIUnsharpMask")
+        sharpen?.setValue(contrastOutput, forKey: kCIInputImageKey)
+        sharpen?.setValue(0.72, forKey: kCIInputIntensityKey)
+        sharpen?.setValue(1.0, forKey: kCIInputRadiusKey)
+        let sharpened = sharpen?.outputImage ?? contrastOutput
+        let finalImage: CIImage
+        if frontlineBlueprintQAMode == .enterprise {
+            finalImage = preprocessBlueprintForBacklineTracking(sharpened)
+        } else {
+            finalImage = sharpened
+        }
+
+        guard let outputCG = ciContext.createCGImage(finalImage, from: finalImage.extent) else {
+            return image
+        }
+        return UIImage(cgImage: outputCG, scale: image.scale, orientation: image.imageOrientation)
+    }
+
+    private func preprocessBlueprintForBacklineTracking(_ image: CIImage) -> CIImage {
+        let invert = CIFilter(name: "CIColorInvert")
+        invert?.setValue(image, forKey: kCIInputImageKey)
+        let inverted = invert?.outputImage ?? image
+
+        let maxFilter = CIFilter(name: "CIMorphologyMaximum")
+        maxFilter?.setValue(inverted, forKey: kCIInputImageKey)
+        maxFilter?.setValue(1.2, forKey: "inputRadius")
+        let thickenedInverted = maxFilter?.outputImage ?? inverted
+
+        let invertBack = CIFilter(name: "CIColorInvert")
+        invertBack?.setValue(thickenedInverted, forKey: kCIInputImageKey)
+        let restored = invertBack?.outputImage ?? image
+
+        let enhance = CIFilter(name: "CIColorControls")
+        enhance?.setValue(restored, forKey: kCIInputImageKey)
+        enhance?.setValue(0.0, forKey: kCIInputSaturationKey)
+        enhance?.setValue(1.36, forKey: kCIInputContrastKey)
+        enhance?.setValue(-0.01, forKey: kCIInputBrightnessKey)
+        return enhance?.outputImage ?? restored
+    }
+
+    private func evaluateBlueprintImageQuality(_ image: UIImage) -> BlueprintQualityAssessment {
+        let isEnterpriseMode = frontlineBlueprintQAMode == .enterprise
         let pixelWidth = max(1, Int((image.size.width * image.scale).rounded()))
         let pixelHeight = max(1, Int((image.size.height * image.scale).rounded()))
         let minSide = min(pixelWidth, pixelHeight)
         let megapixels = (Double(pixelWidth) * Double(pixelHeight)) / 1_000_000.0
         let ratio = Double(max(pixelWidth, pixelHeight)) / Double(max(1, minSide))
+        let contrastScore = estimateBlueprintContrastScore(image)
+        let lineFeatureScore = estimateBlueprintLineFeatureScore(image)
+        let clarityScore = estimateBlueprintClarityScore(image)
+        let resolutionScore: Int
+        if megapixels < 1.2 || minSide < 900 {
+            resolutionScore = 42
+        } else if megapixels < 2.0 || minSide < 1200 {
+            resolutionScore = 66
+        } else if megapixels < 4.0 {
+            resolutionScore = 82
+        } else {
+            resolutionScore = 94
+        }
 
+        var score = 100
         var hints: [String] = []
         if megapixels < 1.2 || minSide < 900 {
+            score -= 22
             hints.append("解析度偏低，建議用較近距離或高畫質重拍")
+        } else if megapixels < 2.0 || minSide < 1200 {
+            score -= 10
         }
-        if ratio > 2.25 {
+        let ratioHardLimit = isEnterpriseMode ? 2.1 : 2.25
+        let ratioSoftLimit = isEnterpriseMode ? 1.85 : 1.95
+        if ratio > ratioHardLimit {
+            score -= 12
             hints.append("畫面比例偏長，建議改用較完整正視圖")
+        } else if ratio > ratioSoftLimit {
+            score -= 6
+        }
+        let contrastHardLimit = isEnterpriseMode ? 46 : 40
+        let contrastSoftLimit = isEnterpriseMode ? 62 : 56
+        if contrastScore < contrastHardLimit {
+            score -= 22
+            hints.append("對比不足，建議使用黑線高對比圖或提升照明均勻度")
+        } else if contrastScore < contrastSoftLimit {
+            score -= 10
+        }
+        let lineFeatureHardLimit = isEnterpriseMode ? 54 : 45
+        let lineFeatureSoftLimit = isEnterpriseMode ? 68 : 62
+        if lineFeatureScore < lineFeatureHardLimit {
+            score -= 22
+            hints.append("多線特徵不足或分布不均，建議補拍完整正視圖")
+        } else if lineFeatureScore < lineFeatureSoftLimit {
+            score -= 10
+        } else if lineFeatureScore >= 82 {
+            score += 4
+        }
+        let clarityHardLimit = isEnterpriseMode ? 52 : 45
+        let claritySoftLimit = isEnterpriseMode ? 68 : 62
+        if clarityScore < clarityHardLimit {
+            score -= 18
+            hints.append("影像清晰度不足，請降低晃動並重新拍攝")
+        } else if clarityScore < claritySoftLimit {
+            score -= 8
+        } else if clarityScore >= 84 {
+            score += 3
+        }
+        if isEnterpriseMode, resolutionScore < 70 {
+            score -= 8
         }
 
-        if hints.isEmpty {
-            return (
-                "圖紙已上傳：品質良好，可進行 3D 牆體生成",
-                "多視角重建：可加入目前圖紙作為高品質樣本"
+        score = min(100, max(0, score))
+        let grade: BlueprintQAGrade
+        let gradeAThreshold = isEnterpriseMode ? 92 : 90
+        let gradeBThreshold = isEnterpriseMode ? 86 : 80
+        if score >= gradeAThreshold {
+            grade = .a
+        } else if score >= gradeBThreshold {
+            grade = .b
+        } else {
+            grade = .c
+        }
+        let isBOrAbove = grade != .c
+        let isHighQuality = grade == .a
+        let primaryHint = hints.first ?? "品質穩定"
+        let blockingReason = isBOrAbove ? nil : primaryHint
+
+        if isBOrAbove {
+            return BlueprintQualityAssessment(
+                statusText: "圖紙已上傳：前線QA \(grade.label)級（\(score)/100）可放行",
+                multiViewHint: isHighQuality
+                    ? "多視角重建：可加入目前圖紙作為高品質樣本"
+                    : "多視角重建：建議補拍更清晰正視圖，可提升到A級",
+                isHighQuality: isHighQuality,
+                score: score,
+                lineFeatureScore: lineFeatureScore,
+                contrastScore: contrastScore,
+                clarityScore: clarityScore,
+                resolutionScore: resolutionScore,
+                grade: grade,
+                isBOrAbove: true,
+                blockingReason: nil
             )
         }
-
-        return (
-            "圖紙已上傳：可使用（\(hints[0])）",
-            "多視角重建：建議先補拍清晰正視圖，再加入樣本"
+        return BlueprintQualityAssessment(
+            statusText: "圖紙已上傳：前線QA C級（\(score)/100），未達B級放行（\(primaryHint)）",
+            multiViewHint: "多視角重建：前線QA未達B級，先改善圖紙品質再生成封包",
+            isHighQuality: false,
+            score: score,
+            lineFeatureScore: lineFeatureScore,
+            contrastScore: contrastScore,
+            clarityScore: clarityScore,
+            resolutionScore: resolutionScore,
+            grade: grade,
+            isBOrAbove: false,
+            blockingReason: blockingReason
         )
+    }
+
+    private func makeBlueprintFrontlineDetailLines(_ quality: BlueprintQualityAssessment) -> [String] {
+        let modeLabel = frontlineBlueprintQAMode == .enterprise ? "企業級" : "標準"
+        return [
+            "檢測模式：\(modeLabel)",
+            blueprintBacklinePrepStatusText,
+            "規格檢查：解析度 \(quality.resolutionScore)/100",
+            "規格檢查：對比度 \(quality.contrastScore)/100",
+            "規格檢查：清晰度 \(quality.clarityScore)/100",
+            "規格檢查：多線特徵 \(quality.lineFeatureScore)/100"
+        ]
+    }
+
+    private func estimateBlueprintContrastScore(_ image: UIImage) -> Int {
+        let sampleSize = CGSize(width: 96, height: 96)
+        let renderer = UIGraphicsImageRenderer(size: sampleSize)
+        let sampled = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: sampleSize))
+        }
+        guard let cgImage = sampled.cgImage, let dataProvider = cgImage.dataProvider,
+              let data = dataProvider.data else {
+            return 50
+        }
+        let ptr = CFDataGetBytePtr(data)
+        let bytesPerRow = cgImage.bytesPerRow
+        let bytesPerPixel = max(1, cgImage.bitsPerPixel / 8)
+        let width = cgImage.width
+        let height = cgImage.height
+        guard let ptr, width > 0, height > 0 else { return 50 }
+
+        var mean: Double = 0
+        var count: Double = 0
+        for y in 0..<height {
+            let row = ptr + y * bytesPerRow
+            for x in 0..<width {
+                let p = row + x * bytesPerPixel
+                let r = Double(p[0])
+                let g = Double(p[min(1, bytesPerPixel - 1)])
+                let b = Double(p[min(2, bytesPerPixel - 1)])
+                let luma = 0.2126 * r + 0.7152 * g + 0.0722 * b
+                mean += luma
+                count += 1
+            }
+        }
+        guard count > 0 else { return 50 }
+        mean /= count
+
+        var variance: Double = 0
+        for y in 0..<height {
+            let row = ptr + y * bytesPerRow
+            for x in 0..<width {
+                let p = row + x * bytesPerPixel
+                let r = Double(p[0])
+                let g = Double(p[min(1, bytesPerPixel - 1)])
+                let b = Double(p[min(2, bytesPerPixel - 1)])
+                let luma = 0.2126 * r + 0.7152 * g + 0.0722 * b
+                let d = luma - mean
+                variance += d * d
+            }
+        }
+        variance /= count
+        let std = sqrt(variance)
+        let normalized = min(1.0, max(0.0, std / 64.0))
+        return Int((normalized * 100.0).rounded())
+    }
+
+    private func estimateBlueprintLineFeatureScore(_ image: UIImage) -> Int {
+        let sampleSize = CGSize(width: 120, height: 120)
+        let renderer = UIGraphicsImageRenderer(size: sampleSize)
+        let sampled = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: sampleSize))
+        }
+        guard let cgImage = sampled.cgImage,
+              let dataProvider = cgImage.dataProvider,
+              let data = dataProvider.data else {
+            return 45
+        }
+
+        let ptr = CFDataGetBytePtr(data)
+        let bytesPerRow = cgImage.bytesPerRow
+        let bytesPerPixel = max(1, cgImage.bitsPerPixel / 8)
+        let width = cgImage.width
+        let height = cgImage.height
+        guard let ptr, width > 2, height > 2 else { return 45 }
+
+        let total = width * height
+        var luma = Array(repeating: Double(0), count: total)
+        for y in 0..<height {
+            let row = ptr + y * bytesPerRow
+            for x in 0..<width {
+                let p = row + x * bytesPerPixel
+                let r = Double(p[0])
+                let g = Double(p[min(1, bytesPerPixel - 1)])
+                let b = Double(p[min(2, bytesPerPixel - 1)])
+                luma[y * width + x] = 0.2126 * r + 0.7152 * g + 0.0722 * b
+            }
+        }
+
+        var edgeCount = 0
+        var orientationBins = [0, 0, 0, 0]
+        let tileRows = 6
+        let tileCols = 6
+        var tileEdgeCounts = Array(repeating: 0, count: tileRows * tileCols)
+
+        for y in 1..<(height - 1) {
+            for x in 1..<(width - 1) {
+                let center = y * width + x
+                let gx = luma[center + 1] - luma[center - 1]
+                let gy = luma[center + width] - luma[center - width]
+                let mag = hypot(gx, gy)
+                if mag < 19 { continue }
+                edgeCount += 1
+
+                let absGx = abs(gx)
+                let absGy = abs(gy)
+                if absGx > absGy * 1.7 {
+                    orientationBins[0] += 1
+                } else if absGy > absGx * 1.7 {
+                    orientationBins[1] += 1
+                } else if gx * gy >= 0 {
+                    orientationBins[2] += 1
+                } else {
+                    orientationBins[3] += 1
+                }
+
+                let tx = min(tileCols - 1, max(0, (x * tileCols) / width))
+                let ty = min(tileRows - 1, max(0, (y * tileRows) / height))
+                tileEdgeCounts[ty * tileCols + tx] += 1
+            }
+        }
+
+        let edgeDensity = Double(edgeCount) / Double(max(1, (width - 2) * (height - 2)))
+        let densityScore = 100.0 * (1.0 - min(1.0, abs(edgeDensity - 0.11) / 0.11))
+
+        let tileThreshold = max(10, Int(Double(width * height) * 0.00075))
+        let occupiedTiles = tileEdgeCounts.filter { $0 >= tileThreshold }.count
+        let coverageScore = (Double(occupiedTiles) / Double(tileRows * tileCols)) * 100.0
+
+        let totalOrient = orientationBins.reduce(0, +)
+        var entropy = 0.0
+        if totalOrient > 0 {
+            for c in orientationBins where c > 0 {
+                let p = Double(c) / Double(totalOrient)
+                entropy -= p * log2(p)
+            }
+        }
+        let orientationScore = (entropy / 2.0) * 100.0
+
+        let final = (0.24 * densityScore) + (0.46 * coverageScore) + (0.30 * orientationScore)
+        return Int(min(100.0, max(0.0, final)).rounded())
+    }
+
+    private func estimateBlueprintClarityScore(_ image: UIImage) -> Int {
+        let sampleSize = CGSize(width: 120, height: 120)
+        let renderer = UIGraphicsImageRenderer(size: sampleSize)
+        let sampled = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: sampleSize))
+        }
+        guard let cgImage = sampled.cgImage,
+              let dataProvider = cgImage.dataProvider,
+              let data = dataProvider.data else {
+            return 45
+        }
+
+        let ptr = CFDataGetBytePtr(data)
+        let bytesPerRow = cgImage.bytesPerRow
+        let bytesPerPixel = max(1, cgImage.bitsPerPixel / 8)
+        let width = cgImage.width
+        let height = cgImage.height
+        guard let ptr, width > 2, height > 2 else { return 45 }
+
+        var lapVar: Double = 0
+        var count: Double = 0
+        for y in 1..<(height - 1) {
+            for x in 1..<(width - 1) {
+                let c = lumaAt(ptr, bytesPerRow: bytesPerRow, bytesPerPixel: bytesPerPixel, x: x, y: y)
+                let l = lumaAt(ptr, bytesPerRow: bytesPerRow, bytesPerPixel: bytesPerPixel, x: x - 1, y: y)
+                let r = lumaAt(ptr, bytesPerRow: bytesPerRow, bytesPerPixel: bytesPerPixel, x: x + 1, y: y)
+                let u = lumaAt(ptr, bytesPerRow: bytesPerRow, bytesPerPixel: bytesPerPixel, x: x, y: y - 1)
+                let d = lumaAt(ptr, bytesPerRow: bytesPerRow, bytesPerPixel: bytesPerPixel, x: x, y: y + 1)
+                let lap = (4.0 * c) - l - r - u - d
+                lapVar += lap * lap
+                count += 1
+            }
+        }
+        guard count > 0 else { return 45 }
+        let normalized = min(1.0, max(0.0, (lapVar / count) / 850.0))
+        return Int((normalized * 100.0).rounded())
+    }
+
+    private func lumaAt(_ ptr: UnsafePointer<UInt8>, bytesPerRow: Int, bytesPerPixel: Int, x: Int, y: Int) -> Double {
+        let p = ptr + y * bytesPerRow + x * bytesPerPixel
+        let r = Double(p[0])
+        let g = Double(p[min(1, bytesPerPixel - 1)])
+        let b = Double(p[min(2, bytesPerPixel - 1)])
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
     }
 
     private func userFacingCloudError(_ error: Error) -> String {
