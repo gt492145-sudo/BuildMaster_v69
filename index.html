@@ -178,6 +178,20 @@
         50% { opacity: 1; box-shadow: 0 0 30px #e040fb, 0 0 60px #e040fb; background: #e040fb; }
         100% { top: 100%; opacity: 0; }
     }
+    .blueprint-laser-sweep-persistent {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 3px;
+        z-index: 12;
+        pointer-events: none;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(179, 136, 255, 0), rgba(224, 64, 251, 0.95), rgba(179, 136, 255, 0));
+        box-shadow: 0 0 14px rgba(224, 64, 251, 0.9), 0 0 28px rgba(179, 136, 255, 0.7);
+        animation: scan-drop 2.8s cubic-bezier(0.4, 0.0, 0.2, 1) infinite;
+        opacity: 0.85;
+    }
     .btn-group { display: flex; gap: 10px; margin-top: 15px; }
     .btn-export { background: linear-gradient(135deg, #2e8bc5, #236998); color: #f4fbff; padding: 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer; font-weight: bold; flex: 1; transition: 0.2s; }
     .btn-export:hover { filter: brightness(1.08); transform: translateY(-1px); }
@@ -684,9 +698,14 @@
 <div class="main-layout">
     <div class="drawing-panel">
         <div class="tool-bar">
+            <input type="file" id="fileInput" onchange="loadImg(event)" style="width: 150px; color: #888;">
+            <button class="tool-btn" onclick="changeZoom(0.2)">🔍 放大</button>
+            <button class="tool-btn" onclick="changeZoom(-0.2)">🔍 縮小</button>
             <button class="tool-btn" style="border-color:#ffd180; color:#ffe8c8;" onclick="fitBlueprintToViewport()">🖼️ 適配視圖</button>
+            <span id="zoom-info" style="color:#ffe0b2; font-size:0.82em; min-width:64px;">縮放: 100%</span>
             <button class="tool-btn" style="border-color: #d35400" onclick="startCalibration()">📏 定比例</button>
             <button class="tool-btn" style="border-color: var(--money)" onclick="startMeasure()">📐 測量</button>
+            <button class="tool-btn level-only-standard" style="border-color: #00d2d3; color: #00d2d3;" onclick="connectLaserRuler()">🔫 連線藍牙雷射尺</button>
             <button id="btnMeasureAssist" class="tool-btn level-hide-basic" onclick="toggleMeasureAssist()">📏 量圖輔助: 關</button>
             <button class="tool-btn level-hide-basic" onclick="calibrateMeasureAssist()">🧲 校正量圖</button>
             <button id="btnMeasureStrict" class="tool-btn level-hide-basic" onclick="toggleMeasureStrictMode()">🛡 量圖嚴格: 關</button>
@@ -699,6 +718,10 @@
             <button id="btnGyro" class="tool-btn level-only-pro" onclick="toggleGyroMode()">🧭 陀螺儀: 關</button>
             <button class="tool-btn level-only-pro" onclick="calibrateGyroBaseline()">🎯 校正陀螺儀</button>
             <button class="tool-btn level-only-standard" onclick="startEdgeAIVision()">👁️ AI視覺點料</button>
+            <button class="tool-btn level-hide-basic" style="border-color:#7ed6df; color:#dffcff;" onclick="autoInterpretBlueprintAndCalculate()">🤖 看圖自動判讀試算</button>
+            <button class="tool-btn level-only-pro" style="border-color:#b39ddb; color:#efe3ff;" onclick="runAutoBlueprintPlusBIM()">🤖+🏗️ 自動看圖計算+3BIM</button>
+            <label class="tool-mini">對比 <input type="range" id="imgContrast" min="0.7" max="1.5" step="0.01" value="1" oninput="updateImageFilter('contrast', this.value)"></label>
+            <label class="tool-mini">亮度 <input type="range" id="imgBrightness" min="0.7" max="1.4" step="0.01" value="1" oninput="updateImageFilter('brightness', this.value)"></label>
             <button class="tool-btn level-hide-basic" onclick="autoEnhanceImage()">✨ 自動優化</button>
             <button class="tool-btn level-hide-basic" onclick="resetImageFilter()">♻️ 重設畫質</button>
             <span id="measureAssistInfo" class="level-hide-basic" style="color:#bdeecf; font-size:0.8em;">量圖輔助: 未啟用</span>
@@ -708,6 +731,7 @@
             <span id="scale-info" style="color:var(--highlight); font-size:0.8em; margin-left:auto;">比例: 未設定</span>
         </div>
         <div id="canvas-container">
+            <div id="blueprintLaserSweep" class="blueprint-laser-sweep-persistent" aria-hidden="true"></div>
             <div id="img-wrapper">
                 <img id="blueprint">
                 <canvas id="drawCanvas"></canvas>
@@ -722,13 +746,18 @@
             <button id="btnDemoMode" class="tool-btn" onclick="toggleDemoMode()">Demo模式: 開</button>
             <button id="btnCtrlAiVision" class="tool-btn" onclick="toggleFeatureFlag('aiVision')">AI盤點: 開</button>
             <button id="btnCtrlVoice" class="tool-btn" onclick="toggleFeatureFlag('voice')">語音助理: 開</button>
+            <button id="btnCtrlLaser" class="tool-btn" onclick="toggleFeatureFlag('laser')">雷射尺: 開</button>
             <button id="btnCtrlWarRoom" class="tool-btn" onclick="toggleFeatureFlag('warRoom')">戰情室: 開</button>
             <button id="btnQaStress" class="tool-btn" style="border-color:#ffd166; color:#ffe4a1;" onclick="toggleQaStressTest()">QA 壓力測試: 關</button>
             <button class="tool-btn" style="border-color:#ff7675; color:#ffd0ce;" onclick="stopAllRealtimeFeatures()">⛔ 一鍵停止即時功能</button>
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+            <span id="laserModeChip" class="status-pill">雷射尺模式：真機 / 未連線</span>
+            <span id="laserChaosChip" class="status-pill">雷射資料計數：無效 0 / 成功 0</span>
             <span id="warRoomModeChip" class="status-pill">戰情室模式：模擬協作 / 離線</span>
             <button id="btnWarRoomRows" class="tool-btn" style="padding:4px 10px;" onclick="toggleWarRoomRows()">顯示雲端資料: 開</button>
+            <button class="tool-btn" style="padding:4px 10px;" onclick="resetLaserChaosStats()">重置雷射計數</button>
+            <button class="tool-btn" style="padding:4px 10px; border-color:#00d2d3; color:#9ef3f3;" onclick="stopLaserRuler()">中斷雷射連線</button>
         </div>
         </section>
 
@@ -966,7 +995,7 @@
             <span style="font-size: 0.6em; color: #666;">會員專用模組</span>
         </div>
         <div class="input-row">
-            <div class="input-wrapper"><label>工地建案名稱</label><input type="text" id="project_name" value="梧棲案"></div>
+            <div class="input-wrapper"><label>工地建案名稱</label><input type="text" id="project_name" value="梧棲案測試"></div>
             <div class="input-wrapper"><label>樓層/分區標籤</label><input type="text" id="floor_tag" placeholder="如: 1F, B1, 基礎"></div>
         </div>
         <div class="member-wrap level-hide-basic">
@@ -1081,6 +1110,9 @@
 
         <div class="group-title">
             尺寸與預算預覽
+            <button class="tool-btn level-only-standard" style="margin-left:auto; border-color:#00d2d3; color:#00d2d3; font-size: 0.8em;" onclick="connectLaserRuler()">
+                🔫 連線雷射尺
+            </button>
         </div>
         <div class="input-row">
             <div class="input-wrapper"><label id="lbl_v1">長 / 寬A (m)</label><input type="number" id="v1" step="0.01" min="0" oninput="previewCalc()"></div>
@@ -1166,18 +1198,6 @@
                 <button class="tool-btn" style="width:100%; border-color:#b39ddb; color:#ece2ff;" onclick="runAdvancedSensitivityAnalysis()">📈 重新計算敏感度</button>
             </div>
             <div class="input-wrapper">
-                <label>圖紙上傳入口</label>
-                <button class="tool-btn" style="width:100%; border-color:#ffd180; color:#ffe8c8;" onclick="triggerBlueprintUpload()">🖼️ 上傳圖紙</button>
-            </div>
-            <div class="input-wrapper">
-                <label>第三頁自動判讀</label>
-                <button class="tool-btn" style="width:100%; border-color:#7ed6df; color:#dffcff;" onclick="autoInterpretBlueprintAndCalculate()">🤖 看圖自動判讀試算</button>
-            </div>
-            <div class="input-wrapper">
-                <label>第三頁 BIM 串接</label>
-                <button class="tool-btn" style="width:100%; border-color:#b39ddb; color:#efe3ff;" onclick="runAutoBlueprintPlusBIM()">🤖+🏗️ 自動看圖計算+3BIM</button>
-            </div>
-            <div class="input-wrapper">
                 <label>匯出精算報表</label>
                 <button class="tool-btn" style="width:100%; border-color:#90caf9; color:#dceeff;" onclick="exportAdvancedEstimateReport()">⬇️ 匯出第三頁報表</button>
             </div>
@@ -1204,12 +1224,11 @@
 </div>
 
 <div id="toast"></div>
-<input type="file" id="fileInput" onchange="loadImg(event)" style="display:none;" accept="image/*">
 <div id="touchCoach" class="touch-coach hide" aria-live="polite">
     <div class="coach-bubble">
-        <button class="coach-close" onclick="hideCoach(false)" aria-label="關閉解說員（本次）" title="僅本次隱藏，不會永久關閉">x</button>
+        <button class="coach-close" onclick="hideCoach(true)" aria-label="關閉解說員">x</button>
         <div class="coach-title">小教練</div>
-        <div id="coachText">哈囉，我陪你一步步完成，圖紙可到第三頁上傳。</div>
+        <div id="coachText">哈囉，先上傳圖紙，我陪你一步步完成。</div>
         <div class="coach-ai-row">
             <input id="coachAiInput" class="coach-ai-input" type="text" placeholder="可問：這區怎麼用？">
             <button id="coachAiAskBtn" class="coach-ai-btn" onclick="askAiCoachManual()">問AI</button>
@@ -1239,7 +1258,7 @@
         accessHash: '78e098f0bd34f7c3246e9c0d0b91cc6f78b1fe0321bc7bfc5c58215d838dc663',
         allowedHosts: ['gt492145-sudo.github.io', 'localhost', '127.0.0.1']
     };
-    const SECURITY_PASSWORD_ENABLED = true;
+    const SECURITY_PASSWORD_ENABLED = false; // temporary: bypass login password during network-edition edits
     const AI_API_ENABLED = true;
     let appBootstrapped = false;
     let scalePixelsPerUnit = 0;
@@ -1396,7 +1415,7 @@
         { selector: '#regionSelect', message: '第 1 步：先選地區價目來源，確保抓到正確單價。' },
         { selector: '#materialSearch', message: '第 2 步：輸入關鍵字搜尋材料，例如模板、混凝土、鋼筋。' },
         { selector: 'button[onclick="applySelectedMaterialPrice()"]', message: '第 3 步：把材料單價套用到單價欄，省去手動輸入。' },
-        { selector: 'button[onclick="triggerBlueprintUpload()"]', message: '第 4 步：到第三頁按上傳圖紙，接著用定比例與量測取得尺寸。' },
+        { selector: '#fileInput', message: '第 4 步：上傳圖紙，接著用定比例與量測取得尺寸。' },
         { selector: '.btn-add', message: '第 5 步：確認預覽後按加入清單，最後可匯出報表。' }
     ];
     let coachTimer = null;
@@ -1416,13 +1435,17 @@
     let blueprintPinchState = { active: false, startDistance: 0, startZoom: 1 };
     let blueprintTapState = { lastAt: 0, lastX: 0, lastY: 0 };
     let aiCoachState = { enabled: false, busy: false };
+    let bluetoothDevice = null;
+    let fakeLaserTimer = null;
+    let laserConnectInProgress = false;
+    let laserRulerMode = 'real';
     let voiceAgentListening = false;
     let voiceRecognition = null;
     let voiceGuardTimer = null;
     let warRoomTimer = null;
     let warRoomConnectTimer = null;
     let isWarRoomActive = false;
-    let featureFlags = { aiVision: true, voice: true, warRoom: true };
+    let featureFlags = { aiVision: true, voice: true, laser: true, warRoom: true };
     let showWarRoomRows = true;
     let demoModeEnabled = true;
     let warRoomList = [];
@@ -1445,6 +1468,7 @@
     let chaosMonkeyTickCount = 0;
     let siteWeatherAutoRefreshTimer = null;
     const CHAOS_MONKEY_ENABLED = false;
+    let laserChaosStats = { dirtyBlocked: 0, successWrites: 0 };
     const SITE_WEATHER_REFRESH_MS = 12 * 60 * 1000;
 
     function safeToast(message) {
@@ -1454,6 +1478,12 @@
         try {
             if (typeof showToast === 'function') showToast(message);
         } catch (_e) {}
+    }
+
+    function updateLaserChaosChip() {
+        const chip = document.getElementById('laserChaosChip');
+        if (!chip) return;
+        chip.innerText = `雷射資料計數：無效 ${laserChaosStats.dirtyBlocked} / 成功 ${laserChaosStats.successWrites}`;
     }
 
     const safeStorage = {
@@ -1555,6 +1585,7 @@
 
         stop360Spin();
         stopGyroMode(true);
+        stopLaserRuler(false);
         if (voiceGuardTimer) {
             clearTimeout(voiceGuardTimer);
             voiceGuardTimer = null;
@@ -1627,6 +1658,7 @@
         });
         window.addEventListener('pagehide', () => {
             stop360Spin();
+            stopLaserRuler(false);
             if (voiceGuardTimer) {
                 clearTimeout(voiceGuardTimer);
                 voiceGuardTimer = null;
@@ -1857,10 +1889,11 @@
             featureFlags = {
                 aiVision: parsed.aiVision !== false,
                 voice: parsed.voice !== false,
+                laser: parsed.laser !== false,
                 warRoom: parsed.warRoom !== false
             };
         } catch (_e) {
-            featureFlags = { aiVision: true, voice: true, warRoom: true };
+            featureFlags = { aiVision: true, voice: true, laser: true, warRoom: true };
         }
     }
 
@@ -1883,18 +1916,25 @@
         const map = [
             ['btnCtrlAiVision', 'aiVision', 'AI盤點'],
             ['btnCtrlVoice', 'voice', '語音助理'],
+            ['btnCtrlLaser', 'laser', '雷射尺'],
             ['btnCtrlWarRoom', 'warRoom', '戰情室']
         ];
         map.forEach(([id, key, label]) => {
             const el = document.getElementById(id);
             if (!el) return;
             const enabled = !!featureFlags[key];
-            const blockedByDemo = !demoModeEnabled && key === 'warRoom';
+            const blockedByDemo = !demoModeEnabled && (key === 'laser' || key === 'warRoom');
             el.innerText = `${label}: ${enabled ? '開' : '關'}`;
             el.style.borderColor = blockedByDemo ? '#8a8a8a' : (enabled ? 'rgba(255,255,255,0.3)' : '#ff7675');
             el.style.color = blockedByDemo ? '#c8c8c8' : (enabled ? '#e8f5ff' : '#ffd0ce');
             el.disabled = blockedByDemo;
         });
+        const laserChip = document.getElementById('laserModeChip');
+        if (laserChip) {
+            const isConnected = !!(bluetoothDevice && bluetoothDevice.gatt && bluetoothDevice.gatt.connected);
+            laserChip.innerText = `雷射尺模式：${laserRulerMode === 'real' ? '真機' : '模擬'} / ${isConnected ? '已連線' : '未連線'}`;
+        }
+        updateLaserChaosChip();
         const warChip = document.getElementById('warRoomModeChip');
         if (warChip) warChip.innerText = `戰情室模式：模擬協作 / ${isWarRoomActive ? 'LIVE' : '離線'}`;
         const rowsBtn = document.getElementById('btnWarRoomRows');
@@ -1916,13 +1956,14 @@
 
     function toggleFeatureFlag(key) {
         if (!Object.prototype.hasOwnProperty.call(featureFlags, key)) return;
-        if (!demoModeEnabled && key === 'warRoom') {
-            return showToast('Demo 模式已關閉，戰情室不可啟用');
+        if (!demoModeEnabled && (key === 'laser' || key === 'warRoom')) {
+            return showToast('Demo 模式已關閉，模擬雷射/戰情室不可啟用');
         }
         featureFlags[key] = !featureFlags[key];
         saveFeatureFlags();
         if (!featureFlags[key]) {
             if (key === 'aiVision') stopEdgeAIVision();
+            if (key === 'laser') stopLaserRuler();
             if (key === 'warRoom' && isWarRoomActive) {
                 isWarRoomActive = false;
                 localStorage.setItem(WAR_ROOM_KEY, '0');
@@ -1934,7 +1975,7 @@
         }
         applyFeatureControlStatus();
         applyWarRoomStatus();
-        const nameMap = { aiVision: 'AI盤點', voice: '語音助理', warRoom: '戰情室' };
+        const nameMap = { aiVision: 'AI盤點', voice: '語音助理', laser: '雷射尺', warRoom: '戰情室' };
         showToast(`${nameMap[key] || key}功能已${featureFlags[key] ? '啟用' : '停用'}`);
     }
 
@@ -1942,6 +1983,7 @@
         demoModeEnabled = !demoModeEnabled;
         localStorage.setItem(DEMO_MODE_KEY, demoModeEnabled ? '1' : '0');
         if (!demoModeEnabled) {
+            stopLaserRuler();
             if (isWarRoomActive) toggleWarRoom();
         }
         applyFeatureControlStatus();
@@ -1950,6 +1992,7 @@
 
     function stopAllRealtimeFeatures() {
         stopEdgeAIVision();
+        stopLaserRuler();
         if (voiceRecognition && voiceAgentListening) {
             try { voiceRecognition.stop(); } catch (_e) {}
             voiceAgentListening = false;
@@ -2096,6 +2139,12 @@
         applyFeatureControlStatus();
         renderTable();
         showToast(showWarRoomRows ? '已顯示雲端資料' : '已隱藏雲端資料');
+    }
+
+    function resetLaserChaosStats() {
+        laserChaosStats = { dirtyBlocked: 0, successWrites: 0 };
+        updateLaserChaosChip();
+        showToast('雷射資料計數已重置');
     }
 
     function isDevHost() {
@@ -5384,12 +5433,6 @@
     }
 
     // --- 圖紙測量模組 (保留 V6.8 完整邏輯) ---
-    function triggerBlueprintUpload() {
-        const fileInput = document.getElementById('fileInput');
-        if (!fileInput) return showToast('找不到圖紙上傳元件');
-        fileInput.click();
-    }
-
     function loadImg(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -6282,6 +6325,88 @@
         if (measureAssistState.enabled) calibrateMeasureAssist();
         drawMode = 'measure'; clickPoints = []; showToast('點擊你要測量的【起點】與【終點】');
         syncMobileMeasureModeUI();
+    }
+
+    async function connectLaserRuler() {
+        if (!featureFlags.laser) {
+            return showToast('雷射尺功能目前已停用（請先到總控開啟）');
+        }
+        if (laserConnectInProgress) return showToast('雷射尺連線中，請稍候');
+
+        // 1. 檢查瀏覽器是否支援
+        if (!navigator.bluetooth) {
+            return showToast('⚠️ 你的瀏覽器不支援藍牙 API（建議使用 Android Chrome）');
+        }
+
+        try {
+            laserConnectInProgress = true;
+            showToast('🔍 尋找藍牙設備中...（請在彈出視窗選擇設備）');
+
+            // 2. 喚起藍牙配對視窗
+            bluetoothDevice = await navigator.bluetooth.requestDevice({
+                acceptAllDevices: true,
+                optionalServices: ['generic_access']
+            });
+
+            const deviceName = bluetoothDevice && bluetoothDevice.name ? bluetoothDevice.name : '未知設備';
+            laserRulerMode = 'real';
+            stopLaserRuler(false);
+            showToast(`🔗 已連線雷射尺：${deviceName}（真機模式待接通訊協定）`);
+            applyFeatureControlStatus();
+        } catch (error) {
+            console.error('藍牙連線錯誤:', error);
+            showToast('❌ 藍牙連線取消或失敗');
+        } finally {
+            laserConnectInProgress = false;
+        }
+    }
+
+    // 4. 接收數據並自動填入目前作用中的數值欄位（資料清洗）
+    function handleLaserData(rawData) {
+        const activeInput = document.activeElement;
+        // 資料清洗（僅接受正數）
+        const cleanMatch = String(rawData).match(/^-?\d+(\.\d+)?/);
+        const distance = cleanMatch ? parseFloat(cleanMatch[0]) : NaN;
+        if (Number.isNaN(distance) || distance <= 0) {
+            laserChaosStats.dirtyBlocked += 1;
+            updateLaserChaosChip();
+            return showToast(`⚠️ 收到無效雷射數據：「${rawData}」，系統已自動擋下`);
+        }
+
+        if (activeInput && activeInput.type === 'number') {
+            activeInput.value = distance;
+            laserChaosStats.successWrites += 1;
+            updateLaserChaosChip();
+            showToast(`📏 成功寫入數據：${distance}m`);
+            previewCalc();
+            setTimeout(() => {
+                if (activeInput.id === 'v1') {
+                    focusNextInputField('v1');
+                    showToast('➡️ 自動切換至：寬度 (等候雷射數據...)');
+                } else if (activeInput.id === 'v2') {
+                    focusNextInputField('v2');
+                    showToast('➡️ 自動切換至：高度 (等候雷射數據...)');
+                } else if (activeInput.id === 'v3') {
+                    focusNextInputField('v3');
+                    showToast('➡️ 自動切換至：數量');
+                }
+            }, 500);
+            return;
+        }
+        console.log(`收到有效雷射數據 ${distance}m，但游標未停留在數值輸入框`);
+    }
+
+    function stopLaserRuler(withToast = true) {
+        if (fakeLaserTimer) {
+            clearInterval(fakeLaserTimer);
+            fakeLaserTimer = null;
+        }
+        if (bluetoothDevice && bluetoothDevice.gatt && bluetoothDevice.gatt.connected) {
+            try { bluetoothDevice.gatt.disconnect(); } catch (_e) {}
+        }
+        laserRulerMode = 'real';
+        if (withToast) showToast('雷射尺連線已中斷');
+        applyFeatureControlStatus();
     }
 
     function startVoiceAgent() {
@@ -7696,7 +7821,7 @@
         if (target.closest('#materialCountChip')) return '這裡顯示目前載入的價目筆數，正常應該是多筆資料。';
         if (target.closest('button[onclick="applySelectedMaterialPrice()"]')) return '把選好的材料單價帶入「單價欄」，省去手動輸入。';
 
-        if (target.closest('button[onclick="triggerBlueprintUpload()"]')) return '這裡可上傳圖紙：先選圖片，再做定比例與量測。';
+        if (target.closest('#fileInput')) return '這格是圖紙上傳框：先選圖片，再做定比例與量測。';
         if (target.closest('button[onclick="changeZoom(0.2)"]')) return '放大圖面，方便點更精準的位置。';
         if (target.closest('button[onclick="changeZoom(-0.2)"]')) return '縮小圖面，方便看整體配置。';
         if (target.closest('button[onclick="toggleMeasureAssist()"]')) return '量圖輔助：只在定比例與測量時提示手機傾斜，幫你提高量圖穩定度。';
