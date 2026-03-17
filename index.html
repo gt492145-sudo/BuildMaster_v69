@@ -178,6 +178,20 @@
         50% { opacity: 1; box-shadow: 0 0 30px #e040fb, 0 0 60px #e040fb; background: #e040fb; }
         100% { top: 100%; opacity: 0; }
     }
+    .blueprint-laser-sweep-persistent {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 3px;
+        z-index: 12;
+        pointer-events: none;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(179, 136, 255, 0), rgba(224, 64, 251, 0.95), rgba(179, 136, 255, 0));
+        box-shadow: 0 0 14px rgba(224, 64, 251, 0.9), 0 0 28px rgba(179, 136, 255, 0.7);
+        animation: scan-drop 2.8s cubic-bezier(0.4, 0.0, 0.2, 1) infinite;
+        opacity: 0.85;
+    }
     .btn-group { display: flex; gap: 10px; margin-top: 15px; }
     .btn-export { background: linear-gradient(135deg, #2e8bc5, #236998); color: #f4fbff; padding: 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer; font-weight: bold; flex: 1; transition: 0.2s; }
     .btn-export:hover { filter: brightness(1.08); transform: translateY(-1px); }
@@ -705,6 +719,7 @@
             <button class="tool-btn level-only-pro" onclick="calibrateGyroBaseline()">🎯 校正陀螺儀</button>
             <button class="tool-btn level-only-standard" onclick="startEdgeAIVision()">👁️ AI視覺點料</button>
             <button class="tool-btn level-hide-basic" style="border-color:#7ed6df; color:#dffcff;" onclick="autoInterpretBlueprintAndCalculate()">🤖 看圖自動判讀試算</button>
+            <button class="tool-btn level-only-pro" style="border-color:#b39ddb; color:#efe3ff;" onclick="runAutoBlueprintPlusBIM()">🤖+🏗️ 自動看圖計算+3BIM</button>
             <label class="tool-mini">對比 <input type="range" id="imgContrast" min="0.7" max="1.5" step="0.01" value="1" oninput="updateImageFilter('contrast', this.value)"></label>
             <label class="tool-mini">亮度 <input type="range" id="imgBrightness" min="0.7" max="1.4" step="0.01" value="1" oninput="updateImageFilter('brightness', this.value)"></label>
             <button class="tool-btn level-hide-basic" onclick="autoEnhanceImage()">✨ 自動優化</button>
@@ -716,6 +731,7 @@
             <span id="scale-info" style="color:var(--highlight); font-size:0.8em; margin-left:auto;">比例: 未設定</span>
         </div>
         <div id="canvas-container">
+            <div id="blueprintLaserSweep" class="blueprint-laser-sweep-persistent" aria-hidden="true"></div>
             <div id="img-wrapper">
                 <img id="blueprint">
                 <canvas id="drawCanvas"></canvas>
@@ -1141,6 +1157,54 @@
             <thead><tr><th>樓層</th><th>項目</th><th>數量</th><th>單價</th><th>公式</th><th>金額</th><th>操作</th></tr></thead>
             <tbody id="listBody"></tbody>
         </table>
+
+        <div class="group-title level-only-pro">計算第三頁｜進階試算（會員3 專用）</div>
+        <div class="input-row level-only-pro">
+            <div class="input-wrapper">
+                <label>損耗率 (%)</label>
+                <input type="number" id="advWasteRate" min="0" max="40" step="0.1" value="3" oninput="refreshAdvancedEstimate(false)">
+            </div>
+            <div class="input-wrapper">
+                <label>管理費率 (%)</label>
+                <input type="number" id="advMgmtRate" min="0" max="40" step="0.1" value="8" oninput="refreshAdvancedEstimate(false)">
+            </div>
+            <div class="input-wrapper">
+                <label>稅率 (%)</label>
+                <input type="number" id="advTaxRate" min="0" max="20" step="0.1" value="5" oninput="refreshAdvancedEstimate(false)">
+            </div>
+            <div class="input-wrapper">
+                <label>目標毛利率 (%)</label>
+                <input type="number" id="advProfitRate" min="0" max="60" step="0.1" value="12" oninput="refreshAdvancedEstimate(false)">
+            </div>
+        </div>
+        <div class="input-row level-only-pro">
+            <div class="input-wrapper">
+                <label>敏感度波動 (±%)</label>
+                <input type="number" id="advSensitivityStep" min="1" max="50" step="1" value="10" oninput="refreshAdvancedEstimate(false)">
+            </div>
+            <div class="input-wrapper">
+                <label>AI 自動判讀門檻 (%)</label>
+                <input type="number" id="advAutoInterpretGate" min="40" max="95" step="1" value="60" oninput="refreshAdvancedEstimate(false); previewCalc();">
+            </div>
+            <div class="input-wrapper">
+                <label>專業精算模式（會員3）</label>
+                <label class="tool-mini" style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+                    <input type="checkbox" id="advProPrecisionMode" checked onchange="refreshAdvancedEstimate(false)">
+                    啟用整數分精算（稽核級）
+                </label>
+            </div>
+            <div class="input-wrapper">
+                <label>執行分析</label>
+                <button class="tool-btn" style="width:100%; border-color:#b39ddb; color:#ece2ff;" onclick="runAdvancedSensitivityAnalysis()">📈 重新計算敏感度</button>
+            </div>
+            <div class="input-wrapper">
+                <label>匯出精算報表</label>
+                <button class="tool-btn" style="width:100%; border-color:#90caf9; color:#dceeff;" onclick="exportAdvancedEstimateReport()">⬇️ 匯出第三頁報表</button>
+            </div>
+        </div>
+        <div id="advEstimateSummary" class="bim-note level-only-pro" style="margin-top:6px; color:#d7e9ff;">進階試算：待命</div>
+        <div id="advSensitivitySummary" class="bim-note level-only-pro" style="margin-top:6px; color:#cfe8ff;">敏感度：待命</div>
+        <div id="advPrecisionAudit" class="bim-note level-only-pro" style="margin-top:6px; color:#c6dcff;">精算稽核：待命</div>
 
         <div class="btn-group">
             <button class="btn-export" onclick="exportToCSV()">📥 匯出商用報表 (Excel)</button>
@@ -5616,71 +5680,272 @@
         box.style.color = color;
     }
 
-    function autoInterpretBlueprintAndCalculate() {
-        if (!img.src) return showToast('請先上傳圖紙再做自動判讀');
-        const qualityReport = updateBlueprintQualityStatus();
-        const bounds = detectBlueprintPrimaryBounds();
-        if (!bounds) {
-            updateBlueprintAutoInterpretStatus('自動判讀: 偵測失敗（請先提升對比或框選量測）', '#ffd48a');
-            return showToast('未偵測到明顯主體輪廓，建議先用✨自動優化後重試');
-        }
+    const AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE = 0.6;
+    let autoInterpretBusy = false;
+    let autoInterpretRunSeq = 0;
+    let autoInterpretLastReport = null;
+    let autoInterpretNeedsReview = false;
+    let autoInterpretGateReason = '';
 
-        let scale = scalePixelsPerUnit;
-        if (!Number.isFinite(scale) || scale <= 0) {
-            const knownLong = prompt(
-                `已抓到主體長邊約 ${Math.round(bounds.longPx)} px。\n請輸入這條邊的實際長度（m）來自動定比例：`,
-                '1'
-            );
-            const knownLongMeters = parseFloat(knownLong);
-            if (Number.isFinite(knownLongMeters) && knownLongMeters > 0) {
-                scalePixelsPerUnit = bounds.longPx / knownLongMeters;
-                scale = scalePixelsPerUnit;
-                document.getElementById('scale-info').innerText = '✅ 比例已設（自動判讀）';
-            } else {
-                updateBlueprintAutoInterpretStatus(`自動判讀: 僅像素(${Math.round(bounds.widthPx)}×${Math.round(bounds.heightPx)} px)`, '#ffd48a');
-                return showToast('尚未設定比例，已提供像素判讀；輸入實際尺寸後可自動換算公尺');
+    function qualityToScore(qualityText) {
+        if (qualityText === '良好') return 1.0;
+        if (qualityText === '可用') return 0.72;
+        if (qualityText === '待重拍') return 0.45;
+        return 0.55;
+    }
+
+    function getAutoInterpretGateThreshold() {
+        const gateInput = document.getElementById('advAutoInterpretGate');
+        const gatePercent = Number(gateInput && gateInput.value);
+        const normalizedPercent = Number.isFinite(gatePercent) ? Math.max(40, Math.min(95, gatePercent)) : (AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE * 100);
+        return normalizedPercent / 100;
+    }
+
+    function evaluateAutoInterpretGate() {
+        if (!autoInterpretNeedsReview) return { ok: true, msg: '' };
+        return {
+            ok: false,
+            msg: autoInterpretGateReason || '自動判讀信心不足，請先複核或重跑判讀'
+        };
+    }
+
+    function maybeReleaseAutoInterpretGateByManualAdjust() {
+        if (!autoInterpretNeedsReview || !autoInterpretLastReport) return;
+        const type = String(document.getElementById('calcType').value || '');
+        const v1 = String(document.getElementById('v1').value || '');
+        const v2 = String(document.getElementById('v2').value || '');
+        const v3 = String(document.getElementById('v3').value || '');
+        const qty = String(document.getElementById('qty').value || '');
+        const currentSignature = `${type}|${v1}|${v2}|${v3}|${qty}`;
+        if (currentSignature !== String(autoInterpretLastReport.inputSignature || '')) {
+            autoInterpretNeedsReview = false;
+            autoInterpretGateReason = '';
+            updateBlueprintAutoInterpretStatus('自動判讀: 已手動調整參數，解除複核鎖定', '#bfe7ff');
+        }
+    }
+
+    function estimateBlueprintObjectCount(bounds) {
+        if (!img.src || !img.naturalWidth || !img.naturalHeight || !bounds) {
+            return { count: 1, confidence: 0, sampleCount: 0 };
+        }
+        const maxSide = 360;
+        const ratio = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.max(80, Math.round(img.naturalWidth * ratio));
+        const h = Math.max(80, Math.round(img.naturalHeight * ratio));
+        const off = document.createElement('canvas');
+        off.width = w;
+        off.height = h;
+        const offCtx = off.getContext('2d', { willReadFrequently: true });
+        if (!offCtx) return { count: 1, confidence: 0, sampleCount: 0 };
+        offCtx.drawImage(img, 0, 0, w, h);
+        const data = offCtx.getImageData(0, 0, w, h).data;
+
+        const x0 = Math.max(0, Math.min(w - 1, Math.floor(bounds.x * ratio)));
+        const y0 = Math.max(0, Math.min(h - 1, Math.floor(bounds.y * ratio)));
+        const x1 = Math.max(x0 + 1, Math.min(w, Math.ceil((bounds.x + bounds.widthPx) * ratio)));
+        const y1 = Math.max(y0 + 1, Math.min(h, Math.ceil((bounds.y + bounds.heightPx) * ratio)));
+        const roiW = Math.max(1, x1 - x0);
+        const roiH = Math.max(1, y1 - y0);
+        const roiSize = roiW * roiH;
+        if (roiSize < 400) return { count: 1, confidence: 0.12, sampleCount: 0 };
+
+        let sum = 0;
+        const gray = new Uint8Array(roiSize);
+        let gi = 0;
+        for (let y = y0; y < y1; y += 1) {
+            for (let x = x0; x < x1; x += 1) {
+                const i = (y * w + x) * 4;
+                const g = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+                gray[gi] = g;
+                sum += g;
+                gi += 1;
             }
         }
+        const mean = sum / gray.length;
+        const threshold = Math.max(35, Math.min(210, mean * 0.82));
+        const mask = new Uint8Array(gray.length);
+        for (let i = 0; i < gray.length; i += 1) mask[i] = gray[i] < threshold ? 1 : 0;
 
-        const longM = bounds.longPx / scale;
-        const shortM = bounds.shortPx / scale;
-        const type = String(document.getElementById('calcType').value || '');
-        const v1El = document.getElementById('v1');
-        const v2El = document.getElementById('v2');
-        const v3El = document.getElementById('v3');
-        const qtyEl = document.getElementById('qty');
-
-        if (type.startsWith('R_')) {
-            // Rebar formulas require manual spec (v1), so only fill likely length/count fields.
-            v2El.value = longM.toFixed(2);
-            if (!Number(v3El.value)) v3El.value = '1';
-            if (!Number(qtyEl.value)) qtyEl.value = '1';
-        } else if (type === 'M_BEAM_SIDES') {
-            v1El.value = longM.toFixed(2);
-            v3El.value = shortM.toFixed(2);
-            if (!Number(qtyEl.value)) qtyEl.value = '1';
-        } else if (type === 'M_WALL') {
-            v1El.value = longM.toFixed(2);
-            v2El.value = shortM.toFixed(2);
-            if (!Number(qtyEl.value)) qtyEl.value = '1';
-        } else {
-            v1El.value = longM.toFixed(2);
-            v2El.value = shortM.toFixed(2);
-            if (!Number(v3El.value)) v3El.value = '1.00';
-            if (!Number(qtyEl.value)) qtyEl.value = '1';
+        const visited = new Uint8Array(mask.length);
+        const queue = new Int32Array(mask.length);
+        const minArea = Math.max(8, Math.floor(roiSize * 0.00022));
+        const maxArea = Math.max(minArea + 1, Math.floor(roiSize * 0.06));
+        let components = 0;
+        let acceptedSamples = 0;
+        for (let i = 0; i < mask.length; i += 1) {
+            if (!mask[i] || visited[i]) continue;
+            let head = 0;
+            let tail = 0;
+            queue[tail++] = i;
+            visited[i] = 1;
+            let area = 0;
+            while (head < tail) {
+                const cur = queue[head++];
+                area += 1;
+                const cx = cur % roiW;
+                const cy = Math.floor(cur / roiW);
+                const left = cx > 0 ? cur - 1 : -1;
+                const right = cx < roiW - 1 ? cur + 1 : -1;
+                const up = cy > 0 ? cur - roiW : -1;
+                const down = cy < roiH - 1 ? cur + roiW : -1;
+                if (left >= 0 && mask[left] && !visited[left]) { visited[left] = 1; queue[tail++] = left; }
+                if (right >= 0 && mask[right] && !visited[right]) { visited[right] = 1; queue[tail++] = right; }
+                if (up >= 0 && mask[up] && !visited[up]) { visited[up] = 1; queue[tail++] = up; }
+                if (down >= 0 && mask[down] && !visited[down]) { visited[down] = 1; queue[tail++] = down; }
+            }
+            if (area >= minArea && area <= maxArea) {
+                components += 1;
+                acceptedSamples += area;
+            }
         }
-        previewCalc();
+        if (components <= 0) return { count: 1, confidence: 0.18, sampleCount: 0 };
+        const density = acceptedSamples / roiSize;
+        const confidence = Math.max(0.2, Math.min(0.94, 0.42 + Math.min(0.4, components / 80) + Math.min(0.12, density)));
+        return { count: Math.max(1, components), confidence, sampleCount: components };
+    }
 
-        const qualityNote = qualityReport ? `｜品質${qualityReport.quality}` : '';
-        updateBlueprintAutoInterpretStatus(
-            `自動判讀: ${bounds.widthPx.toFixed(0)}×${bounds.heightPx.toFixed(0)} px → ${longM.toFixed(2)}×${shortM.toFixed(2)} m${qualityNote}`,
-            '#9fffc0'
-        );
-        if (type.startsWith('R_')) {
-            showToast(`已判讀長邊 ${longM.toFixed(2)}m（鋼筋規格仍需手動填 v1）`);
-        } else {
-            showToast(`已自動判讀並帶入：${longM.toFixed(2)}m × ${shortM.toFixed(2)}m`);
+    async function autoInterpretBlueprintAndCalculate() {
+        if (autoInterpretBusy) return showToast('單一運算進行中，請稍候完成');
+        if (!img.src) return showToast('請先上傳圖紙再做自動判讀');
+        autoInterpretBusy = true;
+        autoInterpretNeedsReview = false;
+        autoInterpretGateReason = '';
+        const runId = ++autoInterpretRunSeq;
+        try {
+            updateBlueprintAutoInterpretStatus(`自動判讀: 單一運算啟動 #${runId}（主體辨識中）`, '#bfe7ff');
+            const qualityReport = updateBlueprintQualityStatus();
+            const bounds = detectBlueprintPrimaryBounds();
+            if (!bounds) {
+                updateBlueprintAutoInterpretStatus('自動判讀: 偵測失敗（請先提升對比或框選量測）', '#ffd48a');
+                return showToast('未偵測到明顯主體輪廓，建議先用✨自動優化後重試');
+            }
+
+            let scale = scalePixelsPerUnit;
+            if (!Number.isFinite(scale) || scale <= 0) {
+                const knownLong = prompt(
+                    `已抓到主體長邊約 ${Math.round(bounds.longPx)} px。\n請輸入這條邊的實際長度（m）來自動定比例：`,
+                    '1'
+                );
+                const knownLongMeters = parseFloat(knownLong);
+                if (Number.isFinite(knownLongMeters) && knownLongMeters > 0) {
+                    scalePixelsPerUnit = bounds.longPx / knownLongMeters;
+                    scale = scalePixelsPerUnit;
+                    document.getElementById('scale-info').innerText = '✅ 比例已設（自動判讀）';
+                } else {
+                    updateBlueprintAutoInterpretStatus(`自動判讀: 僅像素(${Math.round(bounds.widthPx)}×${Math.round(bounds.heightPx)} px)`, '#ffd48a');
+                    return showToast('尚未設定比例，已提供像素判讀；輸入實際尺寸後可自動換算公尺');
+                }
+            }
+
+            updateBlueprintAutoInterpretStatus(`自動判讀: 單一運算 #${runId}（尺寸/數量解算中）`, '#bfe7ff');
+            const longM = bounds.longPx / scale;
+            const shortM = bounds.shortPx / scale;
+            const type = String(document.getElementById('calcType').value || '');
+            const v1El = document.getElementById('v1');
+            const v2El = document.getElementById('v2');
+            const v3El = document.getElementById('v3');
+            const qtyEl = document.getElementById('qty');
+            const prevQty = Math.max(1, Number(qtyEl.value) || 1);
+
+            const countResult = estimateBlueprintObjectCount(bounds);
+            const shouldAutoCount = !type.startsWith('R_');
+            const pickedQty = (shouldAutoCount && countResult.confidence >= 0.55)
+                ? Math.max(1, Math.min(999, countResult.count))
+                : prevQty;
+            const geometryConfidence = Math.max(0.25, Math.min(0.95, Number(bounds.coverage || 0) * 2.4));
+            const qualityConfidence = qualityToScore(qualityReport && qualityReport.quality);
+            const countConfidence = shouldAutoCount ? Number(countResult.confidence || 0) : 0.7;
+            const overallConfidence = Math.max(0, Math.min(1, geometryConfidence * 0.45 + qualityConfidence * 0.35 + countConfidence * 0.20));
+
+            if (type.startsWith('R_')) {
+                v2El.value = longM.toFixed(2);
+                if (!Number(v3El.value)) v3El.value = '1';
+                if (!Number(qtyEl.value)) qtyEl.value = '1';
+            } else if (type === 'M_BEAM_SIDES') {
+                v1El.value = longM.toFixed(2);
+                v3El.value = shortM.toFixed(2);
+                qtyEl.value = String(pickedQty);
+            } else if (type === 'M_WALL') {
+                v1El.value = longM.toFixed(2);
+                v2El.value = shortM.toFixed(2);
+                qtyEl.value = String(pickedQty);
+            } else {
+                v1El.value = longM.toFixed(2);
+                v2El.value = shortM.toFixed(2);
+                if (!Number(v3El.value)) v3El.value = '1.00';
+                qtyEl.value = String(pickedQty);
+            }
+            previewCalc();
+
+            const qualityNote = qualityReport ? `｜品質${qualityReport.quality}` : '';
+            const countNote = shouldAutoCount
+                ? `｜數量 ${pickedQty}（信心 ${(countResult.confidence * 100).toFixed(0)}%）`
+                : '｜鋼筋類數量維持手動';
+            const gateThreshold = getAutoInterpretGateThreshold();
+            if (!type.startsWith('R_') && overallConfidence < gateThreshold) {
+                autoInterpretNeedsReview = true;
+                autoInterpretGateReason = `自動判讀信心 ${(overallConfidence * 100).toFixed(0)}% 低於門檻 ${(gateThreshold * 100).toFixed(0)}%，請手動複核尺寸/數量`;
+            }
+            updateBlueprintAutoInterpretStatus(
+                `自動判讀: 單一運算 #${runId} 完成｜${bounds.widthPx.toFixed(0)}×${bounds.heightPx.toFixed(0)} px → ${longM.toFixed(2)}×${shortM.toFixed(2)} m${countNote}｜總信心 ${(overallConfidence * 100).toFixed(0)}%${qualityNote}${autoInterpretNeedsReview ? '｜需複核' : ''}`,
+                autoInterpretNeedsReview ? '#ffd48a' : '#9fffc0'
+            );
+            autoInterpretLastReport = {
+                runId,
+                type,
+                longM,
+                shortM,
+                quantity: pickedQty,
+                countConfidence: countResult.confidence,
+                quality: qualityReport ? qualityReport.quality : '未知',
+                overallConfidence,
+                inputSignature: `${type}|${String(v1El.value || '')}|${String(v2El.value || '')}|${String(v3El.value || '')}|${String(qtyEl.value || '')}`
+            };
+            previewCalc();
+            if (type.startsWith('R_')) {
+                showToast(`已完成單一運算：長邊 ${longM.toFixed(2)}m（鋼筋規格仍需手動填 v1）`);
+            } else if (autoInterpretNeedsReview) {
+                showToast(`自動判讀完成但信心偏低（${(overallConfidence * 100).toFixed(0)}%），請先複核後再吸入清單`);
+            } else {
+                showToast(`已完成單一運算：${longM.toFixed(2)}m × ${shortM.toFixed(2)}m，數量 ${pickedQty}`);
+            }
+        } finally {
+            autoInterpretBusy = false;
         }
+    }
+
+    async function runAutoBlueprintPlusBIM() {
+        if (getCurrentUserLevel() !== 'pro') {
+            return showToast('此功能僅限會員3（專家）');
+        }
+        if (autoInterpretBusy || edgeAiDetectBusy) {
+            return showToast('AI 流程執行中，請稍候');
+        }
+        if (!img.src) {
+            return showToast('請先上傳圖紙再執行「自動看圖計算+3BIM」');
+        }
+
+        updateBlueprintAutoInterpretStatus('一鍵流程：步驟1/2 看圖自動判讀中...', '#bfe7ff');
+        await autoInterpretBlueprintAndCalculate();
+        if (autoInterpretNeedsReview) {
+            const reason = autoInterpretGateReason || '自動判讀需複核';
+            const infoBox = document.getElementById('bimAutoCalcInfo');
+            if (infoBox) infoBox.innerText = `一鍵流程中止：${reason}`;
+            return showToast(`一鍵流程中止：${reason}`);
+        }
+
+        if (!bimModelData || !Array.isArray(bimModelData.elements) || !bimModelData.elements.length) {
+            const infoBox = document.getElementById('bimAutoCalcInfo');
+            if (infoBox) infoBox.innerText = '一鍵流程完成：圖紙判讀成功（未載入 BIM 模型，已跳過 BIM 自動計算）';
+            return showToast('流程完成：已自動看圖計算（未載入 BIM，跳過 BIM 自動計算）');
+        }
+
+        updateBlueprintAutoInterpretStatus('一鍵流程：步驟2/2 BIM 技術自動計算中...', '#bfe7ff');
+        runBimTechAutoCalculation();
+        updateBlueprintAutoInterpretStatus('一鍵流程完成：看圖判讀 + BIM 技術自動計算已完成', '#9fffc0');
+        const infoBox = document.getElementById('bimAutoCalcInfo');
+        if (infoBox) infoBox.innerText = `一鍵流程完成：圖紙自動判讀 + BIM 自動計算｜執行時間 ${new Date().toLocaleTimeString('zh-TW')}`;
+        showToast('✅ 一鍵完成：自動看圖計算 + 3BIM');
     }
 
     function fitBlueprintToViewport() {
@@ -6718,6 +6983,58 @@
         return { res, unit, cat, totalCost };
     }
 
+    function roundCalc(v, digits = 8) {
+        const n = Number(v) || 0;
+        const p = Math.pow(10, digits);
+        return Math.round(n * p) / p;
+    }
+
+    // Independent audit path (formula duplicated intentionally for cross-check).
+    function coreCalculateAudit(type, v1, v2, v3, n, up) {
+        let res = 0, unit = '', cat = '';
+        if (type.startsWith('C_') || type.startsWith('E_')) {
+            cat = type.startsWith('C_') ? 'CEMENT' : 'EARTH';
+            res = roundCalc(v1 * v2 * v3 * n);
+            if (cat === 'CEMENT') res = roundCalc(res * 1.05);
+            unit = 'M³';
+        } else if (type.startsWith('R_')) {
+            cat = 'STEEL';
+            const actualD = getRebarDiameter(v1);
+            const mult = (v3 === 0) ? 1 : v3;
+            res = roundCalc((Math.pow(actualD, 2) / 162) * v2 * mult * n * 1.10);
+            unit = 'Kg';
+        } else if (type === 'M_COL') {
+            cat = 'MOLD';
+            res = roundCalc((v1 + v2) * 2 * v3 * n);
+            unit = 'M²';
+        } else if (type === 'M_BEAM_SIDES') {
+            cat = 'MOLD';
+            res = roundCalc(v1 * v3 * 2 * n);
+            unit = 'M²';
+        } else if (type === 'M_BEAM_ALL') {
+            cat = 'MOLD';
+            res = roundCalc((v3 * 2 + v2) * v1 * n);
+            unit = 'M²';
+        } else if (type === 'M_WALL') {
+            cat = 'MOLD';
+            res = roundCalc(v1 * v2 * n);
+            unit = 'M²';
+        }
+        const totalCost = roundCalc(res * up);
+        return { res, unit, cat, totalCost };
+    }
+
+    function verifyCalculationConsistency(type, v1, v2, v3, n, up) {
+        const main = coreCalculate(type, v1, v2, v3, n, up);
+        const audit = coreCalculateAudit(type, v1, v2, v3, n, up);
+        const eps = 0.000001;
+        const ok = main.cat === audit.cat
+            && main.unit === audit.unit
+            && Math.abs((main.res || 0) - (audit.res || 0)) <= eps
+            && Math.abs((main.totalCost || 0) - (audit.totalCost || 0)) <= eps;
+        return { ok, main, audit };
+    }
+
     function updateUI() {
         const type = document.getElementById('calcType').value;
         const l1 = document.getElementById('lbl_v1'), l2 = document.getElementById('lbl_v2'), l3 = document.getElementById('lbl_v3');
@@ -6744,6 +7061,7 @@
     }
 
     function previewCalc() {
+        maybeReleaseAutoInterpretGateByManualAdjust();
         const type = document.getElementById('calcType').value;
         const typeSelector = document.getElementById('calcType');
         const selectedType = typeSelector && typeSelector.options[typeSelector.selectedIndex]
@@ -6763,8 +7081,25 @@
             updateAddButtonState(false, validation.msg);
             return;
         }
+        const gate = evaluateAutoInterpretGate();
+        if (!gate.ok) {
+            document.getElementById('prev_qty').innerText = "需複核";
+            document.getElementById('prev_unit').innerText = "AI判讀";
+            document.getElementById('prev_cost').innerText = gate.msg;
+            updateAddButtonState(false, gate.msg);
+            return;
+        }
 
-        const result = coreCalculate(type, v1, v2, v3, n, up);
+        const verify = verifyCalculationConsistency(type, v1, v2, v3, n, up);
+        if (!verify.ok) {
+            const msg = '計算校核失敗（雙引擎不一致），已阻擋加入清單';
+            document.getElementById('prev_qty').innerText = "校核失敗";
+            document.getElementById('prev_unit').innerText = "請重試";
+            document.getElementById('prev_cost').innerText = msg;
+            updateAddButtonState(false, msg);
+            return;
+        }
+        const result = verify.main;
 
         let resultDisplay = '';
         let resultUnitDisplay = '';
@@ -6918,11 +7253,19 @@
         if (!validation.ok) {
             return showToast(`⚠️ ${validation.msg}`);
         }
+        const gate = evaluateAutoInterpretGate();
+        if (!gate.ok) {
+            return showToast(`⚠️ ${gate.msg}`);
+        }
 
         let isDeduct = confirm("這筆是要『扣除』的項目嗎？\n(如窗戶開口請點確定，一般計算點取消)");
         
-        // 呼叫統一公式引擎
-        let result = coreCalculate(type, v1, v2, v3, n, up);
+        const verify = verifyCalculationConsistency(type, v1, v2, v3, n, up);
+        if (!verify.ok) {
+            return showToast('⚠️ 計算校核失敗（雙引擎不一致），請重新輸入或回報系統');
+        }
+        // 呼叫統一公式引擎（已通過雙引擎校核）
+        let result = verify.main;
         let res = result.res;
         let name = typeText;
 
@@ -6968,6 +7311,210 @@
         showToast(isDeduct ? '✂️ 已執行自動扣除' : '🚀 數據已吸入黑洞！');
     }
 
+    function getVisibleCostBaseTotal() {
+        const mergedList = [
+            ...list.map((item, idx) => ({ item, idx, source: 'local' })),
+            ...warRoomList.map((item, idx) => ({ item, idx, source: 'warroom' }))
+        ];
+        const visibleList = mergedList.filter(({ source }) => showWarRoomRows || source !== 'warroom');
+        return visibleList.reduce((sum, row) => sum + (Number(row.item && row.item.totalCost) || 0), 0);
+    }
+
+    function formatNtd(value) {
+        return `${Math.round(Number(value) || 0).toLocaleString()} 元`;
+    }
+
+    function readPercentInput(id, fallback, minValue = 0, maxValue = 100) {
+        const el = document.getElementById(id);
+        const raw = Number(el && el.value);
+        const value = Number.isFinite(raw) ? raw : fallback;
+        return Math.max(minValue, Math.min(maxValue, value));
+    }
+
+    function toMoneyCents(value) {
+        return Math.round((Number(value) || 0) * 100);
+    }
+
+    function fromMoneyCents(cents) {
+        return (Number(cents) || 0) / 100;
+    }
+
+    function toBasisPoints(percentValue) {
+        return Math.round((Number(percentValue) || 0) * 100);
+    }
+
+    function mulDivRound(value, numerator, denominator) {
+        if (!Number.isFinite(value) || !Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) return 0;
+        return Math.round((value * numerator) / denominator);
+    }
+
+    function calcAdvancedEstimateFromBase(baseTotal) {
+        const wasteRate = readPercentInput('advWasteRate', 3, 0, 40) / 100;
+        const mgmtRate = readPercentInput('advMgmtRate', 8, 0, 40) / 100;
+        const taxRate = readPercentInput('advTaxRate', 5, 0, 20) / 100;
+        const profitRate = readPercentInput('advProfitRate', 12, 0, 60) / 100;
+        const strictMode = !!(document.getElementById('advProPrecisionMode') && document.getElementById('advProPrecisionMode').checked);
+        const isPro = getCurrentUserLevel() === 'pro';
+
+        let wasteCost;
+        let mgmtCost;
+        let preTaxCost;
+        let taxCost;
+        let costWithTax;
+        let quoteTotal;
+        let targetProfit;
+        let auditText;
+
+        if (strictMode && isPro) {
+            const baseCents = toMoneyCents(baseTotal);
+            const wasteBps = toBasisPoints(wasteRate * 100);
+            const mgmtBps = toBasisPoints(mgmtRate * 100);
+            const taxBps = toBasisPoints(taxRate * 100);
+            const profitBps = toBasisPoints(profitRate * 100);
+
+            const wasteCents = mulDivRound(baseCents, wasteBps, 10000);
+            const mgmtCents = mulDivRound(baseCents + wasteCents, mgmtBps, 10000);
+            const preTaxCents = baseCents + wasteCents + mgmtCents;
+            const taxCents = mulDivRound(preTaxCents, taxBps, 10000);
+            const costWithTaxCents = preTaxCents + taxCents;
+            const quoteCents = profitBps < 10000
+                ? mulDivRound(costWithTaxCents, 10000, 10000 - profitBps)
+                : costWithTaxCents;
+            const profitCents = quoteCents - costWithTaxCents;
+
+            wasteCost = fromMoneyCents(wasteCents);
+            mgmtCost = fromMoneyCents(mgmtCents);
+            preTaxCost = fromMoneyCents(preTaxCents);
+            taxCost = fromMoneyCents(taxCents);
+            costWithTax = fromMoneyCents(costWithTaxCents);
+            quoteTotal = fromMoneyCents(quoteCents);
+            targetProfit = fromMoneyCents(profitCents);
+            auditText = `整數分精算：base=${baseCents}c, waste=${wasteBps}bps, mgmt=${mgmtBps}bps, tax=${taxBps}bps, profit=${profitBps}bps`;
+        } else {
+            wasteCost = baseTotal * wasteRate;
+            mgmtCost = (baseTotal + wasteCost) * mgmtRate;
+            preTaxCost = baseTotal + wasteCost + mgmtCost;
+            taxCost = preTaxCost * taxRate;
+            costWithTax = preTaxCost + taxCost;
+            quoteTotal = (1 - profitRate) > 0.0001 ? (costWithTax / (1 - profitRate)) : costWithTax;
+            targetProfit = quoteTotal - costWithTax;
+            auditText = strictMode && !isPro
+                ? '精算模式需會員3（專家），目前回退一般試算'
+                : '一般試算（浮點）';
+        }
+
+        return {
+            baseTotal,
+            wasteCost,
+            mgmtCost,
+            taxCost,
+            costWithTax,
+            quoteTotal,
+            targetProfit,
+            strictMode,
+            isPro,
+            auditText
+        };
+    }
+
+    function refreshAdvancedEstimate(showToastMsg = false) {
+        const summary = document.getElementById('advEstimateSummary');
+        const sensitivity = document.getElementById('advSensitivitySummary');
+        const auditBox = document.getElementById('advPrecisionAudit');
+        if (!summary || !sensitivity || !auditBox) return;
+        const baseTotal = getVisibleCostBaseTotal();
+        if (baseTotal <= 0) {
+            summary.innerText = '進階試算：目前清單為空，請先加入至少一筆計算項目。';
+            sensitivity.innerText = '敏感度：待命（需有清單金額）';
+            auditBox.innerText = '精算稽核：待命';
+            return;
+        }
+        const est = calcAdvancedEstimateFromBase(baseTotal);
+        summary.innerText = `進階試算：基礎成本 ${formatNtd(est.baseTotal)}｜損耗 ${formatNtd(est.wasteCost)}｜管理費 ${formatNtd(est.mgmtCost)}｜稅金 ${formatNtd(est.taxCost)}｜含稅成本 ${formatNtd(est.costWithTax)}｜建議報價 ${formatNtd(est.quoteTotal)}｜目標毛利 ${formatNtd(est.targetProfit)}`;
+        auditBox.innerText = `精算稽核：${est.auditText}`;
+        auditBox.style.color = est.strictMode && est.isPro ? '#9ef5c2' : (est.strictMode ? '#ffd48a' : '#c6dcff');
+        const gateInput = document.getElementById('advAutoInterpretGate');
+        if (gateInput && (!Number.isFinite(Number(gateInput.value)) || String(gateInput.value).trim() === '')) {
+            gateInput.value = String(Math.round(AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE * 100));
+        }
+        runAdvancedSensitivityAnalysis(true);
+        if (showToastMsg) showToast(`進階試算已更新：建議報價 ${formatNtd(est.quoteTotal)}`);
+    }
+
+    function runAdvancedSensitivityAnalysis(silent = false) {
+        const sensitivity = document.getElementById('advSensitivitySummary');
+        if (!sensitivity) return;
+        const baseTotal = getVisibleCostBaseTotal();
+        if (baseTotal <= 0) {
+            sensitivity.innerText = '敏感度：待命（需有清單金額）';
+            return;
+        }
+        const stepPercent = readPercentInput('advSensitivityStep', 10, 1, 50);
+        const low = calcAdvancedEstimateFromBase(baseTotal * (1 - stepPercent / 100));
+        const mid = calcAdvancedEstimateFromBase(baseTotal);
+        const high = calcAdvancedEstimateFromBase(baseTotal * (1 + stepPercent / 100));
+        sensitivity.innerText = `敏感度（±${stepPercent}%）：低情境報價 ${formatNtd(low.quoteTotal)}｜基準 ${formatNtd(mid.quoteTotal)}｜高情境 ${formatNtd(high.quoteTotal)}`;
+        if (!silent) showToast(`敏感度已更新（±${stepPercent}%）`);
+    }
+
+    function exportAdvancedEstimateReport() {
+        if (getCurrentUserLevel() !== 'pro') {
+            return showToast('此報表僅限會員3（專家）匯出');
+        }
+        const baseTotal = getVisibleCostBaseTotal();
+        if (baseTotal <= 0) {
+            return showToast('目前清單為空，無法匯出第三頁精算報表');
+        }
+
+        const wasteRate = readPercentInput('advWasteRate', 3, 0, 40);
+        const mgmtRate = readPercentInput('advMgmtRate', 8, 0, 40);
+        const taxRate = readPercentInput('advTaxRate', 5, 0, 20);
+        const profitRate = readPercentInput('advProfitRate', 12, 0, 60);
+        const stepPercent = readPercentInput('advSensitivityStep', 10, 1, 50);
+
+        const base = calcAdvancedEstimateFromBase(baseTotal);
+        const low = calcAdvancedEstimateFromBase(baseTotal * (1 - stepPercent / 100));
+        const high = calcAdvancedEstimateFromBase(baseTotal * (1 + stepPercent / 100));
+
+        const projectName = (document.getElementById('project_name') && document.getElementById('project_name').value) || '未命名專案';
+        const floorTag = (document.getElementById('floor_tag') && document.getElementById('floor_tag').value) || '未分層';
+        const rows = [
+            ['報告時間', new Date().toLocaleString('zh-TW')],
+            ['專案名稱', projectName],
+            ['樓層分區', floorTag],
+            ['會員等級', getUserLevelLabel(getCurrentUserLevel())],
+            ['精算模式', base.strictMode && base.isPro ? '整數分精算（稽核級）' : '一般試算'],
+            ['稽核訊息', base.auditText],
+            ['基礎成本(元)', Math.round(base.baseTotal)],
+            ['損耗率(%)', wasteRate],
+            ['管理費率(%)', mgmtRate],
+            ['稅率(%)', taxRate],
+            ['目標毛利率(%)', profitRate],
+            ['損耗成本(元)', Math.round(base.wasteCost)],
+            ['管理費(元)', Math.round(base.mgmtCost)],
+            ['稅金(元)', Math.round(base.taxCost)],
+            ['含稅成本(元)', Math.round(base.costWithTax)],
+            ['建議報價(元)', Math.round(base.quoteTotal)],
+            ['目標毛利(元)', Math.round(base.targetProfit)],
+            ['敏感度波動(±%)', stepPercent],
+            ['低情境報價(元)', Math.round(low.quoteTotal)],
+            ['基準報價(元)', Math.round(base.quoteTotal)],
+            ['高情境報價(元)', Math.round(high.quoteTotal)]
+        ];
+
+        let csv = '\uFEFF項目,數值\n';
+        rows.forEach(([k, v]) => {
+            csv += `${sanitizeCSVField(k)},${sanitizeCSVField(v)}\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `ConstructionMaster_第三頁精算報表_${new Date().getTime()}.csv`;
+        link.click();
+        addAuditLog('匯出第三頁精算報表', `專案 ${projectName} / 報價 ${Math.round(base.quoteTotal)} 元`);
+        showToast('第三頁精算報表已匯出');
+    }
+
     function renderTable() {
         const tbody = document.getElementById('listBody'); 
         tbody.innerHTML = '';
@@ -7008,6 +7555,7 @@
         document.getElementById('sumS').innerText = `鋼筋: ${sums.STEEL.toFixed(2)} Kg`;
         document.getElementById('totalMoney').innerText = Math.round(sums.total).toLocaleString();
         updateQaDashboard();
+        refreshAdvancedEstimate(false);
     }
 
     function removeItem(idx) { list.splice(idx, 1); saveData(); renderTable(); }
