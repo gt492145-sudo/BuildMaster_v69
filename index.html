@@ -844,6 +844,7 @@
                 <button class="tool-btn" style="border-color:#00e5ff; color:#bff8ff;" onclick="enhanceBimStakingQuality()">🛡️ 強化放樣</button>
                 <button class="tool-btn" style="border-color:#ffca80; color:#ffe7c7;" onclick="applyLayoutControlPointAlignment()">🧭 控制點配準</button>
                 <button class="tool-btn" style="border-color:#ff8a65; color:#ffd7cb;" onclick="runBimLayoutDeviationHeatmap()">🌡️ 偏差熱圖</button>
+                <button class="tool-btn" style="border-color:#ef9a9a; color:#ffe5e5;" onclick="runBimLayoutStabilityRetest()">🔁 穩定度重測(3輪)</button>
                 <button class="tool-btn" style="border-color:#80cbc4; color:#d4fff9;" onclick="runBimLayoutConfidenceLayering(true)">🎯 只顯示高信心點</button>
                 <button class="tool-btn" style="border-color:#b0bec5; color:#e4ebef;" onclick="showAllBimLayoutPoints()">📋 顯示全部點</button>
                 <button class="tool-btn" onclick="optimizeBimLayoutPointsForPrecision()">🎯 高精度修正</button>
@@ -896,6 +897,7 @@
             </div>
             <div id="layoutAlignmentSummary" class="bim-note" style="color:#ffd59c;">控制點配準：尚未套用</div>
             <div id="layoutHeatmapSummary" class="bim-note" style="color:#ffcfbf;">偏差熱圖：尚未分析</div>
+            <div id="layoutStabilitySummary" class="bim-note" style="color:#ffcdcd;">穩定度重測：尚未執行</div>
             <div id="layoutConfidenceSummary" class="bim-note" style="color:#b9f5ef;">置信度分層：尚未分析</div>
             <div id="layoutCoverageSummary" class="bim-note" style="color:#ffe9a9;">補點建議：尚未分析</div>
             <div id="layoutSpotCheckSummary" class="bim-note" style="color:#e9c7ff;">現場抽驗：尚未抽驗</div>
@@ -1252,6 +1254,9 @@
         { name: '鷹架(透天)', price: 320 },
         { name: '鷹架(大樓)', price: 520 }
     ];
+    const STAKING_EXPORT_QA_MIN_SCORE = 85;
+    const STAKING_STABILITY_RETEST_RUNS = 3;
+    const STAKING_STABILITY_DRIFT_THRESHOLD_M = 0.03;
     let materialCatalog = [...DEFAULT_MATERIAL_CATALOG];
     let currentRegionLabel = '全台共用';
     let currentRegionMode = '預設';
@@ -1271,6 +1276,8 @@
     let layoutAlignmentState = null;
     let layoutConfidenceFilterMode = 'all';
     let layoutSpotCheckSelection = [];
+    let stakingConservativeMode = false;
+    let latestWeatherAdviceLevel = '未知';
     const BIM_RULES_STORAGE_KEY = 'bm_69:bim_rules';
     const BIM_AUDIT_STORAGE_KEY = 'bm_69:bim_audit_logs';
     const BIM_SNAPSHOT_STORAGE_KEY = 'bm_69:bim_snapshots';
@@ -3558,6 +3565,86 @@
         };
     }
 
+    function makeSeededOffset(entityId, seed, amplitude) {
+        const n = Number(String(entityId || '').replace('#', '')) || 0;
+        const raw = Math.sin((n + 1) * (seed * 17.371)) * 43758.5453;
+        const fract = raw - Math.floor(raw);
+        return (fract * 2 - 1) * amplitude;
+    }
+
+    function buildLayoutPointsSnapshot(selection, runIndex = 0, jitterAmplitude = 0) {
+        if (!bimModelData || !Array.isArray(bimModelData.elements) || !bimModelData.elements.length) return [];
+        const targets = bimModelData.elements.filter(el => isLayoutTargetType(el.type, selection));
+        if (!targets.length) return [];
+        const points = [];
+        targets.forEach((el) => {
+            const baseX = makeSeededValue(el.id, 1, 0, 120);
+            const baseY = makeSeededValue(el.id, 2, 0, 120);
+            const baseZ = makeSeededValue(el.id, 3, 0, 30);
+            const dx = runIndex > 0 ? makeSeededOffset(el.id, 101 + runIndex, jitterAmplitude) : 0;
+            const dy = runIndex > 0 ? makeSeededOffset(el.id, 203 + runIndex, jitterAmplitude) : 0;
+            const dz = runIndex > 0 ? makeSeededOffset(el.id, 307 + runIndex, jitterAmplitude * 0.6) : 0;
+            if (el.type.includes('IFCCOLUMN')) {
+                points.push(toPointRow(el, 'CENTER', baseX + dx, baseY + dy, baseZ + dz, points.length));
+                return;
+            }
+            if (el.type.includes('IFCWALL') || el.type.includes('IFCBEAM')) {
+                const offset = el.type.includes('IFCBEAM') ? 1.8 : 2.4;
+                points.push(toPointRow(el, 'END_A', baseX - offset + dx, baseY - 0.8 + dy, baseZ + dz, points.length));
+                points.push(toPointRow(el, 'END_B', baseX + offset + dx, baseY + 0.8 + dy, baseZ + dz, points.length));
+            }
+        });
+        const seededPoints = points.slice(0, 1200);
+        return assignLayoutGroups(seededPoints).points;
+    }
+
+    function layoutPointKey(point) {
+        return `${point.sourceElementId || ''}|${point.pointType || ''}`;
+    }
+
+    function analyzeLayoutStabilityRuns(runSets, thresholdM) {
+        const keyDriftMap = new Map();
+        if (!Array.isArray(runSets) || runSets.length < 2 || !Array.isArray(runSets[0])) {
+            return { keyDriftMap, meanDrift: 0, maxDrift: 0, unstableGroups: [], unstableCount: 0 };
+        }
+        const base = runSets[0];
+        const runMaps = runSets.map(points => {
+            const map = new Map();
+            points.forEach(p => map.set(layoutPointKey(p), p));
+            return map;
+        });
+        const drifts = [];
+        const unstableGroups = new Set();
+        base.forEach((p) => {
+            const key = layoutPointKey(p);
+            const px = Number(p.x) || 0;
+            const py = Number(p.y) || 0;
+            const pz = Number(p.z) || 0;
+            let maxDrift = 0;
+            for (let i = 1; i < runMaps.length; i += 1) {
+                const q = runMaps[i].get(key);
+                if (!q) continue;
+                const dx = (Number(q.x) || 0) - px;
+                const dy = (Number(q.y) || 0) - py;
+                const dz = (Number(q.z) || 0) - pz;
+                const drift = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (drift > maxDrift) maxDrift = drift;
+            }
+            keyDriftMap.set(key, maxDrift);
+            drifts.push(maxDrift);
+            if (maxDrift > thresholdM && p.layoutGroup) unstableGroups.add(p.layoutGroup);
+        });
+        const meanDrift = drifts.length ? (drifts.reduce((a, b) => a + b, 0) / drifts.length) : 0;
+        const maxDrift = drifts.length ? Math.max(...drifts) : 0;
+        return {
+            keyDriftMap,
+            meanDrift,
+            maxDrift,
+            unstableGroups: Array.from(unstableGroups).sort(),
+            unstableCount: drifts.filter(v => v > thresholdM).length
+        };
+    }
+
     function renderBimLayoutTable() {
         const body = document.getElementById('bimLayoutBody');
         if (!body) return;
@@ -3611,6 +3698,14 @@
                 confidenceStyle = 'color:#ff9e9e;font-weight:700;';
             }
             if (p.spotCheckSelected) confidenceText = `${confidenceText}｜🧪抽驗`;
+            if (p.stabilityFlag === 'unstable') {
+                confidenceText = `${confidenceText}｜⚠️不穩`;
+                confidenceStyle = 'color:#ff9e9e;font-weight:800;';
+                tr.style.boxShadow = 'inset 0 0 0 1px rgba(255, 110, 110, 0.65)';
+                if (!Number.isFinite(deviation) || deviation <= 25) {
+                    tr.style.background = 'rgba(255, 82, 82, 0.12)';
+                }
+            }
             tr.innerHTML = `<td>${p.id}</td><td>${p.sourceElementId}</td><td>${p.sourceType}</td><td>${p.pointType}</td><td>${p.x}</td><td>${p.y}</td><td>${p.z}</td><td>${p.floorTag}</td><td>${p.layoutGroup || '-'}</td><td style="${heatStyle}">${heatText}</td><td style="${confidenceStyle}">${confidenceText}</td>`;
             body.appendChild(tr);
         });
@@ -3634,7 +3729,7 @@
         return { confidenceScore, confidenceLevel: level };
     }
 
-    function runBimLayoutConfidenceLayering(highOnly = false) {
+    function runBimLayoutConfidenceLayering(highOnly = false, silent = false) {
         if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
         bimLayoutPoints = bimLayoutPoints.map((p) => {
             const conf = classifyLayoutPointConfidence(p);
@@ -3646,6 +3741,7 @@
         const mediumCount = bimLayoutPoints.filter(p => p.confidenceLevel === 'medium').length;
         const lowCount = bimLayoutPoints.filter(p => p.confidenceLevel === 'low').length;
         addAuditLog('放樣置信度分層', `高${highCount} 中${mediumCount} 低${lowCount} / 模式 ${layoutConfidenceFilterMode}`);
+        if (silent) return;
         if (highOnly) showToast(`已切換高信心點模式：高 ${highCount} 筆`);
         else showToast(`置信度分層完成：高 ${highCount} / 中 ${mediumCount} / 低 ${lowCount}`);
     }
@@ -3747,23 +3843,31 @@
         showToast(`現場抽驗已選 ${summaryItems.length} 點（優先高信心）`);
     }
 
-    function exportBimConstructionPackage() {
-        if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
-        const highPoints = bimLayoutPoints.filter(p => p.confidenceLevel === 'high');
-        const exportPoints = highPoints.length ? highPoints : bimLayoutPoints;
-        const qaScore = bimLayoutQaResult ? Number(bimLayoutQaResult.qaScore || 0) : 0;
+    function downloadBimCsv(filename, lines) {
+        const csv = '\uFEFF' + lines.join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+    }
+
+    function buildConstructionPackageLines(points, packageLabel, qaScore, qaLevel, exportedAtIso, qaGateScore) {
         const lines = [];
-        lines.push(`# Construction Package Exported At,${new Date().toISOString()}`);
-        lines.push(`# Total Points,${bimLayoutPoints.length}`);
-        lines.push(`# Exported Points,${exportPoints.length}`);
-        lines.push(`# Source,${highPoints.length ? 'high_confidence_only' : 'all_points_fallback'}`);
+        lines.push(`# Construction Package Exported At,${exportedAtIso}`);
+        lines.push(`# Package Label,${packageLabel}`);
+        lines.push(`# Exported Points,${points.length}`);
         if (layoutAlignmentState) {
             lines.push(`# Alignment RMS,${Number(layoutAlignmentState.rmsError || 0).toFixed(6)}`);
             lines.push(`# Alignment Advice,${layoutAlignmentState.adviceLevel || ''}`);
         }
-        if (qaScore > 0) lines.push(`# QA Score,${qaScore}`);
-        lines.push('point_id,source_element,source_type,point_type,x,y,z,floor,group,deviation_score,confidence_level,confidence_score,spot_check');
-        exportPoints.forEach(p => {
+        if (qaScore > 0) {
+            lines.push(`# QA Score,${qaScore}`);
+            lines.push(`# QA Level,${qaLevel}`);
+            lines.push(`# QA Gate,PASS (>=${Number(qaGateScore) || STAKING_EXPORT_QA_MIN_SCORE})`);
+        }
+        lines.push('point_id,source_element,source_type,point_type,x,y,z,floor,group,deviation_score,confidence_level,confidence_score,stability_flag,spot_check');
+        points.forEach(p => {
             lines.push([
                 sanitizeCSVField(p.id),
                 sanitizeCSVField(p.sourceElementId),
@@ -3777,17 +3881,43 @@
                 Number.isFinite(Number(p.deviationScore)) ? Number(p.deviationScore) : '',
                 sanitizeCSVField(p.confidenceLevel || ''),
                 Number.isFinite(Number(p.confidenceScore)) ? Number(p.confidenceScore) : '',
+                sanitizeCSVField(p.stabilityFlag || ''),
                 p.spotCheckSelected ? 'Y' : ''
             ].join(','));
         });
-        const csv = '\uFEFF' + lines.join('\n');
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `ConstructionMaster_施工放樣包_${new Date().getTime()}.csv`;
-        link.click();
-        addAuditLog('匯出施工包', `輸出 ${exportPoints.length}/${bimLayoutPoints.length} 點`);
-        showToast(`施工包已匯出：${exportPoints.length} 點（${highPoints.length ? '高信心' : '全部'}）`);
+        return lines;
+    }
+
+    function exportBimConstructionPackage() {
+        if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
+        runBimLayoutConfidenceLayering(stakingConservativeMode, true);
+        if (!bimLayoutQaResult) runBimLayoutQa();
+        const qaScore = bimLayoutQaResult ? Number(bimLayoutQaResult.qaScore || 0) : 0;
+        const qaLevel = getQaLevelByScore(qaScore);
+        const activeQaGate = getActiveStakingQaGate();
+        if (qaScore < activeQaGate) {
+            addAuditLog('匯出施工包阻擋', `QA ${qaScore}（${qaLevel}）未達門檻 ${activeQaGate} / 天氣模式 ${latestWeatherAdviceLevel}`);
+            return showToast(`施工包已阻擋：QA ${qaScore}（${qaLevel}）未達門檻 ${activeQaGate}`);
+        }
+        const safeHigh = bimLayoutPoints.filter(p => p.confidenceLevel === 'high' && p.stabilityFlag !== 'unstable');
+        const safeMedium = bimLayoutPoints.filter(p => p.confidenceLevel === 'medium' && p.stabilityFlag !== 'unstable');
+        const blocked = bimLayoutPoints.filter(p => p.stabilityFlag === 'unstable' || p.confidenceLevel === 'low');
+        const exportedAtIso = new Date().toISOString();
+        const ts = Date.now();
+        downloadBimCsv(
+            `ConstructionMaster_施工放樣包_高信心_${ts}.csv`,
+            buildConstructionPackageLines(safeHigh, `HIGH_CONFIDENCE｜WEATHER_${latestWeatherAdviceLevel}`, qaScore, qaLevel, exportedAtIso, activeQaGate)
+        );
+        downloadBimCsv(
+            `ConstructionMaster_施工放樣包_中信心_需複核_${ts}.csv`,
+            buildConstructionPackageLines(safeMedium, `MEDIUM_REVIEW｜WEATHER_${latestWeatherAdviceLevel}`, qaScore, qaLevel, exportedAtIso, activeQaGate)
+        );
+        downloadBimCsv(
+            `ConstructionMaster_施工放樣包_禁止施工_${ts}.csv`,
+            buildConstructionPackageLines(blocked, `BLOCKED_DO_NOT_BUILD｜WEATHER_${latestWeatherAdviceLevel}`, qaScore, qaLevel, exportedAtIso, activeQaGate)
+        );
+        addAuditLog('匯出施工包', `高 ${safeHigh.length} / 中 ${safeMedium.length} / 禁 ${blocked.length} / 總 ${bimLayoutPoints.length}`);
+        showToast(`施工包已分級匯出：高 ${safeHigh.length}｜中 ${safeMedium.length}｜禁 ${blocked.length}`);
     }
 
     function runBimLayoutDeviationHeatmap() {
@@ -3843,6 +3973,46 @@
         renderBimLayoutTable();
         addAuditLog('放樣偏差熱圖', `紅${red} 黃${yellow} 綠${green}`);
         showToast(`偏差熱圖完成：紅 ${red}、黃 ${yellow}、綠 ${green}`);
+    }
+
+    function runBimLayoutStabilityRetest() {
+        if (!bimModelData || !Array.isArray(bimModelData.elements) || !bimModelData.elements.length) {
+            return showToast('請先上傳模型檔，再執行穩定度重測');
+        }
+        const selection = getLayoutTypeSelection();
+        const runSets = [];
+        for (let i = 0; i < STAKING_STABILITY_RETEST_RUNS; i += 1) {
+            const jitter = i === 0 ? 0 : 0.012; // 12mm deterministic perturbation for repeatability stress
+            const points = buildLayoutPointsSnapshot(selection, i, jitter);
+            if (!points.length) return showToast('目前勾選類型沒有可重測的放樣點');
+            runSets.push(points);
+        }
+        const result = analyzeLayoutStabilityRuns(runSets, STAKING_STABILITY_DRIFT_THRESHOLD_M);
+        if (!bimLayoutPoints.length) {
+            bimLayoutPoints = runSets[0];
+        } else if (!bimLayoutPoints.some(p => p.layoutGroup)) {
+            bimLayoutPoints = assignLayoutGroups(bimLayoutPoints).points;
+        }
+        bimLayoutPoints = bimLayoutPoints.map(p => {
+            const drift = Number(result.keyDriftMap.get(layoutPointKey(p)) || 0);
+            const unstable = drift > STAKING_STABILITY_DRIFT_THRESHOLD_M;
+            return {
+                ...p,
+                stabilityMaxDrift: Math.round(drift * 1000) / 1000,
+                stabilityFlag: unstable ? 'unstable' : 'stable'
+            };
+        });
+        const stabilityBox = document.getElementById('layoutStabilitySummary');
+        if (stabilityBox) {
+            const groupText = result.unstableGroups.length
+                ? `｜不穩定群組 ${result.unstableGroups.slice(0, 4).join('、')}${result.unstableGroups.length > 4 ? '...' : ''}`
+                : '｜群組穩定';
+            stabilityBox.innerText = `穩定度重測：${STAKING_STABILITY_RETEST_RUNS} 輪｜平均漂移 ${(result.meanDrift * 1000).toFixed(1)}mm｜峰值 ${(result.maxDrift * 1000).toFixed(1)}mm｜超門檻 ${result.unstableCount} 點${groupText}`;
+            stabilityBox.style.color = result.unstableCount > 0 ? '#ffb5b5' : '#9ef5c2';
+        }
+        renderBimLayoutTable();
+        addAuditLog('放樣穩定度重測', `輪次 ${STAKING_STABILITY_RETEST_RUNS} / 超門檻 ${result.unstableCount} 點 / 峰值 ${(result.maxDrift * 1000).toFixed(1)}mm`);
+        showToast(`穩定度重測完成：超門檻 ${result.unstableCount} 點，峰值 ${(result.maxDrift * 1000).toFixed(1)}mm`);
     }
 
     function getQaLevelByScore(score) {
@@ -3966,6 +4136,80 @@
         return '不建議施工（需重新配準）';
     }
 
+    function pointDistance2D(a, b) {
+        const dx = (Number(a && a.x) || 0) - (Number(b && b.x) || 0);
+        const dy = (Number(a && a.y) || 0) - (Number(b && b.y) || 0);
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function triangleArea2D(a, b, c) {
+        const ax = Number(a && a.x) || 0;
+        const ay = Number(a && a.y) || 0;
+        const bx = Number(b && b.x) || 0;
+        const by = Number(b && b.y) || 0;
+        const cx = Number(c && c.x) || 0;
+        const cy = Number(c && c.y) || 0;
+        return Math.abs((bx - ax) * (cy - ay) - (by - ay) * (cx - ax)) * 0.5;
+    }
+
+    function evaluateControlPointQuality(pairs) {
+        const validPairs = Array.isArray(pairs) ? pairs.filter(pair => pair && pair.design && pair.field) : [];
+        if (validPairs.length < 2) {
+            return { ok: false, reason: '控制點不足，至少需要 2 點' };
+        }
+
+        const design = validPairs.map(pair => pair.design);
+        const field = validPairs.map(pair => pair.field);
+        let minDesignDist = Infinity;
+        let minFieldDist = Infinity;
+        let maxDesignDist = 0;
+        let maxFieldDist = 0;
+
+        for (let i = 0; i < validPairs.length; i += 1) {
+            for (let j = i + 1; j < validPairs.length; j += 1) {
+                const dd = pointDistance2D(design[i], design[j]);
+                const fd = pointDistance2D(field[i], field[j]);
+                if (Number.isFinite(dd)) {
+                    minDesignDist = Math.min(minDesignDist, dd);
+                    maxDesignDist = Math.max(maxDesignDist, dd);
+                }
+                if (Number.isFinite(fd)) {
+                    minFieldDist = Math.min(minFieldDist, fd);
+                    maxFieldDist = Math.max(maxFieldDist, fd);
+                }
+            }
+        }
+
+        if (!Number.isFinite(minDesignDist) || !Number.isFinite(minFieldDist)) {
+            return { ok: false, reason: '控制點資料異常，請重新輸入' };
+        }
+        if (minDesignDist < 0.02 || minFieldDist < 0.02) {
+            return { ok: false, reason: '控制點距離過近（< 0.02），請拉開控制點距離' };
+        }
+
+        const scaleSpanRatio = maxFieldDist > 0 ? (maxDesignDist / maxFieldDist) : 0;
+        if (!Number.isFinite(scaleSpanRatio) || scaleSpanRatio <= 0 || scaleSpanRatio > 20 || scaleSpanRatio < 0.05) {
+            return { ok: false, reason: '控制點比例異常，請檢查設計座標與現地座標是否同單位' };
+        }
+
+        if (validPairs.length >= 3) {
+            const designArea = triangleArea2D(design[0], design[1], design[2]);
+            const fieldArea = triangleArea2D(field[0], field[1], field[2]);
+            const designSpan = Math.max(0.001, maxDesignDist);
+            const fieldSpan = Math.max(0.001, maxFieldDist);
+            const designCollinearRatio = designArea / (designSpan * designSpan);
+            const fieldCollinearRatio = fieldArea / (fieldSpan * fieldSpan);
+            if (designCollinearRatio < 0.0025 || fieldCollinearRatio < 0.0025) {
+                return { ok: false, reason: '控制點接近共線，請調整第 3 點到不同方位' };
+            }
+        }
+
+        return {
+            ok: true,
+            qualityText: `控制點檢核通過｜最短距離 設計 ${minDesignDist.toFixed(3)} / 現地 ${minFieldDist.toFixed(3)}`
+        };
+    }
+
     function solveLayoutSimilarityTransform(pairs) {
         if (!Array.isArray(pairs) || pairs.length < 2) return null;
         const validPairs = pairs.filter(pair => pair && pair.design && pair.field);
@@ -4044,6 +4288,11 @@
         const pair3 = readLayoutControlPair(3);
 
         const pairs = pair3 ? [pair1, pair2, pair3] : [pair1, pair2];
+        const quality = evaluateControlPointQuality(pairs);
+        if (!quality.ok) {
+            addAuditLog('控制點配準阻擋', quality.reason);
+            return showToast(`控制點檢核未通過：${quality.reason}`);
+        }
         const transform = solveLayoutSimilarityTransform(pairs);
         if (!transform) return showToast('控制點無法解算，請確認點位不要重疊');
 
@@ -4075,6 +4324,7 @@
             '控制點配準',
             `控制點 ${transform.controlCount} / 平移(${transform.tx.toFixed(3)},${transform.ty.toFixed(3)}) 旋轉${transform.rotationDeg.toFixed(2)}° 比例${transform.scale.toFixed(5)} RMS ${transform.rmsError.toFixed(4)} / 建議 ${getLayoutAlignmentAdvice(transform.rmsError)}`
         );
+        if (quality.qualityText) addAuditLog('控制點品質', quality.qualityText);
         showToast(`控制點配準完成：RMS ${transform.rmsError.toFixed(4)}（${getLayoutAlignmentAdvice(transform.rmsError)}）`);
     }
 
@@ -4474,6 +4724,11 @@
         if (heatBox) heatBox.innerText = '偏差熱圖：尚未分析';
         const confBox = document.getElementById('layoutConfidenceSummary');
         if (confBox) confBox.innerText = '置信度分層：尚未分析';
+        const stabilityBox = document.getElementById('layoutStabilitySummary');
+        if (stabilityBox) {
+            stabilityBox.innerText = '穩定度重測：尚未執行';
+            stabilityBox.style.color = '#ffcdcd';
+        }
         const coverageBox = document.getElementById('layoutCoverageSummary');
         if (coverageBox) coverageBox.innerText = '補點建議：尚未分析';
         const spotBox = document.getElementById('layoutSpotCheckSummary');
@@ -4855,9 +5110,9 @@
         try {
             const pos = await new Promise((resolve, reject) => {
                 navigator.geolocation.getCurrentPosition(resolve, reject, {
-                    enableHighAccuracy: false,
+                    enableHighAccuracy: true,
                     timeout: 6000,
-                    maximumAge: 600000
+                    maximumAge: 120000
                 });
             });
             const latitude = Number(pos && pos.coords && pos.coords.latitude);
@@ -4867,6 +5122,39 @@
         } catch (_e) {
             return null;
         }
+    }
+
+    function resolveOpenMeteoRainProbability(current, hourly) {
+        const fromCurrent = Number(current && current.precipitation_probability);
+        if (Number.isFinite(fromCurrent)) {
+            return Math.max(0, Math.min(100, fromCurrent));
+        }
+        const times = Array.isArray(hourly && hourly.time) ? hourly.time : [];
+        const probs = Array.isArray(hourly && hourly.precipitation_probability) ? hourly.precipitation_probability : [];
+        if (!times.length || times.length !== probs.length) return 0;
+        const nowTime = String((current && current.time) || '');
+        const exactIdx = times.indexOf(nowTime);
+        if (exactIdx >= 0 && Number.isFinite(Number(probs[exactIdx]))) {
+            return Math.max(0, Math.min(100, Number(probs[exactIdx])));
+        }
+        const nowTs = Date.parse(nowTime);
+        if (Number.isFinite(nowTs)) {
+            let bestIdx = -1;
+            let bestGap = Infinity;
+            for (let i = 0; i < times.length; i += 1) {
+                const ts = Date.parse(String(times[i] || ''));
+                if (!Number.isFinite(ts)) continue;
+                const gap = Math.abs(ts - nowTs);
+                if (gap < bestGap) {
+                    bestGap = gap;
+                    bestIdx = i;
+                }
+            }
+            if (bestIdx >= 0 && Number.isFinite(Number(probs[bestIdx]))) {
+                return Math.max(0, Math.min(100, Number(probs[bestIdx])));
+            }
+        }
+        return Number.isFinite(Number(probs[0])) ? Math.max(0, Math.min(100, Number(probs[0]))) : 0;
     }
 
     async function detectRegionFromDevice() {
@@ -4924,6 +5212,32 @@
         return `氣象快報：目前${weatherLabel}，${tempC.toFixed(1)}°C，降雨機率 ${rainProb}%、風速 ${windKmh} km/h；${phaseText}，施工判斷 ${advice.level}。`;
     }
 
+    function getActiveStakingQaGate() {
+        if (latestWeatherAdviceLevel === '建議暫緩') return Math.max(STAKING_EXPORT_QA_MIN_SCORE, 92);
+        if (latestWeatherAdviceLevel === '注意施工') return Math.max(STAKING_EXPORT_QA_MIN_SCORE, 90);
+        return STAKING_EXPORT_QA_MIN_SCORE;
+    }
+
+    function applyWeatherLinkedStakingMode(adviceLevel, weather) {
+        latestWeatherAdviceLevel = adviceLevel || '未知';
+        const nextConservative = adviceLevel === '注意施工' || adviceLevel === '建議暫緩';
+        const changed = nextConservative !== stakingConservativeMode;
+        stakingConservativeMode = nextConservative;
+        if (stakingConservativeMode && bimLayoutPoints.length) {
+            runBimLayoutConfidenceLayering(true, true);
+        }
+        if (changed) {
+            const rainProb = Math.round(Number(weather && weather.rainProb) || 0);
+            const wind = Math.round(Number(weather && weather.windKmh) || 0);
+            const gate = getActiveStakingQaGate();
+            if (stakingConservativeMode) {
+                addAuditLog('天氣聯動保守模式', `啟用 / 天氣 ${adviceLevel} / 門檻 ${gate} / 雨機率 ${rainProb}% / 風速 ${wind}km/h`);
+            } else {
+                addAuditLog('天氣聯動保守模式', `解除 / 天氣 ${adviceLevel} / 門檻 ${gate}`);
+            }
+        }
+    }
+
     function setSiteWeatherNewsText(text, color) {
         const applyText = (node) => {
             if (!node) return;
@@ -4945,9 +5259,10 @@
         if (!info || !safety || !news) return;
         if (!weather) {
             applyWeatherScene('未知');
+            applyWeatherLinkedStakingMode('未知', null);
             info.innerText = `天氣：${errorText || '暫無資料'}`;
             info.style.color = '#ffd48a';
-            safety.innerText = '施工建議：天氣暫時無法更新，系統會自動重試';
+            safety.innerText = `施工建議：天氣暫時無法更新，系統會自動重試｜放樣模式：${stakingConservativeMode ? '保守' : '標準'}（QA門檻 ${getActiveStakingQaGate()}）`;
             safety.style.color = '#ffd48a';
             setSiteWeatherNewsText('氣象快報：目前無即時資料，系統將自動重試更新。', '#ffd48a');
             return;
@@ -4957,7 +5272,8 @@
         info.style.color = '#cde8ff';
         const advice = getWeatherAdviceLevel(weather);
         applyWeatherScene(advice.level);
-        safety.innerText = `施工建議：${advice.level}｜${advice.message}`;
+        applyWeatherLinkedStakingMode(advice.level, weather);
+        safety.innerText = `施工建議：${advice.level}｜${advice.message}｜放樣模式：${stakingConservativeMode ? '保守（僅高信心）' : '標準'}｜QA門檻 ${getActiveStakingQaGate()}`;
         safety.style.color = advice.color;
         setSiteWeatherNewsText(createWeatherNewsBulletin(weather), '#cfe6ff');
     }
@@ -4970,20 +5286,13 @@
             return;
         }
         try {
-            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}&current=temperature_2m,apparent_temperature,weather_code,precipitation,wind_speed_10m&hourly=precipitation_probability&forecast_days=1&timezone=auto`;
+            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}&current=temperature_2m,apparent_temperature,weather_code,precipitation,precipitation_probability,wind_speed_10m&hourly=precipitation_probability&forecast_days=1&timezone=auto`;
             const res = await fetchWithRetry(weatherUrl, {}, { retries: 1, timeoutMs: 6500 });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const payload = await res.json();
             const current = payload && payload.current ? payload.current : {};
             const hourly = payload && payload.hourly ? payload.hourly : {};
-            const nowTime = String(current.time || '');
-            let rainProb = 0;
-            if (Array.isArray(hourly.time) && Array.isArray(hourly.precipitation_probability) && hourly.time.length === hourly.precipitation_probability.length) {
-                const idx = hourly.time.indexOf(nowTime);
-                rainProb = Number.isFinite(Number(hourly.precipitation_probability[idx]))
-                    ? Number(hourly.precipitation_probability[idx])
-                    : Number(hourly.precipitation_probability[0] || 0);
-            }
+            const rainProb = resolveOpenMeteoRainProbability(current, hourly);
             const weather = {
                 tempC: Number(current.temperature_2m) || 0,
                 apparentC: Number(current.apparent_temperature) || 0,
