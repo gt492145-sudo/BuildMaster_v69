@@ -682,7 +682,7 @@
 </div>
 
 <div class="main-layout">
-    <div class="drawing-panel">
+    <div class="drawing-panel" style="display:none;">
         <div class="tool-bar">
             <button class="tool-btn" onclick="changeZoom(0.2)">🔍 放大</button>
             <button class="tool-btn" onclick="changeZoom(-0.2)">🔍 縮小</button>
@@ -1244,7 +1244,7 @@
         accessHash: '78e098f0bd34f7c3246e9c0d0b91cc6f78b1fe0321bc7bfc5c58215d838dc663',
         allowedHosts: ['gt492145-sudo.github.io', 'localhost', '127.0.0.1']
     };
-    const SECURITY_PASSWORD_ENABLED = false; // temporary: bypass login password during network-edition edits
+    const SECURITY_PASSWORD_ENABLED = true;
     const AI_API_ENABLED = true;
     let appBootstrapped = false;
     let scalePixelsPerUnit = 0;
