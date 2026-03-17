@@ -684,10 +684,7 @@
 <div class="main-layout">
     <div class="drawing-panel" style="display:none;">
         <div class="tool-bar">
-            <button class="tool-btn" onclick="changeZoom(0.2)">🔍 放大</button>
-            <button class="tool-btn" onclick="changeZoom(-0.2)">🔍 縮小</button>
             <button class="tool-btn" style="border-color:#ffd180; color:#ffe8c8;" onclick="fitBlueprintToViewport()">🖼️ 適配視圖</button>
-            <span id="zoom-info" style="color:#ffe0b2; font-size:0.82em; min-width:64px;">縮放: 100%</span>
             <button class="tool-btn" style="border-color: #d35400" onclick="startCalibration()">📏 定比例</button>
             <button class="tool-btn" style="border-color: var(--money)" onclick="startMeasure()">📐 測量</button>
             <button id="btnMeasureAssist" class="tool-btn level-hide-basic" onclick="toggleMeasureAssist()">📏 量圖輔助: 關</button>
@@ -702,8 +699,6 @@
             <button id="btnGyro" class="tool-btn level-only-pro" onclick="toggleGyroMode()">🧭 陀螺儀: 關</button>
             <button class="tool-btn level-only-pro" onclick="calibrateGyroBaseline()">🎯 校正陀螺儀</button>
             <button class="tool-btn level-only-standard" onclick="startEdgeAIVision()">👁️ AI視覺點料</button>
-            <label class="tool-mini">對比 <input type="range" id="imgContrast" min="0.7" max="1.5" step="0.01" value="1" oninput="updateImageFilter('contrast', this.value)"></label>
-            <label class="tool-mini">亮度 <input type="range" id="imgBrightness" min="0.7" max="1.4" step="0.01" value="1" oninput="updateImageFilter('brightness', this.value)"></label>
             <button class="tool-btn level-hide-basic" onclick="autoEnhanceImage()">✨ 自動優化</button>
             <button class="tool-btn level-hide-basic" onclick="resetImageFilter()">♻️ 重設畫質</button>
             <span id="measureAssistInfo" class="level-hide-basic" style="color:#bdeecf; font-size:0.8em;">量圖輔助: 未啟用</span>
