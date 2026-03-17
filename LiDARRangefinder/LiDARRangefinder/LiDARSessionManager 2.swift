@@ -286,6 +286,10 @@ final class LiDARSessionManager: ObservableObject {
     @Published var multiViewPackagePreviewLines: [String] = []
     @Published var ifcModelElementCount: Int = 0
     @Published var ifcModelSummaryText: String = "IFC 模型：尚未匯入"
+    @Published var ifcImportPreflightStatusText: String = "IFC 預檢：待命"
+    @Published var ifcLegendText: String = "圖例：藍=牆體｜紅=鋼筋｜綠=水管"
+    @Published var regressionChecklistStatusText: String = "回歸檢查：待命"
+    @Published var regressionChecklistLines: [String] = []
     @Published var ifcShowWalls: Bool = true
     @Published var ifcShowRebars: Bool = true
     @Published var ifcShowPipes: Bool = true
@@ -350,6 +354,12 @@ final class LiDARSessionManager: ObservableObject {
     @Published var deviationToleranceCm: Double = 3.0
     @Published var deviationValueCm: Double = 0
     @Published var deviationStatusText: String = "偏差檢核：待命"
+    @Published var runtimeLagLatestMs: Double = 0
+    @Published var runtimeLagPeakMs: Double = 0
+    @Published var lagProtectionTriggerCount: Int = 0
+    @Published var extremeProtectionTriggerCount: Int = 0
+    @Published var ifcRegenerateCount: Int = 0
+    @Published var facadeRebuildCount: Int = 0
 
     private weak var arView: ARView?
     private let ciContext = CIContext()
@@ -1130,6 +1140,17 @@ final class LiDARSessionManager: ObservableObject {
     }
 
     func importIFCModelData(_ data: Data, fileName: String) {
+        let preflightEstimate = estimateIFCElementCountBeforeImport(data: data, fileName: fileName)
+        if preflightEstimate >= 600 {
+            ifcImportPreflightStatusText = "IFC 預檢：高密度 \(preflightEstimate) 元件（已啟用降載保護）"
+        } else if preflightEstimate >= 260 {
+            ifcImportPreflightStatusText = "IFC 預檢：中高密度 \(preflightEstimate) 元件（建議先關閉其他特效）"
+        } else if preflightEstimate > 0 {
+            ifcImportPreflightStatusText = "IFC 預檢：\(preflightEstimate) 元件（可匯入）"
+        } else {
+            ifcImportPreflightStatusText = "IFC 預檢：未估計到有效元件，嘗試解析中"
+        }
+
         if fileName.lowercased().hasSuffix(".ifc") {
             do {
                 let payload = try parseIFCTextPayload(from: data, fileName: fileName)
@@ -1150,6 +1171,18 @@ final class LiDARSessionManager: ObservableObject {
             ifcModelElementCount = 0
             ifcElements = []
         }
+    }
+
+    func runLocalRegressionChecklist() {
+        var lines: [String] = []
+        lines.append("1) 圖紙 QA：\(blueprintFrontlineQAText)")
+        lines.append("2) 全息：\(facadeHologramEnabled ? "已啟用" : "未啟用")")
+        lines.append("3) IFC：\(ifcSimulationEnabled ? "已啟用" : "未啟用")")
+        lines.append("4) 最新延遲：\(Int(runtimeLagLatestMs))ms｜峰值：\(Int(runtimeLagPeakMs))ms")
+        lines.append("5) 保護觸發：一般 \(lagProtectionTriggerCount) 次｜極限 \(extremeProtectionTriggerCount) 次")
+        lines.append("6) 重建統計：全息 \(facadeRebuildCount) 次｜IFC \(ifcRegenerateCount) 次")
+        regressionChecklistLines = lines
+        regressionChecklistStatusText = "回歸檢查：已生成（\(Date().formatted(date: .omitted, time: .standard))）"
     }
 
     func setIFCShowWalls(_ enabled: Bool) {
@@ -2542,6 +2575,7 @@ final class LiDARSessionManager: ObservableObject {
             facadeHologramStatusText = "立面全息：尚未生成，請先建立全息"
             return
         }
+        facadeRebuildCount += 1
         if let gateReason = frontlineBlueprintQAGateReason() {
             facadeHologramStatusText = "立面全息：前線QA未達B級（\(gateReason)）"
             setARPipelineBlocked(reason: gateReason)
@@ -3260,6 +3294,7 @@ final class LiDARSessionManager: ObservableObject {
         ifcElements = []
         ifcModelElementCount = 0
         ifcModelSummaryText = "IFC 模型：尚未匯入"
+        ifcImportPreflightStatusText = "IFC 預檢：待命"
         ifcShowWalls = true
         ifcShowRebars = true
         ifcShowPipes = true
@@ -3271,7 +3306,9 @@ final class LiDARSessionManager: ObservableObject {
         facadeHologramStatusText = "立面全息：待命"
         blueprintQuickStakeStatusText = "圖紙快速放樣：待命"
         clearIFCSimulationAnchor()
-        ifcSimulationStatusText = "IFC 模擬：待命"
+        ifcSimulationStatusText = "IFC 模擬：待命｜\(ifcLegendText)"
+        regressionChecklistStatusText = "回歸檢查：待命"
+        regressionChecklistLines = []
 
         // Crack detection state
         crackInputImage = nil
@@ -3380,7 +3417,7 @@ final class LiDARSessionManager: ObservableObject {
     }
 
     private func setIFCStatus(_ text: String) {
-        ifcSimulationStatusText = text
+        ifcSimulationStatusText = "\(text)｜\(ifcLegendText)"
     }
 
     private func cancelBlueprintWidthUpdateTask() {
@@ -3441,6 +3478,12 @@ final class LiDARSessionManager: ObservableObject {
         sustainedLagCount = 0
         autoLagProtectionTriggered = false
         latestRuntimeLagMs = 0
+        runtimeLagLatestMs = 0
+        runtimeLagPeakMs = 0
+        lagProtectionTriggerCount = 0
+        extremeProtectionTriggerCount = 0
+        ifcRegenerateCount = 0
+        facadeRebuildCount = 0
         runtimeQASummaryText = "現場QA：待命"
         runtimeQAReasons = []
         interiorWalkthroughStatusText = interiorWalkthroughEnabled ? "室內穿行：開（等待建立全息）" : "室內穿行：關"
@@ -3515,6 +3558,8 @@ final class LiDARSessionManager: ObservableObject {
         guard lastMeasurementTickAt > 0 else { return }
         let tickInterval = now - lastMeasurementTickAt
         latestRuntimeLagMs = tickInterval * 1000.0
+        runtimeLagLatestMs = latestRuntimeLagMs
+        runtimeLagPeakMs = max(runtimeLagPeakMs, latestRuntimeLagMs)
 
         // Ignore startup/foreground warmup ticks to avoid false lag spikes.
         if lagWarmupTicksRemaining > 0 {
@@ -3572,6 +3617,7 @@ final class LiDARSessionManager: ObservableObject {
 
     private func applyEmergencyPerformanceProtection(reason: String) {
         guard facadeHologramEnabled || ifcSimulationEnabled else { return }
+        lagProtectionTriggerCount += 1
         lagProtectionUntil = Date().timeIntervalSinceReferenceDate + 6.0
         lagRecoveryStableTicks = 0
         skipHeavyTickToggle = false
@@ -3590,6 +3636,7 @@ final class LiDARSessionManager: ObservableObject {
 
     private func applyExtremeOverloadProtection(reason: String) {
         guard facadeHologramEnabled || ifcSimulationEnabled else { return }
+        extremeProtectionTriggerCount += 1
         autoLagProtectionTriggered = true
         sustainedLagCount = max(sustainedLagCount, 3)
         lagProtectionUntil = Date().timeIntervalSinceReferenceDate + 10.0
@@ -4122,12 +4169,13 @@ final class LiDARSessionManager: ObservableObject {
 
     private func regenerateIFCSimulationAnchor() {
         guard let arView else { return }
+        ifcRegenerateCount += 1
         ifcSimulationAnchor?.removeFromParent()
         let anchor = buildIFCSimulationAnchor(referenceTransform: arView.session.currentFrame?.camera.transform)
         arView.scene.addAnchor(anchor)
         ifcSimulationAnchor = anchor
         ifcSimulationEnabled = true
-        ifcSimulationStatusText = "IFC 模擬：模型已更新"
+        ifcSimulationStatusText = "IFC 模擬：模型已更新（\(ifcLegendText)）"
     }
 
     private func decodeIFCPayload(from data: Data) throws -> IFCModelPayload {
@@ -4148,6 +4196,23 @@ final class LiDARSessionManager: ObservableObject {
             toleranceCm: parseIFCDouble(qaDict?["toleranceCm"]) ?? parseIFCDouble(dict["toleranceCm"]),
             elements: mapped
         )
+    }
+
+    private func estimateIFCElementCountBeforeImport(data: Data, fileName: String) -> Int {
+        if fileName.lowercased().hasSuffix(".ifc") {
+            guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .ascii) else {
+                return 0
+            }
+            let upper = text.uppercased()
+            let wall = upper.components(separatedBy: "IFCWALL").count - 1
+            let rebar = upper.components(separatedBy: "IFCREINFORCINGBAR").count - 1
+            let pipe = upper.components(separatedBy: "IFCFLOWSEGMENT").count - 1 + upper.components(separatedBy: "IFCPIPE").count - 1
+            return max(0, wall + rebar + pipe)
+        }
+        if let payload = try? decodeIFCPayload(from: data) {
+            return payload.elements.count
+        }
+        return 0
     }
 
     private func parseIFCTextPayload(from data: Data, fileName: String) throws -> IFCModelPayload {
@@ -4230,10 +4295,11 @@ final class LiDARSessionManager: ObservableObject {
         let projectTitle = payload.projectName ?? "未命名工程"
         let schemaTag = payload.schemaVersion ?? "basic"
         let trimmedHint = normalized.count > cap ? "｜已限流 \(cap)/\(normalized.count)" : ""
+        let preflightHint = ifcImportPreflightStatusText.replacingOccurrences(of: "IFC 預檢：", with: "")
         if let tolerance = payload.toleranceCm, tolerance > 0 {
-            ifcModelSummaryText = "IFC[\(schemaTag)] \(projectTitle)：牆 \(wallCount)｜鋼筋 \(rebarCount)｜水管 \(pipeCount)｜容差 ±\(Int(tolerance))cm\(trimmedHint)"
+            ifcModelSummaryText = "IFC[\(schemaTag)] \(projectTitle)：牆 \(wallCount)｜鋼筋 \(rebarCount)｜水管 \(pipeCount)｜容差 ±\(Int(tolerance))cm\(trimmedHint)｜\(preflightHint)"
         } else {
-            ifcModelSummaryText = "IFC[\(schemaTag)] \(projectTitle)：牆 \(wallCount)｜鋼筋 \(rebarCount)｜水管 \(pipeCount)\(trimmedHint)"
+            ifcModelSummaryText = "IFC[\(schemaTag)] \(projectTitle)：牆 \(wallCount)｜鋼筋 \(rebarCount)｜水管 \(pipeCount)\(trimmedHint)｜\(preflightHint)"
         }
         if ifcSimulationEnabled {
             regenerateIFCSimulationAnchor()

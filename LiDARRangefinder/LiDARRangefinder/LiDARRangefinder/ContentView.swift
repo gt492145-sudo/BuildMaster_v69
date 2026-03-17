@@ -678,6 +678,9 @@ struct ContentView: View {
                         .font(.caption2)
                         .foregroundStyle(.indigo)
 
+                    captionStatus(sessionManager.ifcImportPreflightStatusText, color: .teal)
+                    captionStatus(sessionManager.ifcLegendText, color: .secondary)
+
                     Toggle("網狀模式（LiDAR Mesh）", isOn: Binding(
                         get: { sessionManager.meshVisualizationEnabled },
                         set: { sessionManager.setMeshVisualizationEnabled($0) }
@@ -930,6 +933,19 @@ struct ContentView: View {
                         .font(.caption2)
                         .foregroundStyle(.blue)
 
+                    Button("執行固定回歸檢查") {
+                        sessionManager.runLocalRegressionChecklist()
+                    }
+                    .borderedActionStyle(.mint)
+
+                    captionStatus(sessionManager.regressionChecklistStatusText, color: .mint)
+
+                    if !sessionManager.regressionChecklistLines.isEmpty {
+                        ForEach(Array(sessionManager.regressionChecklistLines.enumerated()), id: \.offset) { _, line in
+                            captionStatus(line, color: .secondary)
+                        }
+                    }
+
                     Button(facadeHologramButtonTitle) {
                         sessionManager.toggleFacadeHologramFromBlueprint()
                     }
@@ -1118,6 +1134,13 @@ struct ContentView: View {
                                 lockMonkeyAccess()
                             }
                             .buttonStyle(.bordered)
+                            .frame(maxWidth: .infinity)
+
+                            Button("🧹 清除猴子密碼") {
+                                clearMonkeyPassword()
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
                             .frame(maxWidth: .infinity)
                         }
                     }
@@ -2925,6 +2948,17 @@ struct ContentView: View {
         isMonkeyUnlocked = false
     }
 
+    private func clearMonkeyPassword() {
+        stopSafetyMonkey()
+        UserDefaults.standard.removeObject(forKey: monkeyPassHashStorageKey)
+        monkeyHasPassword = false
+        isMonkeyUnlocked = true
+        monkeyPasswordInput = ""
+        monkeyPasswordConfirmInput = ""
+        monkeyPasswordError = ""
+        safetyMonkeyLastAction = "已清除猴子密碼（免密碼）"
+    }
+
     private func submitMonkeyAccess() {
         switch monkeyLockMode {
         case .setup:
@@ -3066,6 +3100,8 @@ struct ContentView: View {
             case toggleAdaptiveRender
             case toggleImmersiveWalkthrough
             case rebuildFacadeFromCurrentBlueprint
+            case toggleIFCSimulation
+            case shuffleIFCLayers
         }
         let baseActions: [MonkeyAction] = [
             .switchMainPage,
@@ -3084,17 +3120,29 @@ struct ContentView: View {
             .toggleImmersiveWalkthrough,
             .rebuildFacadeFromCurrentBlueprint
         ]
+        let ifcActions: [MonkeyAction] = [
+            .toggleIFCSimulation,
+            .shuffleIFCLayers
+        ]
+        let rebuildPriorityActions: [MonkeyAction] = [
+            .rebuildFacadeFromCurrentBlueprint,
+            .rebuildFacadeFromCurrentBlueprint,
+            .toggleIFCSimulation,
+            .shuffleIFCLayers,
+            .switchRenderMode,
+            .toggleAdaptiveRender
+        ]
         let actionPool: [MonkeyAction]
         switch monkeyStressLevel {
         case .stable:
             actionPool = baseActions
         case .balanced:
-            actionPool = baseActions + Array(arActions.prefix(3))
+            actionPool = baseActions + Array(arActions.prefix(3)) + ifcActions
         case .aggressive:
-            actionPool = baseActions + arActions
+            actionPool = baseActions + arActions + ifcActions + rebuildPriorityActions
         case .brutal:
-            // Bias toward heavy AR actions in brutal mode.
-            actionPool = baseActions + arActions + arActions + Array(arActions.suffix(3))
+            // Brutal mode prioritizes hologram/IFC rebuild paths.
+            actionPool = baseActions + arActions + arActions + ifcActions + rebuildPriorityActions + rebuildPriorityActions
         }
         guard !actionPool.isEmpty else { return }
         var recentBatchActions: [String] = []
@@ -3177,6 +3225,34 @@ struct ContentView: View {
                 }
                 sessionManager?.rebuildFacadeHologramPreservingPose()
                 safetyMonkeyLastAction = "觸發全息重建（保留姿態）"
+            case .toggleIFCSimulation:
+                guard let sessionManager else {
+                    safetyMonkeyLastAction = "略過 IFC 切換（Session 不可用）"
+                    break
+                }
+                let canBootIFC = sessionManager.ifcModelElementCount > 0 || sessionManager.blueprintInputImage != nil
+                guard sessionManager.ifcSimulationEnabled || canBootIFC else {
+                    safetyMonkeyLastAction = "略過 IFC 切換（無可用 IFC/藍圖）"
+                    break
+                }
+                sessionManager.toggleIFCSimulationFromUploadedBlueprint()
+                safetyMonkeyLastAction = sessionManager.ifcSimulationEnabled ? "啟動 IFC-3D" : "關閉 IFC-3D"
+            case .shuffleIFCLayers:
+                guard let sessionManager else {
+                    safetyMonkeyLastAction = "略過 IFC 圖層重建（Session 不可用）"
+                    break
+                }
+                guard sessionManager.ifcSimulationEnabled else {
+                    safetyMonkeyLastAction = "略過 IFC 圖層重建（IFC 未啟動）"
+                    break
+                }
+                let walls = Bool.random()
+                let rebars = Bool.random()
+                let pipes = Bool.random()
+                sessionManager.setIFCShowWalls(walls)
+                sessionManager.setIFCShowRebars(rebars)
+                sessionManager.setIFCShowPipes(pipes)
+                safetyMonkeyLastAction = "IFC 圖層重建：牆\(walls ? "開" : "關")／筋\(rebars ? "開" : "關")／管\(pipes ? "開" : "關")"
             }
             recentBatchActions.append(safetyMonkeyLastAction)
             appendMonkeyAction(safetyMonkeyLastAction)
@@ -3223,6 +3299,15 @@ struct ContentView: View {
         lines.append(String(format: "運行時長：%.1f 秒", duration))
         lines.append("動作次數：\(safetyMonkeyTickCount)")
         lines.append(String(format: "平均頻率：%.1f 次/分鐘", actionsPerMinute))
+        lines.append(
+            String(
+                format: "性能儀表：最新 %.0fms｜峰值 %.0fms",
+                sessionManager.runtimeLagLatestMs,
+                sessionManager.runtimeLagPeakMs
+            )
+        )
+        lines.append("保護觸發：一般 \(sessionManager.lagProtectionTriggerCount) 次｜極限 \(sessionManager.extremeProtectionTriggerCount) 次")
+        lines.append("重建統計：全息 \(sessionManager.facadeRebuildCount) 次｜IFC \(sessionManager.ifcRegenerateCount) 次")
         lines.append("最後狀態：\(safetyMonkeyLastAction)")
         if monkeyActionHistory.isEmpty {
             lines.append("近期動作：無")
