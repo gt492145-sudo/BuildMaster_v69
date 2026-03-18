@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'buildmaster-v80-sw-v34';
+const CACHE_VERSION = 'buildmaster-v80-sw-v33';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -16,7 +16,6 @@ const CORE_ASSETS = [
   './modules/v80-layout-qa-mod.js',
   './modules/v80-layout-geom-mod.js',
   './modules/v80-layout-pipeline-mod.js',
-  './modules/v80-survey-math-mod.js',
   './modules/v80-survey-toolkit-mod.js',
   './modules/v80-weather-mod.js',
   './modules/v80-material-mod.js',
