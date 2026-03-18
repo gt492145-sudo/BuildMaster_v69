@@ -178,6 +178,20 @@
         50% { opacity: 1; box-shadow: 0 0 30px #e040fb, 0 0 60px #e040fb; background: #e040fb; }
         100% { top: 100%; opacity: 0; }
     }
+    .blueprint-laser-sweep-persistent {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 3px;
+        z-index: 12;
+        pointer-events: none;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(179, 136, 255, 0), rgba(224, 64, 251, 0.95), rgba(179, 136, 255, 0));
+        box-shadow: 0 0 14px rgba(224, 64, 251, 0.9), 0 0 28px rgba(179, 136, 255, 0.7);
+        animation: scan-drop 2.8s cubic-bezier(0.4, 0.0, 0.2, 1) infinite;
+        opacity: 0.85;
+    }
     .btn-group { display: flex; gap: 10px; margin-top: 15px; }
     .btn-export { background: linear-gradient(135deg, #2e8bc5, #236998); color: #f4fbff; padding: 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer; font-weight: bold; flex: 1; transition: 0.2s; }
     .btn-export:hover { filter: brightness(1.08); transform: translateY(-1px); }
@@ -684,6 +698,7 @@
 <div class="main-layout">
     <div class="drawing-panel">
         <div class="tool-bar">
+            <input type="file" id="fileInput" onchange="loadImg(event)" style="width: 150px; color: #888;">
             <button class="tool-btn" onclick="changeZoom(0.2)">🔍 放大</button>
             <button class="tool-btn" onclick="changeZoom(-0.2)">🔍 縮小</button>
             <button class="tool-btn" style="border-color:#ffd180; color:#ffe8c8;" onclick="fitBlueprintToViewport()">🖼️ 適配視圖</button>
@@ -713,6 +728,7 @@
             <span id="scale-info" style="color:var(--highlight); font-size:0.8em; margin-left:auto;">比例: 未設定</span>
         </div>
         <div id="canvas-container">
+            <div id="blueprintLaserSweep" class="blueprint-laser-sweep-persistent" aria-hidden="true"></div>
             <div id="img-wrapper">
                 <img id="blueprint">
                 <canvas id="drawCanvas"></canvas>
@@ -971,7 +987,7 @@
             <span style="font-size: 0.6em; color: #666;">會員專用模組</span>
         </div>
         <div class="input-row">
-            <div class="input-wrapper"><label>工地建案名稱</label><input type="text" id="project_name" value="梧棲案"></div>
+            <div class="input-wrapper"><label>工地建案名稱</label><input type="text" id="project_name" value="梧棲案測試"></div>
             <div class="input-wrapper"><label>樓層/分區標籤</label><input type="text" id="floor_tag" placeholder="如: 1F, B1, 基礎"></div>
         </div>
         <div class="member-wrap level-hide-basic">
@@ -1171,10 +1187,6 @@
                 <button class="tool-btn" style="width:100%; border-color:#b39ddb; color:#ece2ff;" onclick="runAdvancedSensitivityAnalysis()">📈 重新計算敏感度</button>
             </div>
             <div class="input-wrapper">
-                <label>圖紙上傳入口</label>
-                <button class="tool-btn" style="width:100%; border-color:#ffd180; color:#ffe8c8;" onclick="triggerBlueprintUpload()">🖼️ 上傳圖紙</button>
-            </div>
-            <div class="input-wrapper">
                 <label>第三頁自動判讀</label>
                 <button class="tool-btn" style="width:100%; border-color:#7ed6df; color:#dffcff;" onclick="autoInterpretBlueprintAndCalculate()">🤖 看圖自動判讀試算</button>
             </div>
@@ -1209,12 +1221,11 @@
 </div>
 
 <div id="toast"></div>
-<input type="file" id="fileInput" onchange="loadImg(event)" style="display:none;" accept="image/*">
 <div id="touchCoach" class="touch-coach hide" aria-live="polite">
     <div class="coach-bubble">
         <button class="coach-close" onclick="hideCoach(false)" aria-label="關閉解說員（本次）" title="僅本次隱藏，不會永久關閉">x</button>
         <div class="coach-title">小教練</div>
-        <div id="coachText">哈囉，我陪你一步步完成，圖紙可到第三頁上傳。</div>
+        <div id="coachText">哈囉，先上傳圖紙，我陪你一步步完成。</div>
         <div class="coach-ai-row">
             <input id="coachAiInput" class="coach-ai-input" type="text" placeholder="可問：這區怎麼用？">
             <button id="coachAiAskBtn" class="coach-ai-btn" onclick="askAiCoachManual()">問AI</button>
@@ -1401,7 +1412,7 @@
         { selector: '#regionSelect', message: '第 1 步：先選地區價目來源，確保抓到正確單價。' },
         { selector: '#materialSearch', message: '第 2 步：輸入關鍵字搜尋材料，例如模板、混凝土、鋼筋。' },
         { selector: 'button[onclick="applySelectedMaterialPrice()"]', message: '第 3 步：把材料單價套用到單價欄，省去手動輸入。' },
-        { selector: 'button[onclick="triggerBlueprintUpload()"]', message: '第 4 步：到第三頁按上傳圖紙，接著用定比例與量測取得尺寸。' },
+        { selector: '#fileInput', message: '第 4 步：上傳圖紙，接著用定比例與量測取得尺寸。' },
         { selector: '.btn-add', message: '第 5 步：確認預覽後按加入清單，最後可匯出報表。' }
     ];
     let coachTimer = null;
@@ -5389,12 +5400,6 @@
     }
 
     // --- 圖紙測量模組 (保留 V6.8 完整邏輯) ---
-    function triggerBlueprintUpload() {
-        const fileInput = document.getElementById('fileInput');
-        if (!fileInput) return showToast('找不到圖紙上傳元件');
-        fileInput.click();
-    }
-
     function loadImg(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -7701,7 +7706,7 @@
         if (target.closest('#materialCountChip')) return '這裡顯示目前載入的價目筆數，正常應該是多筆資料。';
         if (target.closest('button[onclick="applySelectedMaterialPrice()"]')) return '把選好的材料單價帶入「單價欄」，省去手動輸入。';
 
-        if (target.closest('button[onclick="triggerBlueprintUpload()"]')) return '這裡可上傳圖紙：先選圖片，再做定比例與量測。';
+        if (target.closest('#fileInput')) return '這格是圖紙上傳框：先選圖片，再做定比例與量測。';
         if (target.closest('button[onclick="changeZoom(0.2)"]')) return '放大圖面，方便點更精準的位置。';
         if (target.closest('button[onclick="changeZoom(-0.2)"]')) return '縮小圖面，方便看整體配置。';
         if (target.closest('button[onclick="toggleMeasureAssist()"]')) return '量圖輔助：只在定比例與測量時提示手機傾斜，幫你提高量圖穩定度。';
