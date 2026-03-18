@@ -59,6 +59,7 @@
     #img-wrapper { position: relative; display: inline-block; transform-origin: center center; transform-style: preserve-3d; will-change: transform; transition: transform 0.15s linear; touch-action: pan-x pan-y pinch-zoom; }
     #img-wrapper.viewer-3d { cursor: grab; touch-action: none; }
     #img-wrapper.viewer-3d.dragging { cursor: grabbing; }
+    .mobile-blueprint-status { display: none; }
     #blueprint { display: block; pointer-events: none; }
     #drawCanvas { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; touch-action: pan-x pan-y pinch-zoom; -webkit-tap-highlight-color: transparent; }
     #smartMeasureOverlay { position: absolute; inset: 0; z-index: 11; pointer-events: none; overflow: visible; }
@@ -315,23 +316,23 @@
     .blueprint-laser-sweep-persistent {
         position: absolute;
         left: 0;
-        top: -10px;
+        top: -6px;
         width: 100%;
-        height: 12px;
+        height: 6px;
         z-index: 12;
         pointer-events: none;
         border-radius: 999px;
         background: linear-gradient(90deg, rgba(179, 136, 255, 0), rgba(255, 214, 255, 1), rgba(255, 170, 255, 1), rgba(245, 120, 255, 1), rgba(224, 64, 251, 1), rgba(179, 136, 255, 0));
-        box-shadow: 0 0 32px rgba(255, 214, 255, 1), 0 0 64px rgba(255, 170, 255, 1), 0 0 120px rgba(245, 120, 255, 1), 0 0 180px rgba(224, 64, 251, 0.98), 0 0 240px rgba(179, 136, 255, 0.92);
+        box-shadow: 0 0 12px rgba(255, 214, 255, 0.95), 0 0 24px rgba(255, 170, 255, 0.9), 0 0 40px rgba(245, 120, 255, 0.82), 0 0 64px rgba(224, 64, 251, 0.72);
         animation: blueprint-laser-sweep-down 1.85s cubic-bezier(0.4, 0.0, 0.2, 1) infinite;
         opacity: 1;
-        filter: saturate(1.65) brightness(1.34);
+        filter: saturate(1.5) brightness(1.18);
     }
     @keyframes blueprint-laser-sweep-down {
-        0% { top: -12px; opacity: 0.25; transform: scaleY(0.88); }
-        12% { opacity: 1; transform: scaleY(1.05); }
-        50% { opacity: 1; transform: scaleY(1.12); }
-        100% { top: calc(100% - 6px); opacity: 0.28; transform: scaleY(0.92); }
+        0% { top: -8px; opacity: 0.22; transform: scaleY(0.84); }
+        12% { opacity: 0.95; transform: scaleY(1.02); }
+        50% { opacity: 0.96; transform: scaleY(1.06); }
+        100% { top: calc(100% - 4px); opacity: 0.24; transform: scaleY(0.88); }
     }
     .btn-group { display: flex; gap: 10px; margin-top: 15px; }
     .btn-export { background: linear-gradient(135deg, #2e8bc5, #236998); color: #f4fbff; padding: 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer; font-weight: bold; flex: 1; transition: 0.2s; }
@@ -773,6 +774,64 @@
         .footer-bar { grid-template-columns: 1fr; }
         .total-budget { grid-column: span 1; }
         .control-grid { grid-template-columns: 1fr; }
+        .drawing-panel .tool-bar { gap: 6px; padding: 8px; }
+        .drawing-panel .tool-bar .mobile-toolbar-core { flex: 1 1 calc(50% - 6px); min-width: 0; }
+        .drawing-panel .tool-bar input.mobile-toolbar-core[type="file"] { flex: 1 1 100%; width: 100%; }
+        .drawing-panel .tool-bar #scale-info.mobile-toolbar-core { flex: 1 1 100%; margin-left: 0 !important; text-align: left; }
+        .drawing-panel .tool-bar .mobile-toolbar-extra { display: none !important; }
+        .mobile-blueprint-status {
+            display: block;
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            z-index: 18;
+            width: min(72vw, 270px);
+            pointer-events: auto;
+        }
+        .mobile-blueprint-status-toggle {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 2px;
+            border: 1px solid rgba(126, 200, 255, 0.34);
+            border-radius: 12px;
+            background: rgba(10, 20, 34, 0.82);
+            color: #eaf6ff;
+            padding: 8px 10px;
+            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
+            backdrop-filter: blur(8px);
+        }
+        .mobile-blueprint-status-toggle-label {
+            font-size: 0.72em;
+            font-weight: 800;
+            color: #bfe7ff;
+            letter-spacing: 0.4px;
+        }
+        .mobile-blueprint-status-toggle-summary {
+            font-size: 0.78em;
+            font-weight: 700;
+            color: #ecf7ff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+        }
+        .mobile-blueprint-status-body {
+            margin-top: 6px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(7, 14, 24, 0.84);
+            padding: 9px 10px;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+        }
+        .mobile-blueprint-status.collapsed .mobile-blueprint-status-body { display: none; }
+        .mobile-blueprint-status-line {
+            display: block;
+            font-size: 0.78em;
+            line-height: 1.45;
+        }
     }
     .mobile-drawer { display: none; }
     .mobile-test-log { display: none; }
@@ -974,6 +1033,22 @@
             <span>📏 啟動自動量測</span>
         </div>
 
+        <div class="drawer-item" data-mobile-action="fit-view">
+            <span>🖼️ 適配視圖</span>
+        </div>
+
+        <div class="drawer-item level-hide-basic" data-mobile-action="enhance-image">
+            <span>✨ 自動優化圖面</span>
+        </div>
+
+        <div class="drawer-item level-hide-basic" data-mobile-action="reset-image-filter">
+            <span>♻️ 重設圖面畫質</span>
+        </div>
+
+        <div class="drawer-item" data-mobile-action="remove-image">
+            <span>🗑️ 移除圖紙</span>
+        </div>
+
         <div class="drawer-item" id="mobileOwnerLockBtn" data-mobile-action="owner-lock">
             <span>🐒 猴子權限：未設定</span>
         </div>
@@ -1015,37 +1090,47 @@
 <div class="main-layout">
     <div class="drawing-panel">
         <div class="tool-bar">
-            <input type="file" id="fileInput" onchange="loadImg(event)" style="width: 150px; color: #888;">
-            <button class="tool-btn" onclick="changeZoom(0.2)">🔍 放大</button>
-            <button class="tool-btn" onclick="changeZoom(-0.2)">🔍 縮小</button>
-            <button class="tool-btn" style="border-color:#ffd180; color:#ffe8c8;" onclick="fitBlueprintToViewport()">🖼️ 適配視圖</button>
-            <span id="zoom-info" style="color:#ffe0b2; font-size:0.82em; min-width:64px;">縮放: 100%</span>
-            <button class="tool-btn" style="border-color: #d35400" onclick="startCalibration()">📏 定比例</button>
-            <button class="tool-btn" style="border-color: var(--money)" onclick="startMeasure()">📐 測量</button>
-            <button class="tool-btn level-only-standard" style="border-color: #00d2d3; color: #00d2d3;" onclick="connectLaserRuler()">🔫 連線藍牙雷射尺</button>
-            <button id="btnMeasureAssist" class="tool-btn level-hide-basic" onclick="toggleMeasureAssist()">📏 量圖輔助: 關</button>
-            <button class="tool-btn level-hide-basic" onclick="calibrateMeasureAssist()">🧲 校正量圖</button>
-            <button id="btnMeasureStrict" class="tool-btn level-hide-basic" onclick="toggleMeasureStrictMode()">🛡 量圖嚴格: 關</button>
-            <button class="tool-btn" onclick="clearCanvas()">🧽 清空標註</button>
-            <button class="tool-btn" onclick="removeLoadedImage()">🗑️ 移除圖紙</button>
-            <button id="btn3D" class="tool-btn level-only-pro" onclick="toggle3DView()">🧊 3D檢視</button>
-            <button id="btn360" class="tool-btn level-only-pro" onclick="toggle360Spin()">🌀 360翻轉</button>
-            <button class="tool-btn level-only-pro" onclick="reset3DView()">🎯 重設視角</button>
-            <button id="btnAutoScan3D" class="tool-btn level-hide-basic" style="border-color: #b388ff; color: #e040fb;" onclick="autoQuantumScan()">🌌 一鍵掃描 3D</button>
-            <button id="btnGyro" class="tool-btn level-only-pro" onclick="toggleGyroMode()">🧭 陀螺儀: 關</button>
-            <button class="tool-btn level-only-pro" onclick="calibrateGyroBaseline()">🎯 校正陀螺儀</button>
-            <button class="tool-btn level-only-pro" onclick="startEdgeAIVision()">👁️ AI視覺點料</button>
-            <label class="tool-mini">對比 <input type="range" id="imgContrast" min="0.7" max="1.5" step="0.01" value="1" oninput="updateImageFilter('contrast', this.value)"></label>
-            <label class="tool-mini">亮度 <input type="range" id="imgBrightness" min="0.7" max="1.4" step="0.01" value="1" oninput="updateImageFilter('brightness', this.value)"></label>
-            <button class="tool-btn level-hide-basic" onclick="autoEnhanceImage()">✨ 自動優化</button>
-            <button class="tool-btn level-hide-basic" onclick="resetImageFilter()">♻️ 重設畫質</button>
-            <span id="measureAssistInfo" class="level-hide-basic" style="color:#bdeecf; font-size:0.8em;">量圖輔助: 未啟用</span>
-            <span id="gyroInfo" class="level-only-pro" style="color:#9fd0ff; font-size:0.8em;">陀螺儀: 未啟用</span>
-            <span id="blueprint-quality-info" style="color:#c7d6e6; font-size:0.8em;">圖紙品質: 待檢查</span>
-            <span id="blueprint-auto-interpret-info" style="color:#bfe7ff; font-size:0.8em;">自動判讀: 尚未執行</span>
-            <span id="scale-info" style="color:var(--highlight); font-size:0.8em; margin-left:auto;">比例: 未設定</span>
+            <input type="file" id="fileInput" class="mobile-toolbar-core" onchange="loadImg(event)" style="width: 150px; color: #888;">
+            <button class="tool-btn mobile-toolbar-extra" onclick="changeZoom(0.2)">🔍 放大</button>
+            <button class="tool-btn mobile-toolbar-extra" onclick="changeZoom(-0.2)">🔍 縮小</button>
+            <button class="tool-btn mobile-toolbar-core" style="border-color:#ffd180; color:#ffe8c8;" onclick="fitBlueprintToViewport()">🖼️ 適配視圖</button>
+            <span id="zoom-info" class="mobile-toolbar-extra" style="color:#ffe0b2; font-size:0.82em; min-width:64px;">縮放: 100%</span>
+            <button class="tool-btn mobile-toolbar-core" style="border-color: #d35400" onclick="startCalibration()">📏 定比例</button>
+            <button class="tool-btn mobile-toolbar-core" style="border-color: var(--money)" onclick="startMeasure()">📐 測量</button>
+            <button class="tool-btn level-only-standard mobile-toolbar-extra" style="border-color: #00d2d3; color: #00d2d3;" onclick="connectLaserRuler()">🔫 連線藍牙雷射尺</button>
+            <button id="btnMeasureAssist" class="tool-btn level-hide-basic mobile-toolbar-extra" onclick="toggleMeasureAssist()">📏 量圖輔助: 關</button>
+            <button class="tool-btn level-hide-basic mobile-toolbar-extra" onclick="calibrateMeasureAssist()">🧲 校正量圖</button>
+            <button id="btnMeasureStrict" class="tool-btn level-hide-basic mobile-toolbar-extra" onclick="toggleMeasureStrictMode()">🛡 量圖嚴格: 關</button>
+            <button class="tool-btn mobile-toolbar-core" onclick="clearCanvas()">🧽 清空標註</button>
+            <button class="tool-btn mobile-toolbar-extra" onclick="removeLoadedImage()">🗑️ 移除圖紙</button>
+            <button id="btn3D" class="tool-btn level-only-pro mobile-toolbar-extra" onclick="toggle3DView()">🧊 3D檢視</button>
+            <button id="btn360" class="tool-btn level-only-pro mobile-toolbar-extra" onclick="toggle360Spin()">🌀 360翻轉</button>
+            <button class="tool-btn level-only-pro mobile-toolbar-extra" onclick="reset3DView()">🎯 重設視角</button>
+            <button id="btnAutoScan3D" class="tool-btn level-hide-basic mobile-toolbar-extra" style="border-color: #b388ff; color: #e040fb;" onclick="autoQuantumScan()">🌌 一鍵掃描 3D</button>
+            <button id="btnGyro" class="tool-btn level-only-pro mobile-toolbar-extra" onclick="toggleGyroMode()">🧭 陀螺儀: 關</button>
+            <button class="tool-btn level-only-pro mobile-toolbar-extra" onclick="calibrateGyroBaseline()">🎯 校正陀螺儀</button>
+            <button class="tool-btn level-only-pro mobile-toolbar-extra" onclick="startEdgeAIVision()">👁️ AI視覺點料</button>
+            <label class="tool-mini mobile-toolbar-extra">對比 <input type="range" id="imgContrast" min="0.7" max="1.5" step="0.01" value="1" oninput="updateImageFilter('contrast', this.value)"></label>
+            <label class="tool-mini mobile-toolbar-extra">亮度 <input type="range" id="imgBrightness" min="0.7" max="1.4" step="0.01" value="1" oninput="updateImageFilter('brightness', this.value)"></label>
+            <button class="tool-btn level-hide-basic mobile-toolbar-extra" onclick="autoEnhanceImage()">✨ 自動優化</button>
+            <button class="tool-btn level-hide-basic mobile-toolbar-extra" onclick="resetImageFilter()">♻️ 重設畫質</button>
+            <span id="measureAssistInfo" class="level-hide-basic mobile-toolbar-extra" style="color:#bdeecf; font-size:0.8em;">量圖輔助: 未啟用</span>
+            <span id="gyroInfo" class="level-only-pro mobile-toolbar-extra" style="color:#9fd0ff; font-size:0.8em;">陀螺儀: 未啟用</span>
+            <span id="blueprint-quality-info" class="mobile-toolbar-extra" style="color:#c7d6e6; font-size:0.8em;">圖紙品質: 待檢查</span>
+            <span id="blueprint-auto-interpret-info" class="mobile-toolbar-extra" style="color:#bfe7ff; font-size:0.8em;">自動判讀: 尚未執行</span>
+            <span id="scale-info" class="mobile-toolbar-core" style="color:var(--highlight); font-size:0.8em; margin-left:auto;">比例: 未設定</span>
         </div>
         <div id="canvas-container">
+            <div id="mobileBlueprintStatus" class="mobile-blueprint-status collapsed" aria-hidden="true">
+                <button type="button" class="mobile-blueprint-status-toggle" onclick="toggleMobileBlueprintStatusCard()">
+                    <span class="mobile-blueprint-status-toggle-label">圖面狀態</span>
+                    <span id="mobileBlueprintStatusSummary" class="mobile-blueprint-status-toggle-summary">待檢查 / 尚未執行</span>
+                </button>
+                <div class="mobile-blueprint-status-body">
+                    <span id="mobileBlueprintQualityInfo" class="mobile-blueprint-status-line" style="color:#c7d6e6;">圖紙品質: 待檢查</span>
+                    <span id="mobileBlueprintAutoInterpretInfo" class="mobile-blueprint-status-line" style="color:#bfe7ff;">自動判讀: 尚未執行</span>
+                </div>
+            </div>
             <div id="blueprintLaserSweep" class="blueprint-laser-sweep-persistent" aria-hidden="true"></div>
             <div id="img-wrapper">
                 <img id="blueprint">
@@ -6518,6 +6603,7 @@
         if (!report) {
             box.innerText = '圖紙品質: 待檢查';
             box.style.color = '#c7d6e6';
+            syncMobileBlueprintStatusCard();
             return null;
         }
         if (report.quality === '良好') {
@@ -6530,6 +6616,7 @@
             box.innerText = `圖紙品質: 待重拍（${report.issues.join('、')}）`;
             box.style.color = '#ff9a9a';
         }
+        syncMobileBlueprintStatusCard();
         return report;
     }
 
@@ -6633,6 +6720,7 @@
         if (!box) return;
         box.innerText = text;
         box.style.color = color;
+        syncMobileBlueprintStatusCard();
     }
 
     const AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE = 0.9;
@@ -7288,6 +7376,7 @@
                 qualityBox.innerText = qa.text;
                 qualityBox.style.color = qa.color;
             }
+            syncMobileBlueprintStatusCard();
             return;
         }
         const report = analyzeBlueprintImageQuality();
@@ -7295,11 +7384,13 @@
         if (!report) {
             qualityBox.innerText = smartMeasureState.lastQaSummary || '圖紙品質: 待檢查';
             qualityBox.style.color = smartMeasureState.lastQaSummary ? qa.color : '#c7d6e6';
+            syncMobileBlueprintStatusCard();
             return;
         }
         if (smartMeasureState.lastQaSummary) {
             qualityBox.innerText = `${smartMeasureState.lastQaSummary}｜圖紙 ${report.quality}`;
             qualityBox.style.color = qa.color;
+            syncMobileBlueprintStatusCard();
             return;
         }
         updateBlueprintQualityStatus();
@@ -10641,6 +10732,32 @@
         return window.matchMedia('(max-width: 768px)').matches;
     }
 
+    function syncMobileBlueprintStatusCard() {
+        const qualitySource = document.getElementById('blueprint-quality-info');
+        const autoSource = document.getElementById('blueprint-auto-interpret-info');
+        const qualityTarget = document.getElementById('mobileBlueprintQualityInfo');
+        const autoTarget = document.getElementById('mobileBlueprintAutoInterpretInfo');
+        const summary = document.getElementById('mobileBlueprintStatusSummary');
+        if (!qualitySource || !autoSource || !qualityTarget || !autoTarget || !summary) return;
+        qualityTarget.textContent = qualitySource.textContent || '圖紙品質: 待檢查';
+        qualityTarget.style.color = qualitySource.style.color || '#c7d6e6';
+        autoTarget.textContent = autoSource.textContent || '自動判讀: 尚未執行';
+        autoTarget.style.color = autoSource.style.color || '#bfe7ff';
+        const qualityShort = (qualityTarget.textContent || '').replace(/^圖紙品質:\s*/, '');
+        const autoShort = (autoTarget.textContent || '').replace(/^自動判讀:\s*/, '');
+        const compact = `${qualityShort || '待檢查'} / ${autoShort || '尚未執行'}`;
+        summary.textContent = compact.length > 30 ? `${compact.slice(0, 29)}...` : compact;
+    }
+
+    function toggleMobileBlueprintStatusCard(forceOpen) {
+        const card = document.getElementById('mobileBlueprintStatus');
+        if (!card || !isMobileViewport()) return;
+        const next = typeof forceOpen === 'boolean' ? forceOpen : card.classList.contains('collapsed');
+        card.classList.toggle('collapsed', !next);
+        card.setAttribute('aria-hidden', next ? 'false' : 'true');
+        syncMobileBlueprintStatusCard();
+    }
+
     function toggleMobileFuncDrawer(forceOpen) {
         const drawer = document.getElementById('mobileFuncDrawer');
         if (!drawer || !isMobileViewport()) return;
@@ -10817,6 +10934,18 @@
         case 'clear':
             if (typeof clearCanvas === 'function') clearCanvas();
             break;
+        case 'fit-view':
+            if (typeof fitBlueprintToViewport === 'function') fitBlueprintToViewport();
+            break;
+        case 'enhance-image':
+            if (typeof autoEnhanceImage === 'function') autoEnhanceImage();
+            break;
+        case 'reset-image-filter':
+            if (typeof resetImageFilter === 'function') resetImageFilter();
+            break;
+        case 'remove-image':
+            if (typeof removeLoadedImage === 'function') removeLoadedImage();
+            break;
         case 'mode-calc':
             window.location.href = 'index.html';
             return;
@@ -10859,6 +10988,7 @@
         applyMobileViewMode(localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto', { silent: true });
         applySunlightMode();
         syncMobileMeasureModeUI();
+        syncMobileBlueprintStatusCard();
         updateOwnerLockButton();
         appendMobileTestLog('手機測試紀錄面板已啟用');
     }
