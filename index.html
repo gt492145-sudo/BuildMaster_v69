@@ -1203,7 +1203,7 @@
             </div>
             <div class="input-wrapper">
                 <label>AI 自動判讀門檻 (%)</label>
-                <input type="number" id="advAutoInterpretGate" min="40" max="99" step="1" value="90" oninput="refreshAdvancedEstimate(false); previewCalc();">
+                <input type="number" id="advAutoInterpretGate" min="90" max="99" step="1" value="90" oninput="refreshAdvancedEstimate(false); previewCalc();">
             </div>
             <div class="input-wrapper">
                 <label>專業精算模式（會員3）</label>
@@ -1283,6 +1283,7 @@
     let scalePixelsPerUnit = 0;
     let drawMode = 'none';
     let clickPoints = [];
+    let calibrationPendingPoint = null;
     let zoomLevel = 1;
     let imageFilterState = { contrast: 1, brightness: 1 };
     let selectedMaterial = null;
@@ -5716,7 +5717,8 @@
     function getAutoInterpretGateThreshold() {
         const gateInput = document.getElementById('advAutoInterpretGate');
         const gatePercent = Number(gateInput && gateInput.value);
-        const normalizedPercent = Number.isFinite(gatePercent) ? Math.max(40, Math.min(99, gatePercent)) : (AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE * 100);
+        const minGatePercent = Math.round(AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE * 100);
+        const normalizedPercent = Number.isFinite(gatePercent) ? Math.max(minGatePercent, Math.min(99, gatePercent)) : minGatePercent;
         return normalizedPercent / 100;
     }
 
@@ -5860,7 +5862,34 @@
             updateBlueprintAutoInterpretStatus(`自動判讀: 單一運算 #${runId}（尺寸/數量解算中）`, '#bfe7ff');
             const longM = bounds.longPx / scale;
             const shortM = bounds.shortPx / scale;
-            const type = String(document.getElementById('calcType').value || '');
+            let type = String(document.getElementById('calcType').value || '');
+            if (!type.startsWith('R_')) {
+                const picked = prompt(
+                    `請確認本次判讀構件類型（目前：${type}）\n` +
+                    `1=牆模板(M_WALL)\n` +
+                    `2=樑模板雙側(M_BEAM_SIDES)\n` +
+                    `3=樑模板三面(M_BEAM_ALL)\n` +
+                    `4=樓板/地坪體積(C_VOL)\n` +
+                    `0=維持目前`,
+                    '0'
+                );
+                const pickMap = {
+                    '1': 'M_WALL',
+                    '2': 'M_BEAM_SIDES',
+                    '3': 'M_BEAM_ALL',
+                    '4': 'C_VOL',
+                    '0': type
+                };
+                const nextType = pickMap[String(picked == null ? '0' : picked).trim()] || type;
+                if (nextType !== type) {
+                    const typeEl = document.getElementById('calcType');
+                    if (typeEl) {
+                        typeEl.value = nextType;
+                        type = nextType;
+                        updateUI();
+                    }
+                }
+            }
             const v1El = document.getElementById('v1');
             const v2El = document.getElementById('v2');
             const v3El = document.getElementById('v3');
@@ -5872,6 +5901,10 @@
             const pickedQty = (shouldAutoCount && countResult.confidence >= 0.55)
                 ? Math.max(1, Math.min(999, countResult.count))
                 : prevQty;
+            const useAutoQty = shouldAutoCount
+                ? confirm(`AI 建議數量 ${pickedQty}（信心 ${(countResult.confidence * 100).toFixed(0)}%）。\n按「確定」套用，按「取消」保留目前數量 ${prevQty}。`)
+                : false;
+            const finalQty = useAutoQty ? pickedQty : prevQty;
             const geometryConfidence = Math.max(0.25, Math.min(0.95, Number(bounds.coverage || 0) * 2.4));
             const qualityConfidence = qualityToScore(qualityReport && qualityReport.quality);
             const countConfidence = shouldAutoCount ? Number(countResult.confidence || 0) : 0.7;
@@ -5884,22 +5917,22 @@
             } else if (type === 'M_BEAM_SIDES') {
                 v1El.value = longM.toFixed(2);
                 v3El.value = shortM.toFixed(2);
-                qtyEl.value = String(pickedQty);
+                qtyEl.value = String(finalQty);
             } else if (type === 'M_WALL') {
                 v1El.value = longM.toFixed(2);
                 v2El.value = shortM.toFixed(2);
-                qtyEl.value = String(pickedQty);
+                qtyEl.value = String(finalQty);
             } else {
                 v1El.value = longM.toFixed(2);
                 v2El.value = shortM.toFixed(2);
                 if (!Number(v3El.value)) v3El.value = '1.00';
-                qtyEl.value = String(pickedQty);
+                qtyEl.value = String(finalQty);
             }
             previewCalc();
 
             const qualityNote = qualityReport ? `｜品質${qualityReport.quality}` : '';
             const countNote = shouldAutoCount
-                ? `｜數量 ${pickedQty}（信心 ${(countResult.confidence * 100).toFixed(0)}%）`
+                ? `｜數量建議 ${pickedQty}（信心 ${(countResult.confidence * 100).toFixed(0)}%）→ 套用 ${finalQty}`
                 : '｜鋼筋類數量維持手動';
             const gateThreshold = getAutoInterpretGateThreshold();
             if (!type.startsWith('R_') && overallConfidence < gateThreshold) {
@@ -5915,7 +5948,8 @@
                 type,
                 longM,
                 shortM,
-                quantity: pickedQty,
+                quantity: finalQty,
+                suggestedQuantity: pickedQty,
                 countConfidence: countResult.confidence,
                 quality: qualityReport ? qualityReport.quality : '未知',
                 overallConfidence,
@@ -5927,7 +5961,7 @@
             } else if (autoInterpretNeedsReview) {
                 showToast(`自動判讀完成但信心偏低（${(overallConfidence * 100).toFixed(0)}%），請先複核後再吸入清單`);
             } else {
-                showToast(`已完成單一運算：${longM.toFixed(2)}m × ${shortM.toFixed(2)}m，數量 ${pickedQty}`);
+                showToast(`已完成單一運算：${longM.toFixed(2)}m × ${shortM.toFixed(2)}m，數量建議 ${pickedQty}，套用 ${finalQty}`);
             }
         } finally {
             autoInterpretBusy = false;
@@ -6335,7 +6369,10 @@
         if (is3DView) return showToast('請先關閉 3D 檢視再做定比例');
         measureQaStats.calibrationStarts += 1;
         if (measureAssistState.enabled) calibrateMeasureAssist();
-        drawMode = 'calibration'; clickPoints = []; showToast('點擊圖面上已知長度的【起點】與【終點】');
+        drawMode = 'calibration';
+        clickPoints = [];
+        calibrationPendingPoint = null;
+        showToast('定比例模式：每個點都要再點一次確認');
         syncMobileMeasureModeUI();
     }
     function startMeasure() {
@@ -6343,7 +6380,10 @@
         if (!scalePixelsPerUnit) return showToast('請先設定比例！');
         measureQaStats.measureStarts += 1;
         if (measureAssistState.enabled) calibrateMeasureAssist();
-        drawMode = 'measure'; clickPoints = []; showToast('點擊你要測量的【起點】與【終點】');
+        drawMode = 'measure';
+        clickPoints = [];
+        calibrationPendingPoint = null;
+        showToast('點擊你要測量的【起點】與【終點】');
         syncMobileMeasureModeUI();
     }
 
@@ -6612,7 +6652,7 @@
             overlay.id = 'aiVisionOverlay';
             overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; background: rgba(156, 39, 176, 0.15); backdrop-filter: blur(2px);';
             overlay.innerHTML = `
-                <div style="border: 3px dashed #e040fb; width: 80%; height: 50%; display:flex; align-items:center; justify-content:center; box-shadow: 0 0 30px #e040fb inset; position: relative;">
+                <div style="border: 3px dashed #e040fb; width: calc(100vw - 24px); height: calc(100vh - 200px); max-height: 82vh; display:flex; align-items:center; justify-content:center; box-shadow: 0 0 30px #e040fb inset; border-radius: 14px; position: relative;">
                     <div style="position:absolute; top:-15px; background:#e040fb; color:#fff; padding:5px 15px; border-radius:10px; font-weight:bold; letter-spacing:1px;">AI 點料區域</div>
                 </div>
                 <button id="captureAIBtn" style="margin-top: 40px; padding: 15px 40px; background: #e040fb; color: #fff; font-size: 1.3em; border-radius: 50px; font-weight:900; border:none; box-shadow: 0 4px 20px rgba(224, 64, 251, 0.6);">📸 鎖定並盤點數量</button>
@@ -6913,9 +6953,49 @@
         const rect = canvas.getBoundingClientRect();
         const x = (clientX - rect.left) / zoomLevel;
         const y = (clientY - rect.top) / zoomLevel;
-        
-        clickPoints.push({x, y});
-        ctx.fillStyle = 'orange'; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
+
+        if (drawMode === 'calibration') {
+            const confirmTolerance = 20 / Math.max(0.2, zoomLevel);
+            if (!calibrationPendingPoint) {
+                calibrationPendingPoint = { x, y };
+                ctx.strokeStyle = '#ffd166';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, Math.PI * 2);
+                ctx.stroke();
+                showToast(clickPoints.length === 0
+                    ? '已選起點（待確認），請在同位置再點一次'
+                    : '已選終點（待確認），請在同位置再點一次');
+                return;
+            }
+            const distToPending = Math.hypot(x - calibrationPendingPoint.x, y - calibrationPendingPoint.y);
+            if (distToPending > confirmTolerance) {
+                calibrationPendingPoint = { x, y };
+                ctx.strokeStyle = '#ffd166';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, Math.PI * 2);
+                ctx.stroke();
+                showToast('位置已更新，請再點一次確認這個點');
+                return;
+            }
+            clickPoints.push({ x: calibrationPendingPoint.x, y: calibrationPendingPoint.y });
+            ctx.fillStyle = 'orange';
+            ctx.beginPath();
+            ctx.arc(calibrationPendingPoint.x, calibrationPendingPoint.y, 6, 0, Math.PI * 2);
+            ctx.fill();
+            calibrationPendingPoint = null;
+            if (clickPoints.length === 1) {
+                showToast('起點已確認，請點終點（同樣要再點一次確認）');
+                return;
+            }
+        } else {
+            clickPoints.push({x, y});
+            ctx.fillStyle = 'orange';
+            ctx.beginPath();
+            ctx.arc(x, y, 6, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         if (clickPoints.length === 2) {
             const p1 = clickPoints[0], p2 = clickPoints[1];
@@ -6943,6 +7023,7 @@
                 showToast(`📏 測量結果: ${m.toFixed(2)}m`); previewCalc();
             }
             clickPoints = [];
+            calibrationPendingPoint = null;
             drawMode = 'none';
             syncMobileMeasureModeUI();
         }
@@ -7493,8 +7574,13 @@
         auditBox.innerText = `精算稽核：${est.auditText}`;
         auditBox.style.color = est.strictMode && est.isPro ? '#9ef5c2' : (est.strictMode ? '#ffd48a' : '#c6dcff');
         const gateInput = document.getElementById('advAutoInterpretGate');
-        if (gateInput && (!Number.isFinite(Number(gateInput.value)) || String(gateInput.value).trim() === '')) {
-            gateInput.value = String(Math.round(AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE * 100));
+        if (gateInput) {
+            const minGatePercent = Math.round(AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE * 100);
+            gateInput.min = String(minGatePercent);
+            const raw = Number(gateInput.value);
+            if (!Number.isFinite(raw) || String(gateInput.value).trim() === '' || raw < minGatePercent) {
+                gateInput.value = String(minGatePercent);
+            }
         }
         runAdvancedSensitivityAnalysis(true);
         if (showToastMsg) showToast(`進階試算已更新：建議報價 ${formatNtd(est.quoteTotal)}`);
