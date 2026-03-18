@@ -1203,7 +1203,7 @@
             </div>
             <div class="input-wrapper">
                 <label>AI 自動判讀門檻 (%)</label>
-                <input type="number" id="advAutoInterpretGate" min="40" max="99" step="1" value="60" oninput="refreshAdvancedEstimate(false); previewCalc();">
+                <input type="number" id="advAutoInterpretGate" min="40" max="99" step="1" value="90" oninput="refreshAdvancedEstimate(false); previewCalc();">
             </div>
             <div class="input-wrapper">
                 <label>專業精算模式（會員3）</label>
@@ -5699,7 +5699,7 @@
         box.style.color = color;
     }
 
-    const AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE = 0.6;
+    const AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE = 0.9;
     let autoInterpretBusy = false;
     let autoInterpretRunSeq = 0;
     let autoInterpretLastReport = null;
