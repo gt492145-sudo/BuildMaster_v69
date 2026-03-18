@@ -60,7 +60,7 @@
     #img-wrapper.viewer-3d { cursor: grab; touch-action: none; }
     #img-wrapper.viewer-3d.dragging { cursor: grabbing; }
     #blueprint { display: block; pointer-events: none; }
-    #drawCanvas { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; touch-action: manipulation; }
+    #drawCanvas { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; touch-action: auto; }
     .group-title { color: var(--highlight); font-weight: bold; margin-top: 15px; border-left: 4px solid var(--highlight); padding-left: 10px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
     .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
     .input-wrapper { flex: 1; }
@@ -5460,12 +5460,22 @@
         reader.onload = function(event) {
             img.src = event.target.result;
             img.onload = () => {
+                // Always reset interaction state on new upload to avoid being stuck
+                // in calibration/measure mode where pan gestures are disabled.
+                drawMode = 'none';
+                clickPoints = [];
+                calibrationPendingPoint = null;
+                blueprintPanState.active = false;
+                blueprintPinchState.active = false;
+                suppressNextCanvasClick = false;
+                suppressNextCanvasTouch = false;
                 canvas.width = img.naturalWidth;
                 canvas.height = img.naturalHeight;
                 imageFilterState = { contrast: 1, brightness: 1 };
                 syncImageFilterUI();
                 applyImageFilter();
                 reset3DView(true);
+                syncMobileMeasureModeUI();
                 fitBlueprintToViewport();
                 const qualityReport = updateBlueprintQualityStatus();
                 if (qualityReport && qualityReport.quality === '待重拍') {
@@ -6853,12 +6863,9 @@
             if (e.cancelable) e.preventDefault();
             return;
         }
-        if (e.touches.length === 1) {
-            blueprintPanState.active = true;
-            blueprintPanState.lastX = e.touches[0].clientX;
-            blueprintPanState.lastY = e.touches[0].clientY;
-            blueprintPanState.moved = false;
-        }
+        // Mobile smooth mode: one-finger movement uses native overflow scrolling.
+        blueprintPanState.active = false;
+        blueprintPanState.moved = false;
     }
 
     function onBlueprintTouchMove(e) {
@@ -6873,28 +6880,15 @@
             if (e.cancelable) e.preventDefault();
             return;
         }
-        if (!blueprintPanState.active || e.touches.length !== 1) return;
-        const dx = e.touches[0].clientX - blueprintPanState.lastX;
-        const dy = e.touches[0].clientY - blueprintPanState.lastY;
-        blueprintPanState.lastX = e.touches[0].clientX;
-        blueprintPanState.lastY = e.touches[0].clientY;
-        if (Math.abs(dx) > 1 || Math.abs(dy) > 1) blueprintPanState.moved = true;
-        if (canvasContainer) {
-            canvasContainer.scrollLeft -= dx;
-            canvasContainer.scrollTop -= dy;
-        }
-        if (blueprintPanState.moved) suppressNextCanvasTouch = true;
-        if (e.cancelable) e.preventDefault();
+        // One-finger pan is delegated to native scrolling for smoother touch.
     }
 
     function onBlueprintTouchEnd() {
         if (blueprintPinchState.active) {
             blueprintPinchState.active = false;
         }
-        if (blueprintPanState.active && blueprintPanState.moved) {
-            suppressNextCanvasTouch = true;
-        }
         blueprintPanState.active = false;
+        blueprintPanState.moved = false;
     }
 
     function onBlueprintWheelZoom(e) {
