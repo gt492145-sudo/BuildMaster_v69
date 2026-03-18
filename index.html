@@ -55,12 +55,131 @@
     .tool-btn:active { transform: translateY(0); opacity: 0.93; }
     .tool-mini { display: inline-flex; align-items: center; gap: 6px; color: var(--text-subtle); font-size: 0.76em; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.15); border-radius: 999px; padding: 5px 8px; }
     .tool-mini input[type="range"] { width: 78px; accent-color: var(--highlight); }
-    #canvas-container { flex: 1; overflow: auto; background: rgba(3, 8, 18, 0.34); position: relative; -webkit-overflow-scrolling: touch; }
-    #img-wrapper { position: relative; display: inline-block; transform-origin: center center; transform-style: preserve-3d; will-change: transform; transition: transform 0.15s linear; }
+    #canvas-container { flex: 1; overflow: auto; background: rgba(3, 8, 18, 0.34); position: relative; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-x pan-y pinch-zoom; }
+    #img-wrapper { position: relative; display: inline-block; transform-origin: center center; transform-style: preserve-3d; will-change: transform; transition: transform 0.15s linear; touch-action: pan-x pan-y pinch-zoom; }
     #img-wrapper.viewer-3d { cursor: grab; touch-action: none; }
     #img-wrapper.viewer-3d.dragging { cursor: grabbing; }
     #blueprint { display: block; pointer-events: none; }
-    #drawCanvas { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; touch-action: auto; }
+    #drawCanvas { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; touch-action: pan-x pan-y pinch-zoom; -webkit-tap-highlight-color: transparent; }
+    #smartMeasureOverlay { position: absolute; inset: 0; z-index: 11; pointer-events: none; overflow: visible; }
+    .smart-measure-box {
+        position: absolute;
+        border: 2px dashed rgba(126, 231, 255, 0.92);
+        box-shadow: 0 0 0 1px rgba(126, 231, 255, 0.16), 0 0 24px rgba(94, 203, 255, 0.24);
+        background: rgba(94, 203, 255, 0.06);
+        border-radius: 10px;
+    }
+    .smart-measure-line {
+        position: absolute;
+        height: 4px;
+        transform-origin: left center;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(255, 235, 160, 0.1), rgba(255, 209, 102, 0.98), rgba(255, 126, 95, 0.96));
+        box-shadow: 0 0 16px rgba(255, 180, 90, 0.38);
+    }
+    .smart-measure-line::after {
+        content: '';
+        position: absolute;
+        right: -10px;
+        top: 50%;
+        width: 0;
+        height: 0;
+        border-top: 7px solid transparent;
+        border-bottom: 7px solid transparent;
+        border-left: 12px solid rgba(255, 209, 102, 0.95);
+        transform: translateY(-50%);
+        filter: drop-shadow(0 0 6px rgba(255, 180, 90, 0.45));
+    }
+    .smart-measure-point {
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        margin-left: -8px;
+        margin-top: -8px;
+        border-radius: 50%;
+        border: 2px solid rgba(255,255,255,0.88);
+        background: radial-gradient(circle at 35% 35%, rgba(255,255,255,1), rgba(126, 231, 255, 0.9) 45%, rgba(30, 110, 255, 0.82) 100%);
+        box-shadow: 0 0 0 8px rgba(126, 231, 255, 0.14), 0 0 18px rgba(126, 231, 255, 0.5);
+        animation: smart-measure-pulse 1.5s ease-in-out infinite;
+    }
+    .smart-measure-point.confirmed {
+        background: radial-gradient(circle at 35% 35%, rgba(255,255,255,1), rgba(255, 209, 102, 0.95) 45%, rgba(255, 126, 95, 0.9) 100%);
+        box-shadow: 0 0 0 8px rgba(255, 209, 102, 0.12), 0 0 18px rgba(255, 160, 90, 0.52);
+        animation: none;
+        pointer-events: auto;
+        cursor: grab;
+    }
+    .smart-measure-point.confirmed.dragging {
+        cursor: grabbing;
+        transform: scale(1.12);
+    }
+    .smart-measure-tag {
+        position: absolute;
+        transform: translate(-50%, calc(-100% - 10px));
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: rgba(7, 17, 31, 0.92);
+        border: 1px solid rgba(255,255,255,0.18);
+        color: #eaf7ff;
+        font-size: 11px;
+        white-space: nowrap;
+        box-shadow: 0 6px 14px rgba(0,0,0,0.25);
+    }
+    .smart-measure-card {
+        position: absolute;
+        left: 14px;
+        top: 14px;
+        width: min(270px, calc(100% - 28px));
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(126, 231, 255, 0.28);
+        background: rgba(8, 18, 34, 0.9);
+        box-shadow: 0 12px 24px rgba(0,0,0,0.3);
+        color: #dff5ff;
+        pointer-events: auto;
+    }
+    .smart-measure-card strong {
+        display: block;
+        color: #ffd287;
+        margin-bottom: 4px;
+        font-size: 0.86em;
+    }
+    .smart-measure-card span {
+        display: block;
+        font-size: 0.76em;
+        color: #bfe7ff;
+        line-height: 1.45;
+    }
+    .smart-measure-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+        pointer-events: auto;
+    }
+    .smart-measure-btn {
+        border: 1px solid rgba(255,255,255,0.2);
+        background: rgba(255,255,255,0.08);
+        color: #eef8ff;
+        border-radius: 8px;
+        padding: 5px 8px;
+        font-size: 0.72em;
+        cursor: pointer;
+    }
+    .smart-measure-btn:hover {
+        background: rgba(255,255,255,0.16);
+    }
+    .smart-measure-btn.warn {
+        border-color: rgba(255, 209, 102, 0.55);
+        color: #fff0bf;
+    }
+    .smart-measure-btn.subtle {
+        color: #bfe7ff;
+    }
+    @keyframes smart-measure-pulse {
+        0%, 100% { transform: scale(1); opacity: 0.95; }
+        50% { transform: scale(1.14); opacity: 1; }
+    }
     .group-title { color: var(--highlight); font-weight: bold; margin-top: 15px; border-left: 4px solid var(--highlight); padding-left: 10px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
     .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
     .input-wrapper { flex: 1; }
@@ -179,31 +298,40 @@
         top: 0;
         left: 0;
         width: 100%;
-        height: 3px;
-        background: #b388ff;
-        box-shadow: 0 0 20px #b388ff, 0 0 40px #b388ff;
+        height: 5px;
+        background: linear-gradient(90deg, rgba(179,136,255,0), rgba(233,153,255,0.98), rgba(255,120,255,1), rgba(179,136,255,0));
+        box-shadow: 0 0 24px rgba(233,153,255,1), 0 0 48px rgba(224,64,251,0.98), 0 0 84px rgba(179,136,255,0.92);
         z-index: 100;
         pointer-events: none;
         animation: scan-drop 2s cubic-bezier(0.4, 0.0, 0.2, 1) infinite;
+        filter: saturate(1.35) brightness(1.18);
     }
     @keyframes scan-drop {
-        0% { top: 0; opacity: 1; }
-        50% { opacity: 1; box-shadow: 0 0 30px #e040fb, 0 0 60px #e040fb; background: #e040fb; }
-        100% { top: 100%; opacity: 0; }
+        0% { top: 0; opacity: 0.35; }
+        18% { opacity: 1; }
+        50% { opacity: 1; box-shadow: 0 0 34px rgba(255,140,255,1), 0 0 72px rgba(224,64,251,1), 0 0 110px rgba(179,136,255,0.95); background: linear-gradient(90deg, rgba(179,136,255,0), rgba(255,170,255,1), rgba(224,64,251,1), rgba(179,136,255,0)); }
+        100% { top: 100%; opacity: 0.12; }
     }
     .blueprint-laser-sweep-persistent {
         position: absolute;
         left: 0;
-        top: 0;
+        top: -10px;
         width: 100%;
-        height: 3px;
+        height: 12px;
         z-index: 12;
         pointer-events: none;
         border-radius: 999px;
-        background: linear-gradient(90deg, rgba(179, 136, 255, 0), rgba(224, 64, 251, 0.95), rgba(179, 136, 255, 0));
-        box-shadow: 0 0 14px rgba(224, 64, 251, 0.9), 0 0 28px rgba(179, 136, 255, 0.7);
-        animation: scan-drop 2.8s cubic-bezier(0.4, 0.0, 0.2, 1) infinite;
-        opacity: 0.85;
+        background: linear-gradient(90deg, rgba(179, 136, 255, 0), rgba(255, 214, 255, 1), rgba(255, 170, 255, 1), rgba(245, 120, 255, 1), rgba(224, 64, 251, 1), rgba(179, 136, 255, 0));
+        box-shadow: 0 0 32px rgba(255, 214, 255, 1), 0 0 64px rgba(255, 170, 255, 1), 0 0 120px rgba(245, 120, 255, 1), 0 0 180px rgba(224, 64, 251, 0.98), 0 0 240px rgba(179, 136, 255, 0.92);
+        animation: blueprint-laser-sweep-down 1.85s cubic-bezier(0.4, 0.0, 0.2, 1) infinite;
+        opacity: 1;
+        filter: saturate(1.65) brightness(1.34);
+    }
+    @keyframes blueprint-laser-sweep-down {
+        0% { top: -12px; opacity: 0.25; transform: scaleY(0.88); }
+        12% { opacity: 1; transform: scaleY(1.05); }
+        50% { opacity: 1; transform: scaleY(1.12); }
+        100% { top: calc(100% - 6px); opacity: 0.28; transform: scaleY(0.92); }
     }
     .btn-group { display: flex; gap: 10px; margin-top: 15px; }
     .btn-export { background: linear-gradient(135deg, #2e8bc5, #236998); color: #f4fbff; padding: 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer; font-weight: bold; flex: 1; transition: 0.2s; }
@@ -269,7 +397,19 @@
     body.sunlight-readable #gyroInfo {
         font-weight: 800;
     }
-    body { --weather-rain-opacity: 0; --weather-rain-speed: 1.3s; --weather-rain-near-opacity: 0; --weather-rain-near-speed: 0.95s; --weather-glow-opacity: 0; --weather-fog-opacity: 0; }
+    body {
+        --weather-rain-opacity: 0;
+        --weather-rain-speed: 1.3s;
+        --weather-rain-near-opacity: 0;
+        --weather-rain-near-speed: 0.95s;
+        --weather-glow-opacity: 0;
+        --weather-fog-opacity: 0;
+        --weather-sun-opacity: 0;
+        --weather-cloud-opacity: 0;
+        --weather-overcast-opacity: 0;
+        --weather-rain-streak-opacity: 0;
+        --weather-sunbeam-opacity: 0;
+    }
     header, .main-layout, .mobile-drawer, .mobile-test-log {
         position: relative;
         z-index: 1;
@@ -303,6 +443,84 @@
         filter: blur(10px);
         animation: weather-fog-drift 18s ease-in-out infinite;
     }
+    #weatherSceneLayer .weather-sun {
+        position: absolute;
+        top: 4%;
+        right: 6%;
+        width: min(24vw, 220px);
+        aspect-ratio: 1;
+        border-radius: 50%;
+        opacity: var(--weather-sun-opacity);
+        transition: opacity 0.45s ease, transform 0.45s ease;
+        background:
+            radial-gradient(circle, rgba(255, 248, 214, 0.96) 0 18%, rgba(255, 220, 120, 0.78) 28%, rgba(255, 210, 110, 0.18) 52%, rgba(255, 210, 110, 0) 72%);
+        filter: blur(0.4px);
+        animation: weather-sun-breathe 11s ease-in-out infinite;
+    }
+    #weatherSceneLayer .weather-overcast {
+        position: absolute;
+        inset: -6% -4% -4% -4%;
+        opacity: var(--weather-overcast-opacity);
+        transition: opacity 0.45s ease;
+        background: linear-gradient(180deg, rgba(110, 126, 146, 0.26), rgba(70, 86, 108, 0.10) 34%, rgba(28, 40, 56, 0.02) 68%);
+        filter: blur(12px);
+        animation: weather-overcast-drift 20s ease-in-out infinite;
+    }
+    #weatherSceneLayer .weather-rain-streaks {
+        position: absolute;
+        inset: -12% -10% -6% -10%;
+        opacity: var(--weather-rain-streak-opacity);
+        transition: opacity 0.4s ease;
+        background:
+            radial-gradient(ellipse at 18% 12%, rgba(255,255,255,0.18), rgba(255,255,255,0.02) 24%, rgba(255,255,255,0) 48%),
+            linear-gradient(188deg, rgba(220, 240, 255, 0.00) 0 18%, rgba(220, 240, 255, 0.12) 28%, rgba(220, 240, 255, 0.02) 46%, rgba(220, 240, 255, 0.00) 70%),
+            linear-gradient(192deg, rgba(220, 240, 255, 0.00) 0 30%, rgba(220, 240, 255, 0.10) 42%, rgba(220, 240, 255, 0.01) 56%, rgba(220, 240, 255, 0.00) 78%);
+        background-size: 100% 100%, 28% 160%, 22% 150%;
+        background-position: 0 0, 12% -26%, 72% -18%;
+        filter: blur(2.2px);
+        animation: weather-rain-streak-flow 12s linear infinite;
+    }
+    #weatherSceneLayer .weather-sunbeam {
+        position: absolute;
+        inset: -8% -18% -12% 24%;
+        opacity: var(--weather-sunbeam-opacity);
+        transition: opacity 0.45s ease, transform 0.45s ease;
+        background: linear-gradient(108deg, rgba(255, 246, 205, 0.00) 22%, rgba(255, 239, 176, 0.16) 40%, rgba(255, 233, 160, 0.22) 48%, rgba(255, 240, 196, 0.08) 58%, rgba(255,255,255,0) 76%);
+        filter: blur(7px);
+        transform-origin: top right;
+        animation: weather-sunbeam-sweep 18s ease-in-out infinite;
+    }
+    #weatherSceneLayer .weather-cloud {
+        position: absolute;
+        height: 88px;
+        border-radius: 999px;
+        opacity: var(--weather-cloud-opacity);
+        transition: opacity 0.45s ease, transform 0.45s ease;
+        background: linear-gradient(180deg, rgba(244, 250, 255, 0.28), rgba(184, 202, 220, 0.12));
+        box-shadow:
+            -42px 14px 0 2px rgba(232, 241, 248, 0.18),
+            20px -18px 0 10px rgba(244, 248, 252, 0.18),
+            62px 10px 0 0 rgba(218, 229, 238, 0.18);
+        filter: blur(1.2px);
+    }
+    #weatherSceneLayer .weather-cloud.cloud-back {
+        top: 9%;
+        left: 6%;
+        width: min(34vw, 360px);
+        animation: weather-cloud-drift-a 30s ease-in-out infinite;
+    }
+    #weatherSceneLayer .weather-cloud.cloud-mid {
+        top: 16%;
+        right: 18%;
+        width: min(28vw, 300px);
+        animation: weather-cloud-drift-b 26s ease-in-out infinite;
+    }
+    #weatherSceneLayer .weather-cloud.cloud-low {
+        top: 26%;
+        left: 28%;
+        width: min(38vw, 420px);
+        animation: weather-cloud-drift-c 34s ease-in-out infinite;
+    }
     @keyframes weather-glow-breathe {
         0%, 100% { transform: scale(1); }
         50% { transform: scale(1.03); }
@@ -311,6 +529,34 @@
         0%, 100% { transform: translate3d(0, 0, 0); }
         40% { transform: translate3d(-2.5%, 1.8%, 0); }
         70% { transform: translate3d(2.2%, -1.6%, 0); }
+    }
+    @keyframes weather-sun-breathe {
+        0%, 100% { transform: scale(1) translate3d(0, 0, 0); }
+        50% { transform: scale(1.05) translate3d(-1%, 1%, 0); }
+    }
+    @keyframes weather-overcast-drift {
+        0%, 100% { transform: translate3d(0, 0, 0); }
+        50% { transform: translate3d(1.4%, 1.2%, 0); }
+    }
+    @keyframes weather-cloud-drift-a {
+        0%, 100% { transform: translate3d(0, 0, 0); }
+        50% { transform: translate3d(4%, 1.5%, 0); }
+    }
+    @keyframes weather-cloud-drift-b {
+        0%, 100% { transform: translate3d(0, 0, 0); }
+        50% { transform: translate3d(-4.5%, -1%, 0); }
+    }
+    @keyframes weather-cloud-drift-c {
+        0%, 100% { transform: translate3d(0, 0, 0); }
+        50% { transform: translate3d(3%, 1.8%, 0); }
+    }
+    @keyframes weather-rain-streak-flow {
+        0% { background-position: 0 0, 12% -26%, 72% -18%; }
+        100% { background-position: 0 0, 18% 34%, 76% 40%; }
+    }
+    @keyframes weather-sunbeam-sweep {
+        0%, 100% { transform: translate3d(0, 0, 0) rotate(-6deg) scaleX(1); }
+        50% { transform: translate3d(-2%, 1.4%, 0) rotate(-3deg) scaleX(1.04); }
     }
     body::before {
         content: '';
@@ -363,6 +609,51 @@
     @keyframes weather-rain-fall-near {
         from { background-position: 0 -40px; }
         to { background-position: 0 420px; }
+    }
+    body.weather-visual-sun {
+        --weather-sun-opacity: 0.76;
+        --weather-cloud-opacity: 0.12;
+        --weather-overcast-opacity: 0.03;
+        --weather-glow-opacity: 0.22;
+        --weather-fog-opacity: 0.02;
+        --weather-rain-streak-opacity: 0;
+        --weather-sunbeam-opacity: 0.28;
+    }
+    body.weather-visual-cloudy {
+        --weather-sun-opacity: 0.12;
+        --weather-cloud-opacity: 0.38;
+        --weather-overcast-opacity: 0.20;
+        --weather-glow-opacity: 0.08;
+        --weather-fog-opacity: 0.10;
+        --weather-rain-streak-opacity: 0;
+        --weather-sunbeam-opacity: 0.04;
+    }
+    body.weather-visual-rain {
+        --weather-sun-opacity: 0.04;
+        --weather-cloud-opacity: 0.52;
+        --weather-overcast-opacity: 0.34;
+        --weather-glow-opacity: 0.08;
+        --weather-fog-opacity: 0.18;
+        --weather-rain-streak-opacity: 0.16;
+        --weather-sunbeam-opacity: 0;
+    }
+    body.weather-visual-storm {
+        --weather-sun-opacity: 0;
+        --weather-cloud-opacity: 0.62;
+        --weather-overcast-opacity: 0.44;
+        --weather-glow-opacity: 0.05;
+        --weather-fog-opacity: 0.22;
+        --weather-rain-streak-opacity: 0.24;
+        --weather-sunbeam-opacity: 0;
+    }
+    body.weather-visual-fog {
+        --weather-sun-opacity: 0.08;
+        --weather-cloud-opacity: 0.26;
+        --weather-overcast-opacity: 0.18;
+        --weather-glow-opacity: 0.06;
+        --weather-fog-opacity: 0.32;
+        --weather-rain-streak-opacity: 0.03;
+        --weather-sunbeam-opacity: 0.02;
     }
     body.weather-scene-good {
         background-image: linear-gradient(rgba(6, 18, 24, 0.18), rgba(6, 18, 24, 0.18)), url('app-wallpaper.jpg');
@@ -612,6 +903,13 @@
 
 <div id="weatherSceneLayer" aria-hidden="true">
     <div class="weather-glow"></div>
+    <div class="weather-sun"></div>
+    <div class="weather-sunbeam"></div>
+    <div class="weather-cloud cloud-back"></div>
+    <div class="weather-cloud cloud-mid"></div>
+    <div class="weather-cloud cloud-low"></div>
+    <div class="weather-overcast"></div>
+    <div class="weather-rain-streaks"></div>
     <div class="weather-fog"></div>
 </div>
 
@@ -737,8 +1035,6 @@
             <button id="btnGyro" class="tool-btn level-only-pro" onclick="toggleGyroMode()">🧭 陀螺儀: 關</button>
             <button class="tool-btn level-only-pro" onclick="calibrateGyroBaseline()">🎯 校正陀螺儀</button>
             <button class="tool-btn level-only-pro" onclick="startEdgeAIVision()">👁️ AI視覺點料</button>
-            <button class="tool-btn level-only-pro" style="border-color:#7ed6df; color:#dffcff;" onclick="autoInterpretBlueprintAndCalculate()">🤖 看圖自動判讀試算</button>
-            <button class="tool-btn level-only-pro" style="border-color:#b39ddb; color:#efe3ff;" onclick="runAutoBlueprintPlusBIM()">🤖+🏗️ 自動看圖計算+3BIM</button>
             <label class="tool-mini">對比 <input type="range" id="imgContrast" min="0.7" max="1.5" step="0.01" value="1" oninput="updateImageFilter('contrast', this.value)"></label>
             <label class="tool-mini">亮度 <input type="range" id="imgBrightness" min="0.7" max="1.4" step="0.01" value="1" oninput="updateImageFilter('brightness', this.value)"></label>
             <button class="tool-btn level-hide-basic" onclick="autoEnhanceImage()">✨ 自動優化</button>
@@ -754,6 +1050,7 @@
             <div id="img-wrapper">
                 <img id="blueprint">
                 <canvas id="drawCanvas"></canvas>
+                <div id="smartMeasureOverlay" aria-hidden="true"></div>
             </div>
         </div>
     </div>
@@ -788,6 +1085,25 @@
             <div class="bim-card">量圖 QA 等級<strong id="qaLevelMeasure">-</strong></div>
             <div class="bim-card">整體 QA 等級<strong id="qaLevelOverall">-</strong></div>
         </div>
+        <div class="input-row" style="margin-top:8px;">
+            <div class="input-wrapper">
+                <label>QA 等級制度</label>
+                <select id="qaProfileSelect" onchange="applyQaProfile(this.value)">
+                    <option value="standard">標準</option>
+                    <option value="strict">嚴格</option>
+                    <option value="enterprise">企業</option>
+                </select>
+            </div>
+            <div class="input-wrapper">
+                <label>BIM 規格模板</label>
+                <select id="bimSpecPresetSelect" onchange="applyBimSpecPreset(this.value)">
+                    <option value="general">BuildMaster 通用</option>
+                    <option value="public">公共工程 BIM</option>
+                    <option value="structure">結構施工 BIM</option>
+                </select>
+            </div>
+        </div>
+        <div id="qaProfileNote" class="bim-note">QA 模式：尚未設定</div>
         <div id="qaTopCauses" class="bim-note">QA 關鍵因子：尚未分析</div>
         </section>
 
@@ -825,6 +1141,13 @@
             </table>
         </div>
         <div id="bimWarnings" class="bim-warn"></div>
+        <div class="bim-grid" style="margin-bottom:10px;">
+            <div class="bim-card">套用規格<strong id="bimSpecMode">-</strong></div>
+            <div class="bim-card">規格符合度<strong id="bimSpecCompliance">-</strong></div>
+            <div class="bim-card">QA 制度<strong id="qaProfileMode">-</strong></div>
+            <div class="bim-card">規格缺口<strong id="bimSpecIssueCount">0</strong></div>
+        </div>
+        <div id="bimSpecSummary" class="bim-note">BIM 規格：尚未分析</div>
         <div class="bim-rule-wrap">
             <div class="bim-note" style="margin-top:0;">匹配規則編輯器（QA）：自訂構件類型對應材料，優先於系統預設匹配。</div>
             <div class="bim-rule-grid">
@@ -1178,6 +1501,11 @@
         </table>
 
         <div class="group-title level-only-pro">計算第三頁｜進階試算（會員3 專用）</div>
+        <div class="bim-actions level-only-pro" style="margin-bottom:10px;">
+            <button class="tool-btn" style="border-color:#80d8ff; color:#dff6ff;" onclick="startSmartCalibration()">🧠 智慧定比例</button>
+            <button class="tool-btn" style="border-color:#ffd166; color:#fff2bf;" onclick="startSmartMeasure()">✨ 智慧量圖</button>
+            <span id="smartMeasureInfo" style="color:#bfe7ff; font-size:0.8em; align-self:center;">智慧量圖: 未啟動</span>
+        </div>
         <div class="input-row level-only-pro">
             <div class="input-wrapper">
                 <label>損耗率 (%)</label>
@@ -1221,9 +1549,64 @@
                 <button class="tool-btn" style="width:100%; border-color:#90caf9; color:#dceeff;" onclick="exportAdvancedEstimateReport()">⬇️ 匯出第三頁報表</button>
             </div>
         </div>
+        <div class="bim-actions level-only-pro" style="margin-top:8px;">
+            <button class="tool-btn" style="border-color:#7ed6df; color:#dffcff;" onclick="autoInterpretBlueprintAndCalculate()">🤖 第三頁看圖自動判讀試算</button>
+            <button class="tool-btn" style="border-color:#b39ddb; color:#efe3ff;" onclick="runAutoBlueprintPlusBIM()">🤖+🏗️ 第三頁自動看圖計算+BIM</button>
+        </div>
         <div id="advEstimateSummary" class="bim-note level-only-pro" style="margin-top:6px; color:#d7e9ff;">進階試算：待命</div>
         <div id="advSensitivitySummary" class="bim-note level-only-pro" style="margin-top:6px; color:#cfe8ff;">敏感度：待命</div>
         <div id="advPrecisionAudit" class="bim-note level-only-pro" style="margin-top:6px; color:#c6dcff;">精算稽核：待命</div>
+
+        <div class="group-title level-only-pro">AI 看圖學習記憶庫</div>
+        <div class="bim-note level-only-pro" id="autoInterpretMemorySummary" style="margin-top:6px; color:#d7e9ff;">記憶庫：尚未建立</div>
+        <div class="bim-actions level-only-pro" style="margin-top:8px;">
+            <button class="tool-btn" style="border-color:#b39ddb; color:#efe3ff;" onclick="renderAutoInterpretMemoryPanel()">🔄 重新整理記憶</button>
+            <button class="tool-btn" style="border-color:#ffcc80; color:#ffe9c7;" onclick="clearAutoInterpretMemory()">🧠 清空記憶庫</button>
+        </div>
+        <div class="bim-table-wrap level-only-pro" style="max-height:180px; margin-top:8px;">
+            <table>
+                <thead><tr><th>時間</th><th>類型</th><th>數量</th><th>尺寸</th><th>品質/比例</th><th>操作</th></tr></thead>
+                <tbody id="autoInterpretMemoryBody"></tbody>
+            </table>
+        </div>
+
+        <div class="snapshot-wrap" style="margin-top:12px;">
+            <div class="bim-note" style="margin-top:0;">測量紀錄：每次定比例與量測完成後自動保存結果，方便回看與校正。</div>
+            <div class="bim-actions">
+                <button class="tool-btn" onclick="exportMeasurementLogs()">⬇️ 匯出測量紀錄 CSV</button>
+                <button class="tool-btn" onclick="clearMeasurementLogs()">🧹 清空測量紀錄</button>
+            </div>
+            <div class="input-row" style="margin-top:8px;">
+                <div class="input-wrapper">
+                    <label>模式篩選</label>
+                    <select id="measurementLogModeFilter" onchange="renderMeasurementLogTable()">
+                        <option value="all">全部</option>
+                        <option value="calibration">定比例</option>
+                        <option value="smart-calibration">智慧定比例</option>
+                        <option value="measure">手動量測</option>
+                        <option value="smart-measure">智慧量圖</option>
+                    </select>
+                </div>
+                <div class="input-wrapper">
+                    <label>日期篩選</label>
+                    <input type="date" id="measurementLogDateFilter" oninput="renderMeasurementLogTable()">
+                </div>
+                <div class="input-wrapper">
+                    <label>關鍵字</label>
+                    <input type="text" id="measurementLogKeywordFilter" placeholder="工種/目標/摘要" oninput="renderMeasurementLogTable()">
+                </div>
+                <div class="input-wrapper" style="max-width:140px;">
+                    <label>快速操作</label>
+                    <button class="tool-btn" style="width:100%;" onclick="resetMeasurementLogFilters()">清除篩選</button>
+                </div>
+            </div>
+            <div class="snapshot-table">
+                <table>
+                    <thead><tr><th>時間</th><th>模式</th><th>目標</th><th>結果</th><th>摘要</th><th>操作</th></tr></thead>
+                    <tbody id="measurementLogBody"></tbody>
+                </table>
+            </div>
+        </div>
 
         <div class="btn-group">
             <button class="btn-export" onclick="exportToCSV()">📥 匯出商用報表 (Excel)</button>
@@ -1285,6 +1668,17 @@
     let clickPoints = [];
     let calibrationPendingPoint = null;
     let zoomLevel = 1;
+    const SMART_MEASURE_DRAW_MODES = ['smart-calibration', 'smart-measure'];
+    const SMART_MEASURE_MODE_LABELS = {
+        'smart-calibration': '智慧定比例',
+        'smart-measure': '智慧量圖'
+    };
+    const SMART_MEASURE_COMPONENT_LABELS = {
+        slab: '版',
+        wall: '牆',
+        column: '柱',
+        beam: '樑'
+    };
     let imageFilterState = { contrast: 1, brightness: 1 };
     let selectedMaterial = null;
     const PRICES_JSON_URL = 'prices.json';
@@ -1292,6 +1686,7 @@
     const GYRO_MODE_KEY = 'bm_69:gyro_mode';
     const MEASURE_ASSIST_KEY = 'bm_69:measure_assist';
     const MEASURE_STRICT_KEY = 'bm_69:measure_strict';
+    const MEASUREMENT_LOG_STORAGE_KEY = 'bm_69:measurement_logs';
     const MEASURE_STRICT_TILT_DEG = 8;
     const REGION_FILE_MAP = {
         '台北市': 'prices-taipei.json',
@@ -1301,6 +1696,15 @@
         '台南市': 'prices-tainan.json',
         '高雄市': 'prices-kaohsiung.json'
     };
+    const WEATHER_REGION_CENTER_MAP = {
+        '台北市': { latitude: 25.0375, longitude: 121.5637 },
+        '新北市': { latitude: 25.0169, longitude: 121.4628 },
+        '桃園市': { latitude: 24.9937, longitude: 121.3009 },
+        '台中市': { latitude: 24.1477, longitude: 120.6736 },
+        '台南市': { latitude: 22.9997, longitude: 120.2270 },
+        '高雄市': { latitude: 22.6273, longitude: 120.3014 }
+    };
+    const WEATHER_GEOLOCATION_MAX_ACCURACY_M = 1800;
     const WEATHER_CODE_MAP = {
         0: '晴朗',
         1: '大致晴',
@@ -1341,6 +1745,90 @@
     const STAKING_EXPORT_QA_MIN_SCORE = 85;
     const STAKING_STABILITY_RETEST_RUNS = 3;
     const STAKING_STABILITY_DRIFT_THRESHOLD_M = 0.03;
+    const QA_PROFILE_STORAGE_KEY = 'bm_69:qa_profile';
+    const BIM_SPEC_PRESET_STORAGE_KEY = 'bm_69:bim_spec_preset';
+    const QA_PROFILE_CONFIGS = {
+        standard: {
+            label: '標準',
+            thresholds: { S: 95, A: 90, B: 80, C: 70, D: 60 },
+            warningPenalty: 5,
+            missingTypePenalty: 6,
+            noQuantityPenalty: 5,
+            entityPenalty: 18,
+            elementPenalty: 18,
+            layoutDuplicatePenalty: 2,
+            layoutMissingPenalty: 5,
+            layoutRangePenalty: 3,
+            namingPenalty: 2,
+            floorPenalty: 2,
+            clusterPenalty: 1
+        },
+        strict: {
+            label: '嚴格',
+            thresholds: { S: 97, A: 93, B: 85, C: 75, D: 65 },
+            warningPenalty: 6,
+            missingTypePenalty: 8,
+            noQuantityPenalty: 8,
+            entityPenalty: 22,
+            elementPenalty: 22,
+            layoutDuplicatePenalty: 3,
+            layoutMissingPenalty: 6,
+            layoutRangePenalty: 4,
+            namingPenalty: 3,
+            floorPenalty: 3,
+            clusterPenalty: 2
+        },
+        enterprise: {
+            label: '企業',
+            thresholds: { S: 99, A: 95, B: 90, C: 80, D: 70 },
+            warningPenalty: 7,
+            missingTypePenalty: 10,
+            noQuantityPenalty: 10,
+            entityPenalty: 26,
+            elementPenalty: 26,
+            layoutDuplicatePenalty: 4,
+            layoutMissingPenalty: 7,
+            layoutRangePenalty: 5,
+            namingPenalty: 4,
+            floorPenalty: 4,
+            clusterPenalty: 3
+        }
+    };
+    const BIM_SPEC_PRESETS = {
+        general: {
+            label: 'BuildMaster 通用',
+            requiredTypes: ['IFCWALL', 'IFCBEAM', 'IFCCOLUMN'],
+            minEntities: 50,
+            minElements: 10,
+            requireQuantities: false,
+            requireFloorTag: false,
+            pointIdPattern: /^(LP|P|PT|COL|WALL|BEAM|SLAB)[-_A-Z0-9]+$/i,
+            duplicateToleranceM: 0.01,
+            maxAbsCoord: 10000
+        },
+        public: {
+            label: '公共工程 BIM',
+            requiredTypes: ['IFCWALL', 'IFCBEAM', 'IFCCOLUMN', 'IFCSLAB'],
+            minEntities: 200,
+            minElements: 30,
+            requireQuantities: true,
+            requireFloorTag: true,
+            pointIdPattern: /^(COL|WALL|BEAM|SLAB|LP)-[A-Z0-9_-]+$/i,
+            duplicateToleranceM: 0.01,
+            maxAbsCoord: 6000
+        },
+        structure: {
+            label: '結構施工 BIM',
+            requiredTypes: ['IFCBEAM', 'IFCCOLUMN', 'IFCSLAB'],
+            minEntities: 120,
+            minElements: 20,
+            requireQuantities: true,
+            requireFloorTag: true,
+            pointIdPattern: /^(COL|BEAM|SLAB|WALL|LP)-[A-Z0-9_-]+$/i,
+            duplicateToleranceM: 0.008,
+            maxAbsCoord: 8000
+        }
+    };
     let materialCatalog = [...DEFAULT_MATERIAL_CATALOG];
     let currentRegionLabel = '全台共用';
     let currentRegionMode = '預設';
@@ -1369,6 +1857,8 @@
     let bimRuleMap = {};
     let bimAuditLogs = [];
     let bimSnapshots = [];
+    let currentQaProfile = localStorage.getItem(QA_PROFILE_STORAGE_KEY) || 'enterprise';
+    let currentBimSpecPreset = localStorage.getItem(BIM_SPEC_PRESET_STORAGE_KEY) || 'public';
     let memberCodeMap = {};
     let is3DView = false;
     let is360Spinning = false;
@@ -1386,8 +1876,16 @@
         tiltSamples: 0,
         tiltSum: 0,
         tiltMax: 0,
-        strictBlocks: 0
+        strictBlocks: 0,
+        smartSessions: 0,
+        smartCompleted: 0,
+        smartSnapUses: 0,
+        smartManualAdjusts: 0,
+        smartDragAdjusts: 0,
+        smartFallbacks: 0,
+        smartLowConfidence: 0
     };
+    let measurementLogs = [];
     
     // 載入資料並檢查版本 (降級策略)
     let list = [];
@@ -1431,6 +1929,7 @@
     const DEMO_MODE_KEY = 'bm_69:demo_mode';
     const EDGE_AI_MIN_SCORE = 0.5;
     const EDGE_AI_ALLOWED_CLASSES = [];
+    let smartMeasureState = createDefaultSmartMeasureState();
     const COACH_GUIDE_STEPS = [
         { selector: '#regionSelect', message: '第 1 步：先選地區價目來源，確保抓到正確單價。' },
         { selector: '#materialSearch', message: '第 2 步：輸入關鍵字搜尋材料，例如模板、混凝土、鋼筋。' },
@@ -1451,6 +1950,7 @@
     const CANVAS_TOUCH_CLICK_GUARD_MS = 700;
     let suppressNextCanvasClick = false;
     let suppressNextCanvasTouch = false;
+    let smartMeasureDragState = { active: false, pointIndex: -1, moved: false };
     let blueprintPanState = { active: false, lastX: 0, lastY: 0, moved: false };
     let blueprintPinchState = { active: false, startDistance: 0, startZoom: 1 };
     let blueprintTapState = { lastAt: 0, lastX: 0, lastY: 0 };
@@ -2503,6 +3003,8 @@
         initMemberManager();
         loadAuditLogs();
         renderAuditTable();
+        loadMeasurementLogs();
+        renderMeasurementLogTable();
         loadSnapshots();
         renderSnapshotTable();
     }
@@ -2651,6 +3153,212 @@
             tr.innerHTML = `<td>${dt.toLocaleString('zh-TW')}</td><td>${log.action}</td><td>${log.detail}</td>`;
             body.appendChild(tr);
         });
+    }
+
+    function loadMeasurementLogs() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(MEASUREMENT_LOG_STORAGE_KEY) || '[]');
+            measurementLogs = Array.isArray(parsed) ? parsed : [];
+        } catch (_e) {
+            measurementLogs = [];
+        }
+    }
+
+    function persistMeasurementLogs() {
+        localStorage.setItem(MEASUREMENT_LOG_STORAGE_KEY, JSON.stringify(measurementLogs.slice(0, 200)));
+    }
+
+    function getCalcTypeLabel() {
+        const select = document.getElementById('calcType');
+        if (!select || !select.options || select.selectedIndex < 0) return '';
+        return String(select.options[select.selectedIndex].text || '').trim();
+    }
+
+    function recordMeasurementLog(entry) {
+        const row = {
+            ts: new Date().toISOString(),
+            project: String((document.getElementById('project_name') && document.getElementById('project_name').value) || '').trim() || '未命名專案',
+            floor: String((document.getElementById('floor_tag') && document.getElementById('floor_tag').value) || '').trim() || '未分層',
+            calcType: String(document.getElementById('calcType') ? document.getElementById('calcType').value : ''),
+            calcLabel: getCalcTypeLabel(),
+            mode: String(entry && entry.mode ? entry.mode : '').trim(),
+            modeLabel: String(entry && entry.modeLabel ? entry.modeLabel : '').trim(),
+            targetField: String(entry && entry.targetField ? entry.targetField : '').trim(),
+            targetLabel: String(entry && entry.targetLabel ? entry.targetLabel : '').trim(),
+            valueM: Number.isFinite(Number(entry && entry.valueM)) ? Number(entry.valueM) : null,
+            actualLenM: Number.isFinite(Number(entry && entry.actualLenM)) ? Number(entry.actualLenM) : null,
+            scalePixelsPerUnit: Number.isFinite(Number(entry && entry.scalePixelsPerUnit)) ? Number(entry.scalePixelsPerUnit) : null,
+            distancePx: Number.isFinite(Number(entry && entry.distancePx)) ? Number(entry.distancePx) : null,
+            componentType: String(entry && entry.componentType ? entry.componentType : '').trim(),
+            smart: !!(entry && entry.smart),
+            snapped: !!(entry && entry.snapped),
+            manualAdjust: !!(entry && entry.manualAdjust),
+            dragAdjustCount: Number(entry && entry.dragAdjustCount) || 0,
+            nudgeAdjustCount: Number(entry && entry.nudgeAdjustCount) || 0,
+            qualityScore: Number(entry && entry.qualityScore) || 0,
+            fallbackUsed: !!(entry && entry.fallbackUsed),
+            summary: String(entry && entry.summary ? entry.summary : '').trim(),
+            p1: entry && entry.p1 ? { x: Number(entry.p1.x) || 0, y: Number(entry.p1.y) || 0 } : null,
+            p2: entry && entry.p2 ? { x: Number(entry.p2.x) || 0, y: Number(entry.p2.y) || 0 } : null
+        };
+        measurementLogs.unshift(row);
+        measurementLogs = measurementLogs.slice(0, 200);
+        persistMeasurementLogs();
+        renderMeasurementLogTable();
+    }
+
+    function renderMeasurementLogTable() {
+        const body = document.getElementById('measurementLogBody');
+        if (!body) return;
+        const modeFilterEl = document.getElementById('measurementLogModeFilter');
+        const dateFilterEl = document.getElementById('measurementLogDateFilter');
+        const keywordFilterEl = document.getElementById('measurementLogKeywordFilter');
+        const modeFilter = String(modeFilterEl && modeFilterEl.value ? modeFilterEl.value : 'all');
+        const dateFilter = String(dateFilterEl && dateFilterEl.value ? dateFilterEl.value : '').trim();
+        const keyword = String(keywordFilterEl && keywordFilterEl.value ? keywordFilterEl.value : '').trim().toLowerCase();
+        body.innerHTML = '';
+        if (!measurementLogs.length) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="6" style="color:#99b2c9;">尚無測量紀錄</td>';
+            body.appendChild(tr);
+            return;
+        }
+        const filteredLogs = measurementLogs
+            .map((log, index) => ({ log, index }))
+            .filter(({ log }) => {
+                if (modeFilter !== 'all' && log.mode !== modeFilter) return false;
+                if (dateFilter) {
+                    const localDate = new Date(log.ts);
+                    const yyyy = localDate.getFullYear();
+                    const mm = String(localDate.getMonth() + 1).padStart(2, '0');
+                    const dd = String(localDate.getDate()).padStart(2, '0');
+                    if (`${yyyy}-${mm}-${dd}` !== dateFilter) return false;
+                }
+                if (keyword) {
+                    const haystack = [
+                        log.project,
+                        log.floor,
+                        log.calcLabel,
+                        log.targetLabel,
+                        log.summary,
+                        log.modeLabel
+                    ].join(' ').toLowerCase();
+                    if (!haystack.includes(keyword)) return false;
+                }
+                return true;
+            })
+            .slice(0, 60);
+        if (!filteredLogs.length) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="6" style="color:#99b2c9;">查無符合條件的測量紀錄</td>';
+            body.appendChild(tr);
+            return;
+        }
+        filteredLogs.forEach(({ log, index }) => {
+            const tr = document.createElement('tr');
+            const dt = new Date(log.ts);
+            const resultText = log.mode === 'calibration' || log.mode === 'smart-calibration'
+                ? `比例 ${log.actualLenM !== null ? `${log.actualLenM.toFixed(2)}m` : '-'}`
+                : `${log.valueM !== null ? `${log.valueM.toFixed(2)}m` : '-'}`;
+            const tags = [];
+            if (log.smart) tags.push('智慧');
+            if (log.snapped) tags.push('吸附');
+            if (log.manualAdjust) tags.push('修正');
+            if (log.fallbackUsed) tags.push('回退');
+            tr.innerHTML = `
+                <td>${dt.toLocaleString('zh-TW')}</td>
+                <td>${log.modeLabel || log.mode || '-'}</td>
+                <td>${log.targetLabel || log.calcLabel || '-'}</td>
+                <td>${resultText}</td>
+                <td>${[log.summary, tags.join(' / ')].filter(Boolean).join('｜') || '-'}</td>
+                <td><button class="tool-btn" style="padding:4px 8px; width:auto;" onclick="applyMeasurementLogEntry(${index})">回填</button></td>
+            `;
+            body.appendChild(tr);
+        });
+    }
+
+    function resetMeasurementLogFilters() {
+        const modeEl = document.getElementById('measurementLogModeFilter');
+        const dateEl = document.getElementById('measurementLogDateFilter');
+        const keywordEl = document.getElementById('measurementLogKeywordFilter');
+        if (modeEl) modeEl.value = 'all';
+        if (dateEl) dateEl.value = '';
+        if (keywordEl) keywordEl.value = '';
+        renderMeasurementLogTable();
+    }
+
+    function applyMeasurementLogEntry(index) {
+        const log = measurementLogs[index];
+        if (!log) return showToast('找不到這筆測量紀錄');
+        if (document.getElementById('project_name')) document.getElementById('project_name').value = log.project || '';
+        if (document.getElementById('floor_tag')) document.getElementById('floor_tag').value = log.floor || '';
+        const calcTypeEl = document.getElementById('calcType');
+        if (calcTypeEl && log.calcType) {
+            calcTypeEl.value = log.calcType;
+            updateUI();
+        }
+        if (log.mode === 'calibration' || log.mode === 'smart-calibration') {
+            if (Number.isFinite(Number(log.scalePixelsPerUnit)) && Number(log.scalePixelsPerUnit) > 0) {
+                scalePixelsPerUnit = Number(log.scalePixelsPerUnit);
+                const scaleInfo = document.getElementById('scale-info');
+                if (scaleInfo) scaleInfo.innerText = '✅ 比例已設（由測量紀錄回填）';
+                updateSmartMeasureQualityStatus();
+            }
+        } else if (log.targetField) {
+            const input = document.getElementById(log.targetField);
+            if (input && Number.isFinite(Number(log.valueM))) {
+                input.value = Number(log.valueM).toFixed(2);
+            }
+        }
+        previewCalc();
+        addAuditLog('回填測量紀錄', `${log.modeLabel || log.mode} / ${log.targetLabel || log.calcLabel || '-'} / ${log.valueM !== null ? log.valueM.toFixed(2) + 'm' : '比例'}`);
+        showToast(`已回填測量紀錄：${log.targetLabel || log.calcLabel || log.modeLabel || '量測結果'}`);
+    }
+
+    function exportMeasurementLogs() {
+        if (!measurementLogs.length) return showToast('目前沒有測量紀錄可匯出');
+        let csv = '\uFEFF時間,專案,樓層,模式,工種,目標欄位,目標名稱,結果(m),實際比例長度(m),比例(px/m),距離(px),構件,智慧量圖,吸附,手動修正,拖曳次數,微調次數,信心分數,回退,摘要\n';
+        measurementLogs.forEach(log => {
+            csv += [
+                sanitizeCSVField(new Date(log.ts).toLocaleString('zh-TW')),
+                sanitizeCSVField(log.project || ''),
+                sanitizeCSVField(log.floor || ''),
+                sanitizeCSVField(log.modeLabel || log.mode || ''),
+                sanitizeCSVField(log.calcLabel || log.calcType || ''),
+                sanitizeCSVField(log.targetField || ''),
+                sanitizeCSVField(log.targetLabel || ''),
+                log.valueM === null ? '' : log.valueM.toFixed(4),
+                log.actualLenM === null ? '' : log.actualLenM.toFixed(4),
+                log.scalePixelsPerUnit === null ? '' : log.scalePixelsPerUnit.toFixed(4),
+                log.distancePx === null ? '' : log.distancePx.toFixed(2),
+                sanitizeCSVField(log.componentType || ''),
+                log.smart ? '是' : '否',
+                log.snapped ? '是' : '否',
+                log.manualAdjust ? '是' : '否',
+                String(log.dragAdjustCount || 0),
+                String(log.nudgeAdjustCount || 0),
+                String(log.qualityScore || 0),
+                log.fallbackUsed ? '是' : '否',
+                sanitizeCSVField(log.summary || '')
+            ].join(',') + '\n';
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `ConstructionMaster_測量紀錄_${new Date().getTime()}.csv`;
+        link.click();
+        addAuditLog('匯出測量紀錄', `共 ${measurementLogs.length} 筆`);
+        showToast(`測量紀錄已匯出（${measurementLogs.length} 筆）`);
+    }
+
+    function clearMeasurementLogs() {
+        if (!measurementLogs.length) return showToast('目前沒有測量紀錄');
+        if (!confirm('確定清空所有測量紀錄嗎？')) return;
+        measurementLogs = [];
+        persistMeasurementLogs();
+        renderMeasurementLogTable();
+        addAuditLog('清空測量紀錄', '全部清空');
+        showToast('測量紀錄已清空');
     }
 
     function loadSnapshots() {
@@ -3035,30 +3743,110 @@
         return data;
     }
 
+    function getQaProfileConfig() {
+        return QA_PROFILE_CONFIGS[currentQaProfile] || QA_PROFILE_CONFIGS.enterprise;
+    }
+
+    function getBimSpecPreset() {
+        return BIM_SPEC_PRESETS[currentBimSpecPreset] || BIM_SPEC_PRESETS.public;
+    }
+
+    function getBimTypeCount(data, baseType) {
+        if (!data || !data.typeCounts) return 0;
+        const key = String(baseType || '').toUpperCase();
+        return Number(data.typeCounts[key] || 0) + Number(data.typeCounts[`${key}STANDARDCASE`] || 0);
+    }
+
+    function evaluateBimSpecCompliance(data) {
+        const spec = getBimSpecPreset();
+        const issues = [];
+        if (!data) {
+            return { spec, issues: ['尚未載入模型'], issueCount: 1, complianceScore: 0, level: '-', summary: '尚未載入模型' };
+        }
+        const qtySum = Number(data.qtyLength || 0) + Number(data.qtyArea || 0) + Number(data.qtyVolume || 0) + Number(data.qtyCount || 0);
+        if (data.totalEntities < spec.minEntities) issues.push(`實體數不足（${data.totalEntities}/${spec.minEntities}）`);
+        if (data.totalElements < spec.minElements) issues.push(`構件數不足（${data.totalElements}/${spec.minElements}）`);
+        const missingTypes = spec.requiredTypes.filter(type => getBimTypeCount(data, type) <= 0);
+        if (missingTypes.length) issues.push(`缺少核心類型：${missingTypes.map(formatIfcTypeDisplay).join('、')}`);
+        if (spec.requireQuantities && qtySum <= 0) issues.push('缺少工程量屬性（Length/Area/Volume/Count）');
+        if ((data.warnings || []).length) issues.push(`模型原始警示 ${data.warnings.length} 項`);
+        const complianceScore = Math.max(0, 100 - issues.length * 18);
+        return {
+            spec,
+            issues,
+            issueCount: issues.length,
+            complianceScore,
+            level: getQaLevelByScore(complianceScore),
+            summary: issues.length ? issues.join('｜') : `${spec.label} 規格檢核通過`
+        };
+    }
+
+    function updateQaProfileUi() {
+        const select = document.getElementById('qaProfileSelect');
+        if (select) select.value = currentQaProfile;
+        const box = document.getElementById('qaProfileNote');
+        const mode = document.getElementById('qaProfileMode');
+        const config = getQaProfileConfig();
+        if (box) box.innerText = `QA 模式：${config.label}｜門檻 S ${config.thresholds.S} / A ${config.thresholds.A} / B ${config.thresholds.B}`;
+        if (mode) mode.innerText = config.label;
+    }
+
+    function updateBimSpecUi(data) {
+        const select = document.getElementById('bimSpecPresetSelect');
+        if (select) select.value = currentBimSpecPreset;
+        const specResult = evaluateBimSpecCompliance(data || bimModelData);
+        const mode = document.getElementById('bimSpecMode');
+        const compliance = document.getElementById('bimSpecCompliance');
+        const issue = document.getElementById('bimSpecIssueCount');
+        const summary = document.getElementById('bimSpecSummary');
+        if (mode) mode.innerText = specResult.spec.label;
+        if (compliance) compliance.innerText = `${specResult.level} / ${specResult.complianceScore}`;
+        if (issue) issue.innerText = String(specResult.issueCount);
+        if (summary) {
+            summary.innerText = `BIM 規格：${specResult.spec.label}｜必備 ${specResult.spec.requiredTypes.map(formatIfcTypeDisplay).join(' / ')}｜${specResult.summary}`;
+        }
+        return specResult;
+    }
+
+    function applyQaProfile(profile, silent = false) {
+        currentQaProfile = QA_PROFILE_CONFIGS[profile] ? profile : 'enterprise';
+        localStorage.setItem(QA_PROFILE_STORAGE_KEY, currentQaProfile);
+        updateQaProfileUi();
+        if (bimModelData) renderBIMSummary(bimModelData);
+        else updateQaDashboard();
+        if (bimLayoutQaResult) renderBimLayoutQaSummary();
+        if (!silent) showToast(`QA 等級已切換為${getQaProfileConfig().label}`);
+    }
+
+    function applyBimSpecPreset(preset, silent = false) {
+        currentBimSpecPreset = BIM_SPEC_PRESETS[preset] ? preset : 'public';
+        localStorage.setItem(BIM_SPEC_PRESET_STORAGE_KEY, currentBimSpecPreset);
+        updateBimSpecUi();
+        if (bimModelData) renderBIMSummary(bimModelData);
+        if (bimLayoutQaResult) renderBimLayoutQaSummary();
+        if (!silent) showToast(`BIM 規格已套用：${getBimSpecPreset().label}`);
+    }
+
     function calcBIMQaScore(data) {
-        let score = 40;
-        if (data.totalEntities > 1000) score += 20;
-        else if (data.totalEntities > 200) score += 12;
-        else if (data.totalEntities > 50) score += 6;
-
-        if (data.totalElements > 50) score += 20;
-        else if (data.totalElements > 10) score += 12;
-        else if (data.totalElements > 0) score += 6;
-
-        const qtySum = data.qtyLength + data.qtyArea + data.qtyVolume + data.qtyCount;
-        if (qtySum > 0) score += 20;
-
-        const coreTypes = ['IFCWALL', 'IFCSLAB', 'IFCBEAM', 'IFCCOLUMN'];
-        const hit = coreTypes.filter(t => (data.typeCounts[t] || data.typeCounts[`${t}STANDARDCASE`] || 0) > 0).length;
-        score += hit * 5;
-
-        score -= Math.min(20, data.warnings.length * 5);
+        const profile = getQaProfileConfig();
+        const specResult = evaluateBimSpecCompliance(data);
+        const spec = specResult.spec;
+        const qtySum = Number(data.qtyLength || 0) + Number(data.qtyArea || 0) + Number(data.qtyVolume || 0) + Number(data.qtyCount || 0);
+        const entityRatio = spec.minEntities > 0 ? Math.min(1, Number(data.totalEntities || 0) / spec.minEntities) : 1;
+        const elementRatio = spec.minElements > 0 ? Math.min(1, Number(data.totalElements || 0) / spec.minElements) : 1;
+        let score = 100;
+        score -= Math.round((1 - entityRatio) * profile.entityPenalty);
+        score -= Math.round((1 - elementRatio) * profile.elementPenalty);
+        if (qtySum <= 0) score -= profile.noQuantityPenalty;
+        score -= Math.min(30, (data.warnings || []).length * profile.warningPenalty);
+        score -= Math.min(35, specResult.issueCount * profile.missingTypePenalty);
         return Math.max(0, Math.min(100, score));
     }
 
     function renderBIMSummary(data) {
         const bimQaScore = calcBIMQaScore(data);
         const bimQaLevel = getQaLevelByScore(bimQaScore);
+        const specResult = updateBimSpecUi(data);
         document.getElementById('bimFileName').innerText = data.fileName || '未命名';
         document.getElementById('bimEntityCount').innerText = data.totalEntities.toLocaleString();
         document.getElementById('bimElementCount').innerText = data.totalElements.toLocaleString();
@@ -3078,9 +3866,13 @@
         });
 
         const warnBox = document.getElementById('bimWarnings');
-        warnBox.innerHTML = data.warnings.length
-            ? data.warnings.map(w => `• ${w}`).join('<br>')
-            : `QA 檢核：等級 ${bimQaLevel}，未發現明顯結構問題。`;
+        const mergedWarnings = [];
+        if (specResult.issueCount) mergedWarnings.push(...specResult.issues.map(w => `規格：${w}`));
+        if (data.warnings.length) mergedWarnings.push(...data.warnings);
+        warnBox.innerHTML = mergedWarnings.length
+            ? mergedWarnings.map(w => `• ${w}`).join('<br>')
+            : `QA 檢核：等級 ${bimQaLevel}，規格 ${specResult.spec.label} 通過。`;
+        updateQaProfileUi();
         updateQaDashboard();
     }
 
@@ -4101,16 +4893,13 @@
 
     function getQaLevelByScore(score) {
         const s = Number(score) || 0;
-        let baseLevel = 'E';
-        if (s >= 95) baseLevel = 'S';
-        else if (s >= 90) baseLevel = 'A';
-        else if (s >= 80) baseLevel = 'B';
-        else if (s >= 70) baseLevel = 'C';
-        else if (s >= 60) baseLevel = 'D';
-
-        // Global uplift: raise every case/QA level by one notch for presentation.
-        const upliftMap = { S: 'S', A: 'S', B: 'A', C: 'B', D: 'C', E: 'D' };
-        return upliftMap[baseLevel] || baseLevel;
+        const thresholds = getQaProfileConfig().thresholds;
+        if (s >= thresholds.S) return 'S';
+        if (s >= thresholds.A) return 'A';
+        if (s >= thresholds.B) return 'B';
+        if (s >= thresholds.C) return 'C';
+        if (s >= thresholds.D) return 'D';
+        return 'E';
     }
 
     function updateQaDashboard() {
@@ -4119,6 +4908,7 @@
         const measureScore = calcMeasureQaScore();
         const overall = getOverallQaSummary(bimScore, layoutScore, measureScore);
         const overallScore = overall.score;
+        const specResult = bimModelData ? evaluateBimSpecCompliance(bimModelData) : null;
 
         const setText = (id, text) => {
             const el = document.getElementById(id);
@@ -4129,13 +4919,18 @@
         setText('qaLevelMeasure', measureQaStats.measureStarts > 0 ? `${getQaLevelByScore(measureScore)} / ${measureScore}` : '-');
         setText('qaLevelOverall', overallScore > 0 ? `${getQaLevelByScore(overallScore)} / ${overallScore}` : '-');
 
-        const causes = [];
+        const causes = [`制度: ${getQaProfileConfig().label}`, `規格: ${getBimSpecPreset().label}`];
+        if (specResult && specResult.issueCount > 0) {
+            causes.push(`BIM規格缺口 ${specResult.issueCount}`);
+        }
         if (bimModelData && Array.isArray(bimModelData.warnings) && bimModelData.warnings.length) {
             causes.push(`BIM: ${bimModelData.warnings[0]}`);
         }
         if (bimLayoutQaResult) {
             if (bimLayoutQaResult.missingGeometryCount > 0) causes.push(`放樣: 缺漏幾何 ${bimLayoutQaResult.missingGeometryCount}`);
             if (bimLayoutQaResult.duplicatePointCount > 0) causes.push(`放樣: 重複點 ${bimLayoutQaResult.duplicatePointCount}`);
+            if (bimLayoutQaResult.namingInvalidCount > 0) causes.push(`放樣: 命名不符 ${bimLayoutQaResult.namingInvalidCount}`);
+            if (bimLayoutQaResult.missingFloorTagCount > 0) causes.push(`放樣: 樓層缺漏 ${bimLayoutQaResult.missingFloorTagCount}`);
             if (bimLayoutQaResult.outOfRangeCount > 0) causes.push(`放樣: 越界點 ${bimLayoutQaResult.outOfRangeCount}`);
         }
         if (measureQaStats.measureStarts > 0) {
@@ -4143,10 +4938,12 @@
             const successRate = Math.round((measureQaStats.measureSuccess / starts) * 100);
             if (successRate < 90) causes.push(`量圖: 成功率 ${successRate}%`);
             if (measureQaStats.strictBlocks > 0) causes.push(`量圖: 嚴格模式擋下 ${measureQaStats.strictBlocks} 次`);
+            if (measureQaStats.smartLowConfidence > 0) causes.push(`智慧量圖: 低信心 ${measureQaStats.smartLowConfidence} 次`);
+            if (measureQaStats.smartFallbacks > 0) causes.push(`智慧量圖: 回退 ${measureQaStats.smartFallbacks} 次`);
         }
         const causeBox = document.getElementById('qaTopCauses');
         if (causeBox) {
-            causeBox.innerText = causes.length ? `QA 關鍵因子 TOP3：${causes.slice(0, 3).join(' / ')}` : 'QA 關鍵因子：目前無明顯風險';
+            causeBox.innerText = causes.length ? `QA 關鍵因子 TOP4：${causes.slice(0, 4).join(' / ')}` : 'QA 關鍵因子：目前無明顯風險';
         }
     }
 
@@ -4179,7 +4976,7 @@
             return;
         }
         const level = getQaLevelByScore(bimLayoutQaResult.qaScore);
-        box.innerText = `放樣 QA：等級 ${level}（${bimLayoutQaResult.qaScore} / 100），重複 ${bimLayoutQaResult.duplicatePointCount}，缺漏 ${bimLayoutQaResult.missingGeometryCount}，越界 ${bimLayoutQaResult.outOfRangeCount}，點距穩定度 ${bimLayoutQaResult.spacingStabilityScore || 0}，分群穩定度 ${bimLayoutQaResult.groupStabilityScore || 0}（${bimLayoutQaResult.groupCount || 0} 組），高精度修正 ${bimLayoutPrecisionPass} 次，核心自進 ${quantumStakeAutoRuns} 次`;
+        box.innerText = `放樣 QA：等級 ${level}（${bimLayoutQaResult.qaScore} / 100），重複 ${bimLayoutQaResult.duplicatePointCount}，缺漏 ${bimLayoutQaResult.missingGeometryCount}，越界 ${bimLayoutQaResult.outOfRangeCount}，命名 ${bimLayoutQaResult.namingInvalidCount || 0}，樓層缺漏 ${bimLayoutQaResult.missingFloorTagCount || 0}，點距穩定度 ${bimLayoutQaResult.spacingStabilityScore || 0}，分群穩定度 ${bimLayoutQaResult.groupStabilityScore || 0}（${bimLayoutQaResult.groupCount || 0} 組），高精度修正 ${bimLayoutPrecisionPass} 次，核心自進 ${quantumStakeAutoRuns} 次｜制度 ${getQaProfileConfig().label} / 規格 ${getBimSpecPreset().label}`;
         if (alignBox) {
             alignBox.innerText = formatLayoutAlignmentSummary(layoutAlignmentState);
         }
@@ -4828,10 +5625,15 @@
         if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
         const highPrecisionToggle = document.getElementById('layoutHighPrecisionToggle');
         const precisionEnabled = !(highPrecisionToggle && !highPrecisionToggle.checked);
+        const profile = getQaProfileConfig();
+        const spec = getBimSpecPreset();
         const keySet = new Set();
         let duplicatePointCount = 0;
         let missingGeometryCount = 0;
         let outOfRangeCount = 0;
+        let namingInvalidCount = 0;
+        let missingFloorTagCount = 0;
+        let duplicateClusterCount = 0;
         let maxDeviation = 0;
         const validPoints = [];
         bimLayoutPoints.forEach(p => {
@@ -4844,7 +5646,9 @@
             const key = `${p.x.toFixed(2)}|${p.y.toFixed(2)}|${p.z.toFixed(2)}`;
             if (keySet.has(key)) duplicatePointCount += 1;
             else keySet.add(key);
-            if (Math.abs(p.x) > 10000 || Math.abs(p.y) > 10000 || Math.abs(p.z) > 10000) outOfRangeCount += 1;
+            if (Math.abs(p.x) > spec.maxAbsCoord || Math.abs(p.y) > spec.maxAbsCoord || Math.abs(p.z) > spec.maxAbsCoord) outOfRangeCount += 1;
+            if (spec.pointIdPattern && !spec.pointIdPattern.test(String(p.id || ''))) namingInvalidCount += 1;
+            if (spec.requireFloorTag && !String(p.floorTag || '').trim()) missingFloorTagCount += 1;
             maxDeviation = Math.max(maxDeviation, Math.abs(p.z));
         });
         const nearestDistances = [];
@@ -4857,6 +5661,7 @@
                 const dz = validPoints[i].z - validPoints[j].z;
                 const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 if (d < nearest) nearest = d;
+                if (j > i && d < spec.duplicateToleranceM) duplicateClusterCount += 1;
             }
             if (Number.isFinite(nearest) && nearest < Infinity) nearestDistances.push(nearest);
         }
@@ -4872,28 +5677,36 @@
         const spacingStabilityScore = Math.max(0, Math.min(100, Math.round((1 - cv) * 100)));
         const groupStats = evaluateGroupStability(validPoints);
 
-        const penalty = duplicatePointCount * 2
-            + missingGeometryCount * 5
-            + outOfRangeCount * 3
-            + Math.max(0, 70 - spacingStabilityScore)
-            + Math.max(0, 75 - groupStats.groupStabilityScore);
+        const penalty = duplicatePointCount * profile.layoutDuplicatePenalty
+            + duplicateClusterCount * profile.clusterPenalty
+            + missingGeometryCount * profile.layoutMissingPenalty
+            + outOfRangeCount * profile.layoutRangePenalty
+            + namingInvalidCount * profile.namingPenalty
+            + missingFloorTagCount * profile.floorPenalty
+            + Math.max(0, 72 - spacingStabilityScore)
+            + Math.max(0, 78 - groupStats.groupStabilityScore);
         const qaScore = Math.max(0, 100 - penalty);
         bimLayoutQaResult = {
             duplicatePointCount,
+            duplicateClusterCount,
             missingGeometryCount,
             outOfRangeCount,
+            namingInvalidCount,
+            missingFloorTagCount,
             maxDeviation: Math.round(maxDeviation * 1000) / 1000,
             spacingStabilityScore,
             groupStabilityScore: groupStats.groupStabilityScore,
             groupCount: groupStats.groupCount,
             precisionEnabled,
+            qaProfile: currentQaProfile,
+            bimSpecPreset: currentBimSpecPreset,
             qaScore,
             checkedAt: new Date().toISOString()
         };
         renderBimLayoutQaSummary();
         const qaLevel = getQaLevelByScore(qaScore);
-        addAuditLog('放樣QA檢核', `等級 ${qaLevel} / 分數 ${qaScore} / 100`);
-        showToast(`放樣 QA 完成：${qaLevel}（${qaScore} 分，群組穩定度 ${groupStats.groupStabilityScore}）`);
+        addAuditLog('放樣QA檢核', `等級 ${qaLevel} / 分數 ${qaScore} / 100 / 制度 ${profile.label} / 規格 ${spec.label}`);
+        showToast(`放樣 QA 完成：${qaLevel}（${qaScore} 分，命名 ${namingInvalidCount}，樓層缺漏 ${missingFloorTagCount}）`);
     }
 
     function evaluateGroupStability(points) {
@@ -4960,13 +5773,20 @@
         const qa = bimLayoutQaResult || {};
         const projectName = (document.getElementById('project_name') && document.getElementById('project_name').value) || '未命名專案';
         const qaLevel = getQaLevelByScore(qa.qaScore || 0);
+        const specResult = bimModelData ? evaluateBimSpecCompliance(bimModelData) : null;
         const rows = [
             ['報告時間', new Date().toLocaleString('zh-TW')],
             ['專案名稱', projectName],
             ['模型檔名', bimModelData && bimModelData.fileName ? bimModelData.fileName : '未載入'],
+            ['QA制度', getQaProfileConfig().label],
+            ['BIM規格', getBimSpecPreset().label],
+            ['BIM規格符合度', specResult ? String(specResult.complianceScore) : '0'],
             ['點位總數', String(bimLayoutPoints.length)],
             ['重複點', String(qa.duplicatePointCount || 0)],
+            ['重複群聚', String(qa.duplicateClusterCount || 0)],
             ['缺漏幾何', String(qa.missingGeometryCount || 0)],
+            ['命名不符', String(qa.namingInvalidCount || 0)],
+            ['樓層缺漏', String(qa.missingFloorTagCount || 0)],
             ['越界點', String(qa.outOfRangeCount || 0)],
             ['最大偏差', String(qa.maxDeviation || 0)],
             ['點距穩定度', String(qa.spacingStabilityScore || 0)],
@@ -5201,11 +6021,75 @@
             });
             const latitude = Number(pos && pos.coords && pos.coords.latitude);
             const longitude = Number(pos && pos.coords && pos.coords.longitude);
+            const accuracyM = Number(pos && pos.coords && pos.coords.accuracy);
             if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-            return { latitude, longitude };
+            return {
+                latitude,
+                longitude,
+                accuracyM: Number.isFinite(accuracyM) ? Math.max(0, accuracyM) : null
+            };
         } catch (_e) {
             return null;
         }
+    }
+
+    function getWeatherFallbackCoordsByRegion(regionName) {
+        const normalized = normalizeRegionName(regionName) || String(regionName || '');
+        return WEATHER_REGION_CENTER_MAP[normalized] || null;
+    }
+
+    function getWeatherLocationSourceLabel(mode) {
+        if (mode === 'manual-region') return '手動地區';
+        if (mode === 'region-fallback') return '地區備援';
+        return 'GPS定位';
+    }
+
+    async function resolveWeatherLocation() {
+        const coords = await getDeviceCoordinates();
+        const fallbackRegion = currentRegionLabel && currentRegionLabel !== '全台共用'
+            ? (normalizeRegionName(currentRegionLabel) || currentRegionLabel)
+            : '';
+        const fallbackCoords = getWeatherFallbackCoordsByRegion(fallbackRegion);
+
+        if (coords && Number.isFinite(coords.latitude) && Number.isFinite(coords.longitude)) {
+            const accuracyM = Number(coords.accuracyM);
+            if (!Number.isFinite(accuracyM) || accuracyM <= WEATHER_GEOLOCATION_MAX_ACCURACY_M) {
+                return {
+                    latitude: coords.latitude,
+                    longitude: coords.longitude,
+                    accuracyM: Number.isFinite(accuracyM) ? accuracyM : null,
+                    label: fallbackRegion || '目前位置',
+                    mode: 'gps'
+                };
+            }
+            if (fallbackCoords) {
+                return {
+                    latitude: fallbackCoords.latitude,
+                    longitude: fallbackCoords.longitude,
+                    accuracyM,
+                    label: fallbackRegion,
+                    mode: 'region-fallback'
+                };
+            }
+            return {
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+                accuracyM,
+                label: '目前位置',
+                mode: 'gps'
+            };
+        }
+
+        if (fallbackCoords) {
+            return {
+                latitude: fallbackCoords.latitude,
+                longitude: fallbackCoords.longitude,
+                accuracyM: null,
+                label: fallbackRegion,
+                mode: 'manual-region'
+            };
+        }
+        return null;
     }
 
     function resolveOpenMeteoRainProbability(current, hourly) {
@@ -5273,13 +6157,40 @@
         return { level: '可施工', message: '天氣條件穩定，可依標準流程施工。', color: '#9ef5c2' };
     }
 
-    function applyWeatherScene(level) {
+    function resolveWeatherVisualState(weather, level) {
+        const code = Number(weather && weather.weatherCode) || 0;
+        const rain = Number(weather && weather.rainMm) || 0;
+        const rainProb = Number(weather && weather.rainProb) || 0;
+        const stormCodes = [95, 96, 99];
+        const rainCodes = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82];
+        const fogCodes = [45, 48];
+        if (stormCodes.includes(code) || level === '建議暫緩') return 'storm';
+        if (fogCodes.includes(code)) return 'fog';
+        if (rainCodes.includes(code) || rain >= 0.4 || rainProb >= 50) return 'rain';
+        if ([2, 3].includes(code)) return 'cloudy';
+        if ([0, 1].includes(code)) return 'sun';
+        if (level === '注意施工') return 'rain';
+        return 'cloudy';
+    }
+
+    function applyWeatherScene(level, weather = null) {
         const body = document.body;
         if (!body) return;
-        body.classList.remove('weather-scene-good', 'weather-scene-caution', 'weather-scene-bad');
+        body.classList.remove(
+            'weather-scene-good',
+            'weather-scene-caution',
+            'weather-scene-bad',
+            'weather-visual-sun',
+            'weather-visual-cloudy',
+            'weather-visual-rain',
+            'weather-visual-storm',
+            'weather-visual-fog'
+        );
         if (level === '可施工') body.classList.add('weather-scene-good');
         else if (level === '注意施工') body.classList.add('weather-scene-caution');
         else if (level === '建議暫緩') body.classList.add('weather-scene-bad');
+        const visualState = resolveWeatherVisualState(weather, level);
+        body.classList.add(`weather-visual-${visualState}`);
     }
 
     function createWeatherNewsBulletin(weather) {
@@ -5342,7 +6253,7 @@
         const news = document.getElementById('siteWeatherNews');
         if (!info || !safety || !news) return;
         if (!weather) {
-            applyWeatherScene('未知');
+            applyWeatherScene('未知', null);
             applyWeatherLinkedStakingMode('未知', null);
             info.innerText = `天氣：${errorText || '暫無資料'}`;
             info.style.color = '#ffd48a';
@@ -5352,10 +6263,14 @@
             return;
         }
         const weatherLabel = WEATHER_CODE_MAP[Number(weather.weatherCode)] || '天氣變化';
-        info.innerText = `天氣：${weatherLabel}｜${weather.tempC.toFixed(1)}°C（體感 ${weather.apparentC.toFixed(1)}°C）｜降雨 ${weather.rainMm.toFixed(1)}mm / ${Math.round(weather.rainProb)}%｜風速 ${Math.round(weather.windKmh)}km/h`;
+        const locationLabel = String(weather.locationLabel || '').trim();
+        const sourceLabel = getWeatherLocationSourceLabel(weather.locationMode);
+        const locationText = locationLabel ? `｜位置 ${locationLabel}（${sourceLabel}）` : `｜來源 ${sourceLabel}`;
+        const accuracyText = Number.isFinite(Number(weather.locationAccuracyM)) ? `｜定位誤差約 ${Math.round(Number(weather.locationAccuracyM))}m` : '';
+        info.innerText = `天氣：${weatherLabel}${locationText}${accuracyText}｜${weather.tempC.toFixed(1)}°C（體感 ${weather.apparentC.toFixed(1)}°C）｜降雨 ${weather.rainMm.toFixed(1)}mm / ${Math.round(weather.rainProb)}%｜風速 ${Math.round(weather.windKmh)}km/h`;
         info.style.color = '#cde8ff';
         const advice = getWeatherAdviceLevel(weather);
-        applyWeatherScene(advice.level);
+        applyWeatherScene(advice.level, weather);
         applyWeatherLinkedStakingMode(advice.level, weather);
         safety.innerText = `施工建議：${advice.level}｜${advice.message}｜放樣模式：${stakingConservativeMode ? '保守（僅高信心）' : '標準'}｜QA門檻 ${getActiveStakingQaGate()}`;
         safety.style.color = advice.color;
@@ -5363,14 +6278,14 @@
     }
 
     async function refreshSiteWeather(silent = false) {
-        const coords = await getDeviceCoordinates();
-        if (!coords) {
-            updateSiteWeatherUI(null, '無法取得定位（請開啟定位權限）');
-            if (!silent) showToast('無法取得定位，請開啟定位權限後重試');
+        const location = await resolveWeatherLocation();
+        if (!location) {
+            updateSiteWeatherUI(null, '無法取得定位或工地地區（請開啟定位或先選地區）');
+            if (!silent) showToast('無法取得定位，請開啟定位權限或先指定工地地區');
             return;
         }
         try {
-            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}&current=temperature_2m,apparent_temperature,weather_code,precipitation,precipitation_probability,wind_speed_10m&hourly=precipitation_probability&forecast_days=1&timezone=auto`;
+            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current=temperature_2m,apparent_temperature,weather_code,precipitation,precipitation_probability,wind_speed_10m&hourly=precipitation_probability&forecast_days=1&timezone=auto`;
             const res = await fetchWithRetry(weatherUrl, {}, { retries: 1, timeoutMs: 6500 });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const payload = await res.json();
@@ -5383,10 +6298,13 @@
                 weatherCode: Number(current.weather_code) || 0,
                 rainMm: Number(current.precipitation) || 0,
                 windKmh: Number(current.wind_speed_10m) || 0,
-                rainProb: Number(rainProb) || 0
+                rainProb: Number(rainProb) || 0,
+                locationLabel: location.label || '',
+                locationMode: location.mode || 'gps',
+                locationAccuracyM: Number.isFinite(Number(location.accuracyM)) ? Number(location.accuracyM) : null
             };
             updateSiteWeatherUI(weather);
-            addAuditLog('工地天氣更新', `溫度 ${weather.tempC}°C / 降雨機率 ${Math.round(weather.rainProb)}% / 風速 ${Math.round(weather.windKmh)}km/h`);
+            addAuditLog('工地天氣更新', `${weather.locationLabel || '目前位置'} / ${getWeatherLocationSourceLabel(weather.locationMode)} / 溫度 ${weather.tempC}°C / 降雨機率 ${Math.round(weather.rainProb)}% / 風速 ${Math.round(weather.windKmh)}km/h`);
             if (!silent) showToast('工地即時天氣已更新');
         } catch (_e) {
             updateSiteWeatherUI(null, '天氣服務連線失敗，請稍後重試');
@@ -5465,6 +6383,7 @@
                 drawMode = 'none';
                 clickPoints = [];
                 calibrationPendingPoint = null;
+                resetSmartMeasureSession({ preserveLastResult: false });
                 blueprintPanState.active = false;
                 blueprintPinchState.active = false;
                 suppressNextCanvasClick = false;
@@ -5519,8 +6438,14 @@
         const h = img.naturalHeight * zoomLevel;
         img.style.width = w + 'px'; img.style.height = h + 'px';
         canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+        const smartOverlay = document.getElementById('smartMeasureOverlay');
+        if (smartOverlay) {
+            smartOverlay.style.width = w + 'px';
+            smartOverlay.style.height = h + 'px';
+        }
         const zoomInfo = document.getElementById('zoom-info');
         if (zoomInfo) zoomInfo.innerText = `縮放: ${Math.round(zoomLevel * 100)}%`;
+        renderSmartMeasureOverlay();
     }
 
     function analyzeBlueprintImageQuality() {
@@ -5711,17 +6636,165 @@
     }
 
     const AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE = 0.9;
+    const AUTO_INTERPRET_MEMORY_STORAGE_KEY = 'bm_69:auto_interpret_memory';
+    const AUTO_INTERPRET_MEMORY_MAX = 48;
     let autoInterpretBusy = false;
     let autoInterpretRunSeq = 0;
     let autoInterpretLastReport = null;
     let autoInterpretNeedsReview = false;
     let autoInterpretGateReason = '';
+    let autoInterpretMemoryCache = null;
 
     function qualityToScore(qualityText) {
         if (qualityText === '良好') return 1.0;
         if (qualityText === '可用') return 0.72;
         if (qualityText === '待重拍') return 0.45;
         return 0.55;
+    }
+
+    function getAutoInterpretMemoryStore() {
+        if (Array.isArray(autoInterpretMemoryCache)) return autoInterpretMemoryCache;
+        try {
+            const parsed = JSON.parse(localStorage.getItem(AUTO_INTERPRET_MEMORY_STORAGE_KEY) || '[]');
+            autoInterpretMemoryCache = Array.isArray(parsed) ? parsed : [];
+        } catch (_err) {
+            autoInterpretMemoryCache = [];
+        }
+        return autoInterpretMemoryCache;
+    }
+
+    function persistAutoInterpretMemoryStore(store) {
+        autoInterpretMemoryCache = Array.isArray(store) ? store.slice(0, AUTO_INTERPRET_MEMORY_MAX) : [];
+        localStorage.setItem(AUTO_INTERPRET_MEMORY_STORAGE_KEY, JSON.stringify(autoInterpretMemoryCache));
+    }
+
+    function buildBlueprintFeatureVector(bounds, qualityReport) {
+        const longPx = Number(bounds && bounds.longPx) || 0;
+        const shortPx = Number(bounds && bounds.shortPx) || 0;
+        const ratio = shortPx > 0 ? longPx / shortPx : 1;
+        return {
+            longPx,
+            shortPx,
+            ratio,
+            coverage: Number(bounds && bounds.coverage) || 0,
+            quality: String(qualityReport && qualityReport.quality || '未知'),
+            meanLuma: Number(qualityReport && qualityReport.meanLuma) || 0,
+            contrastVar: Number(qualityReport && qualityReport.contrastVar) || 0,
+            blurVar: Number(qualityReport && qualityReport.blurVar) || 0
+        };
+    }
+
+    function calcBlueprintMemorySimilarity(currentVector, sample) {
+        if (!currentVector || !sample || !sample.vector) return 0;
+        const vector = sample.vector;
+        const ratioGap = Math.abs((currentVector.ratio || 1) - (Number(vector.ratio) || 1));
+        const coverageGap = Math.abs((currentVector.coverage || 0) - (Number(vector.coverage) || 0));
+        const lumaGap = Math.min(1, Math.abs((currentVector.meanLuma || 0) - (Number(vector.meanLuma) || 0)) / 255);
+        const contrastGap = Math.min(1, Math.abs((currentVector.contrastVar || 0) - (Number(vector.contrastVar) || 0)) / 2000);
+        const blurGap = Math.min(1, Math.abs((currentVector.blurVar || 0) - (Number(vector.blurVar) || 0)) / 600);
+        const qualityPenalty = currentVector.quality === String(vector.quality || '') ? 0 : 0.08;
+        const weightedGap = ratioGap * 0.42 + coverageGap * 0.22 + lumaGap * 0.12 + contrastGap * 0.12 + blurGap * 0.12 + qualityPenalty;
+        return Math.max(0, Math.min(1, 1 - weightedGap));
+    }
+
+    function findAutoInterpretMemoryMatch(bounds, qualityReport, preferredType = '') {
+        const store = getAutoInterpretMemoryStore();
+        if (!store.length) return null;
+        const currentVector = buildBlueprintFeatureVector(bounds, qualityReport);
+        const preferred = String(preferredType || '').trim();
+        const pool = preferred
+            ? store.filter(item => String(item.type || '').trim() === preferred)
+            : store;
+        const scored = pool
+            .map(item => ({ item, score: calcBlueprintMemorySimilarity(currentVector, item) }))
+            .filter(entry => entry.score >= (preferred ? 0.5 : 0.55))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5);
+        if (!scored.length) return null;
+        const best = scored[0];
+        return {
+            best: best.item,
+            similarity: best.score,
+            sampleCount: scored.length,
+            preferredType: preferred,
+            summary: scored.slice(0, 3).map(entry => `${entry.item.type}/${entry.item.quantity}件/${Math.round(entry.score * 100)}%`).join('｜')
+        };
+    }
+
+    function renderAutoInterpretMemoryPanel() {
+        const body = document.getElementById('autoInterpretMemoryBody');
+        const summary = document.getElementById('autoInterpretMemorySummary');
+        const store = getAutoInterpretMemoryStore();
+        if (!body || !summary) return;
+        body.innerHTML = '';
+        if (!store.length) {
+            body.innerHTML = '<tr><td colspan="6" style="color:#99b2c9;">尚無已學習案例</td></tr>';
+            summary.innerText = '記憶庫：尚未建立';
+            return;
+        }
+        const typeCounts = store.reduce((acc, item) => {
+            const key = String(item.type || '未分類');
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+        }, {});
+        const topTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([type, count]) => `${type}:${count}`).join(' / ');
+        summary.innerText = `記憶庫：共 ${store.length} 筆｜類型分佈 ${topTypes || '無'}${autoInterpretLastReport && autoInterpretLastReport.memoryStoreSize ? `｜最近套用後總數 ${autoInterpretLastReport.memoryStoreSize}` : ''}`;
+        store.slice(0, 12).forEach((item, idx) => {
+            const tr = document.createElement('tr');
+            const ratio = item && item.vector ? Number(item.vector.ratio || 0) : 0;
+            tr.innerHTML = `<td>${new Date(item.ts || Date.now()).toLocaleString('zh-TW')}</td><td>${item.type || '-'}</td><td>${item.quantity || '-'}</td><td>${Number(item.longM || 0).toFixed(2)} × ${Number(item.shortM || 0).toFixed(2)} m</td><td>${item.quality || '未知'} / 比例 ${ratio.toFixed(2)}</td><td><button class="tool-btn" style="padding:4px 8px;" onclick="deleteAutoInterpretMemory(${idx})">刪除</button></td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    function deleteAutoInterpretMemory(index) {
+        const store = getAutoInterpretMemoryStore().slice();
+        if (index < 0 || index >= store.length) return;
+        const removed = store.splice(index, 1)[0];
+        persistAutoInterpretMemoryStore(store);
+        renderAutoInterpretMemoryPanel();
+        showToast(`已刪除記憶：${removed && removed.type ? removed.type : '案例'}`);
+    }
+
+    function clearAutoInterpretMemory() {
+        if (!confirm('確定清空 AI 看圖學習記憶庫嗎？')) return;
+        persistAutoInterpretMemoryStore([]);
+        renderAutoInterpretMemoryPanel();
+        showToast('AI 看圖學習記憶庫已清空');
+    }
+
+    function learnAutoInterpretMemory(sample) {
+        if (!sample || !sample.vector) return { count: getAutoInterpretMemoryStore().length, updated: false };
+        const store = getAutoInterpretMemoryStore().slice();
+        const next = {
+            ts: new Date().toISOString(),
+            type: String(sample.type || '').trim(),
+            quantity: Math.max(1, Number(sample.quantity) || 1),
+            longM: Number(sample.longM) || 0,
+            shortM: Number(sample.shortM) || 0,
+            quality: String(sample.quality || '未知'),
+            vector: sample.vector
+        };
+        let updated = false;
+        for (let i = 0; i < store.length; i += 1) {
+            const sameType = String(store[i].type || '') === next.type;
+            const score = calcBlueprintMemorySimilarity(next.vector, store[i]);
+            if (sameType && score >= 0.9) {
+                store[i] = { ...store[i], ...next };
+                updated = true;
+                break;
+            }
+        }
+        if (!updated) {
+            store.unshift(next);
+        }
+        persistAutoInterpretMemoryStore(store);
+        return { count: getAutoInterpretMemoryStore().length, updated };
+    }
+
+    function getAutoInterpretMemoryHint(match) {
+        if (!match || !match.best) return '';
+        return `記憶參考 ${match.best.type} / ${match.best.quantity} 件 / 相似度 ${Math.round(match.similarity * 100)}%`;
     }
 
     function getAutoInterpretGateThreshold() {
@@ -5836,7 +6909,9 @@
     }
 
     async function autoInterpretBlueprintAndCalculate() {
+        if (document.body.dataset.workMode !== 'calc') return showToast('請切換到計算模式第三頁再使用自動計算');
         if (getCurrentUserLevel() !== 'pro') return showToast('看圖自動判讀僅開放會員3（專家）');
+        if (!document.getElementById('advAutoInterpretGate')) return showToast('請在計算第三頁使用自動計算');
         if (autoInterpretBusy) return showToast('單一運算進行中，請稍候完成');
         if (!img.src) return showToast('請先上傳圖紙再做自動判讀');
         autoInterpretBusy = true;
@@ -5855,7 +6930,8 @@
             let scale = scalePixelsPerUnit;
             if (!Number.isFinite(scale) || scale <= 0) {
                 const knownLong = prompt(
-                    `已抓到主體長邊約 ${Math.round(bounds.longPx)} px。\n請輸入這條邊的實際長度（m）來自動定比例：`,
+                    `已抓到主體長邊約 ${Math.round(bounds.longPx)} px。
+請輸入這條邊的實際長度（m）來自動定比例：`,
                     '1'
                 );
                 const knownLongMeters = parseFloat(knownLong);
@@ -5872,16 +6948,28 @@
             updateBlueprintAutoInterpretStatus(`自動判讀: 單一運算 #${runId}（尺寸/數量解算中）`, '#bfe7ff');
             const longM = bounds.longPx / scale;
             const shortM = bounds.shortPx / scale;
-            let type = String(document.getElementById('calcType').value || '');
+            const currentType = String(document.getElementById('calcType').value || '');
+            const memoryTypeMatch = findAutoInterpretMemoryMatch(bounds, qualityReport, '');
+            let type = currentType;
             if (!type.startsWith('R_')) {
+                const memoryDefault = memoryTypeMatch && memoryTypeMatch.best && memoryTypeMatch.similarity >= 0.72
+                    ? String(memoryTypeMatch.best.type || type)
+                    : type;
                 const picked = prompt(
-                    `請確認本次判讀構件類型（目前：${type}）\n` +
-                    `1=牆模板(M_WALL)\n` +
-                    `2=樑模板雙側(M_BEAM_SIDES)\n` +
-                    `3=樑模板三面(M_BEAM_ALL)\n` +
-                    `4=樓板/地坪體積(C_VOL)\n` +
-                    `0=維持目前`,
-                    '0'
+                    `請確認本次判讀構件類型（目前：${type}）
+` +
+                    `1=牆模板(M_WALL)
+` +
+                    `2=樑模板雙側(M_BEAM_SIDES)
+` +
+                    `3=樑模板三面(M_BEAM_ALL)
+` +
+                    `4=樓板/地坪體積(C_VOL)
+` +
+                    `0=維持目前
+` +
+                    `${memoryTypeMatch ? `記憶建議：${memoryDefault}｜${getAutoInterpretMemoryHint(memoryTypeMatch)}` : '記憶建議：目前尚無相似案例'}`,
+                    memoryDefault === 'M_WALL' ? '1' : memoryDefault === 'M_BEAM_SIDES' ? '2' : memoryDefault === 'M_BEAM_ALL' ? '3' : memoryDefault === 'C_VOL' ? '4' : '0'
                 );
                 const pickMap = {
                     '1': 'M_WALL',
@@ -5905,20 +6993,32 @@
             const v3El = document.getElementById('v3');
             const qtyEl = document.getElementById('qty');
             const prevQty = Math.max(1, Number(qtyEl.value) || 1);
+            const memoryMatch = findAutoInterpretMemoryMatch(bounds, qualityReport, type);
 
             const countResult = estimateBlueprintObjectCount(bounds);
             const shouldAutoCount = !type.startsWith('R_');
-            const pickedQty = (shouldAutoCount && countResult.confidence >= 0.55)
+            const memoryQty = memoryMatch && memoryMatch.best ? Math.max(1, Number(memoryMatch.best.quantity) || prevQty) : prevQty;
+            let pickedQty = (shouldAutoCount && countResult.confidence >= 0.55)
                 ? Math.max(1, Math.min(999, countResult.count))
                 : prevQty;
+            if (shouldAutoCount && memoryMatch && memoryMatch.similarity >= 0.76) {
+                pickedQty = Math.max(1, Math.min(999, Math.round(pickedQty * 0.55 + memoryQty * 0.45)));
+            }
             const useAutoQty = shouldAutoCount
-                ? confirm(`AI 建議數量 ${pickedQty}（信心 ${(countResult.confidence * 100).toFixed(0)}%）。\n按「確定」套用，按「取消」保留目前數量 ${prevQty}。`)
+                ? confirm(
+                    `AI 建議數量 ${pickedQty}（信心 ${(countResult.confidence * 100).toFixed(0)}%）` +
+                    `${memoryMatch ? `
+相似案例：${memoryQty}（${Math.round(memoryMatch.similarity * 100)}%）` : ''}` +
+                    `
+按「確定」套用，按「取消」保留目前數量 ${prevQty}。`
+                )
                 : false;
             const finalQty = useAutoQty ? pickedQty : prevQty;
             const geometryConfidence = Math.max(0.25, Math.min(0.95, Number(bounds.coverage || 0) * 2.4));
             const qualityConfidence = qualityToScore(qualityReport && qualityReport.quality);
             const countConfidence = shouldAutoCount ? Number(countResult.confidence || 0) : 0.7;
-            const overallConfidence = Math.max(0, Math.min(1, geometryConfidence * 0.45 + qualityConfidence * 0.35 + countConfidence * 0.20));
+            const memoryConfidence = memoryMatch ? Math.min(0.96, memoryMatch.similarity) : 0;
+            const overallConfidence = Math.max(0, Math.min(1, geometryConfidence * 0.38 + qualityConfidence * 0.28 + countConfidence * 0.18 + memoryConfidence * 0.16));
 
             if (type.startsWith('R_')) {
                 v2El.value = longM.toFixed(2);
@@ -5941,6 +7041,9 @@
             previewCalc();
 
             const qualityNote = qualityReport ? `｜品質${qualityReport.quality}` : '';
+            const memoryNote = memoryMatch
+                ? `｜同類型記憶 ${getAutoInterpretMemoryHint(memoryMatch)}`
+                : (memoryTypeMatch ? `｜跨類型記憶 ${getAutoInterpretMemoryHint(memoryTypeMatch)}` : '｜記憶尚未建立');
             const countNote = shouldAutoCount
                 ? `｜數量建議 ${pickedQty}（信心 ${(countResult.confidence * 100).toFixed(0)}%）→ 套用 ${finalQty}`
                 : '｜鋼筋類數量維持手動';
@@ -5949,10 +7052,19 @@
                 autoInterpretNeedsReview = true;
                 autoInterpretGateReason = `自動判讀信心 ${(overallConfidence * 100).toFixed(0)}% 低於門檻 ${(gateThreshold * 100).toFixed(0)}%，請手動複核尺寸/數量`;
             }
+            const learnResult = learnAutoInterpretMemory({
+                type,
+                quantity: finalQty,
+                longM,
+                shortM,
+                quality: qualityReport ? qualityReport.quality : '未知',
+                vector: buildBlueprintFeatureVector(bounds, qualityReport)
+            });
             updateBlueprintAutoInterpretStatus(
-                `自動判讀: 單一運算 #${runId} 完成｜${bounds.widthPx.toFixed(0)}×${bounds.heightPx.toFixed(0)} px → ${longM.toFixed(2)}×${shortM.toFixed(2)} m${countNote}｜總信心 ${(overallConfidence * 100).toFixed(0)}%${qualityNote}${autoInterpretNeedsReview ? '｜需複核' : ''}`,
+                `自動判讀: 單一運算 #${runId} 完成｜${bounds.widthPx.toFixed(0)}×${bounds.heightPx.toFixed(0)} px → ${longM.toFixed(2)}×${shortM.toFixed(2)} m${countNote}${memoryNote}｜總信心 ${(overallConfidence * 100).toFixed(0)}%${qualityNote}${autoInterpretNeedsReview ? '｜需複核' : ''}｜已學習 ${learnResult.count} 筆`,
                 autoInterpretNeedsReview ? '#ffd48a' : '#9fffc0'
             );
+            renderAutoInterpretMemoryPanel();
             autoInterpretLastReport = {
                 runId,
                 type,
@@ -5961,17 +7073,21 @@
                 quantity: finalQty,
                 suggestedQuantity: pickedQty,
                 countConfidence: countResult.confidence,
+                memorySimilarity: memoryMatch ? memoryMatch.similarity : (memoryTypeMatch ? memoryTypeMatch.similarity : 0),
+                memoryQuantity: memoryMatch && memoryMatch.best ? memoryMatch.best.quantity : (memoryTypeMatch && memoryTypeMatch.best ? memoryTypeMatch.best.quantity : null),
                 quality: qualityReport ? qualityReport.quality : '未知',
                 overallConfidence,
+                memoryStoreSize: learnResult.count,
+                memoryMatchedType: memoryMatch && memoryMatch.best ? memoryMatch.best.type : (memoryTypeMatch && memoryTypeMatch.best ? memoryTypeMatch.best.type : null),
                 inputSignature: `${type}|${String(v1El.value || '')}|${String(v2El.value || '')}|${String(v3El.value || '')}|${String(qtyEl.value || '')}`
             };
             previewCalc();
             if (type.startsWith('R_')) {
                 showToast(`已完成單一運算：長邊 ${longM.toFixed(2)}m（鋼筋規格仍需手動填 v1）`);
             } else if (autoInterpretNeedsReview) {
-                showToast(`自動判讀完成但信心偏低（${(overallConfidence * 100).toFixed(0)}%），請先複核後再吸入清單`);
+                showToast(`自動判讀完成但信心偏低（${(overallConfidence * 100).toFixed(0)}%），已記住本次結果，請先複核後再吸入清單`);
             } else {
-                showToast(`已完成單一運算：${longM.toFixed(2)}m × ${shortM.toFixed(2)}m，數量建議 ${pickedQty}，套用 ${finalQty}`);
+                showToast(`已完成單一運算：${longM.toFixed(2)}m × ${shortM.toFixed(2)}m，數量建議 ${pickedQty}，套用 ${finalQty}，記憶庫 ${learnResult.count} 筆`);
             }
         } finally {
             autoInterpretBusy = false;
@@ -5979,14 +7095,20 @@
     }
 
     async function runAutoBlueprintPlusBIM() {
+        if (document.body.dataset.workMode !== 'calc') {
+            return showToast('請切換到計算模式第三頁再使用自動計算');
+        }
         if (getCurrentUserLevel() !== 'pro') {
             return showToast('此功能僅限會員3（專家）');
+        }
+        if (!document.getElementById('advAutoInterpretGate')) {
+            return showToast('請在計算第三頁使用自動計算');
         }
         if (autoInterpretBusy || edgeAiDetectBusy) {
             return showToast('AI 流程執行中，請稍候');
         }
         if (!img.src) {
-            return showToast('請先上傳圖紙再執行「自動看圖計算+3BIM」');
+            return showToast('請先上傳圖紙再執行「自動看圖計算+BIM」');
         }
 
         updateBlueprintAutoInterpretStatus('一鍵流程：步驟1/2 看圖自動判讀中...', '#bfe7ff');
@@ -6046,13 +7168,13 @@
         const allow3DDrag = is3DView && !is360Spinning && !gyroState.enabled;
 
         if (wrapper) {
-            wrapper.style.touchAction = allow3DDrag ? 'none' : 'auto';
+            wrapper.style.touchAction = 'none';
         }
         if (canvasEl) {
-            canvasEl.style.touchAction = allow3DDrag ? 'none' : 'auto';
+            canvasEl.style.touchAction = 'none';
         }
         if (canvasContainer) {
-            canvasContainer.style.touchAction = allow3DDrag ? 'none' : 'auto';
+            canvasContainer.style.touchAction = 'none';
         }
     }
 
@@ -6078,6 +7200,996 @@
         else info.innerText = `量圖輔助: 傾斜 ${measureAssistState.tiltDeg.toFixed(1)}°${measureAssistState.strict ? '（嚴格）' : ''}`;
     }
 
+    function createDefaultSmartMeasureState() {
+        return {
+            active: false,
+            mode: 'idle',
+            step: 'idle',
+            componentType: 'slab',
+            measurePlan: [],
+            currentTaskIndex: -1,
+            bounds: null,
+            suggestionLine: null,
+            guidePoints: [],
+            confirmedPoints: [],
+            qualityScore: 0,
+            fallbackUsed: false,
+            lastSnapUsed: false,
+            lastManualAdjust: false,
+            dragAdjustCount: 0,
+            nudgeAdjustCount: 0,
+            message: '未啟動',
+            lastResult: '',
+            lastQaSummary: ''
+        };
+    }
+
+    function isSmartMeasureMode(mode = drawMode) {
+        return SMART_MEASURE_DRAW_MODES.includes(mode);
+    }
+
+    function isMeasureInteractionMode(mode = drawMode) {
+        return mode === 'calibration' || mode === 'measure' || isSmartMeasureMode(mode);
+    }
+
+    function resetSmartMeasureSession(options = {}) {
+        const preserveLastResult = options.preserveLastResult !== false;
+        const lastResult = preserveLastResult ? smartMeasureState.lastResult : '';
+        const lastQaSummary = preserveLastResult ? smartMeasureState.lastQaSummary : '';
+        smartMeasureDragState = { active: false, pointIndex: -1, moved: false };
+        smartMeasureState = createDefaultSmartMeasureState();
+        smartMeasureState.lastResult = lastResult;
+        smartMeasureState.lastQaSummary = lastQaSummary;
+        renderSmartMeasureOverlay();
+        updateSmartMeasureUI();
+        updateSmartMeasureQualityStatus();
+    }
+
+    function clampNumber(value, min, max) {
+        return Math.min(max, Math.max(min, value));
+    }
+
+    function describeSmartMeasureQuality(score) {
+        if (score >= 88) return '高';
+        if (score >= 72) return '中';
+        return '低';
+    }
+
+    function getSmartMeasureQaTone(score) {
+        if (score >= 88) return { label: '穩定', color: '#9fffc0' };
+        if (score >= 72) return { label: '可複核', color: '#ffd48a' };
+        return { label: '低信心', color: '#ffb5b5' };
+    }
+
+    function buildSmartMeasureQaSummary() {
+        const qa = getSmartMeasureQaTone(smartMeasureState.qualityScore);
+        const parts = [
+            `等級 ${qa.label}`,
+            `信心 ${smartMeasureState.qualityScore}`
+        ];
+        parts.push(smartMeasureState.lastSnapUsed ? '已使用吸附' : '未吸附');
+        if (smartMeasureState.lastManualAdjust) parts.push('有手動修正');
+        if (smartMeasureState.dragAdjustCount > 0) parts.push(`拖曳 ${smartMeasureState.dragAdjustCount} 次`);
+        if (smartMeasureState.nudgeAdjustCount > 0) parts.push(`微調 ${smartMeasureState.nudgeAdjustCount} 次`);
+        if (smartMeasureState.fallbackUsed) parts.push('低信心回退');
+        return {
+            text: `智慧量圖 QA：${parts.join(' / ')}`,
+            color: qa.color,
+            label: qa.label
+        };
+    }
+
+    function updateSmartMeasureQualityStatus() {
+        const qa = buildSmartMeasureQaSummary();
+        smartMeasureState.lastQaSummary = qa.text;
+        const qualityBox = document.getElementById('blueprint-quality-info');
+        if (smartMeasureState.active) {
+            if (qualityBox) {
+                qualityBox.innerText = qa.text;
+                qualityBox.style.color = qa.color;
+            }
+            return;
+        }
+        const report = analyzeBlueprintImageQuality();
+        if (!qualityBox) return;
+        if (!report) {
+            qualityBox.innerText = smartMeasureState.lastQaSummary || '圖紙品質: 待檢查';
+            qualityBox.style.color = smartMeasureState.lastQaSummary ? qa.color : '#c7d6e6';
+            return;
+        }
+        if (smartMeasureState.lastQaSummary) {
+            qualityBox.innerText = `${smartMeasureState.lastQaSummary}｜圖紙 ${report.quality}`;
+            qualityBox.style.color = qa.color;
+            return;
+        }
+        updateBlueprintQualityStatus();
+    }
+
+    function getBlueprintFallbackBounds() {
+        if (!img.naturalWidth || !img.naturalHeight) return null;
+        const padX = Math.max(24, Math.round(img.naturalWidth * 0.08));
+        const padY = Math.max(24, Math.round(img.naturalHeight * 0.08));
+        const widthPx = Math.max(80, img.naturalWidth - padX * 2);
+        const heightPx = Math.max(80, img.naturalHeight - padY * 2);
+        return {
+            x: padX,
+            y: padY,
+            widthPx,
+            heightPx,
+            longPx: Math.max(widthPx, heightPx),
+            shortPx: Math.min(widthPx, heightPx),
+            coverage: 0.58
+        };
+    }
+
+    function computeSmartMeasureQualityScore(qualityReport, bounds, fallbackUsed) {
+        const qualityText = qualityReport && qualityReport.quality ? qualityReport.quality : '';
+        const qualityScore = qualityToScore(qualityText || '可用');
+        const coverageScore = clampNumber((bounds && bounds.coverage ? bounds.coverage : 0.24) / 0.72, 0.28, 1);
+        const fallbackFactor = fallbackUsed ? 0.84 : 1;
+        return Math.max(35, Math.round((qualityScore * 0.62 + coverageScore * 0.38) * 100 * fallbackFactor));
+    }
+
+    function getNextMeasureTargetField() {
+        const type = document.getElementById('calcType') ? document.getElementById('calcType').value : '';
+        const v1 = document.getElementById('v1');
+        const v2 = document.getElementById('v2');
+        if (type.startsWith('R_') && v2 && !String(v2.value || '').trim()) return 'v2';
+        if (v1 && !String(v1.value || '').trim()) return 'v1';
+        return 'v2';
+    }
+
+    function getSmartMeasurePlan(type) {
+        switch (type) {
+        case 'M_WALL':
+            return [
+                { field: 'v1', axis: 'long', label: '牆長', optional: false },
+                { field: 'v2', axis: 'short', label: '牆高/版短邊', optional: false }
+            ];
+        case 'M_COL':
+            return [
+                { field: 'v1', axis: 'long', label: '柱寬 A', optional: false },
+                { field: 'v2', axis: 'short', label: '柱寬 B', optional: false },
+                { field: 'v3', axis: 'height', label: '柱高', optional: false }
+            ];
+        case 'M_BEAM_SIDES':
+            return [
+                { field: 'v1', axis: 'long', label: '樑長', optional: false },
+                { field: 'v3', axis: 'height', label: '樑側高', optional: false },
+                { field: 'v2', axis: 'short', label: '樑寬', optional: true }
+            ];
+        case 'M_BEAM_ALL':
+            return [
+                { field: 'v1', axis: 'long', label: '樑長', optional: false },
+                { field: 'v2', axis: 'short', label: '樑寬', optional: false },
+                { field: 'v3', axis: 'height', label: '樑高', optional: false }
+            ];
+        case 'R_SLAB':
+            return [
+                { field: 'v2', axis: 'long', label: '單排長度', optional: false }
+            ];
+        case 'R_MAIN':
+            return [
+                { field: 'v2', axis: 'long', label: '主筋單支長度', optional: false }
+            ];
+        case 'R_HOOP':
+            return [
+                { field: 'v2', axis: 'loop', label: '箍筋單圈展開長度', optional: false }
+            ];
+        case 'C_COL':
+            return [
+                { field: 'v1', axis: 'long', label: '柱長 A', optional: false },
+                { field: 'v2', axis: 'short', label: '柱寬 B', optional: false },
+                { field: 'v3', axis: 'height', label: '柱高', optional: false }
+            ];
+        case 'C_VOL':
+        case 'E_DIG':
+        default:
+            return [
+                { field: 'v1', axis: 'long', label: '長度', optional: false },
+                { field: 'v2', axis: 'short', label: '寬度', optional: false },
+                { field: 'v3', axis: 'height', label: '高度/深度', optional: false }
+            ];
+        }
+    }
+
+    function getSmartMeasureTaskValue(task) {
+        if (!task || !task.field) return '';
+        const input = document.getElementById(task.field);
+        return input ? String(input.value || '').trim() : '';
+    }
+
+    function getNextSmartMeasureTaskIndex(plan, startIndex = 0) {
+        const tasks = Array.isArray(plan) ? plan : [];
+        for (let i = startIndex; i < tasks.length; i += 1) {
+            if (!getSmartMeasureTaskValue(tasks[i])) return i;
+        }
+        return -1;
+    }
+
+    function getCurrentSmartMeasureTask() {
+        if (!Array.isArray(smartMeasureState.measurePlan)) return null;
+        if (!Number.isInteger(smartMeasureState.currentTaskIndex) || smartMeasureState.currentTaskIndex < 0) return null;
+        return smartMeasureState.measurePlan[smartMeasureState.currentTaskIndex] || null;
+    }
+
+    function applySmartMeasureResultToInputs(distanceM) {
+        const task = getCurrentSmartMeasureTask();
+        if (!task || !task.field) {
+            autofillMeasuredDistance(distanceM);
+            return null;
+        }
+        const input = document.getElementById(task.field);
+        if (input) input.value = distanceM.toFixed(2);
+        previewCalc();
+        setTimeout(() => focusNextInputField(task.field), 0);
+        return task;
+    }
+
+    function continueSmartMeasureToNextTask() {
+        const nextTaskIndex = getNextSmartMeasureTaskIndex(smartMeasureState.measurePlan, smartMeasureState.currentTaskIndex + 1);
+        if (nextTaskIndex < 0) return false;
+        const nextTask = smartMeasureState.measurePlan[nextTaskIndex];
+        const suggestion = buildSmartMeasureSuggestion('smart-measure', smartMeasureState.componentType, smartMeasureState.bounds, nextTask);
+        if (!suggestion || !suggestion.suggestionLine) return false;
+        smartMeasureState.currentTaskIndex = nextTaskIndex;
+        smartMeasureState.suggestionLine = suggestion.suggestionLine;
+        smartMeasureState.guidePoints = suggestion.guidePoints;
+        smartMeasureState.confirmedPoints = [];
+        clickPoints = [];
+        calibrationPendingPoint = null;
+        drawMode = 'smart-measure';
+        syncSmartMeasureStepMessage();
+        renderSmartMeasureOverlay();
+        updateSmartMeasureUI();
+        return true;
+    }
+
+    function inferSmartMeasureComponentType() {
+        const type = document.getElementById('calcType') ? document.getElementById('calcType').value : '';
+        if (type === 'M_COL') return 'column';
+        if (type === 'M_BEAM_SIDES' || type === 'M_BEAM_ALL' || type === 'R_MAIN' || type === 'R_HOOP') return 'beam';
+        if (type === 'M_WALL') return 'wall';
+        return 'slab';
+    }
+
+    function uniqueSmartGuidePoints(points) {
+        const map = new Map();
+        (Array.isArray(points) ? points : []).forEach(point => {
+            if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
+            const key = `${Math.round(point.x)}:${Math.round(point.y)}`;
+            if (!map.has(key)) map.set(key, point);
+        });
+        return Array.from(map.values());
+    }
+
+    function projectPointToSegment(point, start, end) {
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const lenSq = dx * dx + dy * dy;
+        if (lenSq <= 0.0001) return { x: start.x, y: start.y };
+        const t = clampNumber(((point.x - start.x) * dx + (point.y - start.y) * dy) / lenSq, 0, 1);
+        return {
+            x: start.x + dx * t,
+            y: start.y + dy * t
+        };
+    }
+
+    function sampleBlueprintLocalFeatures(point) {
+        if (!img.src || !img.naturalWidth || !img.naturalHeight) return null;
+        const radius = Math.round(clampNumber(30 / Math.max(0.5, zoomLevel), 16, 34));
+        const sx = Math.max(0, Math.min(img.naturalWidth - 1, Math.round(point.x) - radius));
+        const sy = Math.max(0, Math.min(img.naturalHeight - 1, Math.round(point.y) - radius));
+        const sw = Math.max(8, Math.min(img.naturalWidth - sx, radius * 2 + 1));
+        const sh = Math.max(8, Math.min(img.naturalHeight - sy, radius * 2 + 1));
+        const off = document.createElement('canvas');
+        off.width = sw;
+        off.height = sh;
+        const offCtx = off.getContext('2d', { willReadFrequently: true });
+        if (!offCtx) return null;
+        offCtx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+        const imageData = offCtx.getImageData(0, 0, sw, sh).data;
+        const gray = new Float32Array(sw * sh);
+        for (let i = 0, j = 0; i < imageData.length; i += 4, j += 1) {
+            gray[j] = imageData[i] * 0.299 + imageData[i + 1] * 0.587 + imageData[i + 2] * 0.114;
+        }
+        const rowScores = new Float32Array(sh);
+        const colScores = new Float32Array(sw);
+        const centerX = clampNumber(point.x - sx, 0, sw - 1);
+        const centerY = clampNumber(point.y - sy, 0, sh - 1);
+        let bestEdge = null;
+        let bestEdgeScore = 0;
+        for (let y = 1; y < sh - 1; y += 1) {
+            for (let x = 1; x < sw - 1; x += 1) {
+                const i = y * sw + x;
+                const gx = (
+                    -gray[i - sw - 1] + gray[i - sw + 1] +
+                    -2 * gray[i - 1] + 2 * gray[i + 1] +
+                    -gray[i + sw - 1] + gray[i + sw + 1]
+                );
+                const gy = (
+                    gray[i - sw - 1] + 2 * gray[i - sw] + gray[i - sw + 1] -
+                    gray[i + sw - 1] - 2 * gray[i + sw] - gray[i + sw + 1]
+                );
+                const mag = Math.sqrt(gx * gx + gy * gy);
+                rowScores[y] += Math.abs(gy);
+                colScores[x] += Math.abs(gx);
+                const dist = Math.hypot(x - centerX, y - centerY);
+                const weighted = mag / (1 + dist * 0.65);
+                if (weighted > bestEdgeScore) {
+                    bestEdgeScore = weighted;
+                    bestEdge = { x: sx + x, y: sy + y, score: mag };
+                }
+            }
+        }
+        let bestColIndex = -1;
+        let bestColWeighted = 0;
+        let colSum = 0;
+        for (let x = 1; x < sw - 1; x += 1) {
+            colSum += colScores[x];
+            const weighted = colScores[x] / (1 + Math.abs(x - centerX) * 0.45);
+            if (weighted > bestColWeighted) {
+                bestColWeighted = weighted;
+                bestColIndex = x;
+            }
+        }
+        let bestRowIndex = -1;
+        let bestRowWeighted = 0;
+        let rowSum = 0;
+        for (let y = 1; y < sh - 1; y += 1) {
+            rowSum += rowScores[y];
+            const weighted = rowScores[y] / (1 + Math.abs(y - centerY) * 0.45);
+            if (weighted > bestRowWeighted) {
+                bestRowWeighted = weighted;
+                bestRowIndex = y;
+            }
+        }
+        const colMean = colSum / Math.max(1, sw - 2);
+        const rowMean = rowSum / Math.max(1, sh - 2);
+        const verticalEdge = bestColIndex >= 0 && bestColWeighted > colMean * 1.12
+            ? { x: sx + bestColIndex, y: point.y, score: bestColWeighted }
+            : null;
+        const horizontalEdge = bestRowIndex >= 0 && bestRowWeighted > rowMean * 1.12
+            ? { x: point.x, y: sy + bestRowIndex, score: bestRowWeighted }
+            : null;
+        const corner = verticalEdge && horizontalEdge
+            ? { x: verticalEdge.x, y: horizontalEdge.y, score: (verticalEdge.score + horizontalEdge.score) / 2 }
+            : null;
+        return {
+            bestEdge,
+            verticalEdge,
+            horizontalEdge,
+            corner
+        };
+    }
+
+    function buildSmartMeasureSuggestion(mode, componentType, bounds, task = null) {
+        if (!bounds) return null;
+        const marginX = Math.max(18, Math.min(bounds.widthPx * 0.08, 54));
+        const marginY = Math.max(18, Math.min(bounds.heightPx * 0.08, 54));
+        const left = bounds.x + marginX;
+        const right = bounds.x + bounds.widthPx - marginX;
+        const top = bounds.y + marginY;
+        const bottom = bounds.y + bounds.heightPx - marginY;
+        const centerX = (left + right) / 2;
+        const centerY = (top + bottom) / 2;
+        const longHorizontal = bounds.widthPx >= bounds.heightPx;
+        const taskAxis = task && task.axis ? task.axis : '';
+        const targetField = mode === 'smart-calibration' ? 'scale' : (task && task.field ? task.field : getNextMeasureTargetField());
+        let suggestionLine = null;
+
+        if (mode === 'smart-calibration') {
+            suggestionLine = longHorizontal
+                ? { start: { x: left, y: centerY }, end: { x: right, y: centerY }, label: '建議比例長邊' }
+                : { start: { x: centerX, y: top }, end: { x: centerX, y: bottom }, label: '建議比例長邊' };
+        } else if (componentType === 'column') {
+            suggestionLine = (taskAxis === 'height')
+                ? { start: { x: centerX, y: top }, end: { x: centerX, y: bottom }, label: `${task && task.label ? task.label : '柱高'}建議線` }
+                : (targetField === 'v2'
+                    ? { start: { x: centerX, y: top }, end: { x: centerX, y: bottom }, label: `${task && task.label ? task.label : '柱深'}建議線` }
+                    : { start: { x: left, y: centerY }, end: { x: right, y: centerY }, label: `${task && task.label ? task.label : '柱寬'}建議線` });
+        } else if (componentType === 'beam') {
+            if (taskAxis === 'height') {
+                suggestionLine = longHorizontal
+                    ? { start: { x: centerX, y: top }, end: { x: centerX, y: bottom }, label: `${task && task.label ? task.label : '樑高'}建議線` }
+                    : { start: { x: left, y: centerY }, end: { x: right, y: centerY }, label: `${task && task.label ? task.label : '樑高'}建議線` };
+            } else if (targetField === 'v2') {
+                suggestionLine = longHorizontal
+                    ? { start: { x: centerX, y: top }, end: { x: centerX, y: bottom }, label: `${task && task.label ? task.label : '樑寬'}建議線` }
+                    : { start: { x: left, y: centerY }, end: { x: right, y: centerY }, label: `${task && task.label ? task.label : '樑寬'}建議線` };
+            } else {
+                suggestionLine = longHorizontal
+                    ? { start: { x: left, y: centerY }, end: { x: right, y: centerY }, label: `${task && task.label ? task.label : '樑長'}建議線` }
+                    : { start: { x: centerX, y: top }, end: { x: centerX, y: bottom }, label: `${task && task.label ? task.label : '樑長'}建議線` };
+            }
+        } else if (componentType === 'wall') {
+            suggestionLine = targetField === 'v2' || taskAxis === 'height'
+                ? (longHorizontal
+                    ? { start: { x: centerX, y: top }, end: { x: centerX, y: bottom }, label: `${task && task.label ? task.label : '牆高/厚'}建議線` }
+                    : { start: { x: left, y: centerY }, end: { x: right, y: centerY }, label: `${task && task.label ? task.label : '牆高/厚'}建議線` })
+                : (longHorizontal
+                    ? { start: { x: left, y: centerY }, end: { x: right, y: centerY }, label: `${task && task.label ? task.label : '牆長'}建議線` }
+                    : { start: { x: centerX, y: top }, end: { x: centerX, y: bottom }, label: `${task && task.label ? task.label : '牆長'}建議線` });
+        } else {
+            suggestionLine = (targetField === 'v2' || taskAxis === 'short')
+                ? (longHorizontal
+                    ? { start: { x: centerX, y: top }, end: { x: centerX, y: bottom }, label: `${task && task.label ? task.label : '短邊'}建議線` }
+                    : { start: { x: left, y: centerY }, end: { x: right, y: centerY }, label: `${task && task.label ? task.label : '短邊'}建議線` })
+                : (taskAxis === 'height'
+                    ? { start: { x: centerX, y: top }, end: { x: centerX, y: bottom }, label: `${task && task.label ? task.label : '高度'}建議線` }
+                    : (longHorizontal
+                        ? { start: { x: left, y: centerY }, end: { x: right, y: centerY }, label: `${task && task.label ? task.label : '長邊'}建議線` }
+                        : { start: { x: centerX, y: top }, end: { x: centerX, y: bottom }, label: `${task && task.label ? task.label : '長邊'}建議線` }));
+        }
+
+        const guidePoints = uniqueSmartGuidePoints([
+            { x: left, y: top, label: '左上角' },
+            { x: right, y: top, label: '右上角' },
+            { x: left, y: bottom, label: '左下角' },
+            { x: right, y: bottom, label: '右下角' },
+            suggestionLine ? { x: suggestionLine.start.x, y: suggestionLine.start.y, label: '建議起點' } : null,
+            suggestionLine ? { x: suggestionLine.end.x, y: suggestionLine.end.y, label: '建議終點' } : null
+        ]);
+        return { suggestionLine, guidePoints };
+    }
+
+    function updateSmartMeasureUI() {
+        const info = document.getElementById('smartMeasureInfo');
+        if (!info) return;
+        if (smartMeasureState.active) {
+            const modeLabel = SMART_MEASURE_MODE_LABELS[smartMeasureState.mode] || '智慧量圖';
+            const componentLabel = SMART_MEASURE_COMPONENT_LABELS[smartMeasureState.componentType] || '構件';
+            const task = getCurrentSmartMeasureTask();
+            const taskLabel = task && task.label ? ` / 目標 ${task.label}` : '';
+            const qa = buildSmartMeasureQaSummary();
+            info.innerText = `智慧量圖: ${modeLabel} / ${componentLabel}${taskLabel} / ${smartMeasureState.message} / ${qa.text.replace('智慧量圖 QA：', '')}`;
+            info.style.color = qa.color;
+            return;
+        }
+        info.innerText = smartMeasureState.lastResult ? `智慧量圖: ${smartMeasureState.lastResult}` : '智慧量圖: 未啟動';
+        info.style.color = smartMeasureState.lastResult ? '#d8f3ff' : '#bfe7ff';
+    }
+
+    function renderSmartMeasureOverlay() {
+        const overlay = document.getElementById('smartMeasureOverlay');
+        if (!overlay) return;
+        if (!smartMeasureState.active) {
+            overlay.innerHTML = '';
+            return;
+        }
+        const bounds = smartMeasureState.bounds;
+        const suggestionLine = smartMeasureState.suggestionLine;
+        const confirmedPoints = Array.isArray(smartMeasureState.confirmedPoints) ? smartMeasureState.confirmedPoints : [];
+        const guidePoints = Array.isArray(smartMeasureState.guidePoints) ? smartMeasureState.guidePoints : [];
+        let html = '';
+
+        if (bounds) {
+            html += `<div class="smart-measure-box" style="left:${(bounds.x * zoomLevel).toFixed(1)}px; top:${(bounds.y * zoomLevel).toFixed(1)}px; width:${(bounds.widthPx * zoomLevel).toFixed(1)}px; height:${(bounds.heightPx * zoomLevel).toFixed(1)}px;"></div>`;
+        }
+        if (suggestionLine) {
+            const dx = suggestionLine.end.x - suggestionLine.start.x;
+            const dy = suggestionLine.end.y - suggestionLine.start.y;
+            const length = Math.hypot(dx, dy) * zoomLevel;
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+            const midX = ((suggestionLine.start.x + suggestionLine.end.x) / 2) * zoomLevel;
+            const midY = ((suggestionLine.start.y + suggestionLine.end.y) / 2) * zoomLevel;
+            html += `<div class="smart-measure-line" style="left:${(suggestionLine.start.x * zoomLevel).toFixed(1)}px; top:${(suggestionLine.start.y * zoomLevel).toFixed(1)}px; width:${length.toFixed(1)}px; transform: translateY(-50%) rotate(${angle.toFixed(2)}deg);"></div>`;
+            html += `<div class="smart-measure-tag" style="left:${midX.toFixed(1)}px; top:${midY.toFixed(1)}px;">${suggestionLine.label}</div>`;
+        }
+        guidePoints.forEach(point => {
+            const alreadyConfirmed = confirmedPoints.some(item => Math.hypot(item.x - point.x, item.y - point.y) < 1);
+            html += `<div class="smart-measure-point${alreadyConfirmed ? ' confirmed' : ''}" style="left:${(point.x * zoomLevel).toFixed(1)}px; top:${(point.y * zoomLevel).toFixed(1)}px;"></div>`;
+        });
+        confirmedPoints.forEach((point, index) => {
+            const draggingClass = smartMeasureDragState.active && smartMeasureDragState.pointIndex === index ? ' dragging' : '';
+            html += `<div class="smart-measure-point confirmed${draggingClass}" data-confirmed-index="${index}" style="left:${(point.x * zoomLevel).toFixed(1)}px; top:${(point.y * zoomLevel).toFixed(1)}px;"></div>`;
+            html += `<div class="smart-measure-tag" style="left:${(point.x * zoomLevel).toFixed(1)}px; top:${(point.y * zoomLevel).toFixed(1)}px;">${index === 0 ? '已確認起點' : '已確認終點'}</div>`;
+        });
+        html += `<div class="smart-measure-card"><strong>${SMART_MEASURE_MODE_LABELS[smartMeasureState.mode] || '智慧量圖'}｜${SMART_MEASURE_COMPONENT_LABELS[smartMeasureState.componentType] || '構件'}</strong><span>${smartMeasureState.message}</span><span>建議信心：${describeSmartMeasureQuality(smartMeasureState.qualityScore)} ${smartMeasureState.qualityScore}${smartMeasureState.fallbackUsed ? '｜低信心回退' : ''}</span><span>${smartMeasureState.lastSnapUsed ? '本次取點: 已吸附建議點/局部邊線' : '本次取點: 可手動微調確認'}</span><div class="smart-measure-actions"><button class="smart-measure-btn warn" type="button" onclick="acceptSmartSuggestedPoint()">套用目前建議點</button><button class="smart-measure-btn subtle" type="button" onclick="undoSmartMeasurePoint()">重選上一點</button><button class="smart-measure-btn" type="button" onclick="nudgeSmartMeasurePoint(-1, 0)">←</button><button class="smart-measure-btn" type="button" onclick="nudgeSmartMeasurePoint(0, -1)">↑</button><button class="smart-measure-btn" type="button" onclick="nudgeSmartMeasurePoint(0, 1)">↓</button><button class="smart-measure-btn" type="button" onclick="nudgeSmartMeasurePoint(1, 0)">→</button></div></div>`;
+        overlay.innerHTML = html;
+    }
+
+    function getSmartMeasureSnap(point) {
+        const tolerance = 34 / Math.max(0.35, zoomLevel);
+        const suggestionLine = smartMeasureState.suggestionLine;
+        const candidates = [];
+        (smartMeasureState.guidePoints || []).forEach(candidate => {
+            candidates.push({
+                x: candidate.x,
+                y: candidate.y,
+                label: candidate.label || '建議點',
+                maxTolerance: tolerance,
+                priority: 0.28
+            });
+        });
+        const localFeature = sampleBlueprintLocalFeatures(point);
+        if (localFeature && localFeature.corner) {
+            candidates.push({
+                x: localFeature.corner.x,
+                y: localFeature.corner.y,
+                label: '局部角點',
+                maxTolerance: tolerance * 0.92,
+                priority: 0.38
+            });
+        }
+        if (localFeature && localFeature.bestEdge) {
+            candidates.push({
+                x: localFeature.bestEdge.x,
+                y: localFeature.bestEdge.y,
+                label: '局部高對比邊',
+                maxTolerance: tolerance * 0.82,
+                priority: 0.2
+            });
+        }
+        if (suggestionLine) {
+            const projected = projectPointToSegment(point, suggestionLine.start, suggestionLine.end);
+            candidates.push({
+                x: projected.x,
+                y: projected.y,
+                label: '建議測線',
+                maxTolerance: tolerance * 0.72,
+                priority: 0.14
+            });
+            const horizontal = Math.abs(suggestionLine.end.x - suggestionLine.start.x) >= Math.abs(suggestionLine.end.y - suggestionLine.start.y);
+            if (horizontal && localFeature && localFeature.verticalEdge) {
+                const edgeProjected = projectPointToSegment({ x: localFeature.verticalEdge.x, y: point.y }, suggestionLine.start, suggestionLine.end);
+                candidates.push({
+                    x: edgeProjected.x,
+                    y: edgeProjected.y,
+                    label: '局部垂直邊',
+                    maxTolerance: tolerance * 0.86,
+                    priority: 0.32
+                });
+            }
+            if (!horizontal && localFeature && localFeature.horizontalEdge) {
+                const edgeProjected = projectPointToSegment({ x: point.x, y: localFeature.horizontalEdge.y }, suggestionLine.start, suggestionLine.end);
+                candidates.push({
+                    x: edgeProjected.x,
+                    y: edgeProjected.y,
+                    label: '局部水平邊',
+                    maxTolerance: tolerance * 0.86,
+                    priority: 0.32
+                });
+            }
+        }
+        let best = null;
+        let bestScore = Infinity;
+        candidates.forEach(candidate => {
+            const dist = Math.hypot(point.x - candidate.x, point.y - candidate.y);
+            const maxTolerance = candidate.maxTolerance || tolerance;
+            if (dist > maxTolerance) return;
+            const score = dist / Math.max(1, maxTolerance) - (candidate.priority || 0);
+            if (score < bestScore) {
+                bestScore = score;
+                best = candidate;
+            }
+        });
+        if (best) {
+            return {
+                point: { x: best.x, y: best.y },
+                snapped: true,
+                snapTarget: best.label || '建議點'
+            };
+        }
+        return {
+            point,
+            snapped: false,
+            snapTarget: '手動點位'
+        };
+    }
+
+    function getSmartMeasureCurrentSuggestedPoint() {
+        if (!smartMeasureState.suggestionLine) return null;
+        if ((smartMeasureState.confirmedPoints || []).length === 0) return smartMeasureState.suggestionLine.start;
+        return smartMeasureState.suggestionLine.end;
+    }
+
+    function syncSmartMeasureStepMessage() {
+        if (!smartMeasureState.active) return;
+        const pointCount = (smartMeasureState.confirmedPoints || []).length;
+        const task = getCurrentSmartMeasureTask();
+        const taskLabel = task && task.label ? task.label : '目前尺寸';
+        if (pointCount <= 0) {
+            smartMeasureState.step = 'confirm-start';
+            smartMeasureState.message = smartMeasureState.mode === 'smart-calibration'
+                ? '請先確認建議比例線起點，可直接套用或手動微調'
+                : `已生成${smartMeasureState.suggestionLine ? smartMeasureState.suggestionLine.label : '建議測線'}，準備量${taskLabel}，請確認起點`;
+            return;
+        }
+        smartMeasureState.step = 'confirm-end';
+        smartMeasureState.message = `正在量${taskLabel}，請確認終點，必要時可用箭頭微調上一點`;
+    }
+
+    function commitSmartMeasurePoint(point, meta = {}) {
+        if (!smartMeasureState.active) return;
+        clickPoints.push({ x: point.x, y: point.y });
+        smartMeasureState.confirmedPoints = clickPoints.slice();
+        smartMeasureState.lastSnapUsed = smartMeasureState.lastSnapUsed || !!meta.snapped;
+        smartMeasureState.lastManualAdjust = smartMeasureState.lastManualAdjust || !meta.snapped;
+        updateSmartMeasureQualityStatus();
+        if (clickPoints.length === 1) {
+            syncSmartMeasureStepMessage();
+            renderSmartMeasureOverlay();
+            updateSmartMeasureUI();
+            showToast(meta.snapped ? `已吸附起點：${meta.snapTarget || '建議點'}` : '起點已記錄，請確認終點');
+            return;
+        }
+        const p1 = clickPoints[0];
+        const p2 = clickPoints[1];
+        if (Math.hypot(p2.x - p1.x, p2.y - p1.y) < 2) {
+            clickPoints = [p1];
+            smartMeasureState.confirmedPoints = clickPoints.slice();
+            smartMeasureState.message = '終點太接近起點，請重新確認終點';
+            renderSmartMeasureOverlay();
+            updateSmartMeasureUI();
+            return showToast('終點太接近起點，請重新點選終點');
+        }
+        smartMeasureState.message = '已完成智慧取點，正在回填尺寸';
+        renderSmartMeasureOverlay();
+        updateSmartMeasureUI();
+        finalizeMeasurementFromPoints(drawMode, p1, p2);
+    }
+
+    function acceptSmartSuggestedPoint() {
+        if (!smartMeasureState.active) return;
+        const point = getSmartMeasureCurrentSuggestedPoint();
+        if (!point) return showToast('目前沒有可套用的建議點');
+        commitSmartMeasurePoint(point, { snapped: true, snapTarget: '目前建議點' });
+    }
+
+    function undoSmartMeasurePoint() {
+        if (!smartMeasureState.active) return;
+        if (!clickPoints.length) return showToast('目前沒有已確認的點位');
+        clickPoints.pop();
+        smartMeasureState.confirmedPoints = clickPoints.slice();
+        syncSmartMeasureStepMessage();
+        renderSmartMeasureOverlay();
+        updateSmartMeasureUI();
+        updateSmartMeasureQualityStatus();
+        showToast('已退回上一個確認點');
+    }
+
+    function nudgeSmartMeasurePoint(dx, dy) {
+        if (!smartMeasureState.active) return;
+        if (!clickPoints.length) return showToast('請先確認一個點，再進行微調');
+        const step = clampNumber(5 / Math.max(0.35, zoomLevel), 1.5, 8);
+        const lastIndex = clickPoints.length - 1;
+        const nextPoint = {
+            x: clampNumber(clickPoints[lastIndex].x + dx * step, 0, img.naturalWidth),
+            y: clampNumber(clickPoints[lastIndex].y + dy * step, 0, img.naturalHeight)
+        };
+        clickPoints[lastIndex] = nextPoint;
+        smartMeasureState.confirmedPoints = clickPoints.slice();
+        smartMeasureState.lastManualAdjust = true;
+        smartMeasureState.nudgeAdjustCount += 1;
+        smartMeasureState.message = lastIndex === 0 ? '起點已微調，請確認終點' : '終點已微調，可直接完成量測';
+        renderSmartMeasureOverlay();
+        updateSmartMeasureUI();
+        updateSmartMeasureQualityStatus();
+        showToast(`已微調${lastIndex === 0 ? '起點' : '終點'}`);
+    }
+
+    function getCanvasNaturalPointFromClient(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: (clientX - rect.left) / zoomLevel,
+            y: (clientY - rect.top) / zoomLevel
+        };
+    }
+
+    function getEventClientPoint(event) {
+        if (event && event.touches && event.touches.length) {
+            return { x: event.touches[0].clientX, y: event.touches[0].clientY };
+        }
+        if (event && event.changedTouches && event.changedTouches.length) {
+            return { x: event.changedTouches[0].clientX, y: event.changedTouches[0].clientY };
+        }
+        return { x: event ? event.clientX : 0, y: event ? event.clientY : 0 };
+    }
+
+    function beginSmartMeasureDrag(event) {
+        if (!smartMeasureState.active) return;
+        const target = event.target && event.target.closest ? event.target.closest('.smart-measure-point.confirmed[data-confirmed-index]') : null;
+        if (!target) return;
+        const pointIndex = parseInt(target.getAttribute('data-confirmed-index'), 10);
+        if (!Number.isInteger(pointIndex) || pointIndex < 0) return;
+        smartMeasureDragState.active = true;
+        smartMeasureDragState.pointIndex = pointIndex;
+        smartMeasureDragState.moved = false;
+        suppressNextCanvasClick = true;
+        suppressNextCanvasTouch = true;
+        canvasLastTouchAt = Date.now();
+        if (event.cancelable) event.preventDefault();
+        if (event.stopPropagation) event.stopPropagation();
+        renderSmartMeasureOverlay();
+    }
+
+    function moveSmartMeasureDrag(event) {
+        if (!smartMeasureDragState.active) return;
+        if (event.cancelable) event.preventDefault();
+        const client = getEventClientPoint(event);
+        const nextPoint = getCanvasNaturalPointFromClient(client.x, client.y);
+        const pointIndex = smartMeasureDragState.pointIndex;
+        if (pointIndex < 0 || pointIndex >= clickPoints.length) return;
+        clickPoints[pointIndex] = {
+            x: clampNumber(nextPoint.x, 0, img.naturalWidth),
+            y: clampNumber(nextPoint.y, 0, img.naturalHeight)
+        };
+        smartMeasureState.confirmedPoints = clickPoints.slice();
+        smartMeasureState.lastManualAdjust = true;
+        smartMeasureDragState.moved = true;
+        smartMeasureState.message = pointIndex === 0 ? '起點拖曳微調中，放開後再確認終點' : '終點拖曳微調中，放開後可直接完成';
+        renderSmartMeasureOverlay();
+        updateSmartMeasureUI();
+        updateSmartMeasureQualityStatus();
+    }
+
+    function endSmartMeasureDrag(event) {
+        if (!smartMeasureDragState.active) return;
+        const pointIndex = smartMeasureDragState.pointIndex;
+        const moved = smartMeasureDragState.moved;
+        smartMeasureDragState.active = false;
+        smartMeasureDragState.pointIndex = -1;
+        smartMeasureDragState.moved = false;
+        suppressNextCanvasClick = true;
+        suppressNextCanvasTouch = true;
+        canvasLastTouchAt = Date.now();
+        if (event && event.cancelable) event.preventDefault();
+        if (moved) {
+            smartMeasureState.dragAdjustCount += 1;
+            smartMeasureState.message = pointIndex === 0 ? '起點已拖曳微調，請確認終點' : '終點已拖曳微調，可直接完成量測';
+            showToast(`已拖曳微調${pointIndex === 0 ? '起點' : '終點'}`);
+        }
+        renderSmartMeasureOverlay();
+        updateSmartMeasureUI();
+        updateSmartMeasureQualityStatus();
+    }
+
+    function drawMeasurementPoint(point, color = 'orange', radius = 6) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function drawMeasurementPendingPoint(point) {
+        ctx.strokeStyle = '#ffd166';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
+    function drawMeasurementLine(p1, p2) {
+        ctx.strokeStyle = '#ff4757';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+    }
+
+    function autofillMeasuredDistance(m) {
+        let targetField = 'v2';
+        let targetLabel = '寬 / 寬B';
+        if (!document.getElementById('v2').value && document.getElementById('calcType').value.startsWith('R_')) {
+            document.getElementById('v2').value = m.toFixed(2);
+            targetField = 'v2';
+            targetLabel = document.getElementById('lbl_v2') ? document.getElementById('lbl_v2').innerText : 'v2';
+        } else if (!document.getElementById('v1').value) {
+            document.getElementById('v1').value = m.toFixed(2);
+            targetField = 'v1';
+            targetLabel = document.getElementById('lbl_v1') ? document.getElementById('lbl_v1').innerText : 'v1';
+        } else {
+            document.getElementById('v2').value = m.toFixed(2);
+            targetField = 'v2';
+            targetLabel = document.getElementById('lbl_v2') ? document.getElementById('lbl_v2').innerText : 'v2';
+        }
+        previewCalc();
+        return { field: targetField, label: targetLabel };
+    }
+
+    function finalizeSmartMeasureResult(summary) {
+        smartMeasureDragState = { active: false, pointIndex: -1, moved: false };
+        measureQaStats.smartCompleted += 1;
+        if (smartMeasureState.lastSnapUsed) measureQaStats.smartSnapUses += 1;
+        if (smartMeasureState.lastManualAdjust) measureQaStats.smartManualAdjusts += 1;
+        if (smartMeasureState.dragAdjustCount > 0) measureQaStats.smartDragAdjusts += smartMeasureState.dragAdjustCount;
+        smartMeasureState.active = false;
+        smartMeasureState.message = '已完成';
+        smartMeasureState.confirmedPoints = [];
+        smartMeasureState.lastResult = summary;
+        smartMeasureState.lastQaSummary = buildSmartMeasureQaSummary().text;
+        updateQaDashboard();
+        renderSmartMeasureOverlay();
+        updateSmartMeasureUI();
+        updateSmartMeasureQualityStatus();
+    }
+
+    function finalizeMeasurementFromPoints(mode, p1, p2) {
+        drawMeasurementLine(p1, p2);
+        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        if (mode === 'calibration' || mode === 'smart-calibration') {
+            const actualLen = prompt('這條線實際是幾公尺？(m)', '1');
+            if (actualLen && !isNaN(actualLen) && actualLen > 0) {
+                scalePixelsPerUnit = dist / parseFloat(actualLen);
+                measureQaStats.calibrationSuccess += 1;
+                updateQaDashboard();
+                document.getElementById('scale-info').innerText = '✅ 比例已設';
+                recordMeasurementLog({
+                    mode,
+                    modeLabel: mode === 'smart-calibration' ? '智慧定比例' : '定比例',
+                    targetField: 'scale',
+                    targetLabel: '比例校正',
+                    actualLenM: parseFloat(actualLen),
+                    scalePixelsPerUnit,
+                    distancePx: dist,
+                    componentType: mode === 'smart-calibration' ? smartMeasureState.componentType : '',
+                    smart: mode === 'smart-calibration',
+                    snapped: mode === 'smart-calibration' ? smartMeasureState.lastSnapUsed : false,
+                    manualAdjust: mode === 'smart-calibration' ? smartMeasureState.lastManualAdjust : false,
+                    dragAdjustCount: mode === 'smart-calibration' ? smartMeasureState.dragAdjustCount : 0,
+                    nudgeAdjustCount: mode === 'smart-calibration' ? smartMeasureState.nudgeAdjustCount : 0,
+                    qualityScore: mode === 'smart-calibration' ? smartMeasureState.qualityScore : 0,
+                    fallbackUsed: mode === 'smart-calibration' ? smartMeasureState.fallbackUsed : false,
+                    summary: mode === 'smart-calibration'
+                        ? `智慧比例校正｜${buildSmartMeasureQaSummary().text.replace('智慧量圖 QA：', '')}`
+                        : `手動比例校正｜比例 ${scalePixelsPerUnit.toFixed(2)} px/m`,
+                    p1,
+                    p2
+                });
+                showToast(mode === 'smart-calibration' ? '智慧定比例完成！可以開始量測了' : '比例設定完成！可以開始測量了');
+                if (mode === 'smart-calibration') {
+                    finalizeSmartMeasureResult(`最近完成智慧定比例｜吸附${smartMeasureState.lastSnapUsed ? '有' : '無'}｜信心 ${smartMeasureState.qualityScore}`);
+                }
+            } else {
+                showToast('比例設定取消或無效');
+                if (mode === 'smart-calibration') finalizeSmartMeasureResult('智慧定比例已取消，可改用手動模式');
+            }
+        } else if (mode === 'measure' || mode === 'smart-measure') {
+            const m = dist / scalePixelsPerUnit;
+            measureQaStats.measureSuccess += 1;
+            updateQaDashboard();
+            if (mode === 'smart-measure') {
+                const filledTask = applySmartMeasureResultToInputs(m);
+                const snapText = smartMeasureState.lastSnapUsed ? '已吸附' : '手動微調';
+                const taskLabel = filledTask && filledTask.label ? filledTask.label : '尺寸';
+                recordMeasurementLog({
+                    mode,
+                    modeLabel: '智慧量圖',
+                    targetField: filledTask && filledTask.field ? filledTask.field : '',
+                    targetLabel: taskLabel,
+                    valueM: m,
+                    scalePixelsPerUnit,
+                    distancePx: dist,
+                    componentType: smartMeasureState.componentType,
+                    smart: true,
+                    snapped: smartMeasureState.lastSnapUsed,
+                    manualAdjust: smartMeasureState.lastManualAdjust,
+                    dragAdjustCount: smartMeasureState.dragAdjustCount,
+                    nudgeAdjustCount: smartMeasureState.nudgeAdjustCount,
+                    qualityScore: smartMeasureState.qualityScore,
+                    fallbackUsed: smartMeasureState.fallbackUsed,
+                    summary: `${taskLabel}｜${snapText}｜${buildSmartMeasureQaSummary().text.replace('智慧量圖 QA：', '')}`,
+                    p1,
+                    p2
+                });
+                if (continueSmartMeasureToNextTask()) {
+                    showToast(`📏 已回填${taskLabel}: ${m.toFixed(2)}m，繼續下一個尺寸`);
+                    return;
+                }
+                showToast(`📏 測量結果: ${m.toFixed(2)}m`);
+                finalizeSmartMeasureResult(`最近完成智慧量圖 ${taskLabel} ${m.toFixed(2)}m｜${snapText}｜信心 ${smartMeasureState.qualityScore}`);
+            } else {
+                const filledTask = autofillMeasuredDistance(m);
+                recordMeasurementLog({
+                    mode,
+                    modeLabel: '手動量測',
+                    targetField: filledTask && filledTask.field ? filledTask.field : '',
+                    targetLabel: filledTask && filledTask.label ? filledTask.label : '尺寸',
+                    valueM: m,
+                    scalePixelsPerUnit,
+                    distancePx: dist,
+                    componentType: '',
+                    smart: false,
+                    snapped: false,
+                    manualAdjust: false,
+                    dragAdjustCount: 0,
+                    nudgeAdjustCount: 0,
+                    qualityScore: 0,
+                    fallbackUsed: false,
+                    summary: `手動量測｜回填 ${filledTask && filledTask.label ? filledTask.label : '尺寸'}`,
+                    p1,
+                    p2
+                });
+                showToast(`📏 測量結果: ${m.toFixed(2)}m`);
+            }
+        }
+        clickPoints = [];
+        calibrationPendingPoint = null;
+        drawMode = 'none';
+        syncMobileMeasureModeUI();
+    }
+
+    function prepareSmartMeasure(mode) {
+        const qualityReport = updateBlueprintQualityStatus();
+        let bounds = detectBlueprintPrimaryBounds();
+        let fallbackUsed = false;
+        if (!bounds) {
+            bounds = getBlueprintFallbackBounds();
+            fallbackUsed = true;
+        }
+        if (!bounds) return showToast('智慧量圖暫時無法分析圖紙，請改用手動模式');
+        const componentType = mode === 'smart-calibration' ? 'slab' : inferSmartMeasureComponentType();
+        const measurePlan = mode === 'smart-measure'
+            ? getSmartMeasurePlan(document.getElementById('calcType') ? document.getElementById('calcType').value : '')
+            : [];
+        const currentTaskIndex = mode === 'smart-measure' ? getNextSmartMeasureTaskIndex(measurePlan, 0) : -1;
+        if (mode === 'smart-measure' && currentTaskIndex < 0) {
+            return showToast('智慧量圖可量的尺寸都已填入，可先清空欄位再重量');
+        }
+        const currentTask = currentTaskIndex >= 0 ? measurePlan[currentTaskIndex] : null;
+        const suggestion = buildSmartMeasureSuggestion(mode, componentType, bounds, currentTask);
+        if (!suggestion || !suggestion.suggestionLine) {
+            return showToast('智慧量圖暫時無法生成建議，請改用手動模式');
+        }
+        clickPoints = [];
+        calibrationPendingPoint = null;
+        drawMode = mode;
+        const qualityScore = computeSmartMeasureQualityScore(qualityReport, bounds, fallbackUsed);
+        measureQaStats.smartSessions += 1;
+        if (fallbackUsed) measureQaStats.smartFallbacks += 1;
+        if (qualityScore < 72) measureQaStats.smartLowConfidence += 1;
+        smartMeasureState = {
+            active: true,
+            mode,
+            step: 'confirm-start',
+            componentType,
+            measurePlan,
+            currentTaskIndex,
+            bounds,
+            suggestionLine: suggestion.suggestionLine,
+            guidePoints: suggestion.guidePoints,
+            confirmedPoints: [],
+            qualityScore,
+            fallbackUsed,
+            lastSnapUsed: false,
+            lastManualAdjust: false,
+            dragAdjustCount: 0,
+            nudgeAdjustCount: 0,
+            message: mode === 'smart-calibration'
+                ? '請先確認建議比例線起點'
+                : `已生成${suggestion.suggestionLine.label}，請確認起點`,
+            lastResult: smartMeasureState.lastResult || '',
+            lastQaSummary: ''
+        };
+        syncSmartMeasureStepMessage();
+        renderSmartMeasureOverlay();
+        updateSmartMeasureUI();
+        updateSmartMeasureQualityStatus();
+        syncMobileMeasureModeUI();
+        showToast(fallbackUsed ? '智慧量圖已啟動（低信心建議，可隨時切回手動）' : '智慧量圖已啟動，請依提示確認測點');
+    }
+
+    function startSmartCalibration() {
+        if (getCurrentUserLevel() !== 'pro') return showToast('智慧定比例僅開放會員3（專家）第三頁使用');
+        if (is3DView) return showToast('請先關閉 3D 檢視再做智慧定比例');
+        if (!img.src) return showToast('請先上傳圖紙再做智慧定比例');
+        measureQaStats.calibrationStarts += 1;
+        if (measureAssistState.enabled) calibrateMeasureAssist();
+        prepareSmartMeasure('smart-calibration');
+    }
+
+    function startSmartMeasure() {
+        if (getCurrentUserLevel() !== 'pro') return showToast('智慧量圖僅開放會員3（專家）第三頁使用');
+        if (is3DView) return showToast('請先關閉 3D 檢視再做智慧量圖');
+        if (!img.src) return showToast('請先上傳圖紙再做智慧量圖');
+        if (!scalePixelsPerUnit) return showToast('請先設定比例！');
+        measureQaStats.measureStarts += 1;
+        if (measureAssistState.enabled) calibrateMeasureAssist();
+        prepareSmartMeasure('smart-measure');
+    }
+
     function resetMeasureQaStats() {
         measureQaStats = {
             startedAt: new Date().toISOString(),
@@ -6088,7 +8200,14 @@
             tiltSamples: 0,
             tiltSum: 0,
             tiltMax: 0,
-            strictBlocks: 0
+            strictBlocks: 0,
+            smartSessions: 0,
+            smartCompleted: 0,
+            smartSnapUses: 0,
+            smartManualAdjusts: 0,
+            smartDragAdjusts: 0,
+            smartFallbacks: 0,
+            smartLowConfidence: 0
         };
         updateQaDashboard();
     }
@@ -6379,6 +8498,7 @@
         if (is3DView) return showToast('請先關閉 3D 檢視再做定比例');
         measureQaStats.calibrationStarts += 1;
         if (measureAssistState.enabled) calibrateMeasureAssist();
+        resetSmartMeasureSession();
         drawMode = 'calibration';
         clickPoints = [];
         calibrationPendingPoint = null;
@@ -6390,6 +8510,7 @@
         if (!scalePixelsPerUnit) return showToast('請先設定比例！');
         measureQaStats.measureStarts += 1;
         if (measureAssistState.enabled) calibrateMeasureAssist();
+        resetSmartMeasureSession();
         drawMode = 'measure';
         clickPoints = [];
         calibrationPendingPoint = null;
@@ -6584,6 +8705,7 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         clickPoints = [];
         drawMode = 'none';
+        resetSmartMeasureSession({ preserveLastResult: false });
         syncMobileMeasureModeUI();
         showToast('🧽 畫布已擦乾淨！');
     }
@@ -6600,6 +8722,7 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         clickPoints = [];
         drawMode = 'none';
+        resetSmartMeasureSession({ preserveLastResult: false });
         syncMobileMeasureModeUI();
         scalePixelsPerUnit = 0;
         document.getElementById('scale-info').innerText = '比例: 未設定';
@@ -6856,14 +8979,15 @@
         if (!canUseBlueprintGestures()) return;
         if (!e.target.closest('#img-wrapper')) return;
         if (e.touches.length >= 2) {
+            if (e.cancelable) e.preventDefault();
             blueprintPinchState.active = true;
             blueprintPinchState.startDistance = touchDistance(e.touches[0], e.touches[1]);
             blueprintPinchState.startZoom = zoomLevel;
             blueprintPanState.active = false;
-            if (e.cancelable) e.preventDefault();
+            blueprintPanState.moved = false;
             return;
         }
-        // Mobile smooth mode: one-finger movement uses native overflow scrolling.
+        blueprintPinchState.active = false;
         blueprintPanState.active = false;
         blueprintPanState.moved = false;
     }
@@ -6878,9 +9002,7 @@
             setZoomAt(center.x, center.y, targetZoom);
             suppressNextCanvasTouch = true;
             if (e.cancelable) e.preventDefault();
-            return;
         }
-        // One-finger pan is delegated to native scrolling for smoother touch.
     }
 
     function onBlueprintTouchEnd() {
@@ -6936,10 +9058,51 @@
     canvasContainer.addEventListener('wheel', onBlueprintWheelZoom, { passive: false });
     canvasContainer.addEventListener('dblclick', onBlueprintDoubleClick);
     canvasContainer.addEventListener('touchend', onBlueprintTapForFit, { passive: true });
+    const imgWrapperEl = document.getElementById('img-wrapper');
+    const smartMeasureOverlayEl = document.getElementById('smartMeasureOverlay');
+
+    if (smartMeasureOverlayEl) {
+        smartMeasureOverlayEl.addEventListener('mousedown', beginSmartMeasureDrag, true);
+        smartMeasureOverlayEl.addEventListener('touchstart', beginSmartMeasureDrag, { passive: false, capture: true });
+    }
+    window.addEventListener('mousemove', moveSmartMeasureDrag);
+    window.addEventListener('touchmove', moveSmartMeasureDrag, { passive: false });
+    window.addEventListener('mouseup', endSmartMeasureDrag);
+    window.addEventListener('touchend', endSmartMeasureDrag, { passive: false });
+    window.addEventListener('touchcancel', endSmartMeasureDrag, { passive: false });
+
+    function handleWrapperPointTap(clientX, clientY, evt) {
+        if (drawMode === 'none') return;
+        if (evt && evt.target && evt.target.closest && evt.target.closest('.smart-measure-point.confirmed, .smart-measure-card, .smart-measure-btn')) return;
+        if (evt && evt.cancelable) evt.preventDefault();
+        if (evt && evt.stopPropagation) evt.stopPropagation();
+        canvasLastTouchAt = Date.now();
+        handleCanvasPointInput(clientX, clientY);
+    }
+
+    function blockNativeGestureOnBlueprint(e) {
+        if (!canUseBlueprintGestures()) return;
+        if (e.cancelable) e.preventDefault();
+    }
+
+    if (imgWrapperEl) {
+        imgWrapperEl.addEventListener('gesturestart', blockNativeGestureOnBlueprint, { passive: false });
+        imgWrapperEl.addEventListener('gesturechange', blockNativeGestureOnBlueprint, { passive: false });
+        imgWrapperEl.addEventListener('gestureend', blockNativeGestureOnBlueprint, { passive: false });
+        imgWrapperEl.addEventListener('touchstart', function(e) {
+            if (!e.touches || !e.touches.length) return;
+            const t = e.touches[0];
+            handleWrapperPointTap(t.clientX, t.clientY, e);
+        }, { passive: false, capture: true });
+
+        imgWrapperEl.addEventListener('click', function(e) {
+            handleWrapperPointTap(e.clientX, e.clientY, e);
+        }, true);
+    }
 
     function handleCanvasPointInput(clientX, clientY) {
         if (drawMode === 'none') return;
-        const activeMeasure = (drawMode === 'calibration' || drawMode === 'measure');
+        const activeMeasure = isMeasureInteractionMode(drawMode);
         if (activeMeasure && measureAssistState.enabled && measureAssistState.strict && measureAssistState.tiltDeg > MEASURE_STRICT_TILT_DEG) {
             measureQaStats.strictBlocks += 1;
             return showToast(`量圖已暫停：傾斜 ${measureAssistState.tiltDeg.toFixed(1)}°，請先校正或放穩手機`);
@@ -6948,15 +9111,18 @@
         const x = (clientX - rect.left) / zoomLevel;
         const y = (clientY - rect.top) / zoomLevel;
 
+        if (isSmartMeasureMode(drawMode)) {
+            const snapped = getSmartMeasureSnap({ x, y });
+            const point = { x: snapped.point.x, y: snapped.point.y };
+            commitSmartMeasurePoint(point, snapped);
+            return;
+        }
+
         if (drawMode === 'calibration') {
             const confirmTolerance = 20 / Math.max(0.2, zoomLevel);
             if (!calibrationPendingPoint) {
                 calibrationPendingPoint = { x, y };
-                ctx.strokeStyle = '#ffd166';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.arc(x, y, 8, 0, Math.PI * 2);
-                ctx.stroke();
+                drawMeasurementPendingPoint(calibrationPendingPoint);
                 showToast(clickPoints.length === 0
                     ? '已選起點（待確認），請在同位置再點一次'
                     : '已選終點（待確認），請在同位置再點一次');
@@ -6965,19 +9131,12 @@
             const distToPending = Math.hypot(x - calibrationPendingPoint.x, y - calibrationPendingPoint.y);
             if (distToPending > confirmTolerance) {
                 calibrationPendingPoint = { x, y };
-                ctx.strokeStyle = '#ffd166';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.arc(x, y, 8, 0, Math.PI * 2);
-                ctx.stroke();
+                drawMeasurementPendingPoint(calibrationPendingPoint);
                 showToast('位置已更新，請再點一次確認這個點');
                 return;
             }
             clickPoints.push({ x: calibrationPendingPoint.x, y: calibrationPendingPoint.y });
-            ctx.fillStyle = 'orange';
-            ctx.beginPath();
-            ctx.arc(calibrationPendingPoint.x, calibrationPendingPoint.y, 6, 0, Math.PI * 2);
-            ctx.fill();
+            drawMeasurementPoint(calibrationPendingPoint);
             calibrationPendingPoint = null;
             if (clickPoints.length === 1) {
                 showToast('起點已確認，請點終點（同樣要再點一次確認）');
@@ -6985,41 +9144,13 @@
             }
         } else {
             clickPoints.push({x, y});
-            ctx.fillStyle = 'orange';
-            ctx.beginPath();
-            ctx.arc(x, y, 6, 0, Math.PI * 2);
-            ctx.fill();
+            drawMeasurementPoint({ x, y });
         }
 
         if (clickPoints.length === 2) {
-            const p1 = clickPoints[0], p2 = clickPoints[1];
-            ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
-            const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-
-            if (drawMode === 'calibration') {
-                let actualLen = prompt("這條線實際是幾公尺？(m)", "1");
-                if (actualLen && !isNaN(actualLen) && actualLen > 0) {
-                    scalePixelsPerUnit = dist / parseFloat(actualLen);
-                    measureQaStats.calibrationSuccess += 1;
-                    updateQaDashboard();
-                    document.getElementById('scale-info').innerText = '✅ 比例已設';
-                    showToast('比例設定完成！可以開始測量了');
-                } else { showToast('比例設定取消或無效'); }
-            } else if (drawMode === 'measure') {
-                let m = dist / scalePixelsPerUnit;
-                measureQaStats.measureSuccess += 1;
-                updateQaDashboard();
-                if (!document.getElementById('v2').value && document.getElementById('calcType').value.startsWith('R_')) {
-                    document.getElementById('v2').value = m.toFixed(2);
-                } else if (!document.getElementById('v1').value) {
-                    document.getElementById('v1').value = m.toFixed(2);
-                } else { document.getElementById('v2').value = m.toFixed(2); }
-                showToast(`📏 測量結果: ${m.toFixed(2)}m`); previewCalc();
-            }
-            clickPoints = [];
-            calibrationPendingPoint = null;
-            drawMode = 'none';
-            syncMobileMeasureModeUI();
+            const p1 = clickPoints[0];
+            const p2 = clickPoints[1];
+            finalizeMeasurementFromPoints(drawMode, p1, p2);
         }
     }
 
@@ -7861,6 +9992,9 @@
                 `BIM 估價總額(試算)：${Math.round(estimatedTotal).toLocaleString()} 元`,
                 `自訂規則筆數：${ruleCount}`,
                 `目前樓層/分區：${floorTag}`,
+                `看圖記憶庫：${getAutoInterpretMemoryStore().length} 筆`,
+                `最近看圖結果：${autoInterpretLastReport ? `${autoInterpretLastReport.type} / ${autoInterpretLastReport.quantity}件 / 信心 ${Math.round((Number(autoInterpretLastReport.overallConfidence) || 0) * 100)}%` : '尚無'}`,
+                `最近記憶匹配：${autoInterpretLastReport && Number(autoInterpretLastReport.memorySimilarity || 0) > 0 ? `${Math.round(Number(autoInterpretLastReport.memorySimilarity || 0) * 100)}%` : '尚無'}`,
                 '回答規則：',
                 '1) 先給結論（1~2句）；2) 再列依據（模型數字）；3) 最後給下一步（可執行按鈕/操作）。',
                 '4) 若問題要求「數量/估價/風險」，務必列出對應 IFC 類型與影響。'
@@ -8437,11 +10571,19 @@
         const successRate = (measureQaStats.measureSuccess || 0) / starts;
         const avgTilt = measureQaStats.tiltSamples > 0 ? (measureQaStats.tiltSum / measureQaStats.tiltSamples) : 0;
         const strictBlocks = Number(measureQaStats.strictBlocks || 0);
+        const smartSessions = Number(measureQaStats.smartSessions || 0);
+        const smartCompleted = Number(measureQaStats.smartCompleted || 0);
+        const smartSuccessRate = smartSessions > 0 ? (smartCompleted / smartSessions) : 1;
+        const smartFallbacks = Number(measureQaStats.smartFallbacks || 0);
+        const smartLowConfidence = Number(measureQaStats.smartLowConfidence || 0);
 
         let score = 100;
         score -= Math.max(0, Math.round((1 - successRate) * 40));
         score -= Math.max(0, Math.round(Math.max(0, avgTilt - 5) * 3));
         score -= Math.min(20, strictBlocks * 2);
+        score -= Math.max(0, Math.round((1 - smartSuccessRate) * 12));
+        score -= Math.min(8, smartFallbacks * 2);
+        score -= Math.min(10, smartLowConfidence * 2);
         return Math.max(0, Math.min(100, score));
     }
 
@@ -8460,6 +10602,13 @@
             ['定比例成功次數', String(measureQaStats.calibrationSuccess)],
             ['測量啟動次數', String(measureQaStats.measureStarts)],
             ['測量完成次數', String(measureQaStats.measureSuccess)],
+            ['智慧量圖啟動次數', String(measureQaStats.smartSessions || 0)],
+            ['智慧量圖完成次數', String(measureQaStats.smartCompleted || 0)],
+            ['智慧量圖吸附次數', String(measureQaStats.smartSnapUses || 0)],
+            ['智慧量圖手動修正次數', String(measureQaStats.smartManualAdjusts || 0)],
+            ['智慧量圖拖曳修正次數', String(measureQaStats.smartDragAdjusts || 0)],
+            ['智慧量圖低信心回退次數', String(measureQaStats.smartFallbacks || 0)],
+            ['智慧量圖低信心警示次數', String(measureQaStats.smartLowConfidence || 0)],
             ['傾斜樣本數', String(measureQaStats.tiltSamples)],
             ['平均傾斜角(度)', avgTilt.toFixed(2)],
             ['最大傾斜角(度)', measureQaStats.tiltMax.toFixed(2)],
@@ -8556,7 +10705,7 @@
             document.body.classList.remove('mobile-measure-mode');
             return;
         }
-        const activeMeasure = (drawMode === 'calibration' || drawMode === 'measure');
+        const activeMeasure = isMeasureInteractionMode(drawMode);
         document.body.classList.toggle('mobile-measure-mode', activeMeasure);
         const mode = localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto';
         if (mode === 'auto') {
@@ -8715,6 +10864,9 @@
     }
 
     initMobileFuncDrawer();
+    applyQaProfile(currentQaProfile, true);
+    applyBimSpecPreset(currentBimSpecPreset, true);
+    renderAutoInterpretMemoryPanel();
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState !== 'visible') {
             sessionStorage.removeItem(OWNER_UNLOCK_SESSION_KEY);

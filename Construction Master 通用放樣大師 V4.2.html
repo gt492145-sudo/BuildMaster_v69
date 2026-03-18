@@ -215,6 +215,16 @@
     td { border: 1px solid #555; padding: 6px; text-align: center; }
     
     .result-box { background: #000; padding: 15px; border-left: 4px solid var(--radar); margin-top: 15px; font-family: monospace; font-size: 1.1em; color: var(--radar); }
+    .tool-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 12px; }
+    .tool-card { border: 1px solid rgba(255,255,255,0.18); border-radius: 8px; padding: 12px; background: rgba(0,0,0,0.28); }
+    .tool-card h4 { margin: 0 0 8px; color: var(--accent); }
+    .tool-card p { margin: 0 0 8px; color: #b8c7d9; font-size: 0.8em; }
+    .result-box.compact { font-size: 0.95em; line-height: 1.5; }
+    .warn-box { margin-top: 10px; border: 1px solid rgba(255, 214, 102, 0.45); border-radius: 8px; padding: 10px; background: rgba(255, 214, 102, 0.08); color: #ffe0a3; font-size: 0.82em; }
+    .warn-box.ok { border-color: rgba(120, 255, 170, 0.35); background: rgba(120, 255, 170, 0.08); color: #bff5ce; }
+    .sub-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .input-group select, .global-settings select { padding: 8px; background: #222; border: 1px solid #555; color: #fff; min-width: 72px; }
+    .mini-note { color: #b8c7d9; font-size: 0.8em; margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -267,10 +277,24 @@
 
 <div class="global-settings" style="margin-top: 10px;">
     <div style="width: 100%; color: var(--accent); font-weight: bold; margin-bottom: 5px;">📍 專案基準點設定 (Global Settings)</div>
+    <div><label>專案名稱: </label><input type="text" id="projectName" value="放樣專案" style="width:160px;"></div>
+    <div><label>備註: </label><input type="text" id="projectNote" placeholder="工區 / 棟別 / 測試說明" style="width:180px;"></div>
     <div><label>政府座標 E: </label><input type="number" id="gE" value="204000" step="0.001"></div>
     <div><label>政府座標 N: </label><input type="number" id="gN" value="2682000" step="0.001"></div>
     <div><label>基準高程 H: </label><input type="number" id="gH" value="0" step="0.001"></div>
     <div><label>圖面旋轉度: </label><input type="number" id="gRot" value="0" step="0.1"></div>
+    <div><label>E 位數: </label><select id="precisionE"><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select></div>
+    <div><label>N 位數: </label><select id="precisionN"><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select></div>
+    <div><label>H 位數: </label><select id="precisionH"><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select></div>
+    <div><label>儀器格式: </label><select id="exportFormat"><option value="generic" selected>通用 CSV</option><option value="leica">Leica</option><option value="trimble">Trimble</option><option value="topcon">Topcon</option></select></div>
+    <div class="sub-actions" style="width:100%;">
+        <button type="button" onclick="saveStakeProjectToLocal()">💾 儲存專案</button>
+        <button type="button" onclick="loadStakeProjectFromLocal()">♻️ 載入專案</button>
+        <button type="button" onclick="exportStakeProjectFile()">⬇️ 匯出專案 JSON</button>
+        <button type="button" onclick="triggerStakeProjectImport()">⬆️ 匯入專案 JSON</button>
+        <input type="file" id="stakeProjectImportInput" accept=".json,application/json" style="display:none;" onchange="importStakeProjectFile(event)">
+    </div>
+    <div id="projectStatus" class="warn-box ok" style="width:100%;">專案狀態：待命</div>
 </div>
 
 <div class="tabs">
@@ -308,7 +332,13 @@
                 <thead><tr><th>名稱</th><th>圖(X,Y)</th><th>政府(E,N)</th><th>空照</th><th>刪</th></tr></thead>
                 <tbody id="reportBody"></tbody>
             </table>
-            <button style="width:100%; background:#27ae60; margin-top:10px;" onclick="exportCSV()">💽 匯出 CSV (儀器用)</button>
+            <div class="sub-actions">
+                <button style="flex:1; background:#27ae60; margin-top:10px;" onclick="exportCSV()">💽 匯出座標</button>
+                <button style="flex:1; background:#8e44ad; margin-top:10px;" onclick="triggerStakeCsvImport()">📥 匯入點位 CSV</button>
+                <input type="file" id="stakeCsvImportInput" accept=".csv,text/csv" style="display:none;" onchange="importStakeCsv(event)">
+            </div>
+            <div id="stakeAlertBox" class="warn-box ok">點位檢核：尚未發現問題。</div>
+            <div id="stakeImportResult" class="warn-box ok">匯入狀態：待命</div>
             <div style="margin-top:12px; border:1px solid rgba(255,255,255,0.2); border-radius:8px; padding:10px; background:rgba(0,0,0,0.28);">
                 <div style="color:var(--accent); font-weight:800; margin-bottom:8px;">📐 圖旁尺寸快速算面積</div>
                 <div class="input-group">
@@ -328,6 +358,38 @@
                     <button type="button" style="background:#8e44ad;" onclick="runQuickRectArea()">🧮 計算</button>
                 </div>
                 <div id="quickAreaResult" class="result-box" style="margin-top:8px; font-size:1em;">等待計算...</div>
+            </div>
+            <div class="tool-grid">
+                <div class="tool-card">
+                    <h4>座標反算</h4>
+                    <p>輸入政府座標 E,N 反算圖面 X,Y，可直接回填到雷達點輸入欄。</p>
+                    <div class="input-group"><input type="number" id="invE" placeholder="政府 E"><input type="number" id="invN" placeholder="政府 N"></div>
+                    <div class="sub-actions">
+                        <button type="button" onclick="runInverseCoordinate()">↔️ 反算 X,Y</button>
+                        <button type="button" onclick="applyInverseResultToPoint()">📌 回填點位</button>
+                    </div>
+                    <div id="resInverse" class="result-box compact">等待計算...</div>
+                </div>
+                <div class="tool-card">
+                    <h4>兩點距離與方位角</h4>
+                    <p>以政府座標 E,N 計算水平距離與方位角。</p>
+                    <div class="input-group"><input type="number" id="distE1" placeholder="E1"><input type="number" id="distN1" placeholder="N1"></div>
+                    <div class="input-group"><input type="number" id="distE2" placeholder="E2"><input type="number" id="distN2" placeholder="N2"></div>
+                    <button type="button" onclick="runDistanceAzimuth()">📏 反算距離方位</button>
+                    <div id="resDistanceAzimuth" class="result-box compact">等待計算...</div>
+                </div>
+                <div class="tool-card">
+                    <h4>極座標放樣</h4>
+                    <p>站點 E,N + 距離 + 方位角求目標點，並可加入放樣點表。</p>
+                    <div class="input-group"><input type="text" id="polarName" placeholder="點號"><input type="number" id="polarStationE" placeholder="站點 E"></div>
+                    <div class="input-group"><input type="number" id="polarStationN" placeholder="站點 N"><input type="number" id="polarDistance" placeholder="距離"></div>
+                    <div class="input-group"><input type="number" id="polarAzimuth" placeholder="方位角(度)"><input type="number" id="polarH" placeholder="高程 H"></div>
+                    <div class="sub-actions">
+                        <button type="button" onclick="runPolarStakeout()">🎯 計算目標點</button>
+                        <button type="button" onclick="appendPolarResultToPoints()">➕ 加入放樣點表</button>
+                    </div>
+                    <div id="resPolar" class="result-box compact">等待計算...</div>
+                </div>
             </div>
         </div>
     </div>
@@ -351,10 +413,25 @@
             <option value="cm" selected>公分 (cm)</option>
         </select>
     </div>
+    <div class="input-group">
+        <span style="width:70px">顯示重點</span>
+        <select id="aDisplayMode" style="padding:8px; background:#222; color:#fff; border:1px solid #555; flex:1;">
+            <option value="all" selected>全部單位並列</option>
+            <option value="sqm">平方公尺</option>
+            <option value="ping">坪</option>
+            <option value="hectare">公頃</option>
+            <option value="jia">甲</option>
+        </select>
+    </div>
     <div class="input-group"><input type="number" id="aX" placeholder="角點 X"><input type="number" id="aY" placeholder="角點 Y"><button onclick="addAreaPoint()">➕ 增加角點</button></div>
     <div id="areaPointList" style="margin-bottom:10px; color:var(--accent); font-size:0.9em;">已輸入：(無)</div>
-    <button style="background:#8e44ad;" onclick="runArea()">🧮 計算面積</button> <button style="background:#e74c3c;" onclick="clearArea()">🗑️ 清空</button>
+    <div class="sub-actions">
+        <button style="background:#8e44ad;" onclick="runArea()">🧮 計算面積</button>
+        <button style="background:#16a085;" onclick="exportAreaHistory()">⬇️ 匯出多邊形列表</button>
+        <button style="background:#e74c3c;" onclick="clearArea()">🗑️ 清空</button>
+    </div>
     <div class="result-box" id="resArea">等待計算...</div>
+    <div id="areaHistorySummary" class="warn-box ok">面積紀錄：尚無資料。</div>
 </div>
 
 <div id="tab-slope" class="tab-content">
@@ -364,6 +441,26 @@
     <div class="input-group"><span style="width:100px">坡度 (%)</span><input type="number" id="sS" placeholder="-1"></div>
     <button onclick="runSlope()">🌊 計算目標</button>
     <div class="result-box" id="resSlope">等待計算...</div>
+    <div class="tool-grid">
+        <div class="tool-card">
+            <h4>坡度互算</h4>
+            <p>輸入 1:N、坡度 % 或角度其中一項，換算另外兩項。</p>
+            <div class="input-group"><span style="width:70px">1 : N</span><input type="number" id="sRatioN" placeholder="例如 2"></div>
+            <div class="input-group"><span style="width:70px">坡度 %</span><input type="number" id="sPercent" placeholder="例如 12"></div>
+            <div class="input-group"><span style="width:70px">角度 °</span><input type="number" id="sAngle" placeholder="例如 6.8"></div>
+            <button type="button" onclick="runSlopeConvert()">🔁 互算坡度</button>
+            <div id="resSlopeConvert" class="result-box compact">等待計算...</div>
+        </div>
+        <div class="tool-card">
+            <h4>斜距 / 水平距 / 高差</h4>
+            <p>任選兩項求第三項，並顯示對應坡度與角度。</p>
+            <div class="input-group"><span style="width:70px">斜距</span><input type="number" id="triSlopeDist" placeholder="Slant"></div>
+            <div class="input-group"><span style="width:70px">水平</span><input type="number" id="triHorizDist" placeholder="Horizontal"></div>
+            <div class="input-group"><span style="width:70px">高差</span><input type="number" id="triVerticalDiff" placeholder="Vertical"></div>
+            <button type="button" onclick="runTriangleSolve()">📐 幾何互算</button>
+            <div id="resTriangleSolve" class="result-box compact">等待計算...</div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -372,6 +469,9 @@
     const OWNER_LOCK_HASH_KEY = 'cm_owner_lock_hash_v1';
     const OWNER_UNLOCK_SESSION_KEY = 'cm_owner_lock_unlocked_v1';
     const STAKE_WEATHER_REFRESH_MS = 12 * 60 * 1000;
+    const STAKE_PROJECT_STORAGE_KEY = 'cm_stake:project_v43';
+    const STAKE_PROJECT_SCHEMA_VERSION = '4.3.0';
+    const STAKE_POINT_DUPLICATE_EPS = 0.01;
     let stakeWeatherAutoRefreshTimer = null;
     const STAKE_WEATHER_CODE_MAP = {
         0: '晴朗', 1: '晴時多雲', 2: '多雲', 3: '陰天',
@@ -533,6 +633,100 @@
         }, STAKE_WEATHER_REFRESH_MS);
     }
 
+    function getProjectMeta() {
+        return {
+            name: String(document.getElementById('projectName')?.value || '放樣專案').trim() || '放樣專案',
+            note: String(document.getElementById('projectNote')?.value || '').trim()
+        };
+    }
+
+    function getPrecisionConfig() {
+        return {
+            e: parseInt(document.getElementById('precisionE')?.value || '3', 10) || 3,
+            n: parseInt(document.getElementById('precisionN')?.value || '3', 10) || 3,
+            h: parseInt(document.getElementById('precisionH')?.value || '3', 10) || 3
+        };
+    }
+
+    function formatStakeNumber(value, kind = 'x') {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return '-';
+        const p = getPrecisionConfig();
+        if (kind === 'E') return n.toFixed(p.e);
+        if (kind === 'N') return n.toFixed(p.n);
+        if (kind === 'H') return n.toFixed(p.h);
+        return n.toFixed(3);
+    }
+
+    function normalizeAzimuthDeg(deg) {
+        const n = Number(deg) || 0;
+        return ((n % 360) + 360) % 360;
+    }
+
+    function toDmsText(deg) {
+        const az = normalizeAzimuthDeg(deg);
+        const d = Math.floor(az);
+        const minFloat = (az - d) * 60;
+        const m = Math.floor(minFloat);
+        const s = (minFloat - m) * 60;
+        return `${d}°${String(m).padStart(2, '0')}′${s.toFixed(2).padStart(5, '0')}″`;
+    }
+
+    function isReasonableTwd97Range(e, n) {
+        return e >= 120000 && e <= 380000 && n >= 2420000 && n <= 2800000;
+    }
+
+    function setProjectStatus(text, ok = true) {
+        const box = document.getElementById('projectStatus');
+        if (!box) return;
+        box.classList.toggle('ok', ok);
+        box.innerText = text;
+    }
+
+    function setStakeImportResult(text, ok = true) {
+        const box = document.getElementById('stakeImportResult');
+        if (!box) return;
+        box.classList.toggle('ok', ok);
+        box.innerText = text;
+    }
+
+    function parseSimpleCsvLine(line) {
+        const out = [];
+        let cur = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i += 1) {
+            const ch = line[i];
+            if (ch === '"') {
+                if (inQuotes && line[i + 1] === '"') {
+                    cur += '"';
+                    i += 1;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+                continue;
+            }
+            if (ch === ',' && !inQuotes) {
+                out.push(cur);
+                cur = '';
+                continue;
+            }
+            cur += ch;
+        }
+        out.push(cur);
+        return out.map(part => part.trim());
+    }
+
+    function downloadTextFile(filename, textContent, mime = 'text/plain;charset=utf-8;') {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([textContent], { type: mime }));
+        a.download = filename;
+        a.click();
+    }
+
+    function getSafeProjectSlug() {
+        return getProjectMeta().name.replace(/[^\w\u4e00-\u9fff-]+/g, '_') || 'stake_project';
+    }
+
     function getConfig() {
         return {
             offsetX: parseFloat(document.getElementById('gE').value) || 0,
@@ -576,6 +770,9 @@
 
     // ================= V4.2 雷達大腦 =================
     let radarPoints = [];
+    let areaHistory = [];
+    let lastInverseResult = null;
+    let lastPolarResult = null;
     const canvas = document.getElementById('radarCanvas');
     const ctx = canvas.getContext('2d');
     const RADAR_CANVAS_BASE_W = 760;
@@ -586,18 +783,84 @@
     
     function buildMaster_3D_Converter(x, y, z, config) {
         const rad = config.rotation * (Math.PI / 180);
-        const E = (x * Math.cos(rad) - y * Math.sin(rad)) * config.scale + config.offsetX;
-        const N = (x * Math.sin(rad) + y * Math.cos(rad)) * config.scale + config.offsetY;
-        const H = z * config.scale + config.offsetZ;
-        return { E: E.toFixed(3), N: N.toFixed(3), H: H.toFixed(3) };
+        const rawE = (x * Math.cos(rad) - y * Math.sin(rad)) * config.scale + config.offsetX;
+        const rawN = (x * Math.sin(rad) + y * Math.cos(rad)) * config.scale + config.offsetY;
+        const rawH = z * config.scale + config.offsetZ;
+        return {
+            rawE,
+            rawN,
+            rawH,
+            E: formatStakeNumber(rawE, 'E'),
+            N: formatStakeNumber(rawN, 'N'),
+            H: formatStakeNumber(rawH, 'H')
+        };
+    }
+
+    function buildMaster_InverseConverter(E, N, H, config) {
+        const scale = Number(config.scale) || 1;
+        const rad = config.rotation * (Math.PI / 180);
+        const de = (Number(E) - config.offsetX) / scale;
+        const dn = (Number(N) - config.offsetY) / scale;
+        const rawX = de * Math.cos(rad) + dn * Math.sin(rad);
+        const rawY = -de * Math.sin(rad) + dn * Math.cos(rad);
+        const rawZ = ((Number.isFinite(Number(H)) ? Number(H) : config.offsetZ) - config.offsetZ) / scale;
+        return {
+            rawX,
+            rawY,
+            rawZ,
+            X: formatStakeNumber(rawX),
+            Y: formatStakeNumber(rawY),
+            Z: formatStakeNumber(rawZ, 'H')
+        };
+    }
+
+    function getPointValidationIssues(point, opts = {}) {
+        const issues = [];
+        const ignoreIndex = Number.isInteger(opts.ignoreIndex) ? opts.ignoreIndex : -1;
+        const name = String(point.n || '').trim();
+        const x = Number(point.x);
+        const y = Number(point.y);
+        const z = Number(point.z || 0);
+        if (!name) issues.push('點號不可空白');
+        if (!Number.isFinite(x) || !Number.isFinite(y)) issues.push('圖面座標需為數字');
+        radarPoints.forEach((p, idx) => {
+            if (idx === ignoreIndex) return;
+            if (String(p.n || '').trim().toLowerCase() === name.toLowerCase()) issues.push(`點號重複：${name}`);
+            if (Math.hypot(Number(p.x) - x, Number(p.y) - y) < STAKE_POINT_DUPLICATE_EPS) issues.push(`與既有點 ${p.n} 距離過近`);
+        });
+        const g = buildMaster_3D_Converter(x, y, z, getConfig());
+        if (!isReasonableTwd97Range(g.rawE, g.rawN)) issues.push('轉換後 E/N 超出台灣 TWD97 合理範圍');
+        return { ok: issues.length === 0, issues, government: g };
+    }
+
+    function refreshStakeDiagnostics() {
+        const issues = [];
+        const nameSet = new Set();
+        let rangeWarn = 0;
+        radarPoints.forEach((p, idx) => {
+            const key = String(p.n || '').trim().toLowerCase();
+            if (nameSet.has(key)) issues.push(`重複點號：${p.n}`);
+            nameSet.add(key);
+            const g = buildMaster_3D_Converter(p.x, p.y, p.z || 0, getConfig());
+            if (!isReasonableTwd97Range(g.rawE, g.rawN)) rangeWarn += 1;
+            for (let j = idx + 1; j < radarPoints.length; j += 1) {
+                const q = radarPoints[j];
+                if (Math.hypot(Number(p.x) - Number(q.x), Number(p.y) - Number(q.y)) < STAKE_POINT_DUPLICATE_EPS) issues.push(`近重複點：${p.n} / ${q.n}`);
+            }
+        });
+        if (rangeWarn > 0) issues.push(`座標範圍警示：${rangeWarn} 筆`);
+        const box = document.getElementById('stakeAlertBox');
+        if (!box) return;
+        box.classList.toggle('ok', issues.length === 0);
+        box.innerText = issues.length === 0 ? `點位檢核：${radarPoints.length} 筆，未發現重複點或範圍問題。` : `點位檢核：${issues.slice(0, 6).join('｜')}`;
     }
 
     function updateRadarUI() {
         const tbody = document.getElementById('reportBody');
         tbody.innerHTML = '';
         const config = getConfig();
-        
-        ctx.clearRect(0,0,canvas.width,canvas.height);
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         if (radarBackgroundImage) {
             ctx.save();
             ctx.globalAlpha = 0.32;
@@ -605,45 +868,79 @@
             ctx.restore();
         }
         ctx.strokeStyle = '#113311';
-        for(let i=0; i<canvas.width; i+=20) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke(); }
-        for(let i=0; i<canvas.height; i+=20) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke(); }
+        for (let i = 0; i < canvas.width; i += 20) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke(); }
+        for (let i = 0; i < canvas.height; i += 20) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke(); }
 
-        if (radarPoints.length === 0) return;
+        if (radarPoints.length === 0) {
+            refreshStakeDiagnostics();
+            return;
+        }
 
-        let minX = Math.min(...radarPoints.map(p=>p.x)), maxX = Math.max(...radarPoints.map(p=>p.x));
-        let minY = Math.min(...radarPoints.map(p=>p.y)), maxY = Math.max(...radarPoints.map(p=>p.y));
-        let pad = 40, rangeX = Math.max(maxX - minX, 10), rangeY = Math.max(maxY - minY, 10);
-        
-        currentScale = Math.min((canvas.width - pad*2)/rangeX, (canvas.height - pad*2)/rangeY);
-        currentCx = (minX + maxX) / 2; currentCy = (minY + maxY) / 2;
+        const minX = Math.min(...radarPoints.map(p => p.x));
+        const maxX = Math.max(...radarPoints.map(p => p.x));
+        const minY = Math.min(...radarPoints.map(p => p.y));
+        const maxY = Math.max(...radarPoints.map(p => p.y));
+        const pad = 40;
+        const rangeX = Math.max(maxX - minX, 10);
+        const rangeY = Math.max(maxY - minY, 10);
+        currentScale = Math.min((canvas.width - pad * 2) / rangeX, (canvas.height - pad * 2) / rangeY);
+        currentCx = (minX + maxX) / 2;
+        currentCy = (minY + maxY) / 2;
 
-        ctx.strokeStyle = '#00ff00'; ctx.lineWidth = 2; ctx.beginPath();
-        radarPoints.forEach((p, i) => {
-            let dx = canvas.width/2 + (p.x - currentCx) * currentScale;
-            let dy = canvas.height/2 - (p.y - currentCy) * currentScale;
-            if(i===0) ctx.moveTo(dx, dy); else ctx.lineTo(dx, dy);
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        radarPoints.forEach((pt, i) => {
+            const dx = canvas.width / 2 + (pt.x - currentCx) * currentScale;
+            const dy = canvas.height / 2 - (pt.y - currentCy) * currentScale;
+            if (i === 0) ctx.moveTo(dx, dy); else ctx.lineTo(dx, dy);
         });
-        ctx.closePath(); ctx.stroke();
+        ctx.closePath();
+        ctx.stroke();
 
-        radarPoints.forEach((p, i) => {
-            const g = buildMaster_3D_Converter(p.x, p.y, p.z, config);
-            // 表格新增「空照圖」按鈕
-            tbody.innerHTML += `<tr><td>${p.n}</td><td>${p.x}, <br>${p.y}</td><td style="color:#0f0">${g.E},<br>${g.N}</td>
-                <td><button style="padding:4px 8px; background:#2980b9;" onclick="openGoogleMap(${g.E}, ${g.N})">🗺️</button></td>
-                <td><button style="padding:4px 8px; background:red;" onclick="radarPoints.splice(${i},1); updateRadarUI();">X</button></td></tr>`;
-            
-            let dx = canvas.width/2 + (p.x - currentCx) * currentScale;
-            let dy = canvas.height/2 - (p.y - currentCy) * currentScale;
-            ctx.fillStyle='red'; ctx.beginPath(); ctx.arc(dx, dy, 5, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle='#00ff00'; ctx.font = '12px sans-serif'; ctx.fillText(`${p.n} (${p.x}, ${p.y})`, dx + 8, dy - 8);
+        radarPoints.forEach((pt, i) => {
+            const g = buildMaster_3D_Converter(pt.x, pt.y, pt.z || 0, config);
+            tbody.innerHTML += `<tr><td>${pt.n}</td><td>${formatStakeNumber(pt.x)}, <br>${formatStakeNumber(pt.y)}</td><td style="color:#0f0">${g.E},<br>${g.N}</td><td><button style="padding:4px 8px; background:#2980b9;" onclick="openGoogleMap(${g.rawE}, ${g.rawN})">🗺️</button></td><td><button style="padding:4px 8px; background:red;" onclick="removeRadarPoint(${i})">X</button></td></tr>`;
+            const dx = canvas.width / 2 + (pt.x - currentCx) * currentScale;
+            const dy = canvas.height / 2 - (pt.y - currentCy) * currentScale;
+            ctx.fillStyle = 'red';
+            ctx.beginPath();
+            ctx.arc(dx, dy, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#00ff00';
+            ctx.font = '12px sans-serif';
+            ctx.fillText(`${pt.n} (${formatStakeNumber(pt.x)}, ${formatStakeNumber(pt.y)})`, dx + 8, dy - 8);
         });
+        refreshStakeDiagnostics();
+    }
+
+    function removeRadarPoint(idx) {
+        radarPoints.splice(idx, 1);
+        updateRadarUI();
+    }
+
+    function addRadarPoint(point, opts = {}) {
+        const candidate = { n: String(point.n || `P${radarPoints.length + 1}`).trim(), x: Number(point.x), y: Number(point.y), z: Number(point.z || 0) };
+        const check = getPointValidationIssues(candidate, opts);
+        if (!check.ok) {
+            if (!opts.silent) alert(check.issues.join('\n'));
+            return { ok: false, issues: check.issues };
+        }
+        radarPoints.push(candidate);
+        updateRadarUI();
+        return { ok: true, issues: [] };
     }
 
     function addPoint() {
-        const n = document.getElementById('pName').value || `P${radarPoints.length+1}`;
-        const x = parseFloat(document.getElementById('pX').value)||0, y = parseFloat(document.getElementById('pY').value)||0;
-        radarPoints.push({n, x, y, z:0}); updateRadarUI();
-        document.getElementById('pName').value=''; document.getElementById('pX').value=''; document.getElementById('pY').value='';
+        const n = document.getElementById('pName').value || `P${radarPoints.length + 1}`;
+        const x = parseFloat(document.getElementById('pX').value);
+        const y = parseFloat(document.getElementById('pY').value);
+        const result = addRadarPoint({ n, x, y, z: 0 });
+        if (!result.ok) return;
+        document.getElementById('pName').value = '';
+        document.getElementById('pX').value = '';
+        document.getElementById('pY').value = '';
+        setStakeImportResult('手動新增點位成功。', true);
     }
 
     function loadRadarBackground(event) {
@@ -713,50 +1010,398 @@
         document.getElementById('hudDisplay').innerText = `圖面(${realX.toFixed(1)}, ${realY.toFixed(1)}) ➔ E:${g.E}, N:${g.N}`;
     });
 
-    function exportCSV() {
-        let csv = "\ufeff名稱,圖面X,圖面Y,TWD97_E,TWD97_N,高程H\n";
+    function buildStakeExportCsv() {
         const cfg = getConfig();
-        radarPoints.forEach(p => {
-            const g = buildMaster_3D_Converter(p.x, p.y, p.z, cfg); csv += `${p.n},${p.x},${p.y},${g.E},${g.N},${g.H}\n`;
+        const project = getProjectMeta();
+        const exportedAt = new Date().toLocaleString('zh-TW');
+        const format = String(document.getElementById('exportFormat')?.value || 'generic');
+        let header = [];
+        const rows = [];
+        radarPoints.forEach((pt) => {
+            const g = buildMaster_3D_Converter(pt.x, pt.y, pt.z || 0, cfg);
+            const note = project.note || project.name;
+            if (format === 'leica') {
+                header = ['PointID', 'E', 'N', 'H', 'Code'];
+                rows.push([pt.n, g.E, g.N, g.H, note]);
+                return;
+            }
+            if (format === 'trimble') {
+                header = ['PointID', 'Northing', 'Easting', 'Elevation', 'FeatureCode'];
+                rows.push([pt.n, g.N, g.E, g.H, note]);
+                return;
+            }
+            if (format === 'topcon') {
+                header = ['PointID', 'Northing', 'Easting', 'Elevation', 'Code'];
+                rows.push([pt.n, g.N, g.E, g.H, note]);
+                return;
+            }
+            header = ['名稱', '圖面X', '圖面Y', 'TWD97_E', 'TWD97_N', '高程H', '專案名稱', '備註', '匯出時間', '版本'];
+            rows.push([pt.n, formatStakeNumber(pt.x), formatStakeNumber(pt.y), g.E, g.N, g.H, project.name, project.note, exportedAt, STAKE_PROJECT_SCHEMA_VERSION]);
         });
-        const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-        a.download = "ConstructionMaster_放樣座標.csv"; a.click();
+        const csv = '﻿' + [header.join(','), ...rows.map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+        return { csv, format };
+    }
+
+    function exportCSV() {
+        if (!radarPoints.length) {
+            alert('尚無點位可匯出');
+            return;
+        }
+        const projectSlug = getSafeProjectSlug();
+        const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+        const result = buildStakeExportCsv();
+        downloadTextFile(`ConstructionMaster_${projectSlug}_${result.format}_${stamp}.csv`, result.csv, 'text/csv;charset=utf-8;');
+    }
+
+    function triggerStakeCsvImport() {
+        document.getElementById('stakeCsvImportInput')?.click();
+    }
+
+    function importStakeCsv(event) {
+        const file = event?.target?.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            const textCsv = String(reader.result || '').replace(/\r/g, '');
+            const lines = textCsv.split('\n').filter(line => line.trim());
+            if (!lines.length) {
+                setStakeImportResult('匯入失敗：檔案為空。', false);
+                return;
+            }
+            const replaceMode = confirm('匯入點位前，是否先清空目前點表？\n按「確定」= 清空再匯入\n按「取消」= 追加匯入');
+            const header = parseSimpleCsvLine(lines[0]).map(v => v.toLowerCase());
+            const hasHeader = header.some(v => ['名稱', 'pointid', '圖面x', 'twd97_e', 'northing', 'easting'].some(k => v.includes(k.toLowerCase())));
+            const nameIdx = hasHeader ? header.findIndex(v => v.includes('名稱') || v.includes('pointid')) : 0;
+            const xIdx = hasHeader ? header.findIndex(v => v.includes('圖面x')) : 1;
+            const yIdx = hasHeader ? header.findIndex(v => v.includes('圖面y')) : 2;
+            const eIdx = hasHeader ? header.findIndex(v => v.includes('twd97_e') || v.includes('easting') || v == 'e') : -1;
+            const nIdx = hasHeader ? header.findIndex(v => v.includes('twd97_n') || v.includes('northing') || v == 'n') : -1;
+            const hIdx = hasHeader ? header.findIndex(v => v.includes('高程') || v.includes('elevation') || v == 'h') : -1;
+            const errors = [];
+            const imported = [];
+            const cfg = getConfig();
+            const originalPoints = radarPoints.slice();
+            const tempPoints = replaceMode ? [] : radarPoints.slice();
+            for (let lineNo = hasHeader ? 2 : 1; lineNo <= lines.length; lineNo += 1) {
+                const row = parseSimpleCsvLine(lines[lineNo - 1]);
+                const name = String(row[nameIdx] || `P${lineNo}`).trim();
+                let x = xIdx >= 0 ? Number(row[xIdx]) : NaN;
+                let y = yIdx >= 0 ? Number(row[yIdx]) : NaN;
+                const h = hIdx >= 0 ? Number(row[hIdx]) : 0;
+                if ((!Number.isFinite(x) || !Number.isFinite(y)) && eIdx >= 0 && nIdx >= 0) {
+                    const e = Number(row[eIdx]);
+                    const n = Number(row[nIdx]);
+                    if (Number.isFinite(e) && Number.isFinite(n)) {
+                        const inv = buildMaster_InverseConverter(e, n, h, cfg);
+                        x = inv.rawX;
+                        y = inv.rawY;
+                    }
+                }
+                if (!Number.isFinite(x) || !Number.isFinite(y)) {
+                    errors.push(`第 ${lineNo} 行：缺少有效 X/Y 或 E/N`);
+                    continue;
+                }
+                radarPoints = tempPoints.slice();
+                const check = getPointValidationIssues({ n: name, x, y, z: Number.isFinite(h) ? h : 0 });
+                if (!check.ok) {
+                    errors.push(`第 ${lineNo} 行：${check.issues.join('、')}`);
+                    continue;
+                }
+                const accepted = { n: name, x, y, z: Number.isFinite(h) ? h : 0 };
+                imported.push(accepted);
+                tempPoints.push(accepted);
+            }
+            radarPoints = replaceMode ? [] : originalPoints;
+            imported.forEach(pt => radarPoints.push(pt));
+            updateRadarUI();
+            setStakeImportResult(`匯入完成：成功 ${imported.length} 筆｜失敗 ${errors.length} 筆${errors.length ? `｜${errors.slice(0, 4).join('；')}` : ''}`, errors.length === 0);
+        };
+        reader.readAsText(file);
+        event.target.value = '';
     }
 
     // === 支距、面積、高程 ===
     function runOffset() {
-        const p1 = {x: parseFloat(document.getElementById('oP1x').value)||0, y: parseFloat(document.getElementById('oP1y').value)||0};
-        const p2 = {x: parseFloat(document.getElementById('oP2x').value)||0, y: parseFloat(document.getElementById('oP2y').value)||0};
-        const t = {x: parseFloat(document.getElementById('oTx').value)||0, y: parseFloat(document.getElementById('oTy').value)||0};
-        let dx = p2.x - p1.x, dy = p2.y - p1.y, len = Math.sqrt(dx*dx + dy*dy);
-        if(len===0) return alert("P1和P2不能同一點！");
-        let fwd = ((t.x-p1.x)*dx + (t.y-p1.y)*dy)/len, off = ((t.x-p1.x)*-dy + (t.y-p1.y)*dx)/len;
-        let dir = off > 0 ? "向左轉 90 度" : "向右轉 90 度";
+        const p1 = { x: parseFloat(document.getElementById('oP1x').value) || 0, y: parseFloat(document.getElementById('oP1y').value) || 0 };
+        const p2 = { x: parseFloat(document.getElementById('oP2x').value) || 0, y: parseFloat(document.getElementById('oP2y').value) || 0 };
+        const t = { x: parseFloat(document.getElementById('oTx').value) || 0, y: parseFloat(document.getElementById('oTy').value) || 0 };
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len === 0) return alert('P1和P2不能同一點！');
+        const fwd = ((t.x - p1.x) * dx + (t.y - p1.y) * dy) / len;
+        const off = ((t.x - p1.x) * -dy + (t.y - p1.y) * dx) / len;
+        const dir = off > 0 ? '向左轉 90 度' : '向右轉 90 度';
         document.getElementById('resOffset').innerHTML = `沿基準線前進: <span style="color:#fff">${fwd.toFixed(3)} m</span><br>${dir}直走: <span style="color:#fff">${Math.abs(off).toFixed(3)} m</span>`;
     }
-    
+
+    function runInverseCoordinate() {
+        const e = Number(document.getElementById('invE').value);
+        const n = Number(document.getElementById('invN').value);
+        if (!Number.isFinite(e) || !Number.isFinite(n)) {
+            document.getElementById('resInverse').innerHTML = '請輸入有效的政府座標 E、N。';
+            lastInverseResult = null;
+            return;
+        }
+        const inv = buildMaster_InverseConverter(e, n, getConfig().offsetZ, getConfig());
+        lastInverseResult = inv;
+        document.getElementById('resInverse').innerHTML = `圖面 X,Y = <span style="color:#fff">${inv.X}, ${inv.Y}</span><br>建議：可回填到放樣點表。`;
+    }
+
+    function applyInverseResultToPoint() {
+        if (!lastInverseResult) {
+            runInverseCoordinate();
+            if (!lastInverseResult) return;
+        }
+        document.getElementById('pX').value = Number(lastInverseResult.rawX).toFixed(3);
+        document.getElementById('pY').value = Number(lastInverseResult.rawY).toFixed(3);
+    }
+
+    function runDistanceAzimuth() {
+        const e1 = Number(document.getElementById('distE1').value);
+        const n1 = Number(document.getElementById('distN1').value);
+        const e2 = Number(document.getElementById('distE2').value);
+        const n2 = Number(document.getElementById('distN2').value);
+        if (![e1, n1, e2, n2].every(Number.isFinite)) {
+            document.getElementById('resDistanceAzimuth').innerHTML = '請輸入兩點 E、N。';
+            return;
+        }
+        const dE = e2 - e1;
+        const dN = n2 - n1;
+        const distance = Math.hypot(dE, dN);
+        const azimuth = normalizeAzimuthDeg(Math.atan2(dE, dN) * 180 / Math.PI);
+        document.getElementById('resDistanceAzimuth').innerHTML = `水平距離: <span style="color:#fff">${distance.toFixed(3)} m</span><br>方位角: <span style="color:#fff">${azimuth.toFixed(6)}°</span><br>DMS: <span style="color:#fff">${toDmsText(azimuth)}</span>`;
+    }
+
+    function runPolarStakeout() {
+        const stationE = Number(document.getElementById('polarStationE').value);
+        const stationN = Number(document.getElementById('polarStationN').value);
+        const distance = Number(document.getElementById('polarDistance').value);
+        const azimuth = Number(document.getElementById('polarAzimuth').value);
+        const h = Number(document.getElementById('polarH').value);
+        const name = String(document.getElementById('polarName').value || `POLAR_${radarPoints.length + 1}`).trim();
+        if (![stationE, stationN, distance, azimuth].every(Number.isFinite) || distance <= 0) {
+            document.getElementById('resPolar').innerHTML = '請輸入站點 E/N、距離、方位角。';
+            lastPolarResult = null;
+            return;
+        }
+        const rad = normalizeAzimuthDeg(azimuth) * Math.PI / 180;
+        const targetE = stationE + Math.sin(rad) * distance;
+        const targetN = stationN + Math.cos(rad) * distance;
+        const inv = buildMaster_InverseConverter(targetE, targetN, Number.isFinite(h) ? h : getConfig().offsetZ, getConfig());
+        lastPolarResult = { n: name, x: inv.rawX, y: inv.rawY, z: Number.isFinite(h) ? h : 0, targetE, targetN, targetH: Number.isFinite(h) ? h : getConfig().offsetZ };
+        document.getElementById('resPolar').innerHTML = `目標點 ${name}<br>E,N = <span style="color:#fff">${formatStakeNumber(targetE, 'E')}, ${formatStakeNumber(targetN, 'N')}</span><br>反算圖面 X,Y = <span style="color:#fff">${inv.X}, ${inv.Y}</span>`;
+    }
+
+    function appendPolarResultToPoints() {
+        if (!lastPolarResult) {
+            runPolarStakeout();
+            if (!lastPolarResult) return;
+        }
+        const result = addRadarPoint(lastPolarResult);
+        if (!result.ok) return;
+        setStakeImportResult(`極座標放樣點 ${lastPolarResult.n} 已加入點表。`, true);
+    }
+
     let areaPts = [];
+
+    function refreshAreaPointList() {
+        document.getElementById('areaPointList').innerText = areaPts.length
+            ? '已輸入：\n' + areaPts.map((pt, i) => `P${i + 1}(${formatStakeNumber(pt.x)}, ${formatStakeNumber(pt.y)})`).join(' ➔ ')
+            : '已輸入：(無)';
+    }
+
+    function renderAreaHistorySummary() {
+        const box = document.getElementById('areaHistorySummary');
+        if (!box) return;
+        box.innerText = areaHistory.length ? `面積紀錄：${areaHistory.length} 筆｜最近一筆 ${areaHistory[areaHistory.length - 1].sqm.toFixed(2)} m²` : '面積紀錄：尚無資料。';
+    }
+
     function addAreaPoint() {
-        const x=parseFloat(document.getElementById('aX').value), y=parseFloat(document.getElementById('aY').value);
-        if(isNaN(x)||isNaN(y)) return; areaPts.push({x,y});
-        document.getElementById('areaPointList').innerText = "已輸入：\n" + areaPts.map((p,i)=>`P${i+1}(${p.x}, ${p.y})`).join(" ➔ ");
-        document.getElementById('aX').value=''; document.getElementById('aY').value='';
+        const x = parseFloat(document.getElementById('aX').value);
+        const y = parseFloat(document.getElementById('aY').value);
+        if (isNaN(x) || isNaN(y)) return;
+        areaPts.push({ x, y });
+        refreshAreaPointList();
+        document.getElementById('aX').value = '';
+        document.getElementById('aY').value = '';
     }
-    function clearArea() { areaPts=[]; document.getElementById('areaPointList').innerText="已輸入：(無)"; document.getElementById('resArea').innerText="等待計算..."; }
-    
+
+    function clearArea() {
+        areaPts = [];
+        refreshAreaPointList();
+        document.getElementById('resArea').innerText = '等待計算...';
+    }
+
     function runArea() {
-        if(areaPts.length < 3) return alert("至少3點！");
-        let a = 0, n = areaPts.length;
-        for (let i=0; i<n; i++) { let j=(i+1)%n; a += areaPts[i].x*areaPts[j].y; a -= areaPts[j].x*areaPts[i].y; }
-        let rawArea = Math.abs(a)/2;
-        let unit = document.getElementById('aUnit').value;
-        let sqm = (unit === 'cm') ? (rawArea / 10000) : rawArea;
-        document.getElementById('resArea').innerHTML = `面積: <span style="color:#fff">${sqm.toFixed(2)} 平方公尺</span><br>坪數: <span style="color:#fff">${(sqm*0.3025).toFixed(2)} 坪</span>`;
+        if (areaPts.length < 3) return alert('至少3點！');
+        let signed = 0;
+        const n = areaPts.length;
+        for (let i = 0; i < n; i += 1) {
+            const j = (i + 1) % n;
+            signed += areaPts[i].x * areaPts[j].y;
+            signed -= areaPts[j].x * areaPts[i].y;
+        }
+        const unit = document.getElementById('aUnit').value;
+        const rawSignedArea = signed / 2;
+        const signedSqm = unit === 'cm' ? rawSignedArea / 10000 : rawSignedArea;
+        const sqm = Math.abs(signedSqm);
+        const ping = sqm * 0.3025;
+        const hectare = sqm / 10000;
+        const jia = sqm / 9699.174;
+        const orientation = rawSignedArea >= 0 ? '逆時針' : '順時針';
+        const displayMode = document.getElementById('aDisplayMode').value;
+        const lines = [
+            `輸入順序：<span style="color:#fff">${orientation}</span>`,
+            `帶號面積：<span style="color:#fff">${signedSqm.toFixed(4)} m²</span>`,
+            `絕對面積：<span style="color:#fff">${sqm.toFixed(4)} m²</span>`
+        ];
+        if (displayMode === 'all' || displayMode === 'ping') lines.push(`坪數：<span style="color:#fff">${ping.toFixed(4)} 坪</span>`);
+        if (displayMode === 'all' || displayMode === 'hectare') lines.push(`公頃：<span style="color:#fff">${hectare.toFixed(6)} ha</span>`);
+        if (displayMode === 'all' || displayMode === 'jia') lines.push(`甲：<span style="color:#fff">${jia.toFixed(6)} 甲</span>`);
+        document.getElementById('resArea').innerHTML = lines.join('<br>');
+        areaHistory.push({ ts: new Date().toISOString(), orientation, signedSqm, sqm, ping, hectare, jia, points: areaPts.map(pt => ({ ...pt })) });
+        renderAreaHistorySummary();
     }
-    
+
+    function exportAreaHistory() {
+        if (!areaHistory.length) return alert('請先至少計算一次面積');
+        let csv = '\ufeff時間,點數,順序,帶號面積(m²),絕對面積(m²),坪,公頃,甲,角點串列\n';
+        areaHistory.forEach(item => {
+            const pts = item.points.map((pt, idx) => `P${idx + 1}(${pt.x},${pt.y})`).join(' -> ');
+            csv += [new Date(item.ts).toLocaleString('zh-TW'), item.points.length, item.orientation, item.signedSqm.toFixed(4), item.sqm.toFixed(4), item.ping.toFixed(4), item.hectare.toFixed(6), item.jia.toFixed(6), pts].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',') + '\n';
+        });
+        downloadTextFile(`ConstructionMaster_${getSafeProjectSlug()}_polygon_area.csv`, csv, 'text/csv;charset=utf-8;');
+    }
+
     function runSlope() {
-        const h = parseFloat(document.getElementById('sH').value)||0, d = parseFloat(document.getElementById('sD').value)||0, s = parseFloat(document.getElementById('sS').value)||0;
-        document.getElementById('resSlope').innerHTML = `目標高程: <span style="color:#fff">${(h + d*(s/100)).toFixed(3)} m</span>`;
+        const h = parseFloat(document.getElementById('sH').value) || 0;
+        const d = parseFloat(document.getElementById('sD').value) || 0;
+        const s = parseFloat(document.getElementById('sS').value) || 0;
+        const targetH = h + d * (s / 100);
+        const angle = Math.atan(s / 100) * 180 / Math.PI;
+        const ratioText = s === 0 ? '1:∞' : `1:${(100 / Math.abs(s)).toFixed(3)}`;
+        document.getElementById('resSlope').innerHTML = `目標高程: <span style="color:#fff">${formatStakeNumber(targetH, 'H')} m</span><br>對應坡度: <span style="color:#fff">${s.toFixed(3)}%</span>｜${ratioText}｜${angle.toFixed(3)}°`;
+    }
+
+    function runSlopeConvert() {
+        const ratioN = Number(document.getElementById('sRatioN').value);
+        const percent = Number(document.getElementById('sPercent').value);
+        const angle = Number(document.getElementById('sAngle').value);
+        let slopePercent = NaN;
+        if (Number.isFinite(ratioN) && ratioN > 0) slopePercent = 100 / ratioN;
+        else if (Number.isFinite(percent)) slopePercent = percent;
+        else if (Number.isFinite(angle)) slopePercent = Math.tan(angle * Math.PI / 180) * 100;
+        if (!Number.isFinite(slopePercent)) {
+            document.getElementById('resSlopeConvert').innerHTML = '請至少輸入 1:N、坡度 % 或角度其中一項。';
+            return;
+        }
+        const angleDeg = Math.atan(slopePercent / 100) * 180 / Math.PI;
+        const ratioText = slopePercent === 0 ? '1:∞' : `1:${(100 / Math.abs(slopePercent)).toFixed(3)}`;
+        document.getElementById('resSlopeConvert').innerHTML = `坡度：<span style="color:#fff">${slopePercent.toFixed(3)}%</span><br>比例：<span style="color:#fff">${ratioText}</span><br>角度：<span style="color:#fff">${angleDeg.toFixed(3)}°</span>`;
+    }
+
+    function runTriangleSolve() {
+        const slant = Number(document.getElementById('triSlopeDist').value);
+        const horiz = Number(document.getElementById('triHorizDist').value);
+        const vertical = Number(document.getElementById('triVerticalDiff').value);
+        const known = [slant, horiz, vertical].filter(Number.isFinite).length;
+        if (known < 2) {
+            document.getElementById('resTriangleSolve').innerHTML = '請至少輸入任兩項。';
+            return;
+        }
+        let s = slant;
+        let h = horiz;
+        let v = vertical;
+        if (!Number.isFinite(s)) {
+            s = Math.hypot(h, v);
+        } else if (!Number.isFinite(h)) {
+            if (s < Math.abs(v)) {
+                document.getElementById('resTriangleSolve').innerHTML = '斜距不可小於高差絕對值。';
+                return;
+            }
+            h = Math.sqrt(Math.max(0, s * s - v * v));
+        } else if (!Number.isFinite(v)) {
+            if (s < Math.abs(h)) {
+                document.getElementById('resTriangleSolve').innerHTML = '斜距不可小於水平距。';
+                return;
+            }
+            v = Math.sqrt(Math.max(0, s * s - h * h));
+        }
+        const percent = h === 0 ? Infinity : (v / h) * 100;
+        const angle = Math.atan2(v, h) * 180 / Math.PI;
+        document.getElementById('resTriangleSolve').innerHTML = `斜距: <span style="color:#fff">${s.toFixed(4)} m</span><br>水平距: <span style="color:#fff">${h.toFixed(4)} m</span><br>高差: <span style="color:#fff">${v.toFixed(4)} m</span><br>坡度: <span style="color:#fff">${Number.isFinite(percent) ? percent.toFixed(3) + '%' : '∞'}</span>｜角度 <span style="color:#fff">${angle.toFixed(3)}°</span>`;
+    }
+
+    function collectStakeProjectData() {
+        const fieldIds = ['projectName', 'projectNote', 'gE', 'gN', 'gH', 'gRot', 'precisionE', 'precisionN', 'precisionH', 'exportFormat', 'invE', 'invN', 'distE1', 'distN1', 'distE2', 'distN2', 'polarName', 'polarStationE', 'polarStationN', 'polarDistance', 'polarAzimuth', 'polarH', 'aUnit', 'aDisplayMode', 'sH', 'sD', 'sS', 'sRatioN', 'sPercent', 'sAngle', 'triSlopeDist', 'triHorizDist', 'triVerticalDiff', 'quickLen', 'quickWid', 'quickUnit'];
+        const fields = {};
+        fieldIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) fields[id] = el.value;
+        });
+        return { version: STAKE_PROJECT_SCHEMA_VERSION, savedAt: new Date().toISOString(), fields, radarPoints, areaPts, areaHistory, activeTab: currentStakeTabId() };
+    }
+
+    function applyStakeProjectData(data) {
+        if (!data || typeof data !== 'object') {
+            setProjectStatus('專案資料格式錯誤。', false);
+            return;
+        }
+        const fields = data.fields || {};
+        Object.keys(fields).forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = fields[id];
+        });
+        radarPoints = Array.isArray(data.radarPoints) ? data.radarPoints.map(pt => ({ n: String(pt.n || ''), x: Number(pt.x) || 0, y: Number(pt.y) || 0, z: Number(pt.z) || 0 })) : [];
+        areaPts = Array.isArray(data.areaPts) ? data.areaPts.map(pt => ({ x: Number(pt.x) || 0, y: Number(pt.y) || 0 })) : [];
+        areaHistory = Array.isArray(data.areaHistory) ? data.areaHistory : [];
+        refreshAreaPointList();
+        renderAreaHistorySummary();
+        updateRadarUI();
+        if (String(data.activeTab || 'tab-radar').startsWith('tab-')) activateStakeTab(String(data.activeTab || 'tab-radar'));
+        setProjectStatus(`專案已載入：${fields.projectName || '未命名'}｜${new Date(data.savedAt || Date.now()).toLocaleString('zh-TW')}`, true);
+    }
+
+    function saveStakeProjectToLocal() {
+        const payload = collectStakeProjectData();
+        localStorage.setItem(STAKE_PROJECT_STORAGE_KEY, JSON.stringify(payload));
+        setProjectStatus(`專案已儲存到本機：${payload.fields.projectName || '未命名'}｜${new Date(payload.savedAt).toLocaleString('zh-TW')}`, true);
+    }
+
+    function loadStakeProjectFromLocal() {
+        const raw = localStorage.getItem(STAKE_PROJECT_STORAGE_KEY);
+        if (!raw) {
+            setProjectStatus('本機尚無已儲存專案。', false);
+            return;
+        }
+        applyStakeProjectData(JSON.parse(raw));
+    }
+
+    function exportStakeProjectFile() {
+        const payload = collectStakeProjectData();
+        downloadTextFile(`ConstructionMaster_${getSafeProjectSlug()}_project.json`, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8;');
+        setProjectStatus('專案 JSON 已匯出。', true);
+    }
+
+    function triggerStakeProjectImport() {
+        document.getElementById('stakeProjectImportInput')?.click();
+    }
+
+    function importStakeProjectFile(event) {
+        const file = event?.target?.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                const parsed = JSON.parse(String(reader.result || '{}'));
+                applyStakeProjectData(parsed);
+            } catch (_err) {
+                setProjectStatus('專案匯入失敗：JSON 格式錯誤。', false);
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = '';
     }
 
     function runQuickRectArea() {
@@ -773,6 +1418,20 @@
         const widM = unit === 'cm' ? (widRaw / 100) : widRaw;
         const areaM2 = lenM * widM;
         out.innerHTML = `面積: <span style="color:#fff">${areaM2.toFixed(2)} 平方公尺</span><br>坪數: <span style="color:#fff">${(areaM2 * 0.3025).toFixed(2)} 坪</span>`;
+    }
+
+    function bindStakeInputRefresh() {
+        ['precisionE', 'precisionN', 'precisionH', 'gE', 'gN', 'gH', 'gRot'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('change', () => {
+                updateRadarUI();
+                if (areaPts.length >= 3) runArea();
+                if (document.getElementById('resSlope').innerText !== '等待計算...') runSlope();
+                if (document.getElementById('resSlopeConvert').innerText !== '等待計算...') runSlopeConvert();
+                if (document.getElementById('resTriangleSolve').innerText !== '等待計算...') runTriangleSolve();
+            });
+        });
     }
 
     function isMobileViewport() {
@@ -1110,6 +1769,10 @@
     }
 
     initMobileFuncDrawer();
+    bindStakeInputRefresh();
+    refreshAreaPointList();
+    renderAreaHistorySummary();
+    setProjectStatus('專案狀態：待命', true);
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState !== 'visible') {
             sessionStorage.removeItem(OWNER_UNLOCK_SESSION_KEY);
