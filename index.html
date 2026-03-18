@@ -26,8 +26,21 @@
     .level-switch { display: flex; gap: 6px; margin-left: 14px; }
     .level-btn { border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; background: rgba(20,34,56,0.55); color: #d9ecff; font-size: 0.78em; padding: 6px 10px; cursor: pointer; }
     .level-btn.active { border-color: rgba(255, 202, 120, 0.8); background: rgba(255, 162, 59, 0.28); color: #ffe5bf; }
-    .work-switch { display: flex; gap: 6px; margin-left: 8px; }
-    .work-btn { border: 1px solid rgba(255,255,255,0.24); border-radius: 999px; background: rgba(30,44,68,0.55); color: #d7ebff; font-size: 0.76em; padding: 6px 10px; cursor: pointer; }
+    .work-switch { display: flex; gap: 8px; margin-left: 8px; position: relative; z-index: 6; }
+    .work-btn {
+        border: 1px solid rgba(255,255,255,0.24);
+        border-radius: 999px;
+        background: rgba(30,44,68,0.55);
+        color: #d7ebff;
+        font-size: 0.82em;
+        font-weight: 700;
+        min-height: 40px;
+        min-width: 120px;
+        padding: 8px 14px;
+        cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: rgba(122, 216, 255, 0.35);
+    }
     .work-btn.active { border-color: rgba(154, 211, 255, 0.78); background: rgba(70, 138, 199, 0.34); color: #eef9ff; }
     .header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
     .mode-btn { border: 1px solid rgba(255,255,255,0.35); border-radius: 999px; background: rgba(16, 29, 48, 0.62); color: #e8f5ff; font-weight: 700; padding: 8px 12px; cursor: pointer; transition: 0.2s; }
@@ -456,8 +469,14 @@
         .live-badge { margin-left: 0; font-size: 0.62em; padding: 4px 8px; }
         .level-switch { margin-left: 0; flex-wrap: wrap; }
         .level-btn { font-size: 0.72em; padding: 5px 8px; }
-        .work-switch { margin-left: 0; flex-wrap: wrap; }
-        .work-btn { font-size: 0.7em; padding: 5px 8px; }
+        .work-switch { margin-left: 0; flex-wrap: wrap; gap: 10px; width: 100%; }
+        .work-btn {
+            flex: 1 1 calc(50% - 10px);
+            font-size: 0.88em;
+            min-height: 46px;
+            min-width: 0;
+            padding: 10px 12px;
+        }
         .input-row { flex-direction: column; }
         .btn-group { flex-direction: column; }
         .footer-bar { grid-template-columns: 1fr; }
