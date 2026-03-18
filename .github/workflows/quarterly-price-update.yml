@@ -1,0 +1,96 @@
+name: Quarterly Price Update
+
+on:
+  schedule:
+    # Quarterly run at 09:00 Taiwan time (01:00 UTC) on Jan/Apr/Jul/Oct 1st
+    - cron: "0 1 1 1,4,7,10 *"
+  workflow_dispatch:
+    inputs:
+      csv_url:
+        description: "Optional CSV URL for reviewed seasonal prices"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: quarterly-price-update
+  cancel-in-progress: true
+
+jobs:
+  update-prices:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    env:
+      DEFAULT_CSV_URL: ${{ secrets.SEASONAL_CSV_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Resolve CSV source URL
+        run: |
+          CSV_URL="${{ github.event.inputs.csv_url }}"
+          if [ -z "$CSV_URL" ]; then
+            CSV_URL="${DEFAULT_CSV_URL}"
+          fi
+          echo "CSV_URL=$CSV_URL" >> "$GITHUB_ENV"
+
+      - name: Download reviewed CSV (optional)
+        run: |
+          if [ -z "$CSV_URL" ]; then
+            echo "INFO: no CSV URL configured, will use fallback seasonal factor"
+            echo "CSV_FILE=" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          if curl -L --fail "$CSV_URL" -o seasonal-prices.csv; then
+            echo "INFO: downloaded seasonal-prices.csv"
+            echo "CSV_FILE=seasonal-prices.csv" >> "$GITHUB_ENV"
+          else
+            echo "WARN: CSV download failed, will use fallback seasonal factor"
+            echo "CSV_FILE=" >> "$GITHUB_ENV"
+          fi
+
+      - name: Update prices.json
+        run: |
+          if [ -n "$CSV_FILE" ] && [ -f "$CSV_FILE" ]; then
+            python3 update_prices_from_arcnet.py --csv "seasonal-prices.csv"
+          else
+            python3 update_prices_from_arcnet.py
+          fi
+
+      - name: QA validate seasonal prices
+        run: |
+          if [ -n "$CSV_FILE" ] && [ -f "$CSV_FILE" ]; then
+            python3 qa_validate_prices.py --prices prices.json --csv "seasonal-prices.csv"
+          else
+            python3 qa_validate_prices.py --prices prices.json
+          fi
+
+      - name: Commit and push if changed
+        run: |
+          if git diff --quiet -- prices.json; then
+            echo "No prices.json changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add prices.json
+          git commit -m "chore: update seasonal prices (qa verified)"
+          if ! git push; then
+            echo "WARN: git push failed (likely branch protection or token scope)."
+            echo "WARN: stop failing the workflow to avoid notification storms."
+            exit 0
+          fi
+
+      - name: Notify webhook on failure (optional)
+        if: ${{ failure() && secrets.PRICE_UPDATE_WEBHOOK != '' }}
+        run: |
+          curl -X POST "${{ secrets.PRICE_UPDATE_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d '{"text":"BuildMaster price update failed. Please check GitHub Actions logs."}'

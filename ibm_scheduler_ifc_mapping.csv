@@ -1,0 +1,5 @@
+ifc_element_id,ifc_type,level,zone,task_id,notes
+WALL_1F_A_001,IfcWall,1F,Zone_A,T002,formwork_scope
+REB_1F_A_001,IfcReinforcingBar,1F,Zone_A,T003,rebar_scope
+MEP_1F_A_001,IfcPipeSegment,1F,Zone_A,T004,mep_scope
+COL_1F_A_001,IfcColumn,1F,Zone_A,T005,concrete_scope

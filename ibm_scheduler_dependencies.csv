@@ -1,0 +1,6 @@
+task_id,predecessor_task_id,dependency_type,lag_days
+T002,T001,FS,0
+T003,T002,FS,0
+T004,T003,FS,0
+T005,T004,FS,0
+T006,T005,FS,0

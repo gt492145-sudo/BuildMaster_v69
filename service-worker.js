@@ -7,6 +7,7 @@ const CORE_ASSETS = [
   './apple-touch-icon.png',
   './icon-192.png',
   './icon-512.png',
+  './logo.png',
   './logo-app.png',
   './app-wallpaper.jpg'
 ];
