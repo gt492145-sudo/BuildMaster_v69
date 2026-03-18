@@ -641,7 +641,7 @@
     </div>
     <div class="header-actions">
         <button id="coachToggle" class="mode-btn" onclick="toggleCoachMode()">解說員: 開</button>
-        <button id="aiCoachToggle" class="mode-btn level-hide-basic" onclick="toggleAiCoachMode()">AI解說: 關</button>
+        <button id="aiCoachToggle" class="mode-btn level-only-pro" onclick="toggleAiCoachMode()">AI解說: 關</button>
         <button id="btnWarRoom" class="mode-btn level-only-pro" style="border-color: #00e676; color: #00e676; font-weight: 900;" onclick="toggleWarRoom()">🌐 戰情室: 離線</button>
         <button id="coachGuideBtn" class="mode-btn" onclick="startCoachGuide(true)">新手導覽</button>
         <button id="contrastToggle" class="mode-btn" onclick="toggleContrastMode()">高對比: 關</button>
@@ -736,8 +736,8 @@
             <button id="btnAutoScan3D" class="tool-btn level-hide-basic" style="border-color: #b388ff; color: #e040fb;" onclick="autoQuantumScan()">🌌 一鍵掃描 3D</button>
             <button id="btnGyro" class="tool-btn level-only-pro" onclick="toggleGyroMode()">🧭 陀螺儀: 關</button>
             <button class="tool-btn level-only-pro" onclick="calibrateGyroBaseline()">🎯 校正陀螺儀</button>
-            <button class="tool-btn level-only-standard" onclick="startEdgeAIVision()">👁️ AI視覺點料</button>
-            <button class="tool-btn level-hide-basic" style="border-color:#7ed6df; color:#dffcff;" onclick="autoInterpretBlueprintAndCalculate()">🤖 看圖自動判讀試算</button>
+            <button class="tool-btn level-only-pro" onclick="startEdgeAIVision()">👁️ AI視覺點料</button>
+            <button class="tool-btn level-only-pro" style="border-color:#7ed6df; color:#dffcff;" onclick="autoInterpretBlueprintAndCalculate()">🤖 看圖自動判讀試算</button>
             <button class="tool-btn level-only-pro" style="border-color:#b39ddb; color:#efe3ff;" onclick="runAutoBlueprintPlusBIM()">🤖+🏗️ 自動看圖計算+3BIM</button>
             <label class="tool-mini">對比 <input type="range" id="imgContrast" min="0.7" max="1.5" step="0.01" value="1" oninput="updateImageFilter('contrast', this.value)"></label>
             <label class="tool-mini">亮度 <input type="range" id="imgBrightness" min="0.7" max="1.4" step="0.01" value="1" oninput="updateImageFilter('brightness', this.value)"></label>
@@ -1014,7 +1014,7 @@
             <span style="font-size: 0.6em; color: #666;">會員專用模組</span>
         </div>
         <div class="input-row">
-            <div class="input-wrapper"><label>工地建案名稱</label><input type="text" id="project_name" value="梧棲案測試"></div>
+            <div class="input-wrapper"><label>工地建案名稱</label><input type="text" id="project_name" value="" placeholder="請輸入建案名稱"></div>
             <div class="input-wrapper"><label>樓層/分區標籤</label><input type="text" id="floor_tag" placeholder="如: 1F, B1, 基礎"></div>
         </div>
         <div class="member-wrap level-hide-basic">
@@ -1143,7 +1143,7 @@
                 <label id="lbl_qty">數量 (N)</label>
                 <div style="display: flex; gap: 5px;">
                     <input type="number" id="qty" value="1" min="0" oninput="previewCalc()" style="flex: 1;">
-                    <button class="tool-btn level-only-standard" style="border-color: #9c27b0; color: #e1bee7; padding: 0 10px; font-weight: bold;" onclick="startEdgeAIVision()">
+                    <button class="tool-btn level-only-pro" style="border-color: #9c27b0; color: #e1bee7; padding: 0 10px; font-weight: bold;" onclick="startEdgeAIVision()">
                         👁️ AI 盤點
                     </button>
                 </div>
@@ -1173,7 +1173,7 @@
         <button id="addBtn" class="btn-add" onclick="calculateAndAdd()">🚀 吸入計算清單</button>
         
         <table>
-            <thead><tr><th>樓層</th><th>項目</th><th>數量</th><th>單價</th><th>公式</th><th>金額</th><th>操作</th></tr></thead>
+            <thead><tr><th>樓層</th><th>項目</th><th>數量(基準/施工)</th><th>單價</th><th>公式</th><th>金額(基準/施工)</th><th>操作</th></tr></thead>
             <tbody id="listBody"></tbody>
         </table>
 
@@ -1203,7 +1203,7 @@
             </div>
             <div class="input-wrapper">
                 <label>AI 自動判讀門檻 (%)</label>
-                <input type="number" id="advAutoInterpretGate" min="40" max="95" step="1" value="60" oninput="refreshAdvancedEstimate(false); previewCalc();">
+                <input type="number" id="advAutoInterpretGate" min="40" max="99" step="1" value="60" oninput="refreshAdvancedEstimate(false); previewCalc();">
             </div>
             <div class="input-wrapper">
                 <label>專業精算模式（會員3）</label>
@@ -1249,7 +1249,7 @@
         <div class="coach-title">小教練</div>
         <div id="coachText">哈囉，先上傳圖紙，我陪你一步步完成。</div>
         <div class="coach-ai-row">
-            <input id="coachAiInput" class="coach-ai-input" type="text" placeholder="可問：這區怎麼用？">
+            <input id="coachAiInput" class="coach-ai-input" type="text" placeholder="可問：IFC有幾根柱？BIM估價風險是什麼？">
             <button id="coachAiAskBtn" class="coach-ai-btn" onclick="askAiCoachManual()">問AI</button>
         </div>
         <div id="coachGuidePanel" class="coach-guide hide">
@@ -5716,7 +5716,7 @@
     function getAutoInterpretGateThreshold() {
         const gateInput = document.getElementById('advAutoInterpretGate');
         const gatePercent = Number(gateInput && gateInput.value);
-        const normalizedPercent = Number.isFinite(gatePercent) ? Math.max(40, Math.min(95, gatePercent)) : (AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE * 100);
+        const normalizedPercent = Number.isFinite(gatePercent) ? Math.max(40, Math.min(99, gatePercent)) : (AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE * 100);
         return normalizedPercent / 100;
     }
 
@@ -5824,6 +5824,7 @@
     }
 
     async function autoInterpretBlueprintAndCalculate() {
+        if (getCurrentUserLevel() !== 'pro') return showToast('看圖自動判讀僅開放會員3（專家）');
         if (autoInterpretBusy) return showToast('單一運算進行中，請稍候完成');
         if (!img.src) return showToast('請先上傳圖紙再做自動判讀');
         autoInterpretBusy = true;
@@ -6575,6 +6576,7 @@
     let edgeAiSafetyTimer = null;
 
     async function startEdgeAIVision() {
+        if (getCurrentUserLevel() !== 'pro') return showToast('AI 視覺點料僅開放會員3（專家）');
         if (!featureFlags.aiVision) {
             return showToast('AI 視覺盤點目前已停用（請先到總控開啟）');
         }
@@ -6973,33 +6975,49 @@
         if (val === 10) return 32.2; return val; 
     }
 
+    function getQuantityAdjustFactor(type, cat) {
+        if (cat === 'CEMENT' || String(type || '').startsWith('C_')) return 1.05;
+        if (cat === 'STEEL' || String(type || '').startsWith('R_')) return 1.10;
+        return 1;
+    }
+
     // 抽出獨立的計算邏輯，確保預覽和加入清單的結果絕對一致
     function coreCalculate(type, v1, v2, v3, n, up) {
-        let res = 0, unit = '', cat = '';
+        let baseRes = 0, unit = '', cat = '';
         
         if (type.startsWith('C_') || type.startsWith('E_')) {
             cat = type.startsWith('C_') ? 'CEMENT' : 'EARTH';
-            res = v1 * v2 * v3 * n; 
-            if (cat === 'CEMENT') res = res * 1.05; // 水泥含損耗
+            baseRes = v1 * v2 * v3 * n;
             unit = 'M³';
         } else if (type.startsWith('R_')) {
             cat = 'STEEL';
             let actualD = getRebarDiameter(v1); 
             let mult = (v3 === 0) ? 1 : v3; 
-            res = (Math.pow(actualD, 2) / 162) * v2 * mult * n * 1.10; // 鋼筋含損耗
+            baseRes = (Math.pow(actualD, 2) / 162) * v2 * mult * n;
             unit = 'Kg';
         } else if (type === 'M_COL') { 
-            cat = 'MOLD'; res = (v1 + v2) * 2 * v3 * n; unit = 'M²';
+            cat = 'MOLD'; baseRes = (v1 + v2) * 2 * v3 * n; unit = 'M²';
         } else if (type === 'M_BEAM_SIDES') { 
-            cat = 'MOLD'; res = v1 * v3 * 2 * n; unit = 'M²';
+            cat = 'MOLD'; baseRes = v1 * v3 * 2 * n; unit = 'M²';
         } else if (type === 'M_BEAM_ALL') { 
-            cat = 'MOLD'; res = (v3 * 2 + v2) * v1 * n; unit = 'M²';
+            cat = 'MOLD'; baseRes = (v3 * 2 + v2) * v1 * n; unit = 'M²';
         } else if (type === 'M_WALL') { 
-            cat = 'MOLD'; res = v1 * v2 * n; unit = 'M²'; 
+            cat = 'MOLD'; baseRes = v1 * v2 * n; unit = 'M²'; 
         }
 
-        let totalCost = res * up;
-        return { res, unit, cat, totalCost };
+        const adjustFactor = getQuantityAdjustFactor(type, cat);
+        const adjustedRes = baseRes * adjustFactor;
+        const baseTotalCost = baseRes * up;
+        const adjustedTotalCost = adjustedRes * up;
+        return {
+            baseRes,
+            adjustFactor,
+            res: adjustedRes,
+            unit,
+            cat,
+            baseTotalCost,
+            totalCost: adjustedTotalCost
+        };
     }
 
     function roundCalc(v, digits = 8) {
@@ -7010,37 +7028,47 @@
 
     // Independent audit path (formula duplicated intentionally for cross-check).
     function coreCalculateAudit(type, v1, v2, v3, n, up) {
-        let res = 0, unit = '', cat = '';
+        let baseRes = 0, unit = '', cat = '';
         if (type.startsWith('C_') || type.startsWith('E_')) {
             cat = type.startsWith('C_') ? 'CEMENT' : 'EARTH';
-            res = roundCalc(v1 * v2 * v3 * n);
-            if (cat === 'CEMENT') res = roundCalc(res * 1.05);
+            baseRes = roundCalc(v1 * v2 * v3 * n);
             unit = 'M³';
         } else if (type.startsWith('R_')) {
             cat = 'STEEL';
             const actualD = getRebarDiameter(v1);
             const mult = (v3 === 0) ? 1 : v3;
-            res = roundCalc((Math.pow(actualD, 2) / 162) * v2 * mult * n * 1.10);
+            baseRes = roundCalc((Math.pow(actualD, 2) / 162) * v2 * mult * n);
             unit = 'Kg';
         } else if (type === 'M_COL') {
             cat = 'MOLD';
-            res = roundCalc((v1 + v2) * 2 * v3 * n);
+            baseRes = roundCalc((v1 + v2) * 2 * v3 * n);
             unit = 'M²';
         } else if (type === 'M_BEAM_SIDES') {
             cat = 'MOLD';
-            res = roundCalc(v1 * v3 * 2 * n);
+            baseRes = roundCalc(v1 * v3 * 2 * n);
             unit = 'M²';
         } else if (type === 'M_BEAM_ALL') {
             cat = 'MOLD';
-            res = roundCalc((v3 * 2 + v2) * v1 * n);
+            baseRes = roundCalc((v3 * 2 + v2) * v1 * n);
             unit = 'M²';
         } else if (type === 'M_WALL') {
             cat = 'MOLD';
-            res = roundCalc(v1 * v2 * n);
+            baseRes = roundCalc(v1 * v2 * n);
             unit = 'M²';
         }
-        const totalCost = roundCalc(res * up);
-        return { res, unit, cat, totalCost };
+        const adjustFactor = getQuantityAdjustFactor(type, cat);
+        const adjustedRes = roundCalc(baseRes * adjustFactor);
+        const baseTotalCost = roundCalc(baseRes * up);
+        const adjustedTotalCost = roundCalc(adjustedRes * up);
+        return {
+            baseRes,
+            adjustFactor,
+            res: adjustedRes,
+            unit,
+            cat,
+            baseTotalCost,
+            totalCost: adjustedTotalCost
+        };
     }
 
     function verifyCalculationConsistency(type, v1, v2, v3, n, up) {
@@ -7049,7 +7077,10 @@
         const eps = 0.000001;
         const ok = main.cat === audit.cat
             && main.unit === audit.unit
+            && Math.abs((main.baseRes || 0) - (audit.baseRes || 0)) <= eps
+            && Math.abs((main.adjustFactor || 0) - (audit.adjustFactor || 0)) <= eps
             && Math.abs((main.res || 0) - (audit.res || 0)) <= eps
+            && Math.abs((main.baseTotalCost || 0) - (audit.baseTotalCost || 0)) <= eps
             && Math.abs((main.totalCost || 0) - (audit.totalCost || 0)) <= eps;
         return { ok, main, audit };
     }
@@ -7122,36 +7153,37 @@
 
         let resultDisplay = '';
         let resultUnitDisplay = '';
+        const baseQtyText = `${(result.baseRes || 0).toFixed(3)} ${result.unit}`;
+        const adjustedQtyText = `${(result.res || 0).toFixed(3)} ${result.unit}`;
 
         if (type.startsWith('M_') || selectedType.includes('模板') || selectedType.includes('漆') || selectedType.includes('地磚')) {
             const area = result.res;
             const tsubo = area * 0.3025;
-            resultDisplay = `${area.toFixed(2)} M² (${tsubo.toFixed(2)} 坪)`;
+            resultDisplay = `基準 ${baseQtyText}｜施工 ${adjustedQtyText}（${area.toFixed(2)} M² / ${tsubo.toFixed(2)} 坪）`;
             resultUnitDisplay = '面積';
         } else if (type.startsWith('R_') || selectedType.includes('鋼筋') || selectedType.includes('鐵')) {
             const weightKg = result.res;
             const tons = weightKg / 1000;
-            resultDisplay = `${weightKg.toFixed(2)} kg (${tons.toFixed(3)} t)`;
+            resultDisplay = `基準 ${baseQtyText}｜施工 ${adjustedQtyText}（${weightKg.toFixed(2)} kg / ${tons.toFixed(3)} t）`;
             resultUnitDisplay = '重量';
         } else if (selectedType.includes('混凝土') || selectedType.includes('水泥') || type.startsWith('C_')) {
             const volume = result.res;
             const trucks = Math.ceil(volume / 6);
-            resultDisplay = `${volume.toFixed(2)} M³ (約需 ${trucks} 台預拌車 🚚)`;
+            resultDisplay = `基準 ${baseQtyText}｜施工 ${adjustedQtyText}（約需 ${trucks} 台預拌車 🚚）`;
             resultUnitDisplay = '體積';
         } else if (selectedType.includes('土方') || selectedType.includes('開挖') || selectedType.includes('回填') || type.startsWith('E_')) {
             const volume = result.res;
             const trucks = Math.ceil(volume / 10);
-            resultDisplay = `${volume.toFixed(2)} M³ (約需 ${trucks} 台砂石車 🚛)`;
+            resultDisplay = `基準 ${baseQtyText}｜施工 ${adjustedQtyText}（約需 ${trucks} 台砂石車 🚛）`;
             resultUnitDisplay = '體積';
         } else {
-            const volume = result.res;
-            resultDisplay = `${volume.toFixed(2)} M³`;
+            resultDisplay = `基準 ${baseQtyText}｜施工 ${adjustedQtyText}`;
             resultUnitDisplay = '體積';
         }
 
         document.getElementById('prev_qty').innerText = resultDisplay;
         document.getElementById('prev_unit').innerText = resultUnitDisplay;
-        document.getElementById('prev_cost').innerText = "$ " + Math.round(result.totalCost).toLocaleString();
+        document.getElementById('prev_cost').innerText = `基準 $ ${Math.round(result.baseTotalCost || 0).toLocaleString()}｜施工 $ ${Math.round(result.totalCost || 0).toLocaleString()}（係數 x${(result.adjustFactor || 1).toFixed(3)}）`;
         updateAddButtonState(true);
     }
 
@@ -7285,25 +7317,30 @@
         }
         // 呼叫統一公式引擎（已通過雙引擎校核）
         let result = verify.main;
-        let res = result.res;
+        let baseRes = Number(result.baseRes || 0);
+        let res = Number(result.res || 0);
+        let adjustFactor = Number(result.adjustFactor || 1);
         let name = typeText;
 
         if (isDeduct) { 
-            res = -Math.abs(res); 
+            const baseAbs = Math.abs(baseRes);
+            baseRes = -baseAbs;
+            // 扣除項目採用基準值，不再加損耗係數。
+            res = -baseAbs;
+            adjustFactor = 1;
             name = `扣除(${name})`; 
-            // 若為扣除，水泥不乘損耗率 (還原)
-            if(result.cat === 'CEMENT') res = res / 1.05; 
         } else if (result.cat === 'STEEL') {
             name = `${typeText}(含損耗)`;
         }
 
         if (customName !== "") { name = `${name} [${customName}]`; }
 
+        const baseTotalCost = baseRes * up;
         const totalCost = res * up;
         const priceUnit = getPriceUnitByType(type);
         const calcFormula = buildCalcFormulaText(type, v1, v2, v3, n);
         const formulaHint = getFormulaVariableHint(type);
-        const costBreakdown = `${Math.abs(res).toFixed(3)} ${priceUnit} × ${up}`;
+        const costBreakdown = `基準 ${Math.abs(baseRes).toFixed(3)} ${priceUnit} × ${up}｜施工 ${Math.abs(res).toFixed(3)} ${priceUnit} × ${up}（x${adjustFactor.toFixed(3)}）`;
         
         // 安全處理使用者輸入
         const safeName = escapeHTML(name);
@@ -7315,8 +7352,11 @@
         list.push({ 
             floor: safeFloor, 
             name: safeName, 
+            baseRes: baseRes,
             res: res, 
+            adjustFactor: adjustFactor,
             up: up, 
+            baseTotalCost: baseTotalCost,
             totalCost: totalCost, 
             cat: result.cat, 
             unit: result.unit,
@@ -7545,8 +7585,13 @@
         const visibleList = mergedList.filter(({ source }) => showWarRoomRows || source !== 'warroom');
 
         visibleList.forEach(({ item, idx, source }) => {
-            if (sums[item.cat] !== undefined) sums[item.cat] += item.res; 
-            sums.total += item.totalCost;
+            const adjustedQty = Number(item.res || 0);
+            const baseQty = Number.isFinite(Number(item.baseRes)) ? Number(item.baseRes) : adjustedQty;
+            const adjustFactor = Number.isFinite(Number(item.adjustFactor)) ? Number(item.adjustFactor) : 1;
+            const adjustedCost = Number(item.totalCost || 0);
+            const baseCost = Number.isFinite(Number(item.baseTotalCost)) ? Number(item.baseTotalCost) : adjustedCost;
+            if (sums[item.cat] !== undefined) sums[item.cat] += adjustedQty; 
+            sums.total += adjustedCost;
             const cloudTag = source === 'warroom'
                 ? ' <span style="font-size:0.75em;color:#9ef3b5;">[雲端]</span>'
                 : '';
@@ -7558,11 +7603,11 @@
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${item.floor}</td>
-                <td style="color:${item.res < 0 ? '#ff4757' : 'white'}">${item.name}${cloudTag}</td>
-                <td>${item.res.toFixed(2)} <span style="font-size:0.8em;color:#888;">${item.unit||''}</span></td>
+                <td style="color:${adjustedQty < 0 ? '#ff4757' : 'white'}">${item.name}${cloudTag}</td>
+                <td>基準 ${baseQty.toFixed(2)}｜施工 ${adjustedQty.toFixed(2)} <span style="font-size:0.8em;color:#888;">${item.unit||''}</span><div style="font-size:0.75em;color:#8fb3cf;">係數 x${adjustFactor.toFixed(3)}</div></td>
                 <td>${item.up} <span style="font-size:0.78em;color:#9bc2e5;">/ ${item.priceUnit || item.unit || '-'}</span></td>
                 <td style="font-size:0.8em;color:#cde3f5;" title="${item.formulaHint || ''}">${item.formula || '-'} <span style="color:#9bc2e5;">ⓘ</span></td>
-                <td style="color:var(--money); font-weight:bold;">${Math.round(item.totalCost).toLocaleString()}<div style="font-size:0.75em;color:#8fb3cf;">${item.breakdown || ''}</div></td>
+                <td style="color:var(--money); font-weight:bold;">基準 ${Math.round(baseCost).toLocaleString()}｜施工 ${Math.round(adjustedCost).toLocaleString()}<div style="font-size:0.75em;color:#8fb3cf;">${item.breakdown || ''}</div></td>
                 <td>${removeBtn}</td>
             `;
             tbody.appendChild(tr);
@@ -7643,7 +7688,7 @@
 
     function isAiCoachAllowedForCurrentLevel() {
         const level = getCurrentUserLevel();
-        return level === 'standard' || level === 'pro';
+        return level === 'pro';
     }
 
     function applyAiCoachMode() {
@@ -7653,7 +7698,7 @@
         const askBtn = document.getElementById('coachAiAskBtn');
         const askInput = document.getElementById('coachAiInput');
         if (btn) btn.innerText = !allowedForLevel
-            ? 'AI解說: 限會員2/3'
+            ? 'AI解說: 限會員3'
             : (AI_API_ENABLED
             ? (aiCoachState.enabled ? 'AI解說: 開' : 'AI解說: 關')
             : 'AI解說: 停用');
@@ -7665,7 +7710,7 @@
         if (!isAiCoachAllowedForCurrentLevel()) {
             aiCoachState.enabled = false;
             applyAiCoachMode();
-            return showToast('AI 解說僅開放會員2/會員3使用');
+            return showToast('AI 解說僅開放會員3（專家）使用');
         }
         if (!AI_API_ENABLED) {
             localStorage.setItem(AI_COACH_ENABLED_KEY, '0');
@@ -7695,6 +7740,52 @@
     async function askAiCoach(promptText) {
         if (!AI_API_ENABLED) throw new Error('AI API disabled');
         const config = getAiCoachConfig();
+        const buildBimIfcAiContext = (questionText) => {
+            const q = String(questionText || '').trim();
+            const qaLevel = bimModelData ? getQaLevelByScore(calcBIMQaScore(bimModelData)) : '-';
+            const qaScore = bimModelData ? calcBIMQaScore(bimModelData) : 0;
+            const topTypes = bimModelData
+                ? Object.entries(bimModelData.typeCounts || {})
+                    .sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0))
+                    .slice(0, 10)
+                    .map(([type, count]) => `${formatIfcTypeDisplay(type)}:${count}`)
+                : [];
+            const sampleElements = bimModelData
+                ? (Array.isArray(bimModelData.elements) ? bimModelData.elements.slice(0, 8) : [])
+                    .map(e => `${e.id}/${formatIfcTypeDisplay(e.type)}${e.name ? `(${e.name})` : ''}`)
+                : [];
+            const warnings = bimModelData
+                ? (Array.isArray(bimModelData.warnings) ? bimModelData.warnings.slice(0, 6) : [])
+                : [];
+            const estimateRows = Array.isArray(bimEstimateRows) ? bimEstimateRows : [];
+            const unmatched = estimateRows.filter(r => !r || !r.price || r.materialName === '未匹配').length;
+            const estimatedTotal = estimateRows.reduce((sum, row) => sum + (Number(row && row.amount) || 0), 0);
+            const ruleCount = Object.keys(bimRuleMap || {}).length;
+            const floorTag = String((document.getElementById('floor_tag') && document.getElementById('floor_tag').value) || '').trim() || '未設定';
+            const hasModel = !!bimModelData;
+
+            return [
+                '【BIM/IFC 專業上下文】',
+                '你是 BIM/IFC 工程助理，優先依據以下模型資料回答；若資料不足，請明確指出缺什麼資料。',
+                `目前問題：${q || '（未提供）'}`,
+                `模型已載入：${hasModel ? '是' : '否'}`,
+                `模型檔名：${hasModel ? (bimModelData.fileName || '未命名') : '未載入'}`,
+                `IFC 實體總數：${hasModel ? (Number(bimModelData.totalEntities) || 0) : 0}`,
+                `主要構件數：${hasModel ? (Number(bimModelData.totalElements) || 0) : 0}`,
+                `BIM QA：${qaLevel} / ${qaScore}`,
+                `工程量摘要：長度 ${hasModel ? Number(bimModelData.qtyLength || 0).toFixed(2) : '0.00'}、面積 ${hasModel ? Number(bimModelData.qtyArea || 0).toFixed(2) : '0.00'}、體積 ${hasModel ? Number(bimModelData.qtyVolume || 0).toFixed(2) : '0.00'}、數量 ${hasModel ? Number(bimModelData.qtyCount || 0).toFixed(2) : '0.00'}`,
+                `Top IFC 類型：${topTypes.length ? topTypes.join(' | ') : '無'}`,
+                `元素樣本：${sampleElements.length ? sampleElements.join(' | ') : '無'}`,
+                `模型警告：${warnings.length ? warnings.join(' | ') : '無'}`,
+                `估價筆數：${estimateRows.length}（未匹配 ${unmatched}）`,
+                `BIM 估價總額(試算)：${Math.round(estimatedTotal).toLocaleString()} 元`,
+                `自訂規則筆數：${ruleCount}`,
+                `目前樓層/分區：${floorTag}`,
+                '回答規則：',
+                '1) 先給結論（1~2句）；2) 再列依據（模型數字）；3) 最後給下一步（可執行按鈕/操作）。',
+                '4) 若問題要求「數量/估價/風險」，務必列出對應 IFC 類型與影響。'
+            ].join('\n');
+        };
         if (!config.apiKey) {
             // 免解鎖模式：未設定 API Key 時，回退到本機提示，不阻斷操作流程。
             return '目前為免解鎖模式（未設定 API Key）。已切換為本機解說：請先確認地區價目、再輸入尺寸與數量，最後檢查即時小計。';
@@ -7720,7 +7811,7 @@
                             },
                             {
                                 role: 'user',
-                                content: promptText
+                                content: `${promptText}\n\n${buildBimIfcAiContext(promptText)}`
                             }
                         ]
                     })
@@ -7869,7 +7960,7 @@
         if (target.closest('#workCalcBtn')) return '計算模式：聚焦工種試算、價目套用、清單與報表輸出。';
         if (target.closest('#workStakeBtn')) return '放樣模式：聚焦模型解析、放樣點抽取、QA 檢核與放樣輸出。';
         if (target.closest('#aiCoachToggle')) return 'AI 解說員：可在規則解說外補充更彈性的操作建議（需先設定 API Key）。';
-        if (target.closest('#coachAiInput')) return '你可以直接輸入問題，例如「這個按鈕怎麼用？」再按問AI。';
+        if (target.closest('#coachAiInput')) return '可直接問 BIM/IFC 問題，例如「IFC 裡柱有幾根？未匹配有哪些？」再按問AI。';
         if (target.closest('#coachAiAskBtn')) return '送出你輸入的問題給 AI 解說員，回覆會顯示在氣泡中。';
         if (target.closest('#coachGuideBtn')) return '點這裡可重跑新手導覽，系統會一步一步帶你操作。';
         if (target.closest('#calcType')) return '工種公式選擇區：不同工種會套不同計算公式。';
@@ -8233,7 +8324,7 @@
             return showToast('⚠️ 尚無資料可匯出！');
         }
 
-        let csvContent = "\uFEFF樓層,工種大類,自訂項目(部位),計算數量,單位,發包單價,小計總額\n";
+        let csvContent = "\uFEFF樓層,工種大類,自訂項目(部位),基準數量,施工數量,調整係數,單位,發包單價,基準金額,施工金額\n";
         
         list.forEach(item => {
             let catMap = { 'CEMENT': '混凝土', 'MOLD': '模板', 'EARTH': '土方', 'STEEL': '鋼筋' };
@@ -8242,7 +8333,12 @@
             let sFloor = sanitizeCSVField(item.floor);
             let sName = sanitizeCSVField(item.name);
             
-            csvContent += `${sFloor},${catName},${sName},${item.res.toFixed(2)},${item.unit},${item.up},${Math.round(item.totalCost)}\n`;
+            const adjustedQty = Number(item.res || 0);
+            const baseQty = Number.isFinite(Number(item.baseRes)) ? Number(item.baseRes) : adjustedQty;
+            const adjustFactor = Number.isFinite(Number(item.adjustFactor)) ? Number(item.adjustFactor) : 1;
+            const adjustedCost = Number(item.totalCost || 0);
+            const baseCost = Number.isFinite(Number(item.baseTotalCost)) ? Number(item.baseTotalCost) : adjustedCost;
+            csvContent += `${sFloor},${catName},${sName},${baseQty.toFixed(2)},${adjustedQty.toFixed(2)},${adjustFactor.toFixed(3)},${item.unit},${item.up},${Math.round(baseCost)},${Math.round(adjustedCost)}\n`;
         });
 
         const totalMoney = document.getElementById('totalMoney').innerText.replace(/,/g, '');
