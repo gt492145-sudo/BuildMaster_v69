@@ -1436,6 +1436,7 @@
     let blueprintTapState = { lastAt: 0, lastX: 0, lastY: 0 };
     let aiCoachState = { enabled: false, busy: false };
     let bluetoothDevice = null;
+    let fakeLaserTimer = null;
     let laserConnectInProgress = false;
     let laserRulerMode = 'real';
     let voiceAgentListening = false;
@@ -2773,11 +2774,11 @@
             exported_at: new Date().toISOString(),
             snapshots: bimSnapshots
         };
-        triggerFileDownload(
-            JSON.stringify(payload, null, 2),
-            `bim-snapshots-${new Date().getTime()}.json`,
-            'application/json;charset=utf-8'
-        );
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `bim-snapshots-${new Date().getTime()}.json`;
+        link.click();
         addAuditLog('匯出快照', `共 ${bimSnapshots.length} 筆`);
         showToast('快照已匯出');
     }
@@ -3332,11 +3333,11 @@
             exported_at: new Date().toISOString(),
             rules: bimRuleMap
         };
-        triggerFileDownload(
-            JSON.stringify(payload, null, 2),
-            `bim-rules-${new Date().getTime()}.json`,
-            'application/json;charset=utf-8'
-        );
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `bim-rules-${new Date().getTime()}.json`;
+        link.click();
         addAuditLog('匯出規則', `共 ${Object.keys(bimRuleMap).length} 筆`);
         showToast('BIM 規則已匯出');
     }
@@ -3906,33 +3907,13 @@
         showToast(`現場抽驗已選 ${summaryItems.length} 點（優先高信心）`);
     }
 
-    function triggerFileDownload(content, filename, mimeType = 'application/octet-stream') {
-        const blob = new Blob([content], { type: mimeType });
-        const link = document.createElement('a');
-        const objectUrl = URL.createObjectURL(blob);
-        link.href = objectUrl;
-        link.download = filename;
-        link.click();
-        // Release object URL after click to reduce memory retention.
-        setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
-    }
-
-    function getCurrentProjectName() {
-        const field = document.getElementById('project_name');
-        return (field && field.value) || '未命名專案';
-    }
-
-    function buildKeyValueCsv(rows) {
-        let csv = '\uFEFF項目,數值\n';
-        rows.forEach(([k, v]) => {
-            csv += `${sanitizeCSVField(k)},${sanitizeCSVField(v)}\n`;
-        });
-        return csv;
-    }
-
     function downloadBimCsv(filename, lines) {
         const csv = '\uFEFF' + lines.join('\n');
-        triggerFileDownload(csv, filename, 'text/csv;charset=utf-8;');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
     }
 
     function buildConstructionPackageLines(points, packageLabel, qaScore, qaLevel, exportedAtIso, qaGateScore) {
@@ -4944,11 +4925,11 @@
                 sanitizeCSVField(p.status)
             ].join(',') + '\n';
         });
-        triggerFileDownload(
-            csv,
-            `ConstructionMaster_BIM放樣點_${new Date().getTime()}.csv`,
-            'text/csv;charset=utf-8;'
-        );
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `ConstructionMaster_BIM放樣點_${new Date().getTime()}.csv`;
+        link.click();
         addAuditLog('匯出放樣點', `${bimLayoutPoints.length} 筆`);
         showToast('放樣點 CSV 已匯出');
     }
@@ -4957,7 +4938,7 @@
         if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
         if (!bimLayoutQaResult) runBimLayoutQa();
         const qa = bimLayoutQaResult || {};
-        const projectName = getCurrentProjectName();
+        const projectName = (document.getElementById('project_name') && document.getElementById('project_name').value) || '未命名專案';
         const qaLevel = getQaLevelByScore(qa.qaScore || 0);
         const rows = [
             ['報告時間', new Date().toLocaleString('zh-TW')],
@@ -4974,12 +4955,13 @@
             ['QA分數', String(qa.qaScore || 0)],
             ['QA等級', qaLevel]
         ];
-        const csv = buildKeyValueCsv(rows);
-        triggerFileDownload(
-            csv,
-            `ConstructionMaster_BIM放樣QA_${new Date().getTime()}.csv`,
-            'text/csv;charset=utf-8;'
-        );
+        let csv = '\uFEFF項目,數值\n';
+        rows.forEach(([k, v]) => { csv += `${sanitizeCSVField(k)},${sanitizeCSVField(v)}\n`; });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `ConstructionMaster_BIM放樣QA_${new Date().getTime()}.csv`;
+        link.click();
         addAuditLog('匯出放樣QA', `等級 ${qaLevel} / 分數 ${qa.qaScore || 0}`);
         showToast('放樣 QA 報告已匯出');
     }
@@ -6379,7 +6361,46 @@
         }
     }
 
+    // 4. 接收數據並自動填入目前作用中的數值欄位（資料清洗）
+    function handleLaserData(rawData) {
+        const activeInput = document.activeElement;
+        // 資料清洗（僅接受正數）
+        const cleanMatch = String(rawData).match(/^-?\d+(\.\d+)?/);
+        const distance = cleanMatch ? parseFloat(cleanMatch[0]) : NaN;
+        if (Number.isNaN(distance) || distance <= 0) {
+            laserChaosStats.dirtyBlocked += 1;
+            updateLaserChaosChip();
+            return showToast(`⚠️ 收到無效雷射數據：「${rawData}」，系統已自動擋下`);
+        }
+
+        if (activeInput && activeInput.type === 'number') {
+            activeInput.value = distance;
+            laserChaosStats.successWrites += 1;
+            updateLaserChaosChip();
+            showToast(`📏 成功寫入數據：${distance}m`);
+            previewCalc();
+            setTimeout(() => {
+                if (activeInput.id === 'v1') {
+                    focusNextInputField('v1');
+                    showToast('➡️ 自動切換至：寬度 (等候雷射數據...)');
+                } else if (activeInput.id === 'v2') {
+                    focusNextInputField('v2');
+                    showToast('➡️ 自動切換至：高度 (等候雷射數據...)');
+                } else if (activeInput.id === 'v3') {
+                    focusNextInputField('v3');
+                    showToast('➡️ 自動切換至：數量');
+                }
+            }, 500);
+            return;
+        }
+        console.log(`收到有效雷射數據 ${distance}m，但游標未停留在數值輸入框`);
+    }
+
     function stopLaserRuler(withToast = true) {
+        if (fakeLaserTimer) {
+            clearInterval(fakeLaserTimer);
+            fakeLaserTimer = null;
+        }
         if (bluetoothDevice && bluetoothDevice.gatt && bluetoothDevice.gatt.connected) {
             try { bluetoothDevice.gatt.disconnect(); } catch (_e) {}
         }
@@ -7455,7 +7476,7 @@
         const low = calcAdvancedEstimateFromBase(baseTotal * (1 - stepPercent / 100));
         const high = calcAdvancedEstimateFromBase(baseTotal * (1 + stepPercent / 100));
 
-        const projectName = getCurrentProjectName();
+        const projectName = (document.getElementById('project_name') && document.getElementById('project_name').value) || '未命名專案';
         const floorTag = (document.getElementById('floor_tag') && document.getElementById('floor_tag').value) || '未分層';
         const rows = [
             ['報告時間', new Date().toLocaleString('zh-TW')],
@@ -7481,12 +7502,15 @@
             ['高情境報價(元)', Math.round(high.quoteTotal)]
         ];
 
-        const csv = buildKeyValueCsv(rows);
-        triggerFileDownload(
-            csv,
-            `ConstructionMaster_第三頁精算報表_${new Date().getTime()}.csv`,
-            'text/csv;charset=utf-8;'
-        );
+        let csv = '\uFEFF項目,數值\n';
+        rows.forEach(([k, v]) => {
+            csv += `${sanitizeCSVField(k)},${sanitizeCSVField(v)}\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `ConstructionMaster_第三頁精算報表_${new Date().getTime()}.csv`;
+        link.click();
         addAuditLog('匯出第三頁精算報表', `專案 ${projectName} / 報價 ${Math.round(base.quoteTotal)} 元`);
         showToast('第三頁精算報表已匯出');
     }
@@ -8205,11 +8229,11 @@
         const totalMoney = document.getElementById('totalMoney').innerText.replace(/,/g, '');
         csvContent += `\n,,,,,,預估總計金額,${totalMoney}\n`;
 
-        triggerFileDownload(
-            csvContent,
-            `ConstructionMaster_黑洞報表_${new Date().getTime()}.csv`,
-            'text/csv;charset=utf-8;'
-        );
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `ConstructionMaster_黑洞報表_${new Date().getTime()}.csv`;
+        link.click();
         showToast('📥 報表已下載！');
     }
 
@@ -8230,7 +8254,7 @@
         const avgTilt = measureQaStats.tiltSamples > 0 ? (measureQaStats.tiltSum / measureQaStats.tiltSamples) : 0;
         const qaScore = calcMeasureQaScore();
         const qaLevel = getQaLevelByScore(qaScore);
-        const projectName = getCurrentProjectName();
+        const projectName = (document.getElementById('project_name') && document.getElementById('project_name').value) || '未命名專案';
         const reportRows = [
             ['報告時間', new Date().toLocaleString('zh-TW')],
             ['專案名稱', projectName],
@@ -8251,13 +8275,18 @@
             ['統計起算時間', new Date(measureQaStats.startedAt).toLocaleString('zh-TW')]
         ];
 
-        const csvContent = buildKeyValueCsv(reportRows);
+        let csvContent = '\uFEFF項目,數值\n';
+        reportRows.forEach(([k, v]) => {
+            const sk = sanitizeCSVField(k);
+            const sv = sanitizeCSVField(v);
+            csvContent += `${sk},${sv}\n`;
+        });
 
-        triggerFileDownload(
-            csvContent,
-            `ConstructionMaster_量圖QA報告_${new Date().getTime()}.csv`,
-            'text/csv;charset=utf-8;'
-        );
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `ConstructionMaster_量圖QA報告_${new Date().getTime()}.csv`;
+        link.click();
         if (typeof addAuditLog === 'function') {
             addAuditLog('匯出量圖QA報告', `等級 ${qaLevel} / 分數 ${qaScore} / 測量完成 ${measureQaStats.measureSuccess} 次`);
         }
