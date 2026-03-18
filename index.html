@@ -663,8 +663,8 @@
         <button id="levelProBtn" class="level-btn" onclick="setUserLevel('3')">會員3（專家）</button>
     </div>
     <div class="work-switch">
-        <button id="workCalcBtn" class="work-btn active" onclick="window.location.href='index.html'">🧮 計算模式</button>
-        <button id="workStakeBtn" class="work-btn" onclick="window.location.href='stake.html'">📍 放樣模式</button>
+        <button id="workCalcBtn" class="work-btn active" onclick="localStorage.setItem('bm_69:work_mode','calc'); window.location.href='index.html'">🧮 計算模式</button>
+        <button id="workStakeBtn" class="work-btn" onclick="localStorage.setItem('bm_69:work_mode','stake'); window.location.href='stake.html'">📍 放樣模式</button>
     </div>
     <div class="header-actions">
         <button id="coachToggle" class="mode-btn" onclick="toggleCoachMode()">解說員: 開</button>
