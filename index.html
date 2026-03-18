@@ -60,6 +60,7 @@
     #img-wrapper.viewer-3d { cursor: grab; touch-action: none; }
     #img-wrapper.viewer-3d.dragging { cursor: grabbing; }
     .mobile-blueprint-status { display: none; }
+    .manual-measure-pad { display: none; }
     #blueprint { display: block; pointer-events: none; }
     #drawCanvas { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; touch-action: pan-x pan-y pinch-zoom; -webkit-tap-highlight-color: transparent; }
     #smartMeasureOverlay { position: absolute; inset: 0; z-index: 11; pointer-events: none; overflow: visible; }
@@ -832,6 +833,71 @@
             font-size: 0.78em;
             line-height: 1.45;
         }
+        .manual-measure-pad {
+            display: block;
+            position: absolute;
+            left: 8px;
+            bottom: 8px;
+            z-index: 19;
+            width: min(170px, calc(100% - 16px));
+            pointer-events: auto;
+        }
+        .manual-measure-pad[aria-hidden="true"] { display: none; }
+        .manual-measure-pad-card {
+            border-radius: 14px;
+            border: 1px solid rgba(255, 209, 102, 0.38);
+            background: rgba(8, 18, 34, 0.9);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.28);
+            padding: 10px;
+            color: #eef8ff;
+            backdrop-filter: blur(8px);
+        }
+        .manual-measure-pad-title {
+            display: block;
+            font-size: 0.78em;
+            font-weight: 800;
+            color: #ffd287;
+            margin-bottom: 3px;
+        }
+        .manual-measure-pad-hint {
+            display: block;
+            font-size: 0.72em;
+            color: #bfe7ff;
+            line-height: 1.4;
+            margin-bottom: 8px;
+        }
+        .manual-measure-pad-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+        .manual-measure-pad-btn {
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.08);
+            color: #eef8ff;
+            border-radius: 8px;
+            padding: 6px 8px;
+            font-size: 0.72em;
+            font-weight: 700;
+        }
+        .manual-measure-pad-btn:disabled {
+            opacity: 0.45;
+        }
+        .manual-measure-pad-btn.warn {
+            border-color: rgba(255, 209, 102, 0.55);
+            color: #fff0bf;
+        }
+        .manual-measure-pad-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+        .manual-measure-pad-grid .manual-measure-pad-btn {
+            min-height: 34px;
+            font-size: 0.85em;
+            padding: 0;
+        }
     }
     .mobile-drawer { display: none; }
     .mobile-test-log { display: none; }
@@ -839,29 +905,29 @@
         .mobile-drawer {
             display: block;
             position: fixed;
-            right: -210px;
-            top: 52%;
-            transform: translateY(-50%);
-            width: 210px;
+            right: 10px;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+            width: min(76vw, 220px);
             z-index: 2200;
-            transition: right 0.24s ease;
+            pointer-events: none;
         }
-        .mobile-drawer.open { right: 0; }
+        .mobile-drawer.open { pointer-events: auto; }
         .mobile-func-tab {
             position: absolute;
-            left: -44px;
-            top: 28px;
-            width: 44px;
-            padding: 10px 8px;
-            border-radius: 10px 0 0 10px;
+            right: 0;
+            bottom: 0;
+            width: auto;
+            min-width: 58px;
+            padding: 8px 12px;
+            border-radius: 999px;
             border: 1px solid rgba(126, 200, 255, 0.72);
             background: rgba(13, 28, 46, 0.88);
             color: #bfe7ff;
-            font-size: 0.78em;
+            font-size: 0.76em;
             font-weight: 800;
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-            letter-spacing: 2px;
+            letter-spacing: 1px;
+            box-shadow: 0 10px 22px rgba(0,0,0,0.3);
+            pointer-events: auto;
         }
         .drawer-header {
             color: #bfe7ff;
@@ -881,6 +947,10 @@
             cursor: pointer;
         }
         .drawer-shell {
+            position: absolute;
+            right: 0;
+            bottom: 50px;
+            width: 100%;
             border-radius: 12px 0 0 12px;
             border: 1px solid rgba(154, 211, 255, 0.52);
             background: rgba(8, 17, 31, 0.94);
@@ -889,6 +959,17 @@
             box-shadow: 0 8px 20px rgba(0,0,0,0.4);
             display: grid;
             gap: 8px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(10px);
+            transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+            pointer-events: none;
+        }
+        .mobile-drawer.open .drawer-shell {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+            pointer-events: auto;
         }
         body.mobile-focus-mode header,
         body.mobile-focus-mode .calc-panel {
@@ -905,23 +986,26 @@
             display: none !important;
         }
         body.mobile-measure-mode .mobile-drawer {
-            right: -188px;
-            width: 188px;
+            width: min(70vw, 188px);
         }
         .mobile-test-log {
             display: block;
             position: fixed;
-            left: 8px;
-            right: 8px;
-            bottom: 8px;
+            right: 10px;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+            width: min(58vw, 180px);
             z-index: 2300;
             border: 1px solid rgba(140, 212, 255, 0.52);
-            border-radius: 10px;
+            border-radius: 12px;
             background: rgba(9, 18, 30, 0.92);
             box-shadow: 0 10px 24px rgba(0,0,0,0.45);
             backdrop-filter: blur(7px);
         }
         .mobile-test-log.collapsed .mobile-test-log-body { display: none; }
+        .mobile-test-log.collapsed {
+            width: auto;
+            max-width: calc(100vw - 20px);
+        }
         .mobile-test-log-head {
             display: flex;
             align-items: center;
@@ -932,7 +1016,16 @@
             font-size: 0.8em;
             font-weight: 800;
         }
+        .mobile-test-log.collapsed .mobile-test-log-head {
+            padding: 6px 8px;
+        }
+        .mobile-test-log.collapsed .mobile-test-log-head > span {
+            display: none;
+        }
         .mobile-test-log-actions { display: flex; gap: 6px; }
+        .mobile-test-log.collapsed .mobile-test-log-actions {
+            gap: 0;
+        }
         .mobile-test-log-btn {
             border: 1px solid rgba(255,255,255,0.24);
             border-radius: 7px;
@@ -941,6 +1034,9 @@
             font-size: 0.75em;
             font-weight: 700;
             padding: 4px 8px;
+        }
+        .mobile-test-log.collapsed .mobile-test-log-actions .mobile-test-log-btn:last-child {
+            display: none;
         }
         .mobile-test-log-body {
             max-height: 150px;
@@ -1131,6 +1227,7 @@
                     <span id="mobileBlueprintAutoInterpretInfo" class="mobile-blueprint-status-line" style="color:#bfe7ff;">自動判讀: 尚未執行</span>
                 </div>
             </div>
+            <div id="manualMeasurePad" class="manual-measure-pad" aria-hidden="true"></div>
             <div id="blueprintLaserSweep" class="blueprint-laser-sweep-persistent" aria-hidden="true"></div>
             <div id="img-wrapper">
                 <img id="blueprint">
@@ -6480,6 +6577,7 @@
                 applyImageFilter();
                 reset3DView(true);
                 syncMobileMeasureModeUI();
+                renderManualMeasurePad();
                 fitBlueprintToViewport();
                 const qualityReport = updateBlueprintQualityStatus();
                 if (qualityReport && qualityReport.quality === '待重拍') {
@@ -8051,6 +8149,102 @@
         ctx.stroke();
     }
 
+    function redrawManualMeasurementCanvas() {
+        if (!canvas.width || !canvas.height) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        clickPoints.forEach(point => drawMeasurementPoint(point));
+        if (clickPoints.length >= 2) {
+            drawMeasurementLine(clickPoints[0], clickPoints[1]);
+        }
+        if (calibrationPendingPoint) {
+            if (clickPoints.length === 1) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255, 209, 102, 0.72)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([8, 6]);
+                ctx.beginPath();
+                ctx.moveTo(clickPoints[0].x, clickPoints[0].y);
+                ctx.lineTo(calibrationPendingPoint.x, calibrationPendingPoint.y);
+                ctx.stroke();
+                ctx.restore();
+            }
+            drawMeasurementPendingPoint(calibrationPendingPoint);
+        }
+    }
+
+    function renderManualMeasurePad() {
+        const pad = document.getElementById('manualMeasurePad');
+        if (!pad) return;
+        const activeManualMode = isMobileViewport() && img.src && (drawMode === 'calibration' || drawMode === 'measure');
+        if (!activeManualMode) {
+            pad.innerHTML = '';
+            pad.setAttribute('aria-hidden', 'true');
+            return;
+        }
+        const hasPending = !!calibrationPendingPoint;
+        const hasConfirmed = clickPoints.length > 0;
+        const targetLabel = clickPoints.length === 0 ? '起點' : '終點';
+        const currentLabel = hasPending ? `暫存${targetLabel}` : (hasConfirmed ? '上一個確認點' : '尚未選點');
+        const hint = hasPending
+            ? `已選 ${targetLabel}，可用箭頭微調後按確認。`
+            : (hasConfirmed ? '可用箭頭修正上一個點，或直接點圖選下一點。' : '先點圖放置點位，再用箭頭微調。');
+        pad.innerHTML = `<div class="manual-measure-pad-card"><span class="manual-measure-pad-title">手動微調｜${currentLabel}</span><span class="manual-measure-pad-hint">${hint}</span><div class="manual-measure-pad-actions"><button class="manual-measure-pad-btn warn" type="button" onclick="confirmManualMeasurePendingPoint()"${hasPending ? '' : ' disabled'}>確認目前點位</button><button class="manual-measure-pad-btn" type="button" onclick="undoManualMeasurePoint()"${(hasPending || hasConfirmed) ? '' : ' disabled'}>回上一步</button></div><div class="manual-measure-pad-grid"><span></span><button class="manual-measure-pad-btn" type="button" onclick="nudgeManualMeasurePoint(0, -1)"${(hasPending || hasConfirmed) ? '' : ' disabled'}>↑</button><span></span><button class="manual-measure-pad-btn" type="button" onclick="nudgeManualMeasurePoint(-1, 0)"${(hasPending || hasConfirmed) ? '' : ' disabled'}>←</button><button class="manual-measure-pad-btn" type="button" onclick="nudgeManualMeasurePoint(0, 1)"${(hasPending || hasConfirmed) ? '' : ' disabled'}>↓</button><button class="manual-measure-pad-btn" type="button" onclick="nudgeManualMeasurePoint(1, 0)"${(hasPending || hasConfirmed) ? '' : ' disabled'}>→</button></div></div>`;
+        pad.setAttribute('aria-hidden', 'false');
+    }
+
+    function confirmManualMeasurePendingPoint() {
+        if (!(drawMode === 'calibration' || drawMode === 'measure')) return;
+        if (!calibrationPendingPoint) return showToast('請先點圖放置點位');
+        clickPoints.push({ x: calibrationPendingPoint.x, y: calibrationPendingPoint.y });
+        calibrationPendingPoint = null;
+        redrawManualMeasurementCanvas();
+        renderManualMeasurePad();
+        if (clickPoints.length === 1) {
+            showToast('起點已確認，請點終點後可再用箭頭微調');
+            return;
+        }
+        if (clickPoints.length === 2) {
+            finalizeMeasurementFromPoints(drawMode, clickPoints[0], clickPoints[1]);
+        }
+    }
+
+    function undoManualMeasurePoint() {
+        if (!(drawMode === 'calibration' || drawMode === 'measure')) return;
+        if (calibrationPendingPoint) {
+            calibrationPendingPoint = null;
+            redrawManualMeasurementCanvas();
+            renderManualMeasurePad();
+            showToast('已取消目前暫存點');
+            return;
+        }
+        if (!clickPoints.length) return showToast('目前沒有可退回的點位');
+        clickPoints.pop();
+        redrawManualMeasurementCanvas();
+        renderManualMeasurePad();
+        showToast('已退回上一個確認點');
+    }
+
+    function nudgeManualMeasurePoint(dx, dy) {
+        if (!(drawMode === 'calibration' || drawMode === 'measure')) return;
+        const step = clampNumber(5 / Math.max(0.35, zoomLevel), 1.5, 8);
+        if (calibrationPendingPoint) {
+            calibrationPendingPoint = {
+                x: clampNumber(calibrationPendingPoint.x + dx * step, 0, img.naturalWidth),
+                y: clampNumber(calibrationPendingPoint.y + dy * step, 0, img.naturalHeight)
+            };
+        } else if (clickPoints.length) {
+            const lastIndex = clickPoints.length - 1;
+            clickPoints[lastIndex] = {
+                x: clampNumber(clickPoints[lastIndex].x + dx * step, 0, img.naturalWidth),
+                y: clampNumber(clickPoints[lastIndex].y + dy * step, 0, img.naturalHeight)
+            };
+        } else {
+            return showToast('請先點圖放置點位');
+        }
+        redrawManualMeasurementCanvas();
+        renderManualMeasurePad();
+    }
+
     function drawMeasurementLine(p1, p2) {
         ctx.strokeStyle = '#ff4757';
         ctx.lineWidth = 3;
@@ -8200,6 +8394,7 @@
         calibrationPendingPoint = null;
         drawMode = 'none';
         syncMobileMeasureModeUI();
+        renderManualMeasurePad();
     }
 
     function prepareSmartMeasure(mode) {
@@ -8593,7 +8788,8 @@
         drawMode = 'calibration';
         clickPoints = [];
         calibrationPendingPoint = null;
-        showToast('定比例模式：每個點都要再點一次確認');
+        renderManualMeasurePad();
+        showToast(isMobileViewport() ? '定比例模式：點圖後可用小箭頭微調，再按確認點位' : '定比例模式：每個點都要再點一次確認');
         syncMobileMeasureModeUI();
     }
     function startMeasure() {
@@ -8605,7 +8801,8 @@
         drawMode = 'measure';
         clickPoints = [];
         calibrationPendingPoint = null;
-        showToast('點擊你要測量的【起點】與【終點】');
+        renderManualMeasurePad();
+        showToast(isMobileViewport() ? '量測模式：點圖後可用小箭頭微調，再按確認點位' : '點擊你要測量的【起點】與【終點】');
         syncMobileMeasureModeUI();
     }
 
@@ -8795,9 +8992,11 @@
     function clearCanvas() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         clickPoints = [];
+        calibrationPendingPoint = null;
         drawMode = 'none';
         resetSmartMeasureSession({ preserveLastResult: false });
         syncMobileMeasureModeUI();
+        renderManualMeasurePad();
         showToast('🧽 畫布已擦乾淨！');
     }
     function removeLoadedImage() {
@@ -8812,9 +9011,11 @@
         canvas.style.height = '';
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         clickPoints = [];
+        calibrationPendingPoint = null;
         drawMode = 'none';
         resetSmartMeasureSession({ preserveLastResult: false });
         syncMobileMeasureModeUI();
+        renderManualMeasurePad();
         scalePixelsPerUnit = 0;
         document.getElementById('scale-info').innerText = '比例: 未設定';
         const fileInput = document.getElementById('fileInput');
@@ -9079,7 +9280,9 @@
             return;
         }
         blueprintPinchState.active = false;
-        blueprintPanState.active = false;
+        blueprintPanState.active = true;
+        blueprintPanState.lastX = e.touches[0].clientX;
+        blueprintPanState.lastY = e.touches[0].clientY;
         blueprintPanState.moved = false;
     }
 
@@ -9093,12 +9296,34 @@
             setZoomAt(center.x, center.y, targetZoom);
             suppressNextCanvasTouch = true;
             if (e.cancelable) e.preventDefault();
+            return;
+        }
+        if (!blueprintPanState.active || e.touches.length !== 1) return;
+        const t = e.touches[0];
+        const dx = t.clientX - blueprintPanState.lastX;
+        const dy = t.clientY - blueprintPanState.lastY;
+        blueprintPanState.lastX = t.clientX;
+        blueprintPanState.lastY = t.clientY;
+        if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+            blueprintPanState.moved = true;
+            suppressNextCanvasTouch = true;
+        }
+        if (canvasContainer) {
+            canvasContainer.scrollLeft -= dx;
+            canvasContainer.scrollTop -= dy;
+        }
+        if (blueprintPanState.moved && e.cancelable) {
+            e.preventDefault();
         }
     }
 
     function onBlueprintTouchEnd() {
         if (blueprintPinchState.active) {
             blueprintPinchState.active = false;
+        }
+        if (blueprintPanState.moved) {
+            suppressNextCanvasTouch = true;
+            suppressNextCanvasClick = true;
         }
         blueprintPanState.active = false;
         blueprintPanState.moved = false;
@@ -9206,6 +9431,14 @@
             const snapped = getSmartMeasureSnap({ x, y });
             const point = { x: snapped.point.x, y: snapped.point.y };
             commitSmartMeasurePoint(point, snapped);
+            return;
+        }
+
+        if (isMobileViewport() && (drawMode === 'calibration' || drawMode === 'measure')) {
+            calibrationPendingPoint = { x, y };
+            redrawManualMeasurementCanvas();
+            renderManualMeasurePad();
+            showToast(`${clickPoints.length === 0 ? '起點' : '終點'}已暫存，可用小箭頭微調後按確認`);
             return;
         }
 
@@ -10820,6 +11053,7 @@
     function syncMobileMeasureModeUI() {
         if (!isMobileViewport()) {
             document.body.classList.remove('mobile-measure-mode');
+            renderManualMeasurePad();
             return;
         }
         const activeMeasure = isMeasureInteractionMode(drawMode);
@@ -10836,6 +11070,7 @@
             const box = document.getElementById('mobileTestLog');
             if (box) box.classList.add('collapsed');
         }
+        renderManualMeasurePad();
     }
 
     function getUserLevelGuideLines(level) {
