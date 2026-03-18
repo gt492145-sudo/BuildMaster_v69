@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Construction Master 通用放樣大師 V4.2</title>
+<style>
+    :root { --bg: #1e272e; --panel: #2f3640; --text: #ecf0f1; --radar: #00ff00; --accent: #f39c12; --btn: #3498db; --danger: #e74c3c; }
+    body { font-family: sans-serif; margin: 0; padding: 10px; background-color: var(--bg); color: var(--text); }
+    header { background: rgba(10, 16, 30, 0.38); padding: 10px 20px; display: flex; align-items: center; gap: 12px; border-bottom: 2px solid rgba(255,152,0,0.65); box-shadow: 0 4px 15px rgba(255,152,0,0.2); backdrop-filter: blur(8px) saturate(115%); margin-bottom: 15px; border-radius: 10px; }
+    .logo-img { width: 62px; height: 62px; border-radius: 50%; border: 2px solid var(--accent); object-fit: cover; box-shadow: 0 0 12px var(--accent); flex-shrink: 0; }
+    .header-main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .header-title { font-size: 1.25em; font-weight: bold; color: var(--accent); letter-spacing: 1px; text-shadow: 0 0 10px rgba(255, 152, 0, 0.35); line-height: 1.2; }
+    .header-sub { font-size: 0.78em; color: #b8c7d9; letter-spacing: 0.4px; }
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .work-switch { display: flex; gap: 6px; }
+    .work-btn { border: 1px solid rgba(255,255,255,0.24); border-radius: 999px; background: rgba(30,44,68,0.55); color: #d7ebff; font-size: 0.76em; padding: 6px 10px; cursor: pointer; font-weight: 700; }
+    .work-btn.active { border-color: rgba(154, 211, 255, 0.78); background: rgba(70, 138, 199, 0.34); color: #eef9ff; }
+    .status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.06); color: #d7ebff; font-size: 0.72em; }
+    .status-pill.accent { border-color: rgba(255, 184, 114, 0.65); color: #ffd8a7; }
+    .status-pill.info { border-color: rgba(112, 213, 255, 0.65); color: #d7f4ff; }
+    .global-weather-ticker {
+        position: sticky;
+        top: 0;
+        z-index: 2100;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+        padding: 6px 12px;
+        border: 1px solid rgba(148, 200, 255, 0.32);
+        border-radius: 10px;
+        background: rgba(8, 16, 30, 0.92);
+        backdrop-filter: blur(7px) saturate(115%);
+    }
+    .global-weather-ticker .ticker-label {
+        flex: 0 0 auto;
+        font-size: 0.76em;
+        color: #9ad4ff;
+        font-weight: 700;
+    }
+    .weather-news-marquee {
+        position: relative;
+        overflow: hidden;
+        white-space: nowrap;
+        flex: 1;
+    }
+    .weather-news-text {
+        display: inline-block;
+        min-width: 100%;
+        padding-left: 100%;
+        will-change: transform;
+        animation: weather-news-marquee 16s linear infinite;
+        color: #cfe6ff;
+        font-size: 0.8em;
+    }
+    @keyframes weather-news-marquee {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-100%); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .weather-news-text {
+            animation: none;
+            padding-left: 0;
+            min-width: 0;
+        }
+    }
+    .live-badge { display: inline-flex; align-items: center; margin-left: 10px; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(222, 189, 255, 0.72); background: linear-gradient(135deg, rgba(108, 60, 188, 0.9), rgba(139, 92, 246, 0.9)); color: #f7ebff; font-size: 0.46em; letter-spacing: 0.8px; vertical-align: middle; }
+    .mobile-func-drawer { display: none; }
+    body.sunlight-readable {
+        --bg: #121920;
+        --panel: #1b2530;
+        --text: #ffffff;
+        --radar: #7dff8f;
+        --accent: #ffd166;
+        --btn: #3aa0ff;
+    }
+    body.sunlight-readable .tab-btn,
+    body.sunlight-readable .work-btn,
+    body.sunlight-readable .mobile-func-btn,
+    body.sunlight-readable button {
+        border: 2px solid rgba(255,255,255,0.42);
+        font-weight: 800;
+        text-shadow: 0 0 1px rgba(0,0,0,0.6);
+    }
+    body.sunlight-readable canvas {
+        border-color: rgba(255,255,255,0.7);
+    }
+    @media (max-width: 900px) {
+        header { padding: 10px 12px; }
+        .logo-img { width: 52px; height: 52px; }
+        .header-title { font-size: 1.05em; }
+        .header-sub { font-size: 0.72em; }
+        .header-right { width: 100%; margin-left: 0; justify-content: flex-start; }
+        .mobile-func-drawer {
+            display: block;
+            position: fixed;
+            right: -195px;
+            top: 52%;
+            transform: translateY(-50%);
+            width: 195px;
+            z-index: 2200;
+            transition: right 0.24s ease;
+        }
+        .mobile-func-drawer.open { right: 0; }
+        .mobile-func-tab {
+            position: absolute;
+            left: -42px;
+            top: 22px;
+            width: 42px;
+            padding: 9px 7px;
+            border-radius: 10px 0 0 10px;
+            border: 1px solid rgba(126, 200, 255, 0.72);
+            background: rgba(13, 28, 46, 0.9);
+            color: #bfe7ff;
+            font-size: 0.76em;
+            font-weight: 800;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            letter-spacing: 2px;
+        }
+        .mobile-func-panel {
+            border-radius: 12px 0 0 12px;
+            border: 1px solid rgba(154, 211, 255, 0.52);
+            background: rgba(8, 17, 31, 0.95);
+            padding: 9px;
+            display: grid;
+            gap: 7px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+        }
+        .drawer-header {
+            color: #bfe7ff;
+            font-size: 0.82em;
+            font-weight: 800;
+            padding: 2px 2px 6px 2px;
+        }
+        .mobile-func-btn {
+            border: 1px solid rgba(255,255,255,0.22);
+            border-radius: 8px;
+            background: rgba(40, 66, 96, 0.52);
+            color: #ecf7ff;
+            font-size: 0.8em;
+            font-weight: 700;
+            padding: 8px 9px;
+            text-align: left;
+        }
+        /* Stake page keeps the top identity/header visible in mobile focus mode. */
+        body.mobile-focus-mode .global-settings {
+            display: none !important;
+        }
+        body.mobile-focus-mode .tabs {
+            display: none !important;
+        }
+        body.mobile-focus-mode { padding-top: 10px; }
+        .radar-canvas-wrap { max-height: 52vh; }
+    }
+    
+    .global-settings { background: rgba(0,0,0,0.5); padding: 15px; border: 1px dashed var(--accent); border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; }
+    .global-settings input { width: 120px; padding: 8px; background: #222; color: #fff; border: 1px solid #555; }
+    
+    .tabs { display: flex; gap: 5px; margin-bottom: 15px; }
+    .tab-btn { flex: 1; padding: 10px; background: #333; color: #aaa; border: none; cursor: pointer; font-weight: bold; border-radius: 4px 4px 0 0; }
+    .tab-btn.active { background: var(--btn); color: #fff; }
+    
+    .tab-content { display: none; background: var(--panel); padding: 15px; border-radius: 0 0 8px 8px; border: 1px solid #444; }
+    .tab-content.active { display: block; }
+
+    .input-group { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
+    .input-group input { padding: 8px; background: #222; border: 1px solid #555; color: #fff; flex: 1; min-width:60px;}
+    button { padding: 10px 15px; background: var(--btn); color: white; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; }
+    button:hover { filter: brightness(1.2); }
+    
+    .radar-canvas-wrap {
+        width: 100%;
+        max-width: 100%;
+        max-height: min(72vh, 780px);
+        overflow: auto;
+        position: relative;
+        border: 1px solid rgba(255,255,255,0.16);
+        border-radius: 8px;
+        background: rgba(6, 12, 22, 0.75);
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-x pan-y;
+    }
+    canvas { display: block; background: #111; border: 1px solid #444; width: 100%; max-width: 1240px; height: 680px; cursor: crosshair; touch-action: pan-x pan-y pinch-zoom; }
+    .stake-laser-sweep {
+        position: absolute;
+        left: 0;
+        top: -30%;
+        width: 100%;
+        height: 3px;
+        border-radius: 999px;
+        pointer-events: none;
+        opacity: 0.88;
+        z-index: 20;
+        background: linear-gradient(90deg, rgba(164, 93, 255, 0), rgba(196, 132, 255, 0.95), rgba(164, 93, 255, 0));
+        box-shadow: 0 0 10px rgba(172, 108, 255, 0.95), 0 0 24px rgba(129, 64, 245, 0.75);
+        animation: stake-laser-sweep-down 2.6s ease-in-out infinite;
+    }
+    .stake-laser-sweep.hidden {
+        display: none;
+    }
+    @keyframes stake-laser-sweep-down {
+        0% { top: -10px; opacity: 0; }
+        12% { opacity: 0.95; }
+        88% { opacity: 0.9; }
+        100% { top: calc(100% + 10px); opacity: 0; }
+    }
+    @media (min-width: 1400px) {
+        .radar-canvas-wrap { max-height: min(78vh, 920px); }
+        canvas { max-width: 1480px; height: 760px; }
+    }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.85em; background: #000; }
+    th { background: #333; color: var(--accent); padding: 6px; border: 1px solid #555; }
+    td { border: 1px solid #555; padding: 6px; text-align: center; }
+    
+    .result-box { background: #000; padding: 15px; border-left: 4px solid var(--radar); margin-top: 15px; font-family: monospace; font-size: 1.1em; color: var(--radar); }
+</style>
+</head>
+<body>
+
+<header>
+    <img src="logo-app.png" class="logo-img" alt="Black Hole Logo">
+    <div class="header-main">
+        <div class="header-title">🏗️ Construction Master 通用放樣精算系統 (V4.2 衛星制導版)<span class="live-badge">正式版 LIVE</span></div>
+        <div class="header-sub">黑洞主視覺同步｜放樣子系統獨立版本 4.2</div>
+    </div>
+    <div class="header-right">
+        <div class="work-switch">
+            <button class="work-btn" onclick="window.location.href='index.html'">🧮 計算模式</button>
+            <button class="work-btn active" onclick="window.location.href='stake.html'">📍 放樣模式</button>
+        </div>
+        <span class="status-pill accent">放樣核心 4.2</span>
+        <span class="status-pill info">座標轉換 TWD97</span>
+        <span class="status-pill">CSV 匯出就緒</span>
+    </div>
+</header>
+
+<div id="globalWeatherTicker" class="global-weather-ticker">
+    <span class="ticker-label">☁️ 工地氣象</span>
+    <div class="weather-news-marquee">
+        <span id="globalWeatherTickerText" class="weather-news-text">氣象快報：資料更新中...</span>
+    </div>
+</div>
+
+<div id="mobileFuncDrawer" class="mobile-func-drawer" aria-hidden="true">
+    <button class="mobile-func-tab" type="button" onclick="toggleMobileFuncDrawer()">功能</button>
+    <div class="mobile-func-panel">
+        <div class="drawer-header">🛠️ 戰術工具箱</div>
+        <button id="mobileFocusBtn" class="mobile-func-btn" type="button" data-mobile-action="toggle-focus">🧲 視圖模式：自動</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="measure-clear">🎯 量測淨空模式</button>
+        <button id="mobileOwnerLockBtn" class="mobile-func-btn" type="button" data-mobile-action="owner-lock">🐒 猴子權限：未設定</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="owner-pass-change">🔁 更改猴子密碼</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="usage-guide">📘 使用與錯誤排查</button>
+        <button id="mobileSunlightBtn" class="mobile-func-btn" type="button" data-mobile-action="toggle-sunlight">☀️ 戶外高亮：關</button>
+        <hr style="border: 0.5px solid rgba(255,255,255,0.18); margin: 2px 0;">
+        <button class="mobile-func-btn" type="button" data-mobile-action="mode-calc">🧮 計算模式</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="mode-stake">📍 放樣模式</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="tab-radar">🌐 3D雷達轉換</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="tab-offset">🚧 支距避障</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="tab-area">🥾 鞋帶面積</button>
+        <button class="mobile-func-btn" type="button" data-mobile-action="tab-slope">💧 坡度高程</button>
+        <hr style="border: 0.5px solid rgba(255,255,255,0.18); margin: 2px 0;">
+        <button class="mobile-func-btn" type="button" data-mobile-action="close">❌ 關閉工具箱</button>
+    </div>
+</div>
+
+<div class="global-settings" style="margin-top: 10px;">
+    <div style="width: 100%; color: var(--accent); font-weight: bold; margin-bottom: 5px;">📍 專案基準點設定 (Global Settings)</div>
+    <div><label>政府座標 E: </label><input type="number" id="gE" value="204000" step="0.001"></div>
+    <div><label>政府座標 N: </label><input type="number" id="gN" value="2682000" step="0.001"></div>
+    <div><label>基準高程 H: </label><input type="number" id="gH" value="0" step="0.001"></div>
+    <div><label>圖面旋轉度: </label><input type="number" id="gRot" value="0" step="0.1"></div>
+</div>
+
+<div class="tabs">
+    <button id="tabBtnRadar" class="tab-btn active" onclick="switchTab(event, 'tab-radar')">🌐 3D雷達轉換</button>
+    <button id="tabBtnOffset" class="tab-btn" onclick="switchTab(event, 'tab-offset')">🚧 支距避障</button>
+    <button id="tabBtnArea" class="tab-btn" onclick="switchTab(event, 'tab-area')">🥾 鞋帶面積</button>
+    <button id="tabBtnSlope" class="tab-btn" onclick="switchTab(event, 'tab-slope')">💧 坡度高程</button>
+</div>
+
+<div id="tab-radar" class="tab-content active">
+    <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+        <div style="flex: 1; min-width: 300px;">
+            <div class="input-group" style="margin-bottom:8px; flex-wrap:wrap;">
+                <input type="file" id="radarImageInput" accept="image/*" onchange="loadRadarBackground(event)" style="min-width:190px;">
+                <button type="button" onclick="changeRadarViewScale(0.15)">🔍 放大畫面</button>
+                <button type="button" onclick="changeRadarViewScale(-0.15)">🔎 縮小畫面</button>
+                <button type="button" onclick="resetRadarViewScale()">↺ 重設比例</button>
+                <button type="button" style="background:#7f8c8d;" onclick="clearRadarBackground()">🗑️ 清除圖紙</button>
+                <span id="radarZoomInfo" style="color:#d7f4ff; font-size:0.82em;">畫面比例：100%</span>
+            </div>
+            <div class="radar-canvas-wrap">
+                <div id="stakeLaserSweep" class="stake-laser-sweep" aria-hidden="true"></div>
+                <canvas id="radarCanvas" width="760" height="460"></canvas>
+            </div>
+            <div id="hudDisplay" style="color:var(--radar); font-family:monospace; margin-top:5px; font-size:0.9em;">自動縮放啟動中... 滑鼠移至圖面追蹤座標</div>
+        </div>
+        <div style="flex: 1; min-width: 300px;">
+            <div class="input-group">
+                <input type="text" id="pName" placeholder="名稱(例:A1)">
+                <input type="number" id="pX" placeholder="圖 X">
+                <input type="number" id="pY" placeholder="圖 Y">
+                <button onclick="addPoint()">加入</button>
+            </div>
+            <table>
+                <thead><tr><th>名稱</th><th>圖(X,Y)</th><th>政府(E,N)</th><th>空照</th><th>刪</th></tr></thead>
+                <tbody id="reportBody"></tbody>
+            </table>
+            <button style="width:100%; background:#27ae60; margin-top:10px;" onclick="exportCSV()">💽 匯出 CSV (儀器用)</button>
+            <div style="margin-top:12px; border:1px solid rgba(255,255,255,0.2); border-radius:8px; padding:10px; background:rgba(0,0,0,0.28);">
+                <div style="color:var(--accent); font-weight:800; margin-bottom:8px;">📐 圖旁尺寸快速算面積</div>
+                <div class="input-group">
+                    <span style="width:40px;">長</span>
+                    <input type="number" id="quickLen" placeholder="例如 8.5">
+                </div>
+                <div class="input-group">
+                    <span style="width:40px;">寬</span>
+                    <input type="number" id="quickWid" placeholder="例如 3.2">
+                </div>
+                <div class="input-group">
+                    <span style="width:70px;">尺寸單位</span>
+                    <select id="quickUnit" style="padding:8px; background:#222; color:#fff; border:1px solid #555; flex:1;">
+                        <option value="m">公尺 (m)</option>
+                        <option value="cm">公分 (cm)</option>
+                    </select>
+                    <button type="button" style="background:#8e44ad;" onclick="runQuickRectArea()">🧮 計算</button>
+                </div>
+                <div id="quickAreaResult" class="result-box" style="margin-top:8px; font-size:1em;">等待計算...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="tab-offset" class="tab-content">
+    <h3>🚧 支距法避障放樣</h3>
+    <div class="input-group"><span style="width:50px">起點P1</span><input type="number" id="oP1x" placeholder="X"><input type="number" id="oP1y" placeholder="Y"></div>
+    <div class="input-group"><span style="width:50px">終點P2</span><input type="number" id="oP2x" placeholder="X"><input type="number" id="oP2y" placeholder="Y"></div>
+    <div class="input-group"><span style="width:50px">目標點</span><input type="number" id="oTx" placeholder="X"><input type="number" id="oTy" placeholder="Y"></div>
+    <button onclick="runOffset()">📐 精算路徑</button>
+    <div class="result-box" id="resOffset">等待計算...</div>
+</div>
+
+<div id="tab-area" class="tab-content">
+    <h3>🥾 不規則面積與坪數 (精準版)</h3>
+    <div class="input-group">
+        <span style="width:70px">圖紙單位</span>
+        <select id="aUnit" style="padding:8px; background:#222; color:#fff; border:1px solid #555; flex:1;">
+            <option value="m">公尺 (m)</option>
+            <option value="cm" selected>公分 (cm)</option>
+        </select>
+    </div>
+    <div class="input-group"><input type="number" id="aX" placeholder="角點 X"><input type="number" id="aY" placeholder="角點 Y"><button onclick="addAreaPoint()">➕ 增加角點</button></div>
+    <div id="areaPointList" style="margin-bottom:10px; color:var(--accent); font-size:0.9em;">已輸入：(無)</div>
+    <button style="background:#8e44ad;" onclick="runArea()">🧮 計算面積</button> <button style="background:#e74c3c;" onclick="clearArea()">🗑️ 清空</button>
+    <div class="result-box" id="resArea">等待計算...</div>
+</div>
+
+<div id="tab-slope" class="tab-content">
+    <h3>💧 坡度高程計算</h3>
+    <div class="input-group"><span style="width:100px">起點高程</span><input type="number" id="sH" value="100"></div>
+    <div class="input-group"><span style="width:100px">水平距離</span><input type="number" id="sD" placeholder="距離"></div>
+    <div class="input-group"><span style="width:100px">坡度 (%)</span><input type="number" id="sS" placeholder="-1"></div>
+    <button onclick="runSlope()">🌊 計算目標</button>
+    <div class="result-box" id="resSlope">等待計算...</div>
+</div>
+
+<script>
+    const SUNLIGHT_MODE_KEY = 'cm_stake:sunlight_mode';
+    const MOBILE_VIEW_MODE_KEY = 'cm_stake:mobile_view_mode';
+    const OWNER_LOCK_HASH_KEY = 'cm_owner_lock_hash_v1';
+    const OWNER_UNLOCK_SESSION_KEY = 'cm_owner_lock_unlocked_v1';
+    const STAKE_WEATHER_REFRESH_MS = 12 * 60 * 1000;
+    let stakeWeatherAutoRefreshTimer = null;
+    const STAKE_WEATHER_CODE_MAP = {
+        0: '晴朗', 1: '晴時多雲', 2: '多雲', 3: '陰天',
+        45: '霧', 48: '霧凇',
+        51: '毛毛雨', 53: '小雨', 55: '細雨',
+        61: '小雨', 63: '中雨', 65: '大雨',
+        71: '小雪', 73: '中雪', 75: '大雪',
+        80: '陣雨', 81: '強陣雨', 82: '豪雨',
+        95: '雷雨', 96: '雷雨夾冰雹', 99: '強雷雨夾冰雹'
+    };
+
+    function switchTab(evt, tabId) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        evt.currentTarget.classList.add('active');
+        syncStakeLaserSweep(tabId);
+    }
+
+    function activateStakeTab(tabId) {
+        const map = {
+            'tab-radar': 'tabBtnRadar',
+            'tab-offset': 'tabBtnOffset',
+            'tab-area': 'tabBtnArea',
+            'tab-slope': 'tabBtnSlope'
+        };
+        const targetBtn = document.getElementById(map[tabId]);
+        if (!targetBtn) return;
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        targetBtn.classList.add('active');
+        syncMobileViewModeForStake(tabId);
+        syncStakeLaserSweep(tabId);
+    }
+
+    function syncStakeLaserSweep(tabId) {
+        const laser = document.getElementById('stakeLaserSweep');
+        if (!laser) return;
+        const isRadarTab = tabId === 'tab-radar';
+        laser.classList.toggle('hidden', !isRadarTab);
+    }
+
+    function setStakeWeatherTickerText(text, color = '#cfe6ff') {
+        const node = document.getElementById('globalWeatherTickerText');
+        if (!node) return;
+        node.innerText = text;
+        node.style.color = color;
+        node.style.animation = 'none';
+        void node.offsetWidth;
+        node.style.animation = 'weather-news-marquee 16s linear infinite';
+    }
+
+    async function getStakeDeviceCoordinates() {
+        if (!navigator.geolocation) return null;
+        return new Promise((resolve) => {
+            let done = false;
+            const finish = (value) => {
+                if (done) return;
+                done = true;
+                resolve(value);
+            };
+            const timer = setTimeout(() => finish(null), 7000);
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    clearTimeout(timer);
+                    finish({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+                },
+                () => {
+                    clearTimeout(timer);
+                    finish(null);
+                },
+                { enableHighAccuracy: true, timeout: 6500, maximumAge: 2 * 60 * 1000 }
+            );
+        });
+    }
+
+    function resolveStakeRainProbability(current, hourly) {
+        const fromCurrent = Number(current && current.precipitation_probability);
+        if (Number.isFinite(fromCurrent)) {
+            return Math.max(0, Math.min(100, fromCurrent));
+        }
+        const times = Array.isArray(hourly && hourly.time) ? hourly.time : [];
+        const probs = Array.isArray(hourly && hourly.precipitation_probability) ? hourly.precipitation_probability : [];
+        if (!times.length || times.length !== probs.length) return 0;
+        const nowTime = String((current && current.time) || '');
+        const exactIdx = times.indexOf(nowTime);
+        if (exactIdx >= 0 && Number.isFinite(Number(probs[exactIdx]))) {
+            return Math.max(0, Math.min(100, Number(probs[exactIdx])));
+        }
+        const nowTs = Date.parse(nowTime);
+        if (Number.isFinite(nowTs)) {
+            let bestIdx = -1;
+            let bestGap = Infinity;
+            for (let i = 0; i < times.length; i += 1) {
+                const ts = Date.parse(String(times[i] || ''));
+                if (!Number.isFinite(ts)) continue;
+                const gap = Math.abs(ts - nowTs);
+                if (gap < bestGap) {
+                    bestGap = gap;
+                    bestIdx = i;
+                }
+            }
+            if (bestIdx >= 0 && Number.isFinite(Number(probs[bestIdx]))) {
+                return Math.max(0, Math.min(100, Number(probs[bestIdx])));
+            }
+        }
+        return Number.isFinite(Number(probs[0])) ? Math.max(0, Math.min(100, Number(probs[0]))) : 0;
+    }
+
+    function createStakeWeatherNews(weather) {
+        if (!weather) return '氣象快報：目前無法取得天氣資料，系統會自動重試。';
+        const rainProb = Math.round(Number(weather.rainProb) || 0);
+        const rainMm = Number(weather.rainMm) || 0;
+        const windKmh = Math.round(Number(weather.windKmh) || 0);
+        const tempC = Number(weather.tempC) || 0;
+        const label = STAKE_WEATHER_CODE_MAP[Number(weather.weatherCode)] || '天氣變化';
+        let advice = '可施工';
+        if (rainProb >= 80 || rainMm >= 5 || windKmh >= 40) advice = '建議暫緩';
+        else if (rainProb >= 50 || rainMm >= 1 || windKmh >= 28) advice = '注意施工';
+        return `氣象快報：目前${label}，${tempC.toFixed(1)}°C，降雨機率 ${rainProb}%、風速 ${windKmh} km/h；放樣建議 ${advice}。`;
+    }
+
+    async function refreshStakeWeatherTicker(silent = true) {
+        const coords = await getStakeDeviceCoordinates();
+        if (!coords) {
+            setStakeWeatherTickerText('氣象快報：定位不可用，系統會持續自動重試。', '#ffd48a');
+            return;
+        }
+        try {
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}&current=temperature_2m,weather_code,precipitation,precipitation_probability,wind_speed_10m&hourly=precipitation_probability&forecast_days=1&timezone=auto`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`weather http ${res.status}`);
+            const data = await res.json();
+            const current = data.current || {};
+            const rainProb = resolveStakeRainProbability(current, data.hourly || {});
+            const weather = {
+                tempC: Number(current.temperature_2m) || 0,
+                weatherCode: Number(current.weather_code) || 0,
+                rainMm: Number(current.precipitation) || 0,
+                windKmh: Number(current.wind_speed_10m) || 0,
+                rainProb
+            };
+            setStakeWeatherTickerText(createStakeWeatherNews(weather), '#cfe6ff');
+        } catch (_e) {
+            setStakeWeatherTickerText('氣象快報：天氣服務暫時不可用，系統會自動重試。', '#ffd48a');
+            if (!silent && typeof alert === 'function') {
+                // Stake page has no toast utility; keep fallback minimal.
+                console.warn('天氣服務暫時不可用');
+            }
+        }
+    }
+
+    function startStakeWeatherAutoRefresh() {
+        if (stakeWeatherAutoRefreshTimer) clearInterval(stakeWeatherAutoRefreshTimer);
+        refreshStakeWeatherTicker(true);
+        stakeWeatherAutoRefreshTimer = setInterval(() => {
+            refreshStakeWeatherTicker(true);
+        }, STAKE_WEATHER_REFRESH_MS);
+    }
+
+    function getConfig() {
+        return {
+            offsetX: parseFloat(document.getElementById('gE').value) || 0,
+            offsetY: parseFloat(document.getElementById('gN').value) || 0,
+            offsetZ: parseFloat(document.getElementById('gH').value) || 0,
+            rotation: parseFloat(document.getElementById('gRot').value) || 0,
+            scale: 1
+        };
+    }
+
+    // ================= 高等大地測量學：TWD97 轉 WGS84 引擎 =================
+    function twd97ToWgs84(x, y) {
+        const a = 6378137.0, b = 6356752.314245, lon0 = 121 * Math.PI / 180, k0 = 0.9999, dx = 250000;
+        let e = Math.pow((1 - Math.pow(b, 2) / Math.pow(a, 2)), 0.5);
+        x -= dx;
+        let M = y / k0;
+        let mu = M / (a * (1.0 - Math.pow(e, 2) / 4.0 - 3 * Math.pow(e, 4) / 64.0 - 5 * Math.pow(e, 6) / 256.0));
+        let e1 = (1.0 - Math.pow((1.0 - Math.pow(e, 2)), 0.5)) / (1.0 + Math.pow((1.0 - Math.pow(e, 2)), 0.5));
+        let J1 = (3 * e1 / 2 - 27 * Math.pow(e1, 3) / 32.0), J2 = (21 * Math.pow(e1, 2) / 16 - 55 * Math.pow(e1, 4) / 32.0);
+        let J3 = (151 * Math.pow(e1, 3) / 96.0), J4 = (1097 * Math.pow(e1, 4) / 512.0);
+        let fp = mu + J1 * Math.sin(2 * mu) + J2 * Math.sin(4 * mu) + J3 * Math.sin(6 * mu) + J4 * Math.sin(8 * mu);
+        let e2 = Math.pow((e * a / b), 2), C1 = Math.pow(e2 * Math.cos(fp), 2), T1 = Math.pow(Math.tan(fp), 2);
+        let R1 = a * (1 - Math.pow(e, 2)) / Math.pow((1 - Math.pow(e, 2) * Math.pow(Math.sin(fp), 2)), 1.5);
+        let N1 = a / Math.pow((1 - Math.pow(e, 2) * Math.pow(Math.sin(fp), 2)), 0.5);
+        let D = x / (N1 * k0);
+        let Q1 = N1 * Math.tan(fp) / R1, Q2 = (Math.pow(D, 2) / 2.0);
+        let Q3 = (5 + 3 * T1 + 10 * C1 - 4 * Math.pow(C1, 2) - 9 * e2) * Math.pow(D, 4) / 24.0;
+        let Q4 = (61 + 90 * T1 + 298 * C1 + 45 * Math.pow(T1, 2) - 3 * Math.pow(C1, 2) - 252 * e2) * Math.pow(D, 6) / 720.0;
+        let lat = fp - Q1 * (Q2 - Q3 + Q4);
+        let Q5 = D, Q6 = (1 + 2 * T1 + C1) * Math.pow(D, 3) / 6;
+        let Q7 = (5 - 2 * C1 + 28 * T1 - 3 * Math.pow(C1, 2) + 8 * e2 + 24 * Math.pow(T1, 2)) * Math.pow(D, 5) / 120.0;
+        let lon = lon0 + (Q5 - Q6 + Q7) / Math.cos(fp);
+        return { lat: (lat * 180) / Math.PI, lng: (lon * 180) / Math.PI };
+    }
+
+    function openGoogleMap(e, n) {
+        const wgs = twd97ToWgs84(parseFloat(e), parseFloat(n));
+        const url = `https://www.google.com/maps/search/?api=1&query=${wgs.lat},${wgs.lng}`;
+        window.open(url, '_blank'); // 開啟新分頁顯示衛星圖
+    }
+
+    // ================= V4.2 雷達大腦 =================
+    let radarPoints = [];
+    const canvas = document.getElementById('radarCanvas');
+    const ctx = canvas.getContext('2d');
+    const RADAR_CANVAS_BASE_W = 760;
+    const RADAR_CANVAS_BASE_H = 460;
+    let radarCanvasViewScale = 1;
+    let radarBackgroundImage = null;
+    let currentScale = 1, currentCx = 0, currentCy = 0;
+    
+    function buildMaster_3D_Converter(x, y, z, config) {
+        const rad = config.rotation * (Math.PI / 180);
+        const E = (x * Math.cos(rad) - y * Math.sin(rad)) * config.scale + config.offsetX;
+        const N = (x * Math.sin(rad) + y * Math.cos(rad)) * config.scale + config.offsetY;
+        const H = z * config.scale + config.offsetZ;
+        return { E: E.toFixed(3), N: N.toFixed(3), H: H.toFixed(3) };
+    }
+
+    function updateRadarUI() {
+        const tbody = document.getElementById('reportBody');
+        tbody.innerHTML = '';
+        const config = getConfig();
+        
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        if (radarBackgroundImage) {
+            ctx.save();
+            ctx.globalAlpha = 0.32;
+            ctx.drawImage(radarBackgroundImage, 0, 0, canvas.width, canvas.height);
+            ctx.restore();
+        }
+        ctx.strokeStyle = '#113311';
+        for(let i=0; i<canvas.width; i+=20) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke(); }
+        for(let i=0; i<canvas.height; i+=20) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke(); }
+
+        if (radarPoints.length === 0) return;
+
+        let minX = Math.min(...radarPoints.map(p=>p.x)), maxX = Math.max(...radarPoints.map(p=>p.x));
+        let minY = Math.min(...radarPoints.map(p=>p.y)), maxY = Math.max(...radarPoints.map(p=>p.y));
+        let pad = 40, rangeX = Math.max(maxX - minX, 10), rangeY = Math.max(maxY - minY, 10);
+        
+        currentScale = Math.min((canvas.width - pad*2)/rangeX, (canvas.height - pad*2)/rangeY);
+        currentCx = (minX + maxX) / 2; currentCy = (minY + maxY) / 2;
+
+        ctx.strokeStyle = '#00ff00'; ctx.lineWidth = 2; ctx.beginPath();
+        radarPoints.forEach((p, i) => {
+            let dx = canvas.width/2 + (p.x - currentCx) * currentScale;
+            let dy = canvas.height/2 - (p.y - currentCy) * currentScale;
+            if(i===0) ctx.moveTo(dx, dy); else ctx.lineTo(dx, dy);
+        });
+        ctx.closePath(); ctx.stroke();
+
+        radarPoints.forEach((p, i) => {
+            const g = buildMaster_3D_Converter(p.x, p.y, p.z, config);
+            // 表格新增「空照圖」按鈕
+            tbody.innerHTML += `<tr><td>${p.n}</td><td>${p.x}, <br>${p.y}</td><td style="color:#0f0">${g.E},<br>${g.N}</td>
+                <td><button style="padding:4px 8px; background:#2980b9;" onclick="openGoogleMap(${g.E}, ${g.N})">🗺️</button></td>
+                <td><button style="padding:4px 8px; background:red;" onclick="radarPoints.splice(${i},1); updateRadarUI();">X</button></td></tr>`;
+            
+            let dx = canvas.width/2 + (p.x - currentCx) * currentScale;
+            let dy = canvas.height/2 - (p.y - currentCy) * currentScale;
+            ctx.fillStyle='red'; ctx.beginPath(); ctx.arc(dx, dy, 5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle='#00ff00'; ctx.font = '12px sans-serif'; ctx.fillText(`${p.n} (${p.x}, ${p.y})`, dx + 8, dy - 8);
+        });
+    }
+
+    function addPoint() {
+        const n = document.getElementById('pName').value || `P${radarPoints.length+1}`;
+        const x = parseFloat(document.getElementById('pX').value)||0, y = parseFloat(document.getElementById('pY').value)||0;
+        radarPoints.push({n, x, y, z:0}); updateRadarUI();
+        document.getElementById('pName').value=''; document.getElementById('pX').value=''; document.getElementById('pY').value='';
+    }
+
+    function loadRadarBackground(event) {
+        const file = event?.target?.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+                radarBackgroundImage = img;
+                updateRadarUI();
+            };
+            img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function clearRadarBackground() {
+        radarBackgroundImage = null;
+        const input = document.getElementById('radarImageInput');
+        if (input) {
+            // iOS Safari occasionally keeps stale file input state;
+            // replace the node to force a full reset.
+            const fresh = input.cloneNode(true);
+            input.parentNode.replaceChild(fresh, input);
+        }
+        const zoomChip = document.getElementById('radarZoomInfo');
+        if (zoomChip) zoomChip.innerText = `畫面比例：${Math.round(radarCanvasViewScale * 100)}%｜圖紙：已清除`;
+        const hud = document.getElementById('hudDisplay');
+        if (hud) hud.innerText = '圖紙底圖已清除，僅保留放樣格網與點位資料。';
+        updateRadarUI();
+    }
+
+    function applyRadarViewScale() {
+        canvas.style.width = `${Math.round(RADAR_CANVAS_BASE_W * radarCanvasViewScale)}px`;
+        canvas.style.height = `${Math.round(RADAR_CANVAS_BASE_H * radarCanvasViewScale)}px`;
+        const chip = document.getElementById('radarZoomInfo');
+        if (chip) chip.innerText = `畫面比例：${Math.round(radarCanvasViewScale * 100)}%`;
+    }
+
+    function changeRadarViewScale(delta) {
+        radarCanvasViewScale = Math.min(2.4, Math.max(0.75, Number((radarCanvasViewScale + delta).toFixed(2))));
+        applyRadarViewScale();
+    }
+
+    function resetRadarViewScale() {
+        radarCanvasViewScale = 1;
+        applyRadarViewScale();
+    }
+
+    function canvasClientToWorld(e) {
+        const r = canvas.getBoundingClientRect();
+        const localX = (e.clientX - r.left) * (canvas.width / r.width);
+        const localY = (e.clientY - r.top) * (canvas.height / r.height);
+        return {
+            x: currentCx + (localX - canvas.width / 2) / currentScale,
+            y: currentCy - (localY - canvas.height / 2) / currentScale
+        };
+    }
+
+    canvas.addEventListener('mousemove', (e) => {
+        if(radarPoints.length === 0) return;
+        const world = canvasClientToWorld(e);
+        let realX = world.x;
+        let realY = world.y;
+        const g = buildMaster_3D_Converter(realX, realY, 0, getConfig());
+        document.getElementById('hudDisplay').innerText = `圖面(${realX.toFixed(1)}, ${realY.toFixed(1)}) ➔ E:${g.E}, N:${g.N}`;
+    });
+
+    function exportCSV() {
+        let csv = "\ufeff名稱,圖面X,圖面Y,TWD97_E,TWD97_N,高程H\n";
+        const cfg = getConfig();
+        radarPoints.forEach(p => {
+            const g = buildMaster_3D_Converter(p.x, p.y, p.z, cfg); csv += `${p.n},${p.x},${p.y},${g.E},${g.N},${g.H}\n`;
+        });
+        const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+        a.download = "ConstructionMaster_放樣座標.csv"; a.click();
+    }
+
+    // === 支距、面積、高程 ===
+    function runOffset() {
+        const p1 = {x: parseFloat(document.getElementById('oP1x').value)||0, y: parseFloat(document.getElementById('oP1y').value)||0};
+        const p2 = {x: parseFloat(document.getElementById('oP2x').value)||0, y: parseFloat(document.getElementById('oP2y').value)||0};
+        const t = {x: parseFloat(document.getElementById('oTx').value)||0, y: parseFloat(document.getElementById('oTy').value)||0};
+        let dx = p2.x - p1.x, dy = p2.y - p1.y, len = Math.sqrt(dx*dx + dy*dy);
+        if(len===0) return alert("P1和P2不能同一點！");
+        let fwd = ((t.x-p1.x)*dx + (t.y-p1.y)*dy)/len, off = ((t.x-p1.x)*-dy + (t.y-p1.y)*dx)/len;
+        let dir = off > 0 ? "向左轉 90 度" : "向右轉 90 度";
+        document.getElementById('resOffset').innerHTML = `沿基準線前進: <span style="color:#fff">${fwd.toFixed(3)} m</span><br>${dir}直走: <span style="color:#fff">${Math.abs(off).toFixed(3)} m</span>`;
+    }
+    
+    let areaPts = [];
+    function addAreaPoint() {
+        const x=parseFloat(document.getElementById('aX').value), y=parseFloat(document.getElementById('aY').value);
+        if(isNaN(x)||isNaN(y)) return; areaPts.push({x,y});
+        document.getElementById('areaPointList').innerText = "已輸入：\n" + areaPts.map((p,i)=>`P${i+1}(${p.x}, ${p.y})`).join(" ➔ ");
+        document.getElementById('aX').value=''; document.getElementById('aY').value='';
+    }
+    function clearArea() { areaPts=[]; document.getElementById('areaPointList').innerText="已輸入：(無)"; document.getElementById('resArea').innerText="等待計算..."; }
+    
+    function runArea() {
+        if(areaPts.length < 3) return alert("至少3點！");
+        let a = 0, n = areaPts.length;
+        for (let i=0; i<n; i++) { let j=(i+1)%n; a += areaPts[i].x*areaPts[j].y; a -= areaPts[j].x*areaPts[i].y; }
+        let rawArea = Math.abs(a)/2;
+        let unit = document.getElementById('aUnit').value;
+        let sqm = (unit === 'cm') ? (rawArea / 10000) : rawArea;
+        document.getElementById('resArea').innerHTML = `面積: <span style="color:#fff">${sqm.toFixed(2)} 平方公尺</span><br>坪數: <span style="color:#fff">${(sqm*0.3025).toFixed(2)} 坪</span>`;
+    }
+    
+    function runSlope() {
+        const h = parseFloat(document.getElementById('sH').value)||0, d = parseFloat(document.getElementById('sD').value)||0, s = parseFloat(document.getElementById('sS').value)||0;
+        document.getElementById('resSlope').innerHTML = `目標高程: <span style="color:#fff">${(h + d*(s/100)).toFixed(3)} m</span>`;
+    }
+
+    function runQuickRectArea() {
+        const lenRaw = parseFloat(document.getElementById('quickLen').value);
+        const widRaw = parseFloat(document.getElementById('quickWid').value);
+        const unit = document.getElementById('quickUnit').value;
+        const out = document.getElementById('quickAreaResult');
+        if (!out) return;
+        if (!Number.isFinite(lenRaw) || !Number.isFinite(widRaw) || lenRaw <= 0 || widRaw <= 0) {
+            out.innerHTML = '請輸入有效的長、寬尺寸（需大於 0）。';
+            return;
+        }
+        const lenM = unit === 'cm' ? (lenRaw / 100) : lenRaw;
+        const widM = unit === 'cm' ? (widRaw / 100) : widRaw;
+        const areaM2 = lenM * widM;
+        out.innerHTML = `面積: <span style="color:#fff">${areaM2.toFixed(2)} 平方公尺</span><br>坪數: <span style="color:#fff">${(areaM2 * 0.3025).toFixed(2)} 坪</span>`;
+    }
+
+    function isMobileViewport() {
+        return window.matchMedia('(max-width: 900px)').matches;
+    }
+
+    function toggleMobileFuncDrawer(forceOpen) {
+        const drawer = document.getElementById('mobileFuncDrawer');
+        if (!drawer || !isMobileViewport()) return;
+        const next = typeof forceOpen === 'boolean' ? forceOpen : !drawer.classList.contains('open');
+        drawer.classList.toggle('open', next);
+        drawer.setAttribute('aria-hidden', next ? 'false' : 'true');
+    }
+
+    function updateMobileFocusLabel() {
+        const btn = document.getElementById('mobileFocusBtn');
+        if (!btn) return;
+        const mode = localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto';
+        const modeText = mode === 'clear' ? '釋放' : (mode === 'normal' ? '一般' : '自動');
+        btn.textContent = `🧲 視圖模式：${modeText}`;
+    }
+
+    function currentStakeTabId() {
+        const active = document.querySelector('.tab-content.active');
+        return active ? active.id : 'tab-radar';
+    }
+
+    function applyMobileViewMode(mode, opts = {}) {
+        const normalized = (mode === 'clear' || mode === 'normal' || mode === 'auto') ? mode : 'auto';
+        localStorage.setItem(MOBILE_VIEW_MODE_KEY, normalized);
+        syncMobileViewModeForStake(currentStakeTabId());
+        updateMobileFocusLabel();
+    }
+
+    function syncMobileViewModeForStake(tabId) {
+        const mode = localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto';
+        if (mode === 'clear') {
+            document.body.classList.add('mobile-focus-mode');
+            return;
+        }
+        if (mode === 'normal') {
+            document.body.classList.remove('mobile-focus-mode');
+            return;
+        }
+        document.body.classList.toggle('mobile-focus-mode', tabId === 'tab-radar');
+    }
+
+    function cycleMobileViewMode() {
+        const current = localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto';
+        const next = current === 'normal' ? 'clear' : (current === 'clear' ? 'auto' : 'normal');
+        applyMobileViewMode(next);
+    }
+
+    async function hashTextSHA256(text) {
+        const msgUint8 = new TextEncoder().encode(text);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+        return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function hasOwnerPassword() {
+        return !!localStorage.getItem(OWNER_LOCK_HASH_KEY);
+    }
+
+    function currentMemberAccount() {
+        return String(sessionStorage.getItem('bm_69:member') || '').trim().toLowerCase();
+    }
+
+    function isMemberSession() {
+        return !!currentMemberAccount();
+    }
+
+    function isOwnerUnlocked() {
+        if (!hasOwnerPassword()) return true;
+        return sessionStorage.getItem(OWNER_UNLOCK_SESSION_KEY) === '1';
+    }
+
+    function updateOwnerLockButton() {
+        const btn = document.getElementById('mobileOwnerLockBtn');
+        if (!btn) return;
+        if (isMemberSession()) {
+            btn.textContent = '🚫 猴子權限：會員不可用';
+            return;
+        }
+        if (!hasOwnerPassword()) {
+            btn.textContent = '🐒 猴子權限：未設定';
+            return;
+        }
+        btn.textContent = isOwnerUnlocked() ? '🐒 猴子權限：已解鎖' : '🐒 猴子權限：已上鎖';
+    }
+
+    async function setupOwnerPassword() {
+        if (isMemberSession()) {
+            alert('此功能僅限擁有者，會員不可使用');
+            return false;
+        }
+        const pass1 = prompt('設定管理密碼（至少 4 碼）');
+        if (pass1 === null) return false;
+        const password = String(pass1).trim();
+        if (password.length < 4) {
+            alert('管理密碼至少 4 碼');
+            return false;
+        }
+        const pass2 = prompt('再次輸入管理密碼');
+        if (pass2 === null) return false;
+        if (password !== String(pass2).trim()) {
+            alert('兩次密碼不一致');
+            return false;
+        }
+        localStorage.setItem(OWNER_LOCK_HASH_KEY, await hashTextSHA256(password));
+        sessionStorage.setItem(OWNER_UNLOCK_SESSION_KEY, '1');
+        updateOwnerLockButton();
+        alert('管理密碼已設定並解鎖');
+        return true;
+    }
+
+    async function unlockOwnerPassword() {
+        if (isMemberSession()) {
+            alert('此功能僅限擁有者，會員不可使用');
+            return false;
+        }
+        if (!hasOwnerPassword()) return setupOwnerPassword();
+        const input = prompt('輸入管理密碼');
+        if (input === null) return false;
+        const hashed = await hashTextSHA256(String(input).trim());
+        const saved = localStorage.getItem(OWNER_LOCK_HASH_KEY) || '';
+        if (hashed !== saved) {
+            alert('管理密碼錯誤');
+            return false;
+        }
+        sessionStorage.setItem(OWNER_UNLOCK_SESSION_KEY, '1');
+        updateOwnerLockButton();
+        return true;
+    }
+
+    async function changeOwnerPassword() {
+        if (isMemberSession()) {
+            alert('此功能僅限擁有者，會員不可使用');
+            return false;
+        }
+        if (!hasOwnerPassword()) {
+            alert('請先設定猴子密碼');
+            return false;
+        }
+        const oldPass = prompt('輸入舊猴子密碼');
+        if (oldPass === null) return false;
+        const oldHash = await hashTextSHA256(String(oldPass).trim());
+        const saved = localStorage.getItem(OWNER_LOCK_HASH_KEY) || '';
+        if (oldHash !== saved) {
+            alert('舊密碼錯誤');
+            return false;
+        }
+        const newPass1 = prompt('輸入新猴子密碼（至少 4 碼）');
+        if (newPass1 === null) return false;
+        const newPassword = String(newPass1).trim();
+        if (newPassword.length < 4) {
+            alert('新密碼至少 4 碼');
+            return false;
+        }
+        const newPass2 = prompt('再次輸入新猴子密碼');
+        if (newPass2 === null) return false;
+        if (newPassword !== String(newPass2).trim()) {
+            alert('兩次新密碼不一致');
+            return false;
+        }
+        localStorage.setItem(OWNER_LOCK_HASH_KEY, await hashTextSHA256(newPassword));
+        sessionStorage.setItem(OWNER_UNLOCK_SESSION_KEY, '1');
+        updateOwnerLockButton();
+        alert('猴子密碼已更新');
+        return true;
+    }
+
+    function lockOwnerAccess() {
+        sessionStorage.removeItem(OWNER_UNLOCK_SESSION_KEY);
+        updateOwnerLockButton();
+    }
+
+    async function handleOwnerLockAction() {
+        if (isMemberSession()) {
+            alert('此功能僅限擁有者，會員不可使用');
+            return;
+        }
+        if (!hasOwnerPassword()) {
+            await setupOwnerPassword();
+            return;
+        }
+        if (isOwnerUnlocked()) {
+            lockOwnerAccess();
+            return;
+        }
+        await unlockOwnerPassword();
+    }
+
+    function showStakeResetGuide() {
+        alert([
+            '【放樣模式｜使用與錯誤說明（詳細版）】',
+            '',
+            'A. 使用前環境檢查',
+            '1) 手機版本',
+            '• 先重開頁面一次，確認是最新',
+            '• 若畫面像舊版：清快取後重開',
+            '2) 可視化',
+            '• 日照強：先開「☀️ 戶外高亮」',
+            '• 要大視野：用「🧲 視圖模式：釋放」',
+            '3) 基準一致性',
+            '• E/N/H 與旋轉角需固定，避免前後輪不可比',
+            '',
+            'B. 標準使用順序（建議固定）',
+            '1) 雷達轉換：手動加 2~3 點，確認圖->政府座標轉換',
+            '2) 支距避障：測 P1/P2/目標點計算結果',
+            '3) 鞋帶面積：至少 4 點封閉測試 + 單位切換',
+            '4) 坡度高程：距離與坡度變化驗證',
+            '5) 最後做 CSV 匯出驗證',
+            '',
+            'C. 視圖模式規則',
+            '• 一般：看完整設定與分頁',
+            '• 釋放：專注看雷達畫面',
+            '• 自動：雷達頁自動釋放，其他頁回一般',
+            '',
+            'D. 錯誤使用說明與排查',
+            '1) 座標看起來不合理',
+            '• 先檢查旋轉角是否被改過',
+            '• 檢查基準點 E/N/H 是否填錯',
+            '2) 分頁切換後畫面怪',
+            '• 先回雷達頁再切一次',
+            '• 視圖模式切到一般後再切回自動',
+            '3) 匯出檔不如預期',
+            '• 先檢查點位名稱是否空白',
+            '• 檢查是否有重複或錯欄位',
+            '',
+            'E. 測試紀錄建議格式',
+            '• 輪次：R1 / R2 ...',
+            '• 分頁：雷達/支距/面積/坡度',
+            '• 結果：成功/失敗 + 截圖',
+            '• 備註：基準值、旋轉角、視圖模式',
+            '',
+            'F. 驗收門檻（建議）',
+            '• 同一組輸入重算結果一致',
+            '• 分頁切換與視圖模式不互相衝突',
+            '• CSV 欄位完整且可直接給儀器/工程人員使用'
+        ].join('\n'));
+    }
+
+    function applySunlightMode() {
+        const on = localStorage.getItem(SUNLIGHT_MODE_KEY) === '1';
+        document.body.classList.toggle('sunlight-readable', on);
+        const btn = document.getElementById('mobileSunlightBtn');
+        if (btn) btn.textContent = `☀️ 戶外高亮：${on ? '開' : '關'}`;
+    }
+
+    function toggleSunlightMode() {
+        const on = localStorage.getItem(SUNLIGHT_MODE_KEY) === '1';
+        localStorage.setItem(SUNLIGHT_MODE_KEY, on ? '0' : '1');
+        applySunlightMode();
+    }
+
+    function enterMeasureClearMode() {
+        activateStakeTab('tab-radar');
+        applyMobileViewMode('clear');
+        updateMobileFocusLabel();
+        toggleMobileFuncDrawer(false);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function runMobileQuickAction(action) {
+        if (action === 'toggle-focus') {
+            cycleMobileViewMode();
+            toggleMobileFuncDrawer(false);
+            return;
+        }
+        if (action === 'measure-clear') {
+            enterMeasureClearMode();
+            return;
+        }
+        if (action === 'usage-guide') {
+            showStakeResetGuide();
+            return;
+        }
+        if (action === 'owner-lock') {
+            await handleOwnerLockAction();
+            return;
+        }
+        if (action === 'owner-pass-change') {
+            await changeOwnerPassword();
+            return;
+        }
+        if (action === 'toggle-sunlight') {
+            toggleSunlightMode();
+            return;
+        }
+        if (action === 'mode-calc') {
+            window.location.href = 'index.html';
+            return;
+        }
+        if (action === 'mode-stake') {
+            window.location.href = 'stake.html';
+            return;
+        }
+        if (action === 'close') {
+            toggleMobileFuncDrawer(false);
+            return;
+        }
+        if (action.startsWith('tab-')) {
+            activateStakeTab(action);
+            toggleMobileFuncDrawer(false);
+        }
+    }
+
+    function initMobileFuncDrawer() {
+        const drawer = document.getElementById('mobileFuncDrawer');
+        if (!drawer) return;
+        drawer.addEventListener('click', (event) => {
+            const target = event.target.closest('[data-mobile-action]');
+            if (!target) return;
+            runMobileQuickAction(target.getAttribute('data-mobile-action'));
+        });
+        document.addEventListener('click', (event) => {
+            if (!isMobileViewport()) return;
+            if (!drawer.classList.contains('open')) return;
+            if (event.target.closest('#mobileFuncDrawer')) return;
+            toggleMobileFuncDrawer(false);
+        });
+        window.addEventListener('resize', () => {
+            if (!isMobileViewport()) {
+                toggleMobileFuncDrawer(false);
+                document.body.classList.remove('mobile-focus-mode');
+            }
+            syncMobileViewModeForStake(currentStakeTabId());
+            updateMobileFocusLabel();
+            applySunlightMode();
+        });
+        applyMobileViewMode(localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto', { silent: true });
+        updateMobileFocusLabel();
+        applySunlightMode();
+        updateOwnerLockButton();
+    }
+
+    initMobileFuncDrawer();
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') {
+            sessionStorage.removeItem(OWNER_UNLOCK_SESSION_KEY);
+            updateOwnerLockButton();
+            return;
+        }
+        refreshStakeWeatherTicker(true);
+    });
+    startStakeWeatherAutoRefresh();
+    applyRadarViewScale();
+    updateRadarUI();
+    syncStakeLaserSweep(currentStakeTabId());
+</script>
+</body>
+</html>
