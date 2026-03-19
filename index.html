@@ -61,6 +61,8 @@
     #img-wrapper.viewer-3d.dragging { cursor: grabbing; }
     .mobile-blueprint-status { display: none; }
     .manual-measure-pad { display: none; }
+    .mobile-left-drawer { display: none; }
+    .manual-precision-overlay { display: none; }
     #blueprint { display: block; pointer-events: none; }
     #drawCanvas { position: absolute; top: 0; left: 0; z-index: 10; cursor: crosshair; touch-action: pan-x pan-y pinch-zoom; -webkit-tap-highlight-color: transparent; }
     #smartMeasureOverlay { position: absolute; inset: 0; z-index: 11; pointer-events: none; overflow: visible; }
@@ -833,24 +835,82 @@
             font-size: 0.78em;
             line-height: 1.45;
         }
+        .mobile-left-drawer {
+            display: block;
+            position: fixed;
+            left: 10px;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+            width: min(76vw, 220px);
+            z-index: 2195;
+            pointer-events: none;
+        }
+        .mobile-left-drawer.open { pointer-events: auto; }
+        .mobile-left-tab {
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: auto;
+            min-width: 58px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 209, 102, 0.6);
+            background: rgba(24, 18, 10, 0.9);
+            color: #ffe7a8;
+            font-size: 0.76em;
+            font-weight: 800;
+            letter-spacing: 1px;
+            box-shadow: 0 10px 22px rgba(0,0,0,0.3);
+            pointer-events: auto;
+        }
+        .mobile-left-drawer.open .mobile-left-tab {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        .mobile-left-shell {
+            position: fixed;
+            left: 10px;
+            top: calc(env(safe-area-inset-top, 0px) + 72px);
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 58px);
+            width: min(76vw, 220px);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 209, 102, 0.36);
+            background: rgba(8, 17, 31, 0.94);
+            backdrop-filter: blur(8px);
+            padding: 10px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            display: grid;
+            gap: 8px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(10px);
+            transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+            pointer-events: none;
+        }
+        .mobile-left-drawer.open .mobile-left-shell {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
         .manual-measure-pad {
             display: block;
-            position: absolute;
-            left: 8px;
-            bottom: 8px;
-            z-index: 19;
-            width: min(170px, calc(100% - 16px));
+            position: static;
+            width: 100%;
             pointer-events: auto;
         }
         .manual-measure-pad[aria-hidden="true"] { display: none; }
         .manual-measure-pad-card {
             border-radius: 14px;
-            border: 1px solid rgba(255, 209, 102, 0.38);
-            background: rgba(8, 18, 34, 0.9);
-            box-shadow: 0 12px 24px rgba(0,0,0,0.28);
-            padding: 10px;
+            border: 1px solid rgba(255, 209, 102, 0.28);
+            background: rgba(255,255,255,0.03);
+            box-shadow: none;
+            padding: 0;
             color: #eef8ff;
-            backdrop-filter: blur(8px);
+            backdrop-filter: none;
         }
         .manual-measure-pad-title {
             display: block;
@@ -898,6 +958,38 @@
             font-size: 0.85em;
             padding: 0;
         }
+        .manual-precision-overlay {
+            display: block;
+            position: absolute;
+            z-index: 20;
+            width: 152px;
+            pointer-events: none;
+        }
+        .manual-precision-overlay[aria-hidden="true"] { display: none; }
+        .manual-precision-card {
+            border-radius: 16px;
+            border: 1px solid rgba(126, 200, 255, 0.4);
+            background: rgba(8, 18, 34, 0.92);
+            box-shadow: 0 14px 28px rgba(0,0,0,0.3);
+            padding: 8px;
+            backdrop-filter: blur(8px);
+        }
+        .manual-precision-title {
+            display: block;
+            font-size: 0.68em;
+            color: #bfe7ff;
+            text-align: center;
+            margin-bottom: 6px;
+            letter-spacing: 0.3px;
+        }
+        .manual-precision-canvas {
+            width: 136px;
+            height: 136px;
+            display: block;
+            margin: 0 auto;
+            border-radius: 999px;
+            background: rgba(4, 10, 18, 0.85);
+        }
     }
     .mobile-drawer { display: none; }
     .mobile-test-log { display: none; }
@@ -906,7 +998,7 @@
             display: block;
             position: fixed;
             right: 10px;
-            bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
             width: min(76vw, 220px);
             z-index: 2200;
             pointer-events: none;
@@ -929,6 +1021,11 @@
             box-shadow: 0 10px 22px rgba(0,0,0,0.3);
             pointer-events: auto;
         }
+        .mobile-drawer.open .mobile-func-tab {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
         .drawer-header {
             color: #bfe7ff;
             font-size: 0.84em;
@@ -947,11 +1044,15 @@
             cursor: pointer;
         }
         .drawer-shell {
-            position: absolute;
-            right: 0;
-            bottom: 50px;
-            width: 100%;
-            border-radius: 12px 0 0 12px;
+            position: fixed;
+            right: 10px;
+            top: calc(env(safe-area-inset-top, 0px) + 10px);
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 58px);
+            width: min(76vw, 220px);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            border-radius: 12px;
             border: 1px solid rgba(154, 211, 255, 0.52);
             background: rgba(8, 17, 31, 0.94);
             backdrop-filter: blur(8px);
@@ -985,8 +1086,11 @@
         body.mobile-measure-mode .mobile-test-log {
             display: none !important;
         }
+        body.mobile-measure-mode .mobile-left-drawer {
+            width: min(76vw, 220px);
+        }
         body.mobile-measure-mode .mobile-drawer {
-            width: min(70vw, 188px);
+            width: min(76vw, 220px);
         }
         .mobile-test-log {
             display: block;
@@ -1172,6 +1276,14 @@
     </div>
 </div>
 
+<div id="mobileLeftDrawer" class="mobile-left-drawer" aria-hidden="true">
+    <button id="mobileLeftTab" class="mobile-left-tab" type="button" onclick="toggleMobileLeftDrawer()">對位</button>
+    <div class="mobile-left-shell">
+        <div class="drawer-header" style="color:#ffd287;">🎯 對位微調</div>
+        <div id="manualMeasurePad" class="manual-measure-pad" aria-hidden="true"></div>
+    </div>
+</div>
+
 <div id="mobileTestLog" class="mobile-test-log collapsed" aria-live="polite">
     <div class="mobile-test-log-head">
         <span>🧪 手機測試紀錄</span>
@@ -1227,7 +1339,7 @@
                     <span id="mobileBlueprintAutoInterpretInfo" class="mobile-blueprint-status-line" style="color:#bfe7ff;">自動判讀: 尚未執行</span>
                 </div>
             </div>
-            <div id="manualMeasurePad" class="manual-measure-pad" aria-hidden="true"></div>
+            <div id="manualPrecisionOverlay" class="manual-precision-overlay" aria-hidden="true"></div>
             <div id="blueprintLaserSweep" class="blueprint-laser-sweep-persistent" aria-hidden="true"></div>
             <div id="img-wrapper">
                 <img id="blueprint">
@@ -1731,6 +1843,16 @@
                 <button class="tool-btn" style="width:100%; border-color:#90caf9; color:#dceeff;" onclick="exportAdvancedEstimateReport()">⬇️ 匯出第三頁報表</button>
             </div>
         </div>
+        <div class="input-row level-only-pro">
+            <div class="input-wrapper">
+                <label>看圖半自動模式</label>
+                <label class="tool-mini" style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+                    <input type="checkbox" id="advAutoInterpretPlanOnly" checked>
+                    自動抓平面尺寸，保留手填高/深
+                </label>
+                <div class="bim-note" style="margin-top:6px;">適合柱、樑、混凝土、土方等三維項目，避免立面尺寸亂算。</div>
+            </div>
+        </div>
         <div class="bim-actions level-only-pro" style="margin-top:8px;">
             <button class="tool-btn" style="border-color:#7ed6df; color:#dffcff;" onclick="autoInterpretBlueprintAndCalculate()">🤖 第三頁看圖自動判讀試算</button>
             <button class="tool-btn" style="border-color:#b39ddb; color:#efe3ff;" onclick="runAutoBlueprintPlusBIM()">🤖+🏗️ 第三頁自動看圖計算+BIM</button>
@@ -1849,6 +1971,7 @@
     let drawMode = 'none';
     let clickPoints = [];
     let calibrationPendingPoint = null;
+    let manualPrecisionState = { active: false, clientX: 0, clientY: 0 };
     let zoomLevel = 1;
     const SMART_MEASURE_DRAW_MODES = ['smart-calibration', 'smart-measure'];
     const SMART_MEASURE_MODE_LABELS = {
@@ -6565,6 +6688,7 @@
                 drawMode = 'none';
                 clickPoints = [];
                 calibrationPendingPoint = null;
+                manualPrecisionState.active = false;
                 resetSmartMeasureSession({ preserveLastResult: false });
                 blueprintPanState.active = false;
                 blueprintPinchState.active = false;
@@ -7014,6 +7138,59 @@
         }
     }
 
+    function isAutoInterpretPlanOnlyModeEnabled() {
+        const checkbox = document.getElementById('advAutoInterpretPlanOnly');
+        return !checkbox || !!checkbox.checked;
+    }
+
+    function shouldAutoInterpretPreserveManualDepth(type) {
+        if (!isAutoInterpretPlanOnlyModeEnabled()) return false;
+        return ['C_VOL', 'C_COL', 'M_COL', 'M_BEAM_SIDES', 'M_BEAM_ALL', 'E_DIG'].includes(String(type || ''));
+    }
+
+    function applyAutoInterpretValuesToInputs(type, longM, shortM, finalQty) {
+        const v1El = document.getElementById('v1');
+        const v2El = document.getElementById('v2');
+        const v3El = document.getElementById('v3');
+        const qtyEl = document.getElementById('qty');
+        const preserveManualDepth = shouldAutoInterpretPreserveManualDepth(type);
+        const depthLabel = document.getElementById('lbl_v3') ? document.getElementById('lbl_v3').innerText : '高 / 深 (m)';
+        let planSummary = `${longM.toFixed(2)}×${shortM.toFixed(2)} m`;
+
+        if (type.startsWith('R_')) {
+            if (v2El) v2El.value = longM.toFixed(2);
+            if (v3El && !Number(v3El.value)) v3El.value = '1';
+            if (qtyEl && !Number(qtyEl.value)) qtyEl.value = '1';
+            return { preserveManualDepth: false, depthMissing: false, depthLabel, planSummary: `${longM.toFixed(2)} m`, manualDepthValue: Number(v3El && v3El.value) || 0 };
+        }
+
+        if (v1El) v1El.value = longM.toFixed(2);
+        if (qtyEl) qtyEl.value = String(finalQty);
+
+        if (type === 'M_WALL') {
+            if (v2El) v2El.value = shortM.toFixed(2);
+            return { preserveManualDepth: false, depthMissing: false, depthLabel, planSummary, manualDepthValue: Number(v3El && v3El.value) || 0 };
+        }
+
+        if (type === 'M_BEAM_SIDES') {
+            if (v2El && !Number(v2El.value)) v2El.value = shortM.toFixed(2);
+            if (v3El && !preserveManualDepth) v3El.value = shortM.toFixed(2);
+            planSummary = `${longM.toFixed(2)} m（樑長）`;
+        } else {
+            if (v2El) v2El.value = shortM.toFixed(2);
+            if (v3El && !preserveManualDepth && !Number(v3El.value)) v3El.value = '1.00';
+        }
+
+        const manualDepthValue = Number(v3El && v3El.value) || 0;
+        return {
+            preserveManualDepth,
+            depthMissing: preserveManualDepth && !manualDepthValue,
+            depthLabel,
+            planSummary,
+            manualDepthValue
+        };
+    }
+
     function estimateBlueprintObjectCount(bounds) {
         if (!img.src || !img.naturalWidth || !img.naturalHeight || !bounds) {
             return { count: 1, confidence: 0, sampleCount: 0 };
@@ -7152,16 +7329,32 @@
 ` +
                     `4=樓板/地坪體積(C_VOL)
 ` +
+                    `5=柱體積(C_COL)
+` +
+                    `6=獨立柱模(M_COL)
+` +
+                    `7=開挖/回填(E_DIG)
+` +
                     `0=維持目前
 ` +
                     `${memoryTypeMatch ? `記憶建議：${memoryDefault}｜${getAutoInterpretMemoryHint(memoryTypeMatch)}` : '記憶建議：目前尚無相似案例'}`,
-                    memoryDefault === 'M_WALL' ? '1' : memoryDefault === 'M_BEAM_SIDES' ? '2' : memoryDefault === 'M_BEAM_ALL' ? '3' : memoryDefault === 'C_VOL' ? '4' : '0'
+                    memoryDefault === 'M_WALL' ? '1'
+                        : memoryDefault === 'M_BEAM_SIDES' ? '2'
+                        : memoryDefault === 'M_BEAM_ALL' ? '3'
+                        : memoryDefault === 'C_VOL' ? '4'
+                        : memoryDefault === 'C_COL' ? '5'
+                        : memoryDefault === 'M_COL' ? '6'
+                        : memoryDefault === 'E_DIG' ? '7'
+                        : '0'
                 );
                 const pickMap = {
                     '1': 'M_WALL',
                     '2': 'M_BEAM_SIDES',
                     '3': 'M_BEAM_ALL',
                     '4': 'C_VOL',
+                    '5': 'C_COL',
+                    '6': 'M_COL',
+                    '7': 'E_DIG',
                     '0': type
                 };
                 const nextType = pickMap[String(picked == null ? '0' : picked).trim()] || type;
@@ -7205,24 +7398,10 @@
             const countConfidence = shouldAutoCount ? Number(countResult.confidence || 0) : 0.7;
             const memoryConfidence = memoryMatch ? Math.min(0.96, memoryMatch.similarity) : 0;
             const overallConfidence = Math.max(0, Math.min(1, geometryConfidence * 0.38 + qualityConfidence * 0.28 + countConfidence * 0.18 + memoryConfidence * 0.16));
-
-            if (type.startsWith('R_')) {
-                v2El.value = longM.toFixed(2);
-                if (!Number(v3El.value)) v3El.value = '1';
-                if (!Number(qtyEl.value)) qtyEl.value = '1';
-            } else if (type === 'M_BEAM_SIDES') {
-                v1El.value = longM.toFixed(2);
-                v3El.value = shortM.toFixed(2);
-                qtyEl.value = String(finalQty);
-            } else if (type === 'M_WALL') {
-                v1El.value = longM.toFixed(2);
-                v2El.value = shortM.toFixed(2);
-                qtyEl.value = String(finalQty);
-            } else {
-                v1El.value = longM.toFixed(2);
-                v2El.value = shortM.toFixed(2);
-                if (!Number(v3El.value)) v3El.value = '1.00';
-                qtyEl.value = String(finalQty);
+            const fillResult = applyAutoInterpretValuesToInputs(type, longM, shortM, finalQty);
+            if (fillResult.preserveManualDepth && fillResult.depthMissing) {
+                autoInterpretNeedsReview = true;
+                autoInterpretGateReason = `已完成平面判讀，請手動輸入「${fillResult.depthLabel}」後再吸入清單`;
             }
             previewCalc();
 
@@ -7233,8 +7412,11 @@
             const countNote = shouldAutoCount
                 ? `｜數量建議 ${pickedQty}（信心 ${(countResult.confidence * 100).toFixed(0)}%）→ 套用 ${finalQty}`
                 : '｜鋼筋類數量維持手動';
+            const manualDepthNote = fillResult.preserveManualDepth
+                ? `｜平面已回填 ${fillResult.planSummary}｜${fillResult.depthMissing ? `待手填 ${fillResult.depthLabel}` : `${fillResult.depthLabel}沿用 ${Number(fillResult.manualDepthValue || 0).toFixed(2)} m`}`
+                : '';
             const gateThreshold = getAutoInterpretGateThreshold();
-            if (!type.startsWith('R_') && overallConfidence < gateThreshold) {
+            if (!type.startsWith('R_') && !autoInterpretNeedsReview && overallConfidence < gateThreshold) {
                 autoInterpretNeedsReview = true;
                 autoInterpretGateReason = `自動判讀信心 ${(overallConfidence * 100).toFixed(0)}% 低於門檻 ${(gateThreshold * 100).toFixed(0)}%，請手動複核尺寸/數量`;
             }
@@ -7247,7 +7429,7 @@
                 vector: buildBlueprintFeatureVector(bounds, qualityReport)
             });
             updateBlueprintAutoInterpretStatus(
-                `自動判讀: 單一運算 #${runId} 完成｜${bounds.widthPx.toFixed(0)}×${bounds.heightPx.toFixed(0)} px → ${longM.toFixed(2)}×${shortM.toFixed(2)} m${countNote}${memoryNote}｜總信心 ${(overallConfidence * 100).toFixed(0)}%${qualityNote}${autoInterpretNeedsReview ? '｜需複核' : ''}｜已學習 ${learnResult.count} 筆`,
+                `自動判讀: 單一運算 #${runId} 完成｜${bounds.widthPx.toFixed(0)}×${bounds.heightPx.toFixed(0)} px → ${longM.toFixed(2)}×${shortM.toFixed(2)} m${manualDepthNote}${countNote}${memoryNote}｜總信心 ${(overallConfidence * 100).toFixed(0)}%${qualityNote}${autoInterpretNeedsReview ? '｜需複核' : ''}｜已學習 ${learnResult.count} 筆`,
                 autoInterpretNeedsReview ? '#ffd48a' : '#9fffc0'
             );
             renderAutoInterpretMemoryPanel();
@@ -7256,6 +7438,9 @@
                 type,
                 longM,
                 shortM,
+                preserveManualDepth: fillResult.preserveManualDepth,
+                depthMissing: fillResult.depthMissing,
+                depthLabel: fillResult.depthLabel,
                 quantity: finalQty,
                 suggestedQuantity: pickedQty,
                 countConfidence: countResult.confidence,
@@ -7270,8 +7455,12 @@
             previewCalc();
             if (type.startsWith('R_')) {
                 showToast(`已完成單一運算：長邊 ${longM.toFixed(2)}m（鋼筋規格仍需手動填 v1）`);
+            } else if (fillResult.preserveManualDepth && fillResult.depthMissing) {
+                showToast(`已抓到平面尺寸 ${fillResult.planSummary}，請手動輸入「${fillResult.depthLabel}」後再計算`);
             } else if (autoInterpretNeedsReview) {
                 showToast(`自動判讀完成但信心偏低（${(overallConfidence * 100).toFixed(0)}%），已記住本次結果，請先複核後再吸入清單`);
+            } else if (fillResult.preserveManualDepth) {
+                showToast(`已抓到平面尺寸 ${fillResult.planSummary}，並保留手填 ${fillResult.depthLabel}`);
             } else {
                 showToast(`已完成單一運算：${longM.toFixed(2)}m × ${shortM.toFixed(2)}m，數量建議 ${pickedQty}，套用 ${finalQty}，記憶庫 ${learnResult.count} 筆`);
             }
@@ -7327,7 +7516,13 @@
         const viewH = Math.max(120, canvasContainer.clientHeight - padding);
         const ratioW = viewW / img.naturalWidth;
         const ratioH = viewH / img.naturalHeight;
-        zoomLevel = Math.max(0.2, Math.min(5, Math.min(ratioW, ratioH)));
+        let targetZoom = Math.min(ratioW, ratioH);
+        if (isMobileViewport()) {
+            // Keep a small overflow margin on mobile so the drawing can pan
+            // in both axes instead of feeling locked after upload.
+            targetZoom *= 1.08;
+        }
+        zoomLevel = Math.max(0.2, Math.min(5, targetZoom));
         applyZoom();
         const contentW = img.naturalWidth * zoomLevel;
         const contentH = img.naturalHeight * zoomLevel;
@@ -7352,15 +7547,18 @@
         const wrapper = document.getElementById('img-wrapper');
         const canvasEl = document.getElementById('drawCanvas');
         const allow3DDrag = is3DView && !is360Spinning && !gyroState.enabled;
+        const activeMeasure = isMeasureInteractionMode(drawMode);
+        const relaxedTouchAction = 'pan-x pan-y pinch-zoom';
+        const lockedTouchAction = 'none';
 
         if (wrapper) {
-            wrapper.style.touchAction = 'none';
+            wrapper.style.touchAction = allow3DDrag ? lockedTouchAction : relaxedTouchAction;
         }
         if (canvasEl) {
-            canvasEl.style.touchAction = 'none';
+            canvasEl.style.touchAction = (allow3DDrag || activeMeasure) ? lockedTouchAction : relaxedTouchAction;
         }
         if (canvasContainer) {
-            canvasContainer.style.touchAction = 'none';
+            canvasContainer.style.touchAction = (allow3DDrag || activeMeasure) ? lockedTouchAction : relaxedTouchAction;
         }
     }
 
@@ -8147,6 +8345,12 @@
         ctx.beginPath();
         ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
         ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(point.x - 12, point.y);
+        ctx.lineTo(point.x + 12, point.y);
+        ctx.moveTo(point.x, point.y - 12);
+        ctx.lineTo(point.x, point.y + 12);
+        ctx.stroke();
     }
 
     function redrawManualMeasurementCanvas() {
@@ -8172,6 +8376,169 @@
         }
     }
 
+    function isMobileManualMeasureMode() {
+        return isMobileViewport() && img.src && (drawMode === 'calibration' || drawMode === 'measure');
+    }
+
+    function hideManualPrecisionOverlay() {
+        const overlay = document.getElementById('manualPrecisionOverlay');
+        if (!overlay) return;
+        overlay.innerHTML = '';
+        overlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function renderManualPrecisionOverlay() {
+        const overlay = document.getElementById('manualPrecisionOverlay');
+        if (!overlay) return;
+        if (!isMobileManualMeasureMode() || !calibrationPendingPoint || !canvasContainer) {
+            hideManualPrecisionOverlay();
+            return;
+        }
+
+        overlay.innerHTML = `<div class="manual-precision-card"><span class="manual-precision-title">${manualPrecisionState.active ? '拖曳對線，放手後確認' : '已對位，可再拖曳或直接確認'}</span><canvas id="manualPrecisionCanvas" class="manual-precision-canvas" width="136" height="136"></canvas></div>`;
+        overlay.setAttribute('aria-hidden', 'false');
+
+        const overlayRect = canvasContainer.getBoundingClientRect();
+        const overlayWidth = 152;
+        const overlayHeight = 170;
+        const rect = canvas.getBoundingClientRect();
+        const fallbackClientX = rect.left + calibrationPendingPoint.x * zoomLevel;
+        const fallbackClientY = rect.top + calibrationPendingPoint.y * zoomLevel;
+        const anchorClientX = manualPrecisionState.clientX || fallbackClientX;
+        const anchorClientY = manualPrecisionState.clientY || fallbackClientY;
+        const localX = anchorClientX - overlayRect.left;
+        const localY = anchorClientY - overlayRect.top;
+        let left = localX - overlayWidth / 2;
+        let top = localY - overlayHeight - 18;
+        if (top < 8) top = Math.min(overlayRect.height - overlayHeight - 8, localY + 18);
+        left = clampNumber(left, 8, Math.max(8, overlayRect.width - overlayWidth - 8));
+        top = clampNumber(top, 8, Math.max(8, overlayRect.height - overlayHeight - 8));
+        overlay.style.left = `${left}px`;
+        overlay.style.top = `${top}px`;
+
+        const loupeCanvas = document.getElementById('manualPrecisionCanvas');
+        if (!loupeCanvas) return;
+        const loupeCtx = loupeCanvas.getContext('2d');
+        if (!loupeCtx) return;
+        const size = loupeCanvas.width;
+        const zoom = 3.4;
+        const sampleSize = size / zoom;
+        const sx = clampNumber(calibrationPendingPoint.x - sampleSize / 2, 0, Math.max(0, img.naturalWidth - sampleSize));
+        const sy = clampNumber(calibrationPendingPoint.y - sampleSize / 2, 0, Math.max(0, img.naturalHeight - sampleSize));
+        const scale = size / sampleSize;
+        const offsetX = -sx * scale;
+        const offsetY = -sy * scale;
+        const mapPoint = (point) => ({
+            x: point.x * scale + offsetX,
+            y: point.y * scale + offsetY
+        });
+
+        loupeCtx.clearRect(0, 0, size, size);
+        loupeCtx.save();
+        loupeCtx.beginPath();
+        loupeCtx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
+        loupeCtx.clip();
+        loupeCtx.drawImage(img, sx, sy, sampleSize, sampleSize, 0, 0, size, size);
+        loupeCtx.fillStyle = 'rgba(4, 10, 18, 0.06)';
+        loupeCtx.fillRect(0, 0, size, size);
+        if (clickPoints.length >= 2) {
+            const p1 = mapPoint(clickPoints[0]);
+            const p2 = mapPoint(clickPoints[1]);
+            loupeCtx.strokeStyle = '#ff6b7a';
+            loupeCtx.lineWidth = 2;
+            loupeCtx.beginPath();
+            loupeCtx.moveTo(p1.x, p1.y);
+            loupeCtx.lineTo(p2.x, p2.y);
+            loupeCtx.stroke();
+        }
+        if (clickPoints.length === 1) {
+            const p1 = mapPoint(clickPoints[0]);
+            const p2 = mapPoint(calibrationPendingPoint);
+            loupeCtx.save();
+            loupeCtx.strokeStyle = 'rgba(255, 209, 102, 0.8)';
+            loupeCtx.lineWidth = 2;
+            loupeCtx.setLineDash([6, 4]);
+            loupeCtx.beginPath();
+            loupeCtx.moveTo(p1.x, p1.y);
+            loupeCtx.lineTo(p2.x, p2.y);
+            loupeCtx.stroke();
+            loupeCtx.restore();
+        }
+        clickPoints.forEach(point => {
+            const mapped = mapPoint(point);
+            loupeCtx.fillStyle = '#ff9f43';
+            loupeCtx.beginPath();
+            loupeCtx.arc(mapped.x, mapped.y, 4.5, 0, Math.PI * 2);
+            loupeCtx.fill();
+        });
+        loupeCtx.restore();
+
+        loupeCtx.save();
+        loupeCtx.strokeStyle = 'rgba(255,255,255,0.96)';
+        loupeCtx.lineWidth = 1.2;
+        loupeCtx.beginPath();
+        loupeCtx.moveTo(size / 2, 10);
+        loupeCtx.lineTo(size / 2, size - 10);
+        loupeCtx.moveTo(10, size / 2);
+        loupeCtx.lineTo(size - 10, size / 2);
+        loupeCtx.stroke();
+        loupeCtx.strokeStyle = '#ffd166';
+        loupeCtx.lineWidth = 2;
+        loupeCtx.beginPath();
+        loupeCtx.arc(size / 2, size / 2, 7, 0, Math.PI * 2);
+        loupeCtx.stroke();
+        loupeCtx.restore();
+    }
+
+    function updateManualPrecisionPointFromClient(clientX, clientY) {
+        if (!canvas.width || !canvas.height) return;
+        const rect = canvas.getBoundingClientRect();
+        calibrationPendingPoint = {
+            x: clampNumber((clientX - rect.left) / zoomLevel, 0, img.naturalWidth),
+            y: clampNumber((clientY - rect.top) / zoomLevel, 0, img.naturalHeight)
+        };
+        manualPrecisionState.clientX = clientX;
+        manualPrecisionState.clientY = clientY;
+        redrawManualMeasurementCanvas();
+        renderManualMeasurePad();
+        renderManualPrecisionOverlay();
+    }
+
+    function beginManualPrecisionPlacement(event) {
+        if (!isMobileManualMeasureMode()) return false;
+        if (!event.touches || !event.touches.length) return false;
+        const touch = event.touches[0];
+        manualPrecisionState.active = true;
+        suppressNextCanvasClick = true;
+        suppressNextCanvasTouch = true;
+        canvasLastTouchAt = Date.now();
+        updateManualPrecisionPointFromClient(touch.clientX, touch.clientY);
+        if (event.cancelable) event.preventDefault();
+        if (event.stopPropagation) event.stopPropagation();
+        return true;
+    }
+
+    function moveManualPrecisionPlacement(event) {
+        if (!manualPrecisionState.active || !isMobileManualMeasureMode()) return;
+        if (!event.touches || !event.touches.length) return;
+        const touch = event.touches[0];
+        updateManualPrecisionPointFromClient(touch.clientX, touch.clientY);
+        suppressNextCanvasTouch = true;
+        suppressNextCanvasClick = true;
+        if (event.cancelable) event.preventDefault();
+    }
+
+    function endManualPrecisionPlacement(event) {
+        if (!manualPrecisionState.active) return;
+        manualPrecisionState.active = false;
+        suppressNextCanvasTouch = true;
+        suppressNextCanvasClick = true;
+        canvasLastTouchAt = Date.now();
+        renderManualPrecisionOverlay();
+        renderManualMeasurePad();
+        if (event && event.cancelable) event.preventDefault();
+    }
+
     function renderManualMeasurePad() {
         const pad = document.getElementById('manualMeasurePad');
         if (!pad) return;
@@ -8179,17 +8546,21 @@
         if (!activeManualMode) {
             pad.innerHTML = '';
             pad.setAttribute('aria-hidden', 'true');
+            toggleMobileLeftDrawer(false);
             return;
         }
         const hasPending = !!calibrationPendingPoint;
         const hasConfirmed = clickPoints.length > 0;
         const targetLabel = clickPoints.length === 0 ? '起點' : '終點';
         const currentLabel = hasPending ? `暫存${targetLabel}` : (hasConfirmed ? '上一個確認點' : '尚未選點');
-        const hint = hasPending
+        const hint = manualPrecisionState.active
+            ? `拖曳中：把十字準星對到線上，放手後再確認。`
+            : hasPending
             ? `已選 ${targetLabel}，可用箭頭微調後按確認。`
             : (hasConfirmed ? '可用箭頭修正上一個點，或直接點圖選下一點。' : '先點圖放置點位，再用箭頭微調。');
         pad.innerHTML = `<div class="manual-measure-pad-card"><span class="manual-measure-pad-title">手動微調｜${currentLabel}</span><span class="manual-measure-pad-hint">${hint}</span><div class="manual-measure-pad-actions"><button class="manual-measure-pad-btn warn" type="button" onclick="confirmManualMeasurePendingPoint()"${hasPending ? '' : ' disabled'}>確認目前點位</button><button class="manual-measure-pad-btn" type="button" onclick="undoManualMeasurePoint()"${(hasPending || hasConfirmed) ? '' : ' disabled'}>回上一步</button></div><div class="manual-measure-pad-grid"><span></span><button class="manual-measure-pad-btn" type="button" onclick="nudgeManualMeasurePoint(0, -1)"${(hasPending || hasConfirmed) ? '' : ' disabled'}>↑</button><span></span><button class="manual-measure-pad-btn" type="button" onclick="nudgeManualMeasurePoint(-1, 0)"${(hasPending || hasConfirmed) ? '' : ' disabled'}>←</button><button class="manual-measure-pad-btn" type="button" onclick="nudgeManualMeasurePoint(0, 1)"${(hasPending || hasConfirmed) ? '' : ' disabled'}>↓</button><button class="manual-measure-pad-btn" type="button" onclick="nudgeManualMeasurePoint(1, 0)"${(hasPending || hasConfirmed) ? '' : ' disabled'}>→</button></div></div>`;
         pad.setAttribute('aria-hidden', 'false');
+        toggleMobileLeftDrawer(true);
     }
 
     function confirmManualMeasurePendingPoint() {
@@ -8197,8 +8568,10 @@
         if (!calibrationPendingPoint) return showToast('請先點圖放置點位');
         clickPoints.push({ x: calibrationPendingPoint.x, y: calibrationPendingPoint.y });
         calibrationPendingPoint = null;
+        manualPrecisionState.active = false;
         redrawManualMeasurementCanvas();
         renderManualMeasurePad();
+        renderManualPrecisionOverlay();
         if (clickPoints.length === 1) {
             showToast('起點已確認，請點終點後可再用箭頭微調');
             return;
@@ -8212,8 +8585,10 @@
         if (!(drawMode === 'calibration' || drawMode === 'measure')) return;
         if (calibrationPendingPoint) {
             calibrationPendingPoint = null;
+            manualPrecisionState.active = false;
             redrawManualMeasurementCanvas();
             renderManualMeasurePad();
+            renderManualPrecisionOverlay();
             showToast('已取消目前暫存點');
             return;
         }
@@ -8243,6 +8618,7 @@
         }
         redrawManualMeasurementCanvas();
         renderManualMeasurePad();
+        renderManualPrecisionOverlay();
     }
 
     function drawMeasurementLine(p1, p2) {
@@ -8392,9 +8768,11 @@
         }
         clickPoints = [];
         calibrationPendingPoint = null;
+        manualPrecisionState.active = false;
         drawMode = 'none';
         syncMobileMeasureModeUI();
         renderManualMeasurePad();
+        renderManualPrecisionOverlay();
     }
 
     function prepareSmartMeasure(mode) {
@@ -8788,8 +9166,10 @@
         drawMode = 'calibration';
         clickPoints = [];
         calibrationPendingPoint = null;
+        manualPrecisionState.active = false;
         renderManualMeasurePad();
-        showToast(isMobileViewport() ? '定比例模式：點圖後可用小箭頭微調，再按確認點位' : '定比例模式：每個點都要再點一次確認');
+        renderManualPrecisionOverlay();
+        showToast(isMobileViewport() ? '定比例模式：手機改成拖曳對線，不用雙點確認；放手後按確認點位' : '定比例模式：每個點都要再點一次確認');
         syncMobileMeasureModeUI();
     }
     function startMeasure() {
@@ -8801,8 +9181,10 @@
         drawMode = 'measure';
         clickPoints = [];
         calibrationPendingPoint = null;
+        manualPrecisionState.active = false;
         renderManualMeasurePad();
-        showToast(isMobileViewport() ? '量測模式：點圖後可用小箭頭微調，再按確認點位' : '點擊你要測量的【起點】與【終點】');
+        renderManualPrecisionOverlay();
+        showToast(isMobileViewport() ? '量測模式：手機改成拖曳對線，不用雙點確認；放手後按確認點位' : '點擊你要測量的【起點】與【終點】');
         syncMobileMeasureModeUI();
     }
 
@@ -8993,10 +9375,12 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         clickPoints = [];
         calibrationPendingPoint = null;
+        manualPrecisionState.active = false;
         drawMode = 'none';
         resetSmartMeasureSession({ preserveLastResult: false });
         syncMobileMeasureModeUI();
         renderManualMeasurePad();
+        renderManualPrecisionOverlay();
         showToast('🧽 畫布已擦乾淨！');
     }
     function removeLoadedImage() {
@@ -9012,10 +9396,12 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         clickPoints = [];
         calibrationPendingPoint = null;
+        manualPrecisionState.active = false;
         drawMode = 'none';
         resetSmartMeasureSession({ preserveLastResult: false });
         syncMobileMeasureModeUI();
         renderManualMeasurePad();
+        renderManualPrecisionOverlay();
         scalePixelsPerUnit = 0;
         document.getElementById('scale-info').innerText = '比例: 未設定';
         const fileInput = document.getElementById('fileInput');
@@ -9280,9 +9666,8 @@
             return;
         }
         blueprintPinchState.active = false;
-        blueprintPanState.active = true;
-        blueprintPanState.lastX = e.touches[0].clientX;
-        blueprintPanState.lastY = e.touches[0].clientY;
+        // Let the browser handle single-finger panning natively on mobile.
+        blueprintPanState.active = false;
         blueprintPanState.moved = false;
     }
 
@@ -9298,32 +9683,12 @@
             if (e.cancelable) e.preventDefault();
             return;
         }
-        if (!blueprintPanState.active || e.touches.length !== 1) return;
-        const t = e.touches[0];
-        const dx = t.clientX - blueprintPanState.lastX;
-        const dy = t.clientY - blueprintPanState.lastY;
-        blueprintPanState.lastX = t.clientX;
-        blueprintPanState.lastY = t.clientY;
-        if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
-            blueprintPanState.moved = true;
-            suppressNextCanvasTouch = true;
-        }
-        if (canvasContainer) {
-            canvasContainer.scrollLeft -= dx;
-            canvasContainer.scrollTop -= dy;
-        }
-        if (blueprintPanState.moved && e.cancelable) {
-            e.preventDefault();
-        }
+        // Native one-finger scrolling handles the rest.
     }
 
     function onBlueprintTouchEnd() {
         if (blueprintPinchState.active) {
             blueprintPinchState.active = false;
-        }
-        if (blueprintPanState.moved) {
-            suppressNextCanvasTouch = true;
-            suppressNextCanvasClick = true;
         }
         blueprintPanState.active = false;
         blueprintPanState.moved = false;
@@ -9406,12 +9771,17 @@
         imgWrapperEl.addEventListener('gesturechange', blockNativeGestureOnBlueprint, { passive: false });
         imgWrapperEl.addEventListener('gestureend', blockNativeGestureOnBlueprint, { passive: false });
         imgWrapperEl.addEventListener('touchstart', function(e) {
+            if (beginManualPrecisionPlacement(e)) return;
             if (!e.touches || !e.touches.length) return;
             const t = e.touches[0];
             handleWrapperPointTap(t.clientX, t.clientY, e);
         }, { passive: false, capture: true });
+        imgWrapperEl.addEventListener('touchmove', moveManualPrecisionPlacement, { passive: false, capture: true });
+        imgWrapperEl.addEventListener('touchend', endManualPrecisionPlacement, { passive: false, capture: true });
+        imgWrapperEl.addEventListener('touchcancel', endManualPrecisionPlacement, { passive: false, capture: true });
 
         imgWrapperEl.addEventListener('click', function(e) {
+            if (Date.now() - canvasLastTouchAt < CANVAS_TOUCH_CLICK_GUARD_MS) return;
             handleWrapperPointTap(e.clientX, e.clientY, e);
         }, true);
     }
@@ -10991,10 +11361,24 @@
         syncMobileBlueprintStatusCard();
     }
 
+    function toggleMobileLeftDrawer(forceOpen) {
+        const drawer = document.getElementById('mobileLeftDrawer');
+        if (!drawer || !isMobileViewport()) return;
+        const next = typeof forceOpen === 'boolean' ? forceOpen : !drawer.classList.contains('open');
+        if (next) toggleMobileFuncDrawer(false);
+        drawer.classList.toggle('open', next);
+        drawer.setAttribute('aria-hidden', next ? 'false' : 'true');
+    }
+
     function toggleMobileFuncDrawer(forceOpen) {
         const drawer = document.getElementById('mobileFuncDrawer');
         if (!drawer || !isMobileViewport()) return;
         const next = typeof forceOpen === 'boolean' ? forceOpen : !drawer.classList.contains('open');
+        if (next) {
+            toggleMobileLeftDrawer(false);
+            const testLog = document.getElementById('mobileTestLog');
+            if (testLog) testLog.classList.add('collapsed');
+        }
         drawer.classList.toggle('open', next);
         drawer.setAttribute('aria-hidden', next ? 'false' : 'true');
     }
@@ -11053,7 +11437,9 @@
     function syncMobileMeasureModeUI() {
         if (!isMobileViewport()) {
             document.body.classList.remove('mobile-measure-mode');
+            updateTouchInteractionMode();
             renderManualMeasurePad();
+            renderManualPrecisionOverlay();
             return;
         }
         const activeMeasure = isMeasureInteractionMode(drawMode);
@@ -11070,7 +11456,9 @@
             const box = document.getElementById('mobileTestLog');
             if (box) box.classList.add('collapsed');
         }
+        updateTouchInteractionMode();
         renderManualMeasurePad();
+        renderManualPrecisionOverlay();
     }
 
     function getUserLevelGuideLines(level) {
@@ -11198,6 +11586,7 @@
 
     function initMobileFuncDrawer() {
         const drawer = document.getElementById('mobileFuncDrawer');
+        const leftDrawer = document.getElementById('mobileLeftDrawer');
         if (!drawer) return;
         drawer.addEventListener('click', (event) => {
             const target = event.target.closest('[data-mobile-action]');
@@ -11211,9 +11600,16 @@
             if (event.target.closest('#mobileFuncDrawer')) return;
             toggleMobileFuncDrawer(false);
         });
+        document.addEventListener('click', (event) => {
+            if (!isMobileViewport() || !leftDrawer) return;
+            if (!leftDrawer.classList.contains('open')) return;
+            if (event.target.closest('#mobileLeftDrawer')) return;
+            toggleMobileLeftDrawer(false);
+        });
         window.addEventListener('resize', () => {
             if (!isMobileViewport()) {
                 toggleMobileFuncDrawer(false);
+                toggleMobileLeftDrawer(false);
                 document.body.classList.remove('mobile-focus-mode');
                 document.body.classList.remove('mobile-measure-mode');
             }
