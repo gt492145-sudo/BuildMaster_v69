@@ -863,16 +863,15 @@
             pointer-events: auto;
         }
         .mobile-left-drawer.open .mobile-left-tab {
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
+            background: rgba(56, 42, 18, 0.96);
+            border-color: rgba(255, 209, 102, 0.9);
         }
         .mobile-left-shell {
             position: fixed;
             left: 10px;
-            top: calc(env(safe-area-inset-top, 0px) + 72px);
             bottom: calc(env(safe-area-inset-bottom, 0px) + 58px);
             width: min(76vw, 220px);
+            max-height: min(32dvh, 240px);
             overflow-y: auto;
             overscroll-behavior: contain;
             -webkit-overflow-scrolling: touch;
@@ -1022,9 +1021,8 @@
             pointer-events: auto;
         }
         .mobile-drawer.open .mobile-func-tab {
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
+            background: rgba(24, 44, 70, 0.96);
+            border-color: rgba(126, 200, 255, 0.92);
         }
         .drawer-header {
             color: #bfe7ff;
@@ -1855,6 +1853,7 @@
         </div>
         <div class="bim-actions level-only-pro" style="margin-top:8px;">
             <button class="tool-btn" style="border-color:#7ed6df; color:#dffcff;" onclick="autoInterpretBlueprintAndCalculate()">🤖 第三頁看圖自動判讀試算</button>
+            <button class="tool-btn" style="border-color:#ffd59c; color:#fff1d6;" onclick="readBlueprintSizeAnnotations()">🔎 讀柱樑尺寸標註</button>
             <button class="tool-btn" style="border-color:#b39ddb; color:#efe3ff;" onclick="runAutoBlueprintPlusBIM()">🤖+🏗️ 第三頁自動看圖計算+BIM</button>
         </div>
         <div id="advEstimateSummary" class="bim-note level-only-pro" style="margin-top:6px; color:#d7e9ff;">進階試算：待命</div>
@@ -7191,6 +7190,168 @@
         };
     }
 
+    async function ensureBlueprintOcrLoaded() {
+        if (window.Tesseract) return true;
+        updateBlueprintAutoInterpretStatus('自動判讀: 載入尺寸標註辨識引擎中...', '#bfe7ff');
+        await loadExternalScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js');
+        return !!window.Tesseract;
+    }
+
+    function normalizeOcrDimensionText(text) {
+        return String(text || '')
+            .replace(/[ＯＯ]/g, '0')
+            .replace(/[ｘX＊*]/g, 'x')
+            .replace(/×/g, 'x')
+            .replace(/[－—–]/g, '-')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function inferOcrDimensionUnitMultiplier(line, a, b) {
+        const text = String(line || '').toLowerCase();
+        if (/(mm|公釐)/.test(text)) return 0.001;
+        if (/(cm|公分)/.test(text)) return 0.01;
+        if (/(m|米|公尺)/.test(text)) return 1;
+        const maxVal = Math.max(Math.abs(Number(a) || 0), Math.abs(Number(b) || 0));
+        if (maxVal >= 100) return 0.001;
+        if (maxVal >= 10) return 0.01;
+        return 1;
+    }
+
+    function extractBlueprintOcrDimensionCandidates(text) {
+        const lines = String(text || '')
+            .split(/\n+/)
+            .map(line => normalizeOcrDimensionText(line))
+            .filter(Boolean);
+        const candidates = [];
+        const pattern = /(?:\b([BC]\d{1,3}[A-Z]?)\b)?\s*(柱|樑|梁|beam|column|col)?[^\d]{0,6}(\d{1,4}(?:\.\d+)?)\s*x\s*(\d{1,4}(?:\.\d+)?)/ig;
+        lines.forEach(line => {
+            let match;
+            while ((match = pattern.exec(line)) !== null) {
+                const tag = String(match[1] || '').trim();
+                const kindText = String(match[2] || '').trim().toLowerCase();
+                const a = parseFloat(match[3]);
+                const b = parseFloat(match[4]);
+                if (!Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0) continue;
+                const multiplier = inferOcrDimensionUnitMultiplier(line, a, b);
+                const firstM = a * multiplier;
+                const secondM = b * multiplier;
+                const upperLine = line.toUpperCase();
+                let kind = '';
+                if (/樑|梁|BEAM/.test(kindText) || /^B\d/.test(tag) || /\bB\d/.test(upperLine)) kind = 'beam';
+                else if (/柱|COLUMN|COL/.test(kindText) || /^C\d/.test(tag) || /\bC\d/.test(upperLine)) kind = 'column';
+                candidates.push({
+                    raw: line,
+                    tag,
+                    kind,
+                    firstM,
+                    secondM,
+                    score: (kind ? 0.4 : 0) + (tag ? 0.25 : 0) + (/x/.test(line) ? 0.2 : 0)
+                });
+            }
+        });
+        return candidates
+            .filter(item => item.firstM > 0 && item.secondM > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 8);
+    }
+
+    function mapOcrCandidateToCalcType(candidate, currentType) {
+        const current = String(currentType || '');
+        if (candidate && candidate.kind === 'column') {
+            if (current.startsWith('R_')) return current;
+            if (current.startsWith('C_')) return 'C_COL';
+            return 'M_COL';
+        }
+        if (candidate && candidate.kind === 'beam') {
+            if (current === 'M_BEAM_ALL') return 'M_BEAM_ALL';
+            if (current.startsWith('R_')) return current;
+            if (current.startsWith('M_')) return 'M_BEAM_SIDES';
+            return 'M_BEAM_SIDES';
+        }
+        return current;
+    }
+
+    function applyBlueprintOcrDimensionCandidate(candidate) {
+        if (!candidate) return false;
+        const typeEl = document.getElementById('calcType');
+        const customNameEl = document.getElementById('customName');
+        const v1El = document.getElementById('v1');
+        const v2El = document.getElementById('v2');
+        const v3El = document.getElementById('v3');
+        let type = typeEl ? String(typeEl.value || '') : '';
+        const suggestedType = mapOcrCandidateToCalcType(candidate, type);
+        if (typeEl && suggestedType && suggestedType !== type) {
+            typeEl.value = suggestedType;
+            type = suggestedType;
+            updateUI();
+        }
+        if (customNameEl && !customNameEl.value.trim() && candidate.tag) {
+            customNameEl.value = `${candidate.tag}${candidate.kind === 'column' ? '柱' : candidate.kind === 'beam' ? '梁' : ''}`;
+        }
+        if (type === 'M_COL' || type === 'C_COL') {
+            if (v1El) v1El.value = candidate.firstM.toFixed(2);
+            if (v2El) v2El.value = candidate.secondM.toFixed(2);
+        } else if (type === 'M_BEAM_SIDES' || type === 'M_BEAM_ALL') {
+            if (v2El) v2El.value = candidate.firstM.toFixed(2);
+            if (v3El && !Number(v3El.value)) v3El.value = candidate.secondM.toFixed(2);
+        } else {
+            if (v1El && !Number(v1El.value)) v1El.value = candidate.firstM.toFixed(2);
+            if (v2El && !Number(v2El.value)) v2El.value = candidate.secondM.toFixed(2);
+        }
+        previewCalc();
+        return true;
+    }
+
+    async function readBlueprintSizeAnnotations() {
+        if (document.body.dataset.workMode !== 'calc') return showToast('請切換到計算模式第三頁再使用尺寸標註辨識');
+        if (getCurrentUserLevel() !== 'pro') return showToast('尺寸標註辨識僅開放會員3（專家）');
+        if (!img.src) return showToast('請先上傳圖紙再讀尺寸標註');
+        try {
+            await ensureBlueprintOcrLoaded();
+            if (!window.Tesseract) return showToast('OCR 引擎載入失敗，請稍後重試');
+            updateBlueprintAutoInterpretStatus('自動判讀: 正在讀取柱/樑尺寸標註...', '#bfe7ff');
+            const off = document.createElement('canvas');
+            const maxSide = 1800;
+            const ratio = Math.min(1, maxSide / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+            off.width = Math.max(240, Math.round((img.naturalWidth || 1) * ratio));
+            off.height = Math.max(240, Math.round((img.naturalHeight || 1) * ratio));
+            const offCtx = off.getContext('2d', { willReadFrequently: true });
+            if (!offCtx) return showToast('暫時無法建立 OCR 畫布');
+            offCtx.drawImage(img, 0, 0, off.width, off.height);
+            const result = await window.Tesseract.recognize(off, 'eng+chi_tra');
+            const text = String(result && result.data && result.data.text ? result.data.text : '');
+            const candidates = extractBlueprintOcrDimensionCandidates(text);
+            if (!candidates.length) {
+                updateBlueprintAutoInterpretStatus('自動判讀: 未讀到明顯柱/樑尺寸標註（可試更高對比）', '#ffd48a');
+                return showToast('沒有讀到像 B3 30x70 / C1 40x60 這類尺寸標註');
+            }
+            const optionsText = candidates
+                .slice(0, 5)
+                .map((item, idx) => `${idx + 1}=${item.tag || '未命名'} ${item.kind === 'column' ? '柱' : item.kind === 'beam' ? '梁' : '尺寸'} ${item.firstM.toFixed(2)}x${item.secondM.toFixed(2)}m`)
+                .join('\n');
+            const picked = prompt(`已讀到以下尺寸標註，請選擇要套用的項目：\n${optionsText}\n0=取消`, '1');
+            const pickedIndex = Math.max(0, parseInt(String(picked || '0').trim(), 10) - 1);
+            if (!Number.isInteger(pickedIndex) || pickedIndex < 0 || pickedIndex >= candidates.length) {
+                updateBlueprintAutoInterpretStatus(`自動判讀: 已讀到 ${candidates.length} 筆尺寸標註，等待手動選擇`, '#ffd48a');
+                return showToast('已取消套用尺寸標註');
+            }
+            const selected = candidates[pickedIndex];
+            if (!applyBlueprintOcrDimensionCandidate(selected)) {
+                return showToast('尺寸標註套用失敗，請手動確認欄位');
+            }
+            updateBlueprintAutoInterpretStatus(
+                `自動判讀: 已讀取尺寸標註 ${selected.tag || '未命名'} ${selected.kind === 'column' ? '柱' : selected.kind === 'beam' ? '梁' : ''} ${selected.firstM.toFixed(2)}×${selected.secondM.toFixed(2)} m`,
+                '#9fffc0'
+            );
+            showToast(`已套用尺寸標註：${selected.tag || '未命名'} ${selected.firstM.toFixed(2)}×${selected.secondM.toFixed(2)}m`);
+        } catch (err) {
+            console.error('OCR 標註辨識失敗:', err);
+            updateBlueprintAutoInterpretStatus('自動判讀: 尺寸標註辨識失敗（請重試）', '#ffd48a');
+            showToast('尺寸標註辨識失敗，請先提升對比或換一張較清晰的圖');
+        }
+    }
+
     function estimateBlueprintObjectCount(bounds) {
         if (!img.src || !img.naturalWidth || !img.naturalHeight || !bounds) {
             return { count: 1, confidence: 0, sampleCount: 0 };
@@ -11363,15 +11524,18 @@
 
     function toggleMobileLeftDrawer(forceOpen) {
         const drawer = document.getElementById('mobileLeftDrawer');
+        const tab = document.getElementById('mobileLeftTab');
         if (!drawer || !isMobileViewport()) return;
         const next = typeof forceOpen === 'boolean' ? forceOpen : !drawer.classList.contains('open');
         if (next) toggleMobileFuncDrawer(false);
         drawer.classList.toggle('open', next);
         drawer.setAttribute('aria-hidden', next ? 'false' : 'true');
+        if (tab) tab.textContent = next ? '收合' : '對位';
     }
 
     function toggleMobileFuncDrawer(forceOpen) {
         const drawer = document.getElementById('mobileFuncDrawer');
+        const tab = document.getElementById('mobileFuncTab');
         if (!drawer || !isMobileViewport()) return;
         const next = typeof forceOpen === 'boolean' ? forceOpen : !drawer.classList.contains('open');
         if (next) {
@@ -11381,6 +11545,7 @@
         }
         drawer.classList.toggle('open', next);
         drawer.setAttribute('aria-hidden', next ? 'false' : 'true');
+        if (tab) tab.textContent = next ? '收合' : '功能';
     }
 
     function updateMobileFocusLabel() {
