@@ -788,52 +788,57 @@
             top: 8px;
             left: 8px;
             z-index: 18;
-            width: min(72vw, 270px);
+            width: min(54vw, 210px);
             pointer-events: auto;
         }
         .mobile-blueprint-status-toggle {
             width: 100%;
             display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 2px;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
             border: 1px solid rgba(126, 200, 255, 0.34);
-            border-radius: 12px;
-            background: rgba(10, 20, 34, 0.82);
+            border-radius: 10px;
+            background: rgba(10, 20, 34, 0.74);
             color: #eaf6ff;
-            padding: 8px 10px;
-            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
-            backdrop-filter: blur(8px);
+            padding: 6px 8px;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+            backdrop-filter: blur(6px);
         }
         .mobile-blueprint-status-toggle-label {
-            font-size: 0.72em;
+            font-size: 0.66em;
             font-weight: 800;
             color: #bfe7ff;
-            letter-spacing: 0.4px;
+            letter-spacing: 0.2px;
+            flex: 0 0 auto;
         }
         .mobile-blueprint-status-toggle-summary {
-            font-size: 0.78em;
+            font-size: 0.68em;
             font-weight: 700;
             color: #ecf7ff;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            width: 100%;
+            flex: 1 1 auto;
+            text-align: right;
+            min-width: 0;
         }
         .mobile-blueprint-status-body {
-            margin-top: 6px;
-            border-radius: 12px;
+            margin-top: 4px;
+            border-radius: 10px;
             border: 1px solid rgba(255,255,255,0.14);
-            background: rgba(7, 14, 24, 0.84);
-            padding: 9px 10px;
-            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
-            backdrop-filter: blur(10px);
+            background: rgba(7, 14, 24, 0.78);
+            padding: 7px 8px;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16);
+            backdrop-filter: blur(8px);
+            max-height: 86px;
+            overflow-y: auto;
         }
         .mobile-blueprint-status.collapsed .mobile-blueprint-status-body { display: none; }
         .mobile-blueprint-status-line {
             display: block;
-            font-size: 0.78em;
-            line-height: 1.45;
+            font-size: 0.7em;
+            line-height: 1.35;
         }
         .mobile-left-drawer {
             display: block;
@@ -960,34 +965,91 @@
         .manual-precision-overlay {
             display: block;
             position: absolute;
+            inset: 0;
             z-index: 20;
-            width: 152px;
             pointer-events: none;
         }
         .manual-precision-overlay[aria-hidden="true"] { display: none; }
         .manual-precision-card {
+            position: absolute;
             border-radius: 16px;
             border: 1px solid rgba(126, 200, 255, 0.4);
             background: rgba(8, 18, 34, 0.92);
             box-shadow: 0 14px 28px rgba(0,0,0,0.3);
-            padding: 8px;
+            padding: 7px;
             backdrop-filter: blur(8px);
+            width: 126px;
         }
         .manual-precision-title {
             display: block;
-            font-size: 0.68em;
+            font-size: 0.64em;
             color: #bfe7ff;
             text-align: center;
-            margin-bottom: 6px;
+            margin-bottom: 5px;
             letter-spacing: 0.3px;
         }
         .manual-precision-canvas {
-            width: 136px;
-            height: 136px;
+            width: 112px;
+            height: 112px;
             display: block;
             margin: 0 auto;
             border-radius: 999px;
             background: rgba(4, 10, 18, 0.85);
+        }
+        .manual-precision-finger-dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            margin-left: -5px;
+            margin-top: -5px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.22);
+            border: 1px solid rgba(255, 255, 255, 0.58);
+            box-shadow: 0 0 0 3px rgba(12, 18, 26, 0.16);
+        }
+        .manual-precision-guide-line {
+            position: absolute;
+            height: 0;
+            border-top: 1.5px dashed rgba(255, 209, 102, 0.9);
+            transform-origin: left center;
+            filter: drop-shadow(0 0 4px rgba(0,0,0,0.32));
+        }
+        .manual-precision-target {
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            margin-left: -11px;
+            margin-top: -11px;
+        }
+        .manual-precision-target::before,
+        .manual-precision-target::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            background: rgba(255, 209, 102, 0.98);
+            transform: translate(-50%, -50%);
+            border-radius: 999px;
+            box-shadow: 0 0 6px rgba(0,0,0,0.32);
+        }
+        .manual-precision-target::before {
+            width: 2px;
+            height: 18px;
+        }
+        .manual-precision-target::after {
+            width: 18px;
+            height: 2px;
+        }
+        .manual-precision-target-ring {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 9px;
+            height: 9px;
+            border-radius: 999px;
+            border: 1.6px solid rgba(255, 209, 102, 0.98);
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 0 2px rgba(8, 18, 34, 0.35);
         }
     }
     .mobile-drawer { display: none; }
@@ -1093,9 +1155,9 @@
         .mobile-test-log {
             display: block;
             position: fixed;
-            right: 10px;
-            bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
-            width: min(58vw, 180px);
+            right: 6px;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 6px);
+            width: min(44vw, 148px);
             z-index: 2300;
             border: 1px solid rgba(140, 212, 255, 0.52);
             border-radius: 12px;
@@ -1119,7 +1181,7 @@
             font-weight: 800;
         }
         .mobile-test-log.collapsed .mobile-test-log-head {
-            padding: 6px 8px;
+            padding: 4px 5px;
         }
         .mobile-test-log.collapsed .mobile-test-log-head > span {
             display: none;
@@ -1130,12 +1192,12 @@
         }
         .mobile-test-log-btn {
             border: 1px solid rgba(255,255,255,0.24);
-            border-radius: 7px;
+            border-radius: 999px;
             background: rgba(41, 67, 98, 0.54);
             color: #e8f7ff;
-            font-size: 0.75em;
+            font-size: 0.66em;
             font-weight: 700;
-            padding: 4px 8px;
+            padding: 3px 7px;
         }
         .mobile-test-log.collapsed .mobile-test-log-actions .mobile-test-log-btn:last-child {
             display: none;
@@ -1286,7 +1348,7 @@
     <div class="mobile-test-log-head">
         <span>🧪 手機測試紀錄</span>
         <div class="mobile-test-log-actions">
-            <button class="mobile-test-log-btn" type="button" onclick="toggleMobileTestLog()">展開</button>
+            <button class="mobile-test-log-btn" type="button" onclick="toggleMobileTestLog()">紀錄</button>
             <button class="mobile-test-log-btn" type="button" onclick="clearMobileTestLog()">清除</button>
         </div>
     </div>
@@ -1329,7 +1391,7 @@
         <div id="canvas-container">
             <div id="mobileBlueprintStatus" class="mobile-blueprint-status collapsed" aria-hidden="true">
                 <button type="button" class="mobile-blueprint-status-toggle" onclick="toggleMobileBlueprintStatusCard()">
-                    <span class="mobile-blueprint-status-toggle-label">圖面狀態</span>
+                    <span class="mobile-blueprint-status-toggle-label">圖面</span>
                     <span id="mobileBlueprintStatusSummary" class="mobile-blueprint-status-toggle-summary">待檢查 / 尚未執行</span>
                 </button>
                 <div class="mobile-blueprint-status-body">
@@ -1823,7 +1885,8 @@
             </div>
             <div class="input-wrapper">
                 <label>AI 自動判讀門檻 (%)</label>
-                <input type="number" id="advAutoInterpretGate" min="90" max="99" step="1" value="90" oninput="refreshAdvancedEstimate(false); previewCalc();">
+                <input type="number" id="advAutoInterpretGate" min="60" max="99" step="1" value="75" oninput="refreshAdvancedEstimate(false); previewCalc();">
+                <div class="bim-note" style="margin-top:4px; font-size:0.72em;">75=專業預設｜低於門檻會標需複核</div>
             </div>
             <div class="input-wrapper">
                 <label>專業精算模式（會員3）</label>
@@ -1850,11 +1913,18 @@
                 </label>
                 <div class="bim-note" style="margin-top:6px;">適合柱、樑、混凝土、土方等三維項目，避免立面尺寸亂算。</div>
             </div>
+            <div class="input-wrapper">
+                <label>專業自動套用</label>
+                <label class="tool-mini" style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+                    <input type="checkbox" id="advAutoInterpretAutoApply" checked>
+                    高信心時自動套用類型與數量（減少確認）
+                </label>
+            </div>
         </div>
         <div class="bim-actions level-only-pro" style="margin-top:8px;">
-            <button class="tool-btn" style="border-color:#7ed6df; color:#dffcff;" onclick="autoInterpretBlueprintAndCalculate()">🤖 第三頁看圖自動判讀試算</button>
-            <button class="tool-btn" style="border-color:#ffd59c; color:#fff1d6;" onclick="readBlueprintSizeAnnotations()">🔎 讀柱樑尺寸標註</button>
-            <button class="tool-btn" style="border-color:#b39ddb; color:#efe3ff;" onclick="runAutoBlueprintPlusBIM()">🤖+🏗️ 第三頁自動看圖計算+BIM</button>
+            <button class="tool-btn" data-testid="auto-interpret-run" style="border-color:#7ed6df; color:#dffcff;" onclick="autoInterpretBlueprintAndCalculate()">🤖 第三頁看圖自動判讀試算</button>
+            <button class="tool-btn" data-testid="auto-interpret-ocr" style="border-color:#ffd59c; color:#fff1d6;" onclick="readBlueprintSizeAnnotations()">🔎 讀柱樑尺寸標註</button>
+            <button class="tool-btn" data-testid="auto-interpret-bim" style="border-color:#b39ddb; color:#efe3ff;" onclick="runAutoBlueprintPlusBIM()">🤖+🏗️ 第三頁自動看圖計算+BIM</button>
         </div>
         <div id="advEstimateSummary" class="bim-note level-only-pro" style="margin-top:6px; color:#d7e9ff;">進階試算：待命</div>
         <div id="advSensitivitySummary" class="bim-note level-only-pro" style="margin-top:6px; color:#cfe8ff;">敏感度：待命</div>
@@ -1870,6 +1940,24 @@
             <table>
                 <thead><tr><th>時間</th><th>類型</th><th>數量</th><th>尺寸</th><th>品質/比例</th><th>操作</th></tr></thead>
                 <tbody id="autoInterpretMemoryBody"></tbody>
+            </table>
+        </div>
+
+        <div class="group-title level-only-pro">企業級 QA / 自動判讀紀錄</div>
+        <div class="bim-note level-only-pro" id="autoInterpretReviewSummary" style="margin-top:6px; color:#d7e9ff;">最近判讀：尚未執行</div>
+        <div class="bim-note level-only-pro" id="autoInterpretRegressionSummary" style="margin-top:6px; color:#cfe8ff;">標準案例：尚未建立</div>
+        <div class="bim-actions level-only-pro" style="margin-top:8px;">
+            <button class="tool-btn" data-testid="auto-qa-refresh" style="border-color:#b39ddb; color:#efe3ff;" onclick="renderAutoInterpretRunHistoryPanel()">🔄 重新整理判讀紀錄</button>
+            <button class="tool-btn" data-testid="auto-qa-approve" style="border-color:#86efac; color:#eaffef;" onclick="approveLatestAutoInterpretRun()">複核通過</button>
+            <button class="tool-btn" data-testid="auto-qa-reject" style="border-color:#fda4af; color:#fff0f2;" onclick="rejectLatestAutoInterpretRun()">複核退回</button>
+            <button class="tool-btn" data-testid="auto-qa-override" style="border-color:#fde68a; color:#fff8de;" onclick="overrideLatestAutoInterpretRun()">人工覆寫</button>
+            <button class="tool-btn" data-testid="auto-qa-baseline" style="border-color:#93c5fd; color:#e8f1ff;" onclick="saveLatestAutoInterpretAsRegressionCase()">存成標準案例</button>
+            <button class="tool-btn" data-testid="auto-qa-export" style="border-color:#c4b5fd; color:#f2eaff;" onclick="exportAutoInterpretEnterpriseQaReport()">匯出看圖 QA 報表</button>
+        </div>
+        <div class="bim-table-wrap level-only-pro" style="max-height:220px; margin-top:8px;">
+            <table>
+                <thead><tr><th>時間</th><th>構件</th><th>信心</th><th>狀態</th><th>摘要</th><th>操作</th></tr></thead>
+                <tbody id="autoInterpretRunBody"></tbody>
             </table>
         </div>
 
@@ -1970,7 +2058,7 @@
     let drawMode = 'none';
     let clickPoints = [];
     let calibrationPendingPoint = null;
-    let manualPrecisionState = { active: false, clientX: 0, clientY: 0 };
+    let manualPrecisionState = { active: false, clientX: 0, clientY: 0, targetClientX: 0, targetClientY: 0 };
     let zoomLevel = 1;
     const SMART_MEASURE_DRAW_MODES = ['smart-calibration', 'smart-measure'];
     const SMART_MEASURE_MODE_LABELS = {
@@ -1991,6 +2079,9 @@
     const MEASURE_ASSIST_KEY = 'bm_69:measure_assist';
     const MEASURE_STRICT_KEY = 'bm_69:measure_strict';
     const MEASUREMENT_LOG_STORAGE_KEY = 'bm_69:measurement_logs';
+    const AUTO_INTERPRET_RUN_STORAGE_KEY = 'bm_69:auto_interpret_runs';
+    const AUTO_INTERPRET_REVIEW_STORAGE_KEY = 'bm_69:auto_interpret_review_state';
+    const AUTO_INTERPRET_REGRESSION_STORAGE_KEY = 'bm_69:auto_interpret_regression_cases';
     const MEASURE_STRICT_TILT_DEG = 8;
     const REGION_FILE_MAP = {
         '台北市': 'prices-taipei.json',
@@ -2055,6 +2146,10 @@
         standard: {
             label: '標準',
             thresholds: { S: 95, A: 90, B: 80, C: 70, D: 60 },
+            autoInterpretMinConfidence: 0.7,
+            autoInterpretAllowAutoLearn: true,
+            autoInterpretAutoApplyTypeSimilarity: 0.88,
+            autoInterpretAutoApplyQtyConfidence: 0.68,
             warningPenalty: 5,
             missingTypePenalty: 6,
             noQuantityPenalty: 5,
@@ -2070,6 +2165,10 @@
         strict: {
             label: '嚴格',
             thresholds: { S: 97, A: 93, B: 85, C: 75, D: 65 },
+            autoInterpretMinConfidence: 0.75,
+            autoInterpretAllowAutoLearn: true,
+            autoInterpretAutoApplyTypeSimilarity: 0.9,
+            autoInterpretAutoApplyQtyConfidence: 0.72,
             warningPenalty: 6,
             missingTypePenalty: 8,
             noQuantityPenalty: 8,
@@ -2085,6 +2184,10 @@
         enterprise: {
             label: '企業',
             thresholds: { S: 99, A: 95, B: 90, C: 80, D: 70 },
+            autoInterpretMinConfidence: 0.82,
+            autoInterpretAllowAutoLearn: false,
+            autoInterpretAutoApplyTypeSimilarity: 0.92,
+            autoInterpretAutoApplyQtyConfidence: 0.78,
             warningPenalty: 7,
             missingTypePenalty: 10,
             noQuantityPenalty: 10,
@@ -2161,8 +2264,12 @@
     let bimRuleMap = {};
     let bimAuditLogs = [];
     let bimSnapshots = [];
+    let autoInterpretRuns = [];
+    let autoInterpretRegressionCases = [];
+    let autoInterpretReviewState = { status: 'clear', runId: 0, reason: '', inputSignature: '', manualAdjustDetected: false, updatedAt: '' };
     let currentQaProfile = localStorage.getItem(QA_PROFILE_STORAGE_KEY) || 'enterprise';
     let currentBimSpecPreset = localStorage.getItem(BIM_SPEC_PRESET_STORAGE_KEY) || 'public';
+    const APP_SESSION_ID = `sess_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
     let memberCodeMap = {};
     let is3DView = false;
     let is360Spinning = false;
@@ -3253,7 +3360,10 @@
             return;
         }
         sessionStorage.setItem(SECURITY_UNLOCK_KEY, '1');
-        if (account) sessionStorage.setItem('bm_69:member', account);
+        if (account) {
+            sessionStorage.setItem('bm_69:member', account);
+            localStorage.setItem('bm_69:last_member', account);
+        }
         if (isMemberLogin) {
             localStorage.setItem(USER_LEVEL_KEY, 'pro');
             document.body.setAttribute('data-user-level', 'pro');
@@ -3309,8 +3419,14 @@
         renderAuditTable();
         loadMeasurementLogs();
         renderMeasurementLogTable();
+        loadAutoInterpretRuns();
+        loadAutoInterpretReviewState();
+        loadAutoInterpretRegressionCases();
+        renderAutoInterpretRunHistoryPanel();
+        renderAutoInterpretRegressionSummary();
         loadSnapshots();
         renderSnapshotTable();
+        window.getEnterpriseQaDiagnostics = getEnterpriseQaDiagnostics;
     }
 
     function initQuantumTokenField() {
@@ -3429,11 +3545,311 @@
         localStorage.setItem(BIM_AUDIT_STORAGE_KEY, JSON.stringify(bimAuditLogs.slice(0, 120)));
     }
 
+    function getCurrentMemberAccount() {
+        return String(sessionStorage.getItem('bm_69:member') || localStorage.getItem('bm_69:last_member') || 'anonymous').trim() || 'anonymous';
+    }
+
+    function hashStringLight(input) {
+        let hash = 2166136261;
+        const text = String(input || '');
+        for (let i = 0; i < text.length; i += 1) {
+            hash ^= text.charCodeAt(i);
+            hash = Math.imul(hash, 16777619);
+        }
+        return (hash >>> 0).toString(16);
+    }
+
+    function getBlueprintFingerprint() {
+        if (!img || !img.src) return 'no-blueprint';
+        const base = [
+            img.naturalWidth || 0,
+            img.naturalHeight || 0,
+            String(img.src || '').slice(0, 180)
+        ].join('|');
+        return `bp_${hashStringLight(base)}`;
+    }
+
+    function getCurrentCalcInputSignature() {
+        const type = String(document.getElementById('calcType') ? document.getElementById('calcType').value : '');
+        const v1 = String(document.getElementById('v1') ? document.getElementById('v1').value : '');
+        const v2 = String(document.getElementById('v2') ? document.getElementById('v2').value : '');
+        const v3 = String(document.getElementById('v3') ? document.getElementById('v3').value : '');
+        const qty = String(document.getElementById('qty') ? document.getElementById('qty').value : '');
+        return `${type}|${v1}|${v2}|${v3}|${qty}`;
+    }
+
+    function getCurrentCalcInputSnapshot() {
+        return {
+            type: String(document.getElementById('calcType') ? document.getElementById('calcType').value : ''),
+            v1: String(document.getElementById('v1') ? document.getElementById('v1').value : ''),
+            v2: String(document.getElementById('v2') ? document.getElementById('v2').value : ''),
+            v3: String(document.getElementById('v3') ? document.getElementById('v3').value : ''),
+            qty: String(document.getElementById('qty') ? document.getElementById('qty').value : ''),
+            unitPrice: String(document.getElementById('unitPrice') ? document.getElementById('unitPrice').value : '')
+        };
+    }
+
+    function getAutoInterpretQaPolicy() {
+        const profile = QA_PROFILE_CONFIGS[currentQaProfile] || QA_PROFILE_CONFIGS.enterprise;
+        return {
+            profileName: currentQaProfile,
+            profileLabel: profile.label || '企業',
+            minConfidence: Number(profile.autoInterpretMinConfidence) || AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE,
+            allowAutoLearn: profile.autoInterpretAllowAutoLearn !== false,
+            autoApplyTypeSimilarity: Number(profile.autoInterpretAutoApplyTypeSimilarity) || 0.9,
+            autoApplyQtyConfidence: Number(profile.autoInterpretAutoApplyQtyConfidence) || 0.72
+        };
+    }
+
+    function loadAutoInterpretRuns() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(AUTO_INTERPRET_RUN_STORAGE_KEY) || '[]');
+            autoInterpretRuns = Array.isArray(parsed) ? parsed : [];
+        } catch (_err) {
+            autoInterpretRuns = [];
+        }
+        const maxRunId = autoInterpretRuns.reduce((max, item) => Math.max(max, Number(item && item.runId) || 0), 0);
+        if (maxRunId > autoInterpretRunSeq) autoInterpretRunSeq = maxRunId;
+        if (!autoInterpretLastReport && autoInterpretRuns.length) autoInterpretLastReport = { ...autoInterpretRuns[0] };
+    }
+
+    function persistAutoInterpretRuns() {
+        localStorage.setItem(AUTO_INTERPRET_RUN_STORAGE_KEY, JSON.stringify(autoInterpretRuns.slice(0, 120)));
+    }
+
+    function loadAutoInterpretReviewState() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(AUTO_INTERPRET_REVIEW_STORAGE_KEY) || '{}');
+            autoInterpretReviewState = parsed && typeof parsed === 'object'
+                ? {
+                    status: String(parsed.status || 'clear'),
+                    runId: Number(parsed.runId) || 0,
+                    reason: String(parsed.reason || ''),
+                    inputSignature: String(parsed.inputSignature || ''),
+                    manualAdjustDetected: !!parsed.manualAdjustDetected,
+                    updatedAt: String(parsed.updatedAt || '')
+                }
+                : { status: 'clear', runId: 0, reason: '', inputSignature: '', manualAdjustDetected: false, updatedAt: '' };
+        } catch (_err) {
+            autoInterpretReviewState = { status: 'clear', runId: 0, reason: '', inputSignature: '', manualAdjustDetected: false, updatedAt: '' };
+        }
+        syncAutoInterpretGateFromReviewState();
+    }
+
+    function persistAutoInterpretReviewState() {
+        localStorage.setItem(AUTO_INTERPRET_REVIEW_STORAGE_KEY, JSON.stringify(autoInterpretReviewState));
+    }
+
+    function loadAutoInterpretRegressionCases() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(AUTO_INTERPRET_REGRESSION_STORAGE_KEY) || '[]');
+            autoInterpretRegressionCases = Array.isArray(parsed) ? parsed : [];
+        } catch (_err) {
+            autoInterpretRegressionCases = [];
+        }
+    }
+
+    function persistAutoInterpretRegressionCases() {
+        localStorage.setItem(AUTO_INTERPRET_REGRESSION_STORAGE_KEY, JSON.stringify(autoInterpretRegressionCases.slice(0, 80)));
+    }
+
+    function getAutoInterpretRunStatusInfo(status) {
+        switch (String(status || '')) {
+        case 'auto_passed':
+            return { label: '自動通過', color: '#9fffc0' };
+        case 'review_required':
+            return { label: '待複核', color: '#ffd48a' };
+        case 'approved':
+            return { label: '複核通過', color: '#86efac' };
+        case 'rejected':
+            return { label: '已退回', color: '#fda4af' };
+        case 'overridden':
+            return { label: '人工覆寫', color: '#fde68a' };
+        default:
+            return { label: '待命', color: '#c7d6e6' };
+        }
+    }
+
+    function renderAutoInterpretRegressionSummary() {
+        const box = document.getElementById('autoInterpretRegressionSummary');
+        if (!box) return;
+        if (!autoInterpretRegressionCases.length) {
+            box.innerText = '標準案例：尚未建立';
+            return;
+        }
+        const matchedRuns = autoInterpretRuns
+            .map(run => evaluateAutoInterpretRegressionCase(run))
+            .filter(item => item.matched);
+        const passedRuns = matchedRuns.filter(item => item.pass).length;
+        const approved = autoInterpretRegressionCases.filter(item => item && item.reviewStatus === 'approved').length;
+        const types = autoInterpretRegressionCases.reduce((acc, item) => {
+            const key = String(item && item.type || '未分類');
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+        }, {});
+        const topTypes = Object.entries(types).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([type, count]) => `${type}:${count}`).join(' / ');
+        box.innerText = `標準案例：共 ${autoInterpretRegressionCases.length} 筆｜已核准 ${approved} 筆｜對照 ${passedRuns}/${matchedRuns.length || 0} 通過｜類型 ${topTypes || '無'}`;
+    }
+
+    function evaluateAutoInterpretRegressionCase(run) {
+        if (!run) return { matched: false, pass: false };
+        const target = autoInterpretRegressionCases.find(item =>
+            item
+            && item.blueprintFingerprint === run.blueprintFingerprint
+            && String(item.inputSignature || '') === String(run.inputSignature || '')
+        );
+        if (!target) return { matched: false, pass: false };
+        const typeMatch = String(target.type || '') === String(run.type || '');
+        const qtyMatch = Math.abs((Number(target.quantity) || 0) - (Number(run.quantity) || 0)) <= 0;
+        const longGap = Math.abs((Number(target.longM) || 0) - (Number(run.longM) || 0));
+        const shortGap = Math.abs((Number(target.shortM) || 0) - (Number(run.shortM) || 0));
+        const gateMatch = String(target.expectedGateStatus || target.reviewStatus || '') === String(run.reviewStatus || '');
+        const confidenceGap = Math.abs((Number(target.expectedConfidence) || 0) - (Number(run.overallConfidence) || 0));
+        return {
+            matched: true,
+            pass: typeMatch && qtyMatch && longGap <= 0.15 && shortGap <= 0.15 && gateMatch && confidenceGap <= 0.12,
+            baseline: target,
+            typeMatch,
+            qtyMatch,
+            gateMatch,
+            confidenceGap,
+            longGap,
+            shortGap
+        };
+    }
+
+    function renderAutoInterpretReviewSummary() {
+        const box = document.getElementById('autoInterpretReviewSummary');
+        if (!box) return;
+        if (!autoInterpretRuns.length) {
+            box.innerText = '最近判讀：尚未執行';
+            return;
+        }
+        const latest = autoInterpretRuns[0];
+        const info = getAutoInterpretRunStatusInfo(latest.reviewStatus);
+        const dt = latest.ts ? new Date(latest.ts).toLocaleString('zh-TW') : '-';
+        const type = latest.type || '-';
+        const conf = Number.isFinite(Number(latest.overallConfidence)) ? `${Math.round(Number(latest.overallConfidence) * 100)}%` : '-';
+        const summary = latest.summary || latest.reviewReason || '已建立判讀紀錄';
+        box.innerText = `最近判讀：${dt}｜${type}｜${info.label}｜信心 ${conf}｜${summary}`;
+        box.style.color = info.color;
+    }
+
+    function renderAutoInterpretRunHistoryPanel() {
+        const body = document.getElementById('autoInterpretRunBody');
+        if (!body) return;
+        body.innerHTML = '';
+        if (!autoInterpretRuns.length) {
+            body.innerHTML = '<tr><td colspan="6" style="color:#99b2c9;">尚無自動判讀紀錄</td></tr>';
+            renderAutoInterpretReviewSummary();
+            renderAutoInterpretRegressionSummary();
+            return;
+        }
+        autoInterpretRuns.slice(0, 30).forEach((run, index) => {
+            const tr = document.createElement('tr');
+            const dt = run.ts ? new Date(run.ts).toLocaleString('zh-TW') : '-';
+            const statusInfo = getAutoInterpretRunStatusInfo(run.reviewStatus);
+            const conf = Number.isFinite(Number(run.overallConfidence)) ? `${Math.round(Number(run.overallConfidence) * 100)}%` : '-';
+            const summary = [run.summary, run.reviewReason, run.manualAdjustDetected ? '已偵測人工調整' : ''].filter(Boolean).join('｜') || '-';
+            tr.innerHTML = `
+                <td>${dt}</td>
+                <td>${run.type || '-'} / ${run.quantity || '-'}</td>
+                <td style="color:${statusInfo.color};">${conf}</td>
+                <td style="color:${statusInfo.color};">${statusInfo.label}</td>
+                <td>${summary}</td>
+                <td><button class="tool-btn" data-testid="auto-run-apply-${index}" style="padding:4px 8px; width:auto;" onclick="applyAutoInterpretRunResult(${index})">回填</button></td>
+            `;
+            body.appendChild(tr);
+        });
+        renderAutoInterpretReviewSummary();
+        renderAutoInterpretRegressionSummary();
+    }
+
+    function applyAutoInterpretRunResult(index) {
+        const run = autoInterpretRuns[index];
+        if (!run || !run.afterInputs) return showToast('找不到這筆自動判讀紀錄');
+        const typeEl = document.getElementById('calcType');
+        if (typeEl && run.afterInputs.type) {
+            typeEl.value = run.afterInputs.type;
+            updateUI();
+        }
+        ['v1', 'v2', 'v3', 'qty', 'unitPrice'].forEach(key => {
+            const el = document.getElementById(key);
+            if (el && typeof run.afterInputs[key] === 'string') el.value = run.afterInputs[key];
+        });
+        autoInterpretLastReport = { ...run };
+        autoInterpretReviewState = {
+            status: String(run.reviewStatus || 'clear'),
+            runId: Number(run.runId) || 0,
+            reason: String(run.reviewReason || ''),
+            inputSignature: String(run.inputSignature || ''),
+            manualAdjustDetected: !!run.manualAdjustDetected,
+            updatedAt: new Date().toISOString()
+        };
+        persistAutoInterpretReviewState();
+        syncAutoInterpretGateFromReviewState();
+        previewCalc();
+        showToast(`已回填自動判讀紀錄：${run.type || '構件'} / ${run.quantity || 0}件`);
+    }
+
+    function syncAutoInterpretGateFromReviewState() {
+        const blocked = ['review_required', 'rejected'].includes(String(autoInterpretReviewState.status || ''));
+        autoInterpretNeedsReview = blocked;
+        autoInterpretGateReason = blocked
+            ? (autoInterpretReviewState.reason || '自動判讀需複核，請先完成複核通過或人工覆寫')
+            : '';
+    }
+
+    function recordAutoInterpretRun(entry) {
+        if (!entry) return null;
+        const row = {
+            ...entry,
+            ts: entry.ts || new Date().toISOString()
+        };
+        autoInterpretRuns.unshift(row);
+        autoInterpretRuns = autoInterpretRuns.slice(0, 120);
+        persistAutoInterpretRuns();
+        renderAutoInterpretRunHistoryPanel();
+        return row;
+    }
+
+    function updateAutoInterpretRunReviewStatus(runId, status, reason, extra = {}) {
+        const nextUpdatedAt = new Date().toISOString();
+        autoInterpretRuns = autoInterpretRuns.map(run => {
+            if (Number(run.runId) !== Number(runId)) return run;
+            return {
+                ...run,
+                reviewStatus: status,
+                reviewReason: reason,
+                reviewedAt: nextUpdatedAt,
+                manualAdjustDetected: typeof extra.manualAdjustDetected === 'boolean' ? extra.manualAdjustDetected : !!run.manualAdjustDetected,
+                memoryLearned: typeof extra.memoryLearned === 'boolean' ? extra.memoryLearned : !!run.memoryLearned
+            };
+        });
+        persistAutoInterpretRuns();
+        const match = autoInterpretRuns.find(run => Number(run.runId) === Number(runId));
+        autoInterpretReviewState = {
+            status: status || 'clear',
+            runId: Number(runId) || 0,
+            reason: String(reason || ''),
+            inputSignature: String(match && match.inputSignature || ''),
+            manualAdjustDetected: !!(match && match.manualAdjustDetected),
+            updatedAt: nextUpdatedAt
+        };
+        persistAutoInterpretReviewState();
+        if (match) autoInterpretLastReport = { ...match };
+        syncAutoInterpretGateFromReviewState();
+        renderAutoInterpretRunHistoryPanel();
+    }
+
     function addAuditLog(action, detail) {
         const row = {
             ts: new Date().toISOString(),
             action: String(action || '').trim(),
-            detail: String(detail || '').trim()
+            detail: String(detail || '').trim(),
+            actor: getCurrentMemberAccount(),
+            sessionId: APP_SESSION_ID,
+            appVersion: SCHEMA_VERSION
         };
         bimAuditLogs.unshift(row);
         bimAuditLogs = bimAuditLogs.slice(0, 120);
@@ -3502,6 +3918,9 @@
             qualityScore: Number(entry && entry.qualityScore) || 0,
             fallbackUsed: !!(entry && entry.fallbackUsed),
             summary: String(entry && entry.summary ? entry.summary : '').trim(),
+            actor: getCurrentMemberAccount(),
+            sessionId: APP_SESSION_ID,
+            blueprintFingerprint: getBlueprintFingerprint(),
             p1: entry && entry.p1 ? { x: Number(entry.p1.x) || 0, y: Number(entry.p1.y) || 0 } : null,
             p2: entry && entry.p2 ? { x: Number(entry.p2.x) || 0, y: Number(entry.p2.y) || 0 } : null
         };
@@ -3621,7 +4040,7 @@
 
     function exportMeasurementLogs() {
         if (!measurementLogs.length) return showToast('目前沒有測量紀錄可匯出');
-        let csv = '\uFEFF時間,專案,樓層,模式,工種,目標欄位,目標名稱,結果(m),實際比例長度(m),比例(px/m),距離(px),構件,智慧量圖,吸附,手動修正,拖曳次數,微調次數,信心分數,回退,摘要\n';
+        let csv = '\uFEFF時間,專案,樓層,模式,工種,目標欄位,目標名稱,結果(m),實際比例長度(m),比例(px/m),距離(px),構件,智慧量圖,吸附,手動修正,拖曳次數,微調次數,信心分數,回退,摘要,操作者,Session,圖紙指紋,p1,p2\n';
         measurementLogs.forEach(log => {
             csv += [
                 sanitizeCSVField(new Date(log.ts).toLocaleString('zh-TW')),
@@ -3643,7 +4062,12 @@
                 String(log.nudgeAdjustCount || 0),
                 String(log.qualityScore || 0),
                 log.fallbackUsed ? '是' : '否',
-                sanitizeCSVField(log.summary || '')
+                sanitizeCSVField(log.summary || ''),
+                sanitizeCSVField(log.actor || ''),
+                sanitizeCSVField(log.sessionId || ''),
+                sanitizeCSVField(log.blueprintFingerprint || ''),
+                sanitizeCSVField(log.p1 ? `${Number(log.p1.x) || 0}:${Number(log.p1.y) || 0}` : ''),
+                sanitizeCSVField(log.p2 ? `${Number(log.p2.x) || 0}:${Number(log.p2.y) || 0}` : '')
             ].join(',') + '\n';
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -4741,7 +5165,12 @@
             y: Math.round(y * 1000) / 1000,
             z: Math.round(z * 1000) / 1000,
             floorTag,
-            status: 'draft'
+            status: 'draft',
+            pointConfidence: 0,
+            pointConfidenceLevel: 'low',
+            pointDecision: 'review',
+            pointDecisionReason: '尚未執行放樣 QA',
+            blockedFromExport: false
         };
     }
 
@@ -4830,7 +5259,7 @@
         if (!body) return;
         body.innerHTML = '';
         const pointsForView = layoutConfidenceFilterMode === 'high'
-            ? bimLayoutPoints.filter(p => p.confidenceLevel === 'high')
+            ? bimLayoutPoints.filter(p => p.pointConfidenceLevel === 'high')
             : bimLayoutPoints;
         if (!pointsForView.length) {
             const tr = document.createElement('tr');
@@ -4864,16 +5293,16 @@
                     tr.style.background = 'rgba(255, 82, 82, 0.10)';
                 }
             }
-            const confidence = Number(p.confidenceScore);
+            const confidence = Number(p.pointConfidence);
             let confidenceText = '-';
             let confidenceStyle = 'color:#b3c3d6;';
-            if (p.confidenceLevel === 'high') {
+            if (p.pointConfidenceLevel === 'high') {
                 confidenceText = `🟢 高 (${Number.isFinite(confidence) ? confidence : '-'})`;
                 confidenceStyle = 'color:#93f5da;font-weight:700;';
-            } else if (p.confidenceLevel === 'medium') {
+            } else if (p.pointConfidenceLevel === 'medium') {
                 confidenceText = `🟡 中 (${Number.isFinite(confidence) ? confidence : '-'})`;
                 confidenceStyle = 'color:#ffe08a;font-weight:700;';
-            } else if (p.confidenceLevel === 'low') {
+            } else if (p.pointConfidenceLevel === 'low') {
                 confidenceText = `🔴 低 (${Number.isFinite(confidence) ? confidence : '-'})`;
                 confidenceStyle = 'color:#ff9e9e;font-weight:700;';
             }
@@ -4886,10 +5315,23 @@
                     tr.style.background = 'rgba(255, 82, 82, 0.12)';
                 }
             }
+            const decisionText = p.pointDecision === 'ready'
+                ? '可施工'
+                : (p.pointDecision === 'blocked' ? '禁止施工' : '需複核');
+            confidenceText = `${confidenceText}｜${decisionText}`;
             tr.innerHTML = `<td>${p.id}</td><td>${p.sourceElementId}</td><td>${p.sourceType}</td><td>${p.pointType}</td><td>${p.x}</td><td>${p.y}</td><td>${p.z}</td><td>${p.floorTag}</td><td>${p.layoutGroup || '-'}</td><td style="${heatStyle}">${heatText}</td><td style="${confidenceStyle}">${confidenceText}</td>`;
+            tr.title = p.pointDecisionReason || '';
             body.appendChild(tr);
         });
         renderLayoutConfidenceSummary();
+    }
+
+    function getLayoutAlignmentQuality() {
+        if (!layoutAlignmentState || !Number.isFinite(Number(layoutAlignmentState.rmsError))) return 'fair';
+        const rms = Number(layoutAlignmentState.rmsError);
+        if (rms <= 0.02) return 'good';
+        if (rms <= 0.05) return 'fair';
+        return 'poor';
     }
 
     function classifyLayoutPointConfidence(point) {
@@ -4909,17 +5351,79 @@
         return { confidenceScore, confidenceLevel: level };
     }
 
+    function evaluateLayoutPoint(point, context = {}) {
+        const deviationScore = Number(point && point.deviationScore);
+        const stabilityFlag = String(point && point.stabilityFlag || '');
+        const alignmentQuality = String(context.alignmentQuality || 'fair');
+        const isDuplicate = !!(point && point.isDuplicate);
+        const isOutlier = !!(point && point.isOutlier);
+        let pointConfidence = Number(point && point.pointConfidence);
+        if (!Number.isFinite(pointConfidence) || pointConfidence <= 0) {
+            const base = classifyLayoutPointConfidence(point || {});
+            pointConfidence = Number(base.confidenceScore || 0);
+        }
+        if (Number.isFinite(deviationScore)) {
+            if (deviationScore > 55) pointConfidence -= 30;
+            else if (deviationScore > 25) pointConfidence -= 15;
+        }
+        if (stabilityFlag === 'unstable') pointConfidence -= 25;
+        else if (stabilityFlag === 'warning') pointConfidence -= 10;
+
+        if (alignmentQuality === 'poor') pointConfidence -= 30;
+        else if (alignmentQuality === 'fair') pointConfidence -= 15;
+
+        if (isOutlier) pointConfidence -= 30;
+        if (isDuplicate) pointConfidence -= 20;
+
+        pointConfidence = Math.max(0, Math.min(100, Math.round(pointConfidence)));
+
+        let pointConfidenceLevel = 'low';
+        if (pointConfidence >= 80) pointConfidenceLevel = 'high';
+        else if (pointConfidence >= 60) pointConfidenceLevel = 'medium';
+
+        let pointDecision = 'blocked';
+        let pointDecisionReason = '低信心點，禁止施工';
+        let blockedFromExport = true;
+
+        if (pointConfidenceLevel === 'high') {
+            pointDecision = 'ready';
+            pointDecisionReason = '高信心且偏差穩定，可施工';
+            blockedFromExport = false;
+        } else if (pointConfidenceLevel === 'medium') {
+            pointDecision = 'review';
+            pointDecisionReason = '中信心點，建議人工複核';
+            blockedFromExport = false;
+        } else {
+            if (Number.isFinite(deviationScore) && deviationScore > 55) pointDecisionReason = '偏差過高，禁止施工';
+            else if (stabilityFlag === 'unstable') pointDecisionReason = '穩定度不足，禁止施工';
+            else if (alignmentQuality === 'poor') pointDecisionReason = '配準品質不足，禁止施工';
+            else if (isOutlier) pointDecisionReason = '異常點，禁止施工';
+            else if (isDuplicate) pointDecisionReason = '重複點，禁止施工';
+        }
+
+        return {
+            ...point,
+            pointConfidence,
+            pointConfidenceLevel,
+            pointDecision,
+            pointDecisionReason,
+            blockedFromExport
+        };
+    }
+
     function runBimLayoutConfidenceLayering(highOnly = false, silent = false) {
         if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
         bimLayoutPoints = bimLayoutPoints.map((p) => {
             const conf = classifyLayoutPointConfidence(p);
-            return { ...p, ...conf };
+            return evaluateLayoutPoint({ ...p, pointConfidence: conf.confidenceScore }, {
+                alignmentQuality: getLayoutAlignmentQuality()
+            });
         });
         layoutConfidenceFilterMode = highOnly ? 'high' : 'all';
         renderBimLayoutTable();
-        const highCount = bimLayoutPoints.filter(p => p.confidenceLevel === 'high').length;
-        const mediumCount = bimLayoutPoints.filter(p => p.confidenceLevel === 'medium').length;
-        const lowCount = bimLayoutPoints.filter(p => p.confidenceLevel === 'low').length;
+        const highCount = bimLayoutPoints.filter(p => p.pointConfidenceLevel === 'high').length;
+        const mediumCount = bimLayoutPoints.filter(p => p.pointConfidenceLevel === 'medium').length;
+        const lowCount = bimLayoutPoints.filter(p => p.pointConfidenceLevel === 'low').length;
         addAuditLog('放樣置信度分層', `高${highCount} 中${mediumCount} 低${lowCount} / 模式 ${layoutConfidenceFilterMode}`);
         if (silent) return;
         if (highOnly) showToast(`已切換高信心點模式：高 ${highCount} 筆`);
@@ -4939,11 +5443,14 @@
             box.innerText = '置信度分層：尚未分析';
             return;
         }
-        const highCount = bimLayoutPoints.filter(p => p.confidenceLevel === 'high').length;
-        const mediumCount = bimLayoutPoints.filter(p => p.confidenceLevel === 'medium').length;
-        const lowCount = bimLayoutPoints.filter(p => p.confidenceLevel === 'low').length;
+        const highCount = bimLayoutPoints.filter(p => p.pointConfidenceLevel === 'high').length;
+        const mediumCount = bimLayoutPoints.filter(p => p.pointConfidenceLevel === 'medium').length;
+        const lowCount = bimLayoutPoints.filter(p => p.pointConfidenceLevel === 'low').length;
+        const readyCount = bimLayoutPoints.filter(p => p.pointDecision === 'ready').length;
+        const reviewCount = bimLayoutPoints.filter(p => p.pointDecision === 'review').length;
+        const blockedCount = bimLayoutPoints.filter(p => p.pointDecision === 'blocked').length;
         const modeText = layoutConfidenceFilterMode === 'high' ? '僅顯示高信心' : '顯示全部';
-        box.innerText = `置信度分層：🟢 ${highCount} / 🟡 ${mediumCount} / 🔴 ${lowCount}（${modeText}）`;
+        box.innerText = `置信度分層：🟢 ${highCount} / 🟡 ${mediumCount} / 🔴 ${lowCount}｜可施工 ${readyCount} / 複核 ${reviewCount} / 禁施工 ${blockedCount}（${modeText}）`;
     }
 
     function getLayoutGridLabel(row, col) {
@@ -4954,7 +5461,7 @@
 
     function suggestLayoutControlPointsCoverage() {
         if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
-        const source = bimLayoutPoints.filter(p => p.confidenceLevel === 'high');
+        const source = bimLayoutPoints.filter(p => p.pointConfidenceLevel === 'high');
         const points = source.length >= 8 ? source : bimLayoutPoints;
         const xs = points.map(p => Number(p.x)).filter(Number.isFinite);
         const ys = points.map(p => Number(p.y)).filter(Number.isFinite);
@@ -4988,9 +5495,9 @@
     function startLayoutFieldSpotCheck() {
         if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
         runBimLayoutConfidenceLayering(false);
-        const preferred = bimLayoutPoints.filter(p => p.confidenceLevel === 'high');
+        const preferred = bimLayoutPoints.filter(p => p.pointConfidenceLevel === 'high');
         const pool = preferred.length >= 5 ? preferred : bimLayoutPoints.slice();
-        const sortedPool = pool.slice().sort((a, b) => (Number(b.confidenceScore) || 0) - (Number(a.confidenceScore) || 0));
+        const sortedPool = pool.slice().sort((a, b) => (Number(b.pointConfidence) || 0) - (Number(a.pointConfidence) || 0));
         const byGroup = new Map();
         sortedPool.forEach(p => {
             const g = p.layoutGroup || 'UNGROUPED';
@@ -5046,7 +5553,7 @@
             lines.push(`# QA Level,${qaLevel}`);
             lines.push(`# QA Gate,PASS (>=${Number(qaGateScore) || STAKING_EXPORT_QA_MIN_SCORE})`);
         }
-        lines.push('point_id,source_element,source_type,point_type,x,y,z,floor,group,deviation_score,confidence_level,confidence_score,stability_flag,spot_check');
+        lines.push('point_id,source_element,source_type,point_type,x,y,z,floor,group,deviation_score,point_confidence_level,point_confidence,point_decision,point_decision_reason,blocked_from_export,stability_flag,spot_check');
         points.forEach(p => {
             lines.push([
                 sanitizeCSVField(p.id),
@@ -5059,8 +5566,11 @@
                 sanitizeCSVField(p.floorTag),
                 sanitizeCSVField(p.layoutGroup || ''),
                 Number.isFinite(Number(p.deviationScore)) ? Number(p.deviationScore) : '',
-                sanitizeCSVField(p.confidenceLevel || ''),
-                Number.isFinite(Number(p.confidenceScore)) ? Number(p.confidenceScore) : '',
+                sanitizeCSVField(p.pointConfidenceLevel || ''),
+                Number.isFinite(Number(p.pointConfidence)) ? Number(p.pointConfidence) : '',
+                sanitizeCSVField(p.pointDecision || ''),
+                sanitizeCSVField(p.pointDecisionReason || ''),
+                p.blockedFromExport ? 'Y' : 'N',
                 sanitizeCSVField(p.stabilityFlag || ''),
                 p.spotCheckSelected ? 'Y' : ''
             ].join(','));
@@ -5079,9 +5589,9 @@
             addAuditLog('匯出施工包阻擋', `QA ${qaScore}（${qaLevel}）未達門檻 ${activeQaGate} / 天氣模式 ${latestWeatherAdviceLevel}`);
             return showToast(`施工包已阻擋：QA ${qaScore}（${qaLevel}）未達門檻 ${activeQaGate}`);
         }
-        const safeHigh = bimLayoutPoints.filter(p => p.confidenceLevel === 'high' && p.stabilityFlag !== 'unstable');
-        const safeMedium = bimLayoutPoints.filter(p => p.confidenceLevel === 'medium' && p.stabilityFlag !== 'unstable');
-        const blocked = bimLayoutPoints.filter(p => p.stabilityFlag === 'unstable' || p.confidenceLevel === 'low');
+        const safeHigh = bimLayoutPoints.filter(p => p.pointDecision === 'ready' && !p.blockedFromExport);
+        const safeMedium = bimLayoutPoints.filter(p => p.pointDecision === 'review' && !p.blockedFromExport);
+        const blocked = bimLayoutPoints.filter(p => p.pointDecision === 'blocked' || p.blockedFromExport);
         const exportedAtIso = new Date().toISOString();
         const ts = Date.now();
         downloadBimCsv(
@@ -5280,7 +5790,7 @@
             return;
         }
         const level = getQaLevelByScore(bimLayoutQaResult.qaScore);
-        box.innerText = `放樣 QA：等級 ${level}（${bimLayoutQaResult.qaScore} / 100），重複 ${bimLayoutQaResult.duplicatePointCount}，缺漏 ${bimLayoutQaResult.missingGeometryCount}，越界 ${bimLayoutQaResult.outOfRangeCount}，命名 ${bimLayoutQaResult.namingInvalidCount || 0}，樓層缺漏 ${bimLayoutQaResult.missingFloorTagCount || 0}，點距穩定度 ${bimLayoutQaResult.spacingStabilityScore || 0}，分群穩定度 ${bimLayoutQaResult.groupStabilityScore || 0}（${bimLayoutQaResult.groupCount || 0} 組），高精度修正 ${bimLayoutPrecisionPass} 次，核心自進 ${quantumStakeAutoRuns} 次｜制度 ${getQaProfileConfig().label} / 規格 ${getBimSpecPreset().label}`;
+        box.innerText = `放樣 QA：等級 ${level}（${bimLayoutQaResult.qaScore} / 100），可施工 ${bimLayoutQaResult.readyCount || 0}，需複核 ${bimLayoutQaResult.reviewCount || 0}，禁止施工 ${bimLayoutQaResult.blockedCount || 0}，重複 ${bimLayoutQaResult.duplicatePointCount}，缺漏 ${bimLayoutQaResult.missingGeometryCount}，越界 ${bimLayoutQaResult.outOfRangeCount}，命名 ${bimLayoutQaResult.namingInvalidCount || 0}，樓層缺漏 ${bimLayoutQaResult.missingFloorTagCount || 0}，點距穩定度 ${bimLayoutQaResult.spacingStabilityScore || 0}，分群穩定度 ${bimLayoutQaResult.groupStabilityScore || 0}（${bimLayoutQaResult.groupCount || 0} 組），高精度修正 ${bimLayoutPrecisionPass} 次，核心自進 ${quantumStakeAutoRuns} 次｜制度 ${getQaProfileConfig().label} / 規格 ${getBimSpecPreset().label}`;
         if (alignBox) {
             alignBox.innerText = formatLayoutAlignmentSummary(layoutAlignmentState);
         }
@@ -5940,6 +6450,7 @@
         let duplicateClusterCount = 0;
         let maxDeviation = 0;
         const validPoints = [];
+        const duplicateKeyCounts = new Map();
         bimLayoutPoints.forEach(p => {
             const valid = [p.x, p.y, p.z].every(Number.isFinite);
             if (!valid) {
@@ -5948,6 +6459,7 @@
             }
             validPoints.push(p);
             const key = `${p.x.toFixed(2)}|${p.y.toFixed(2)}|${p.z.toFixed(2)}`;
+            duplicateKeyCounts.set(key, (duplicateKeyCounts.get(key) || 0) + 1);
             if (keySet.has(key)) duplicatePointCount += 1;
             else keySet.add(key);
             if (Math.abs(p.x) > spec.maxAbsCoord || Math.abs(p.y) > spec.maxAbsCoord || Math.abs(p.z) > spec.maxAbsCoord) outOfRangeCount += 1;
@@ -5980,6 +6492,45 @@
         const cv = meanDist > 0 ? (stdDist / meanDist) : 1;
         const spacingStabilityScore = Math.max(0, Math.min(100, Math.round((1 - cv) * 100)));
         const groupStats = evaluateGroupStability(validPoints);
+        const alignmentQuality = getLayoutAlignmentQuality();
+        const outlierFence = meanDist > 0 ? meanDist + stdDist * 1.8 : Infinity;
+        const nearestMap = new Map();
+        validPoints.forEach((p, idx) => {
+            let nearest = Infinity;
+            for (let j = 0; j < validPoints.length; j += 1) {
+                if (idx === j) continue;
+                const dx = validPoints[idx].x - validPoints[j].x;
+                const dy = validPoints[idx].y - validPoints[j].y;
+                const dz = validPoints[idx].z - validPoints[j].z;
+                const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (d < nearest) nearest = d;
+            }
+            nearestMap.set(validPoints[idx].id, nearest);
+        });
+
+        bimLayoutPoints = bimLayoutPoints.map(p => {
+            const key = `${Number(p.x).toFixed(2)}|${Number(p.y).toFixed(2)}|${Number(p.z).toFixed(2)}`;
+            const nearest = nearestMap.get(p.id);
+            const isDuplicate = (duplicateKeyCounts.get(key) || 0) > 1;
+            const isOutlier = Number.isFinite(nearest) && Number.isFinite(outlierFence) ? nearest > outlierFence : false;
+            const correctionDistance = p.status === 'precision' ? 0.01 : (p.status === 'aligned' ? 0.005 : 0);
+            const conf = classifyLayoutPointConfidence({
+                ...p,
+                isDuplicate,
+                isOutlier
+            });
+            return evaluateLayoutPoint({
+                ...p,
+                isDuplicate,
+                isOutlier,
+                correctionDistance,
+                pointConfidence: conf.confidenceScore
+            }, { alignmentQuality });
+        });
+
+        const readyCount = bimLayoutPoints.filter(p => p.pointDecision === 'ready').length;
+        const reviewCount = bimLayoutPoints.filter(p => p.pointDecision === 'review').length;
+        const blockedCount = bimLayoutPoints.filter(p => p.pointDecision === 'blocked').length;
 
         const penalty = duplicatePointCount * profile.layoutDuplicatePenalty
             + duplicateClusterCount * profile.clusterPenalty
@@ -6004,13 +6555,17 @@
             precisionEnabled,
             qaProfile: currentQaProfile,
             bimSpecPreset: currentBimSpecPreset,
+            readyCount,
+            reviewCount,
+            blockedCount,
             qaScore,
             checkedAt: new Date().toISOString()
         };
+        renderBimLayoutTable();
         renderBimLayoutQaSummary();
         const qaLevel = getQaLevelByScore(qaScore);
         addAuditLog('放樣QA檢核', `等級 ${qaLevel} / 分數 ${qaScore} / 100 / 制度 ${profile.label} / 規格 ${spec.label}`);
-        showToast(`放樣 QA 完成：${qaLevel}（${qaScore} 分，命名 ${namingInvalidCount}，樓層缺漏 ${missingFloorTagCount}）`);
+        showToast(`放樣 QA 完成：${qaLevel}（${qaScore} 分｜可施工 ${readyCount} / 複核 ${reviewCount} / 禁施工 ${blockedCount}）`);
     }
 
     function evaluateGroupStability(points) {
@@ -6047,7 +6602,7 @@
 
     function exportBimLayoutPoints() {
         if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
-        let csv = '\uFEFF點位ID,來源構件,構件類型,點位類型,X,Y,Z,樓層,群組,狀態\n';
+        let csv = '\uFEFF點位ID,來源構件,構件類型,點位類型,X,Y,Z,樓層,群組,狀態,信心分數,信心等級,施工決策,決策原因,禁止輸出\n';
         bimLayoutPoints.forEach(p => {
             csv += [
                 sanitizeCSVField(p.id),
@@ -6059,7 +6614,12 @@
                 p.z,
                 sanitizeCSVField(p.floorTag),
                 sanitizeCSVField(p.layoutGroup || ''),
-                sanitizeCSVField(p.status)
+                sanitizeCSVField(p.status),
+                sanitizeCSVField(p.pointConfidence),
+                sanitizeCSVField(p.pointConfidenceLevel || ''),
+                sanitizeCSVField(p.pointDecision || ''),
+                sanitizeCSVField(p.pointDecisionReason || ''),
+                p.blockedFromExport ? 'Y' : 'N'
             ].join(',') + '\n';
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -6096,6 +6656,9 @@
             ['點距穩定度', String(qa.spacingStabilityScore || 0)],
             ['分群穩定度', String(qa.groupStabilityScore || 0)],
             ['分群數', String(qa.groupCount || 0)],
+            ['可施工點數', String(qa.readyCount || 0)],
+            ['需複核點數', String(qa.reviewCount || 0)],
+            ['禁止施工點數', String(qa.blockedCount || 0)],
             ['QA分數', String(qa.qaScore || 0)],
             ['QA等級', qaLevel]
         ];
@@ -6885,7 +7448,7 @@
         if (!gradCount) return null;
         const gradMean = gradSum / gradCount;
         const gradStd = Math.sqrt(Math.max(0, gradSq / gradCount - gradMean * gradMean));
-        const edgeThreshold = Math.max(20, gradMean + gradStd * 1.15);
+        const edgeThreshold = Math.max(18, Math.min(120, gradMean + gradStd * 1.08));
         const rowEnergy = new Float32Array(h);
         const colEnergy = new Float32Array(w);
         let edgePixels = 0;
@@ -6904,8 +7467,8 @@
         const rowMax = Math.max(...rowEnergy);
         const colMax = Math.max(...colEnergy);
         if (rowMax <= 0 || colMax <= 0) return null;
-        const rowCut = Math.max(2, rowMax * 0.2);
-        const colCut = Math.max(2, colMax * 0.2);
+        const rowCut = Math.max(2, rowMax * 0.16);
+        const colCut = Math.max(2, colMax * 0.16);
 
         let top = 0;
         let bottom = h - 1;
@@ -6920,7 +7483,7 @@
         const boxW = right - left + 1;
         const boxH = bottom - top + 1;
         const areaRatio = (boxW * boxH) / Math.max(1, w * h);
-        if (areaRatio < 0.025) return null;
+        if (areaRatio < 0.02) return null;
 
         const scaleBack = 1 / ratio;
         const widthPx = boxW * scaleBack;
@@ -6944,7 +7507,7 @@
         syncMobileBlueprintStatusCard();
     }
 
-    const AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE = 0.9;
+    const AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE = 0.75;
     const AUTO_INTERPRET_MEMORY_STORAGE_KEY = 'bm_69:auto_interpret_memory';
     const AUTO_INTERPRET_MEMORY_MAX = 48;
     let autoInterpretBusy = false;
@@ -7047,11 +7610,13 @@
             return acc;
         }, {});
         const topTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([type, count]) => `${type}:${count}`).join(' / ');
-        summary.innerText = `記憶庫：共 ${store.length} 筆｜類型分佈 ${topTypes || '無'}${autoInterpretLastReport && autoInterpretLastReport.memoryStoreSize ? `｜最近套用後總數 ${autoInterpretLastReport.memoryStoreSize}` : ''}`;
+        const reviewed = store.filter(item => item && (item.reviewStatus === 'approved' || item.reviewStatus === 'reviewedApproved')).length;
+        summary.innerText = `記憶庫：共 ${store.length} 筆｜已核准 ${reviewed} 筆｜類型分佈 ${topTypes || '無'}${autoInterpretLastReport && autoInterpretLastReport.memoryStoreSize ? `｜最近套用後總數 ${autoInterpretLastReport.memoryStoreSize}` : ''}`;
         store.slice(0, 12).forEach((item, idx) => {
             const tr = document.createElement('tr');
             const ratio = item && item.vector ? Number(item.vector.ratio || 0) : 0;
-            tr.innerHTML = `<td>${new Date(item.ts || Date.now()).toLocaleString('zh-TW')}</td><td>${item.type || '-'}</td><td>${item.quantity || '-'}</td><td>${Number(item.longM || 0).toFixed(2)} × ${Number(item.shortM || 0).toFixed(2)} m</td><td>${item.quality || '未知'} / 比例 ${ratio.toFixed(2)}</td><td><button class="tool-btn" style="padding:4px 8px;" onclick="deleteAutoInterpretMemory(${idx})">刪除</button></td>`;
+            const sourceTag = item.reviewStatus === 'approved' || item.reviewStatus === 'reviewedApproved' ? '已核准' : '自動學習';
+            tr.innerHTML = `<td>${new Date(item.ts || Date.now()).toLocaleString('zh-TW')}</td><td>${item.type || '-'}</td><td>${item.quantity || '-'}</td><td>${Number(item.longM || 0).toFixed(2)} × ${Number(item.shortM || 0).toFixed(2)} m</td><td>${item.quality || '未知'} / 比例 ${ratio.toFixed(2)} / ${sourceTag}</td><td><button class="tool-btn" style="padding:4px 8px;" onclick="deleteAutoInterpretMemory(${idx})">刪除</button></td>`;
             body.appendChild(tr);
         });
     }
@@ -7074,6 +7639,20 @@
 
     function learnAutoInterpretMemory(sample) {
         if (!sample || !sample.vector) return { count: getAutoInterpretMemoryStore().length, updated: false };
+        const policy = getAutoInterpretQaPolicy();
+        const reviewStatus = String(sample.reviewStatus || '');
+        const confidence = Number(sample.overallConfidence || 0);
+        const canLearn = reviewStatus === 'approved'
+            || reviewStatus === 'overridden'
+            || (policy.allowAutoLearn && confidence >= Math.max(0.85, policy.minConfidence));
+        if (!canLearn) {
+            return {
+                count: getAutoInterpretMemoryStore().length,
+                updated: false,
+                skipped: true,
+                reason: '僅高信心或複核通過案例可進記憶庫'
+            };
+        }
         const store = getAutoInterpretMemoryStore().slice();
         const next = {
             ts: new Date().toISOString(),
@@ -7082,6 +7661,9 @@
             longM: Number(sample.longM) || 0,
             shortM: Number(sample.shortM) || 0,
             quality: String(sample.quality || '未知'),
+            reviewStatus: reviewStatus || (confidence >= 0.85 ? 'autoLearned' : 'approved'),
+            sourceRunId: Number(sample.runId) || 0,
+            overallConfidence: confidence,
             vector: sample.vector
         };
         let updated = false;
@@ -7109,12 +7691,23 @@
     function getAutoInterpretGateThreshold() {
         const gateInput = document.getElementById('advAutoInterpretGate');
         const gatePercent = Number(gateInput && gateInput.value);
-        const minGatePercent = Math.round(AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE * 100);
-        const normalizedPercent = Number.isFinite(gatePercent) ? Math.max(minGatePercent, Math.min(99, gatePercent)) : minGatePercent;
+        const policy = getAutoInterpretQaPolicy();
+        const minGatePercent = Math.max(60, Math.round(policy.minConfidence * 100));
+        const normalizedPercent = Number.isFinite(gatePercent)
+            ? Math.max(minGatePercent, Math.min(99, gatePercent))
+            : Math.max(minGatePercent, Math.round(AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE * 100));
         return normalizedPercent / 100;
     }
 
+    function getAutoInterpretConfidenceLevel(confidence) {
+        const pct = (confidence * 100) | 0;
+        if (pct >= 85) return { label: '高信心', color: '#9fffc0', icon: '🟢' };
+        if (pct >= 70) return { label: '中信心', color: '#ffe08a', icon: '🟡' };
+        return { label: '需複核', color: '#ffd48a', icon: '🟠' };
+    }
+
     function evaluateAutoInterpretGate() {
+        syncAutoInterpretGateFromReviewState();
         if (!autoInterpretNeedsReview) return { ok: true, msg: '' };
         return {
             ok: false,
@@ -7123,18 +7716,224 @@
     }
 
     function maybeReleaseAutoInterpretGateByManualAdjust() {
-        if (!autoInterpretNeedsReview || !autoInterpretLastReport) return;
-        const type = String(document.getElementById('calcType').value || '');
-        const v1 = String(document.getElementById('v1').value || '');
-        const v2 = String(document.getElementById('v2').value || '');
-        const v3 = String(document.getElementById('v3').value || '');
-        const qty = String(document.getElementById('qty').value || '');
-        const currentSignature = `${type}|${v1}|${v2}|${v3}|${qty}`;
+        if (!autoInterpretLastReport || !Number(autoInterpretLastReport.runId)) return;
+        const currentSignature = getCurrentCalcInputSignature();
         if (currentSignature !== String(autoInterpretLastReport.inputSignature || '')) {
-            autoInterpretNeedsReview = false;
-            autoInterpretGateReason = '';
-            updateBlueprintAutoInterpretStatus('自動判讀: 已手動調整參數，解除複核鎖定', '#bfe7ff');
+            const shouldBlock = ['review_required', 'rejected'].includes(String(autoInterpretReviewState.status || ''));
+            const nextStatus = shouldBlock ? autoInterpretReviewState.status : (autoInterpretLastReport.reviewStatus || 'overridden');
+            const nextReason = shouldBlock
+                ? '已偵測人工調整，請按「複核通過」或「人工覆寫」後再吸入清單'
+                : (autoInterpretLastReport.reviewReason || '已人工調整');
+            const nextAfterInputs = getCurrentCalcInputSnapshot();
+            autoInterpretRuns = autoInterpretRuns.map(run => Number(run.runId) === Number(autoInterpretLastReport.runId)
+                ? {
+                    ...run,
+                    reviewStatus: nextStatus,
+                    reviewReason: nextReason,
+                    manualAdjustDetected: true,
+                    inputSignature: currentSignature,
+                    afterInputs: nextAfterInputs
+                }
+                : run);
+            persistAutoInterpretRuns();
+            autoInterpretLastReport = {
+                ...autoInterpretLastReport,
+                reviewStatus: nextStatus,
+                reviewReason: nextReason,
+                manualAdjustDetected: true,
+                inputSignature: currentSignature,
+                afterInputs: nextAfterInputs
+            };
+            autoInterpretReviewState = {
+                status: nextStatus,
+                runId: Number(autoInterpretLastReport.runId) || 0,
+                reason: nextReason,
+                inputSignature: currentSignature,
+                manualAdjustDetected: true,
+                updatedAt: new Date().toISOString()
+            };
+            persistAutoInterpretReviewState();
+            syncAutoInterpretGateFromReviewState();
+            renderAutoInterpretRunHistoryPanel();
+            if (shouldBlock) {
+                updateBlueprintAutoInterpretStatus('自動判讀: 已偵測人工調整，請完成複核通過或人工覆寫', '#ffd48a');
+            }
         }
+    }
+
+    function findAutoInterpretRunById(runId) {
+        return autoInterpretRuns.find(run => Number(run.runId) === Number(runId)) || null;
+    }
+
+    function getActiveAutoInterpretRun() {
+        return findAutoInterpretRunById(autoInterpretReviewState.runId)
+            || findAutoInterpretRunById(autoInterpretLastReport && autoInterpretLastReport.runId)
+            || autoInterpretRuns[0]
+            || null;
+    }
+
+    function maybeLearnAutoInterpretFromRun(runId) {
+        const run = findAutoInterpretRunById(runId);
+        if (!run || run.memoryLearned || !run.vector) {
+            return { count: getAutoInterpretMemoryStore().length, updated: false, skipped: true };
+        }
+        const result = learnAutoInterpretMemory({
+            runId,
+            type: run.type,
+            quantity: run.quantity,
+            longM: run.longM,
+            shortM: run.shortM,
+            quality: run.quality,
+            vector: run.vector,
+            reviewStatus: run.reviewStatus,
+            overallConfidence: run.overallConfidence
+        });
+        if (!result.skipped) {
+            updateAutoInterpretRunReviewStatus(runId, run.reviewStatus, run.reviewReason, { memoryLearned: true, manualAdjustDetected: run.manualAdjustDetected });
+        }
+        renderAutoInterpretMemoryPanel();
+        return result;
+    }
+
+    function approveLatestAutoInterpretRun() {
+        const latest = getActiveAutoInterpretRun();
+        if (!latest) return showToast('目前沒有可複核的自動判讀紀錄');
+        const note = prompt('請輸入複核通過備註（可留空）：', latest.reviewReason || '');
+        updateAutoInterpretRunReviewStatus(latest.runId, 'approved', String(note || '人工複核通過'));
+        const learnResult = maybeLearnAutoInterpretFromRun(latest.runId);
+        addAuditLog('自動判讀複核通過', `${latest.type || '-'} / ${Math.round((Number(latest.overallConfidence) || 0) * 100)}% / 記憶${learnResult.skipped ? '未學習' : '已更新'}`);
+        showToast('已標記為複核通過，允許加入清單');
+        previewCalc();
+    }
+
+    function rejectLatestAutoInterpretRun() {
+        const latest = getActiveAutoInterpretRun();
+        if (!latest) return showToast('目前沒有可退回的自動判讀紀錄');
+        const note = prompt('請輸入退回原因：', latest.reviewReason || '尺寸/數量需重判');
+        updateAutoInterpretRunReviewStatus(latest.runId, 'rejected', String(note || '尺寸/數量需重判'));
+        addAuditLog('自動判讀複核退回', `${latest.type || '-'} / ${note || '尺寸/數量需重判'}`);
+        updateBlueprintAutoInterpretStatus(`自動判讀: 已退回重判｜${note || '尺寸/數量需重判'}`, '#ffd48a');
+        showToast('已退回本次自動判讀，需重新判讀或手動修正');
+        previewCalc();
+    }
+
+    function overrideLatestAutoInterpretRun() {
+        const latest = getActiveAutoInterpretRun();
+        if (!latest) return showToast('目前沒有可覆寫的自動判讀紀錄');
+        const note = prompt('請輸入人工覆寫原因：', latest.reviewReason || '現場人工確認後採用');
+        updateAutoInterpretRunReviewStatus(latest.runId, 'overridden', String(note || '人工覆寫採用'));
+        addAuditLog('自動判讀人工覆寫', `${latest.type || '-'} / ${note || '人工覆寫採用'}`);
+        showToast('已標記人工覆寫，本次結果可加入清單');
+        previewCalc();
+    }
+
+    function saveLatestAutoInterpretAsRegressionCase() {
+        const latest = getActiveAutoInterpretRun();
+        if (!latest) return showToast('目前沒有自動判讀紀錄可存成標準案例');
+        const caseId = `case_${Number(latest.runId) || Date.now()}`;
+        const next = {
+            caseId,
+            ts: new Date().toISOString(),
+            blueprintFingerprint: latest.blueprintFingerprint || getBlueprintFingerprint(),
+            type: latest.type,
+            quantity: latest.quantity,
+            longM: latest.longM,
+            shortM: latest.shortM,
+            reviewStatus: latest.reviewStatus,
+            expectedGateStatus: latest.reviewStatus,
+            expectedConfidence: latest.overallConfidence,
+            inputSignature: latest.inputSignature
+        };
+        const existsIndex = autoInterpretRegressionCases.findIndex(item =>
+            item.caseId === caseId
+            || (
+                item.blueprintFingerprint === next.blueprintFingerprint
+                && String(item.inputSignature || '') === String(next.inputSignature || '')
+            )
+        );
+        if (existsIndex >= 0) autoInterpretRegressionCases[existsIndex] = next;
+        else autoInterpretRegressionCases.unshift(next);
+        autoInterpretRegressionCases = autoInterpretRegressionCases.slice(0, 80);
+        persistAutoInterpretRegressionCases();
+        renderAutoInterpretRegressionSummary();
+        addAuditLog('建立看圖標準案例', `${next.type || '-'} / ${next.quantity || 0}件 / ${next.reviewStatus || '待命'}`);
+        showToast('已將最近判讀結果存成標準案例');
+    }
+
+    function exportAutoInterpretEnterpriseQaReport() {
+        const projectName = (document.getElementById('project_name') && document.getElementById('project_name').value) || '未命名專案';
+        const totalRuns = autoInterpretRuns.length;
+        const approved = autoInterpretRuns.filter(run => run.reviewStatus === 'approved').length;
+        const overridden = autoInterpretRuns.filter(run => run.reviewStatus === 'overridden').length;
+        const rejected = autoInterpretRuns.filter(run => run.reviewStatus === 'rejected').length;
+        const reviewRequired = autoInterpretRuns.filter(run => run.reviewStatus === 'review_required').length;
+        const autoPassed = autoInterpretRuns.filter(run => run.reviewStatus === 'auto_passed').length;
+        const highConfidence = autoInterpretRuns.filter(run => Number(run.overallConfidence) >= 0.85).length;
+        const midConfidence = autoInterpretRuns.filter(run => Number(run.overallConfidence) >= 0.7 && Number(run.overallConfidence) < 0.85).length;
+        const lowConfidence = autoInterpretRuns.filter(run => Number(run.overallConfidence) < 0.7).length;
+        const avgConfidence = totalRuns
+            ? autoInterpretRuns.reduce((sum, run) => sum + (Number(run.overallConfidence) || 0), 0) / totalRuns
+            : 0;
+        const reviewResolved = approved + overridden;
+        const reviewPassRate = totalRuns ? (reviewResolved / totalRuns) * 100 : 0;
+        const regressionChecks = autoInterpretRuns.map(run => evaluateAutoInterpretRegressionCase(run)).filter(item => item.matched);
+        const regressionPassCount = regressionChecks.filter(item => item.pass).length;
+        const rows = [
+            ['報告時間', new Date().toLocaleString('zh-TW')],
+            ['專案名稱', projectName],
+            ['QA Profile', getAutoInterpretQaPolicy().profileLabel],
+            ['自動判讀總次數', String(totalRuns)],
+            ['自動通過次數', String(autoPassed)],
+            ['待複核次數', String(reviewRequired)],
+            ['複核通過次數', String(approved)],
+            ['人工覆寫次數', String(overridden)],
+            ['退回重判次數', String(rejected)],
+            ['平均信心(%)', (avgConfidence * 100).toFixed(1)],
+            ['高信心次數', String(highConfidence)],
+            ['中信心次數', String(midConfidence)],
+            ['低信心次數', String(lowConfidence)],
+            ['複核完成率(%)', reviewPassRate.toFixed(1)],
+            ['基線對照命中數', String(regressionChecks.length)],
+            ['基線對照通過數', String(regressionPassCount)],
+            ['標準案例數', String(autoInterpretRegressionCases.length)]
+        ];
+        let csv = '\uFEFF項目,數值\n';
+        rows.forEach(([k, v]) => {
+            csv += `${sanitizeCSVField(k)},${sanitizeCSVField(v)}\n`;
+        });
+        csv += '\n時間,構件,數量,長(m),短(m),信心(%),狀態,摘要,圖紙指紋\n';
+        autoInterpretRuns.slice(0, 80).forEach(run => {
+            csv += [
+                sanitizeCSVField(run.ts ? new Date(run.ts).toLocaleString('zh-TW') : ''),
+                sanitizeCSVField(run.type || ''),
+                sanitizeCSVField(run.quantity || ''),
+                Number.isFinite(Number(run.longM)) ? Number(run.longM).toFixed(3) : '',
+                Number.isFinite(Number(run.shortM)) ? Number(run.shortM).toFixed(3) : '',
+                Number.isFinite(Number(run.overallConfidence)) ? (Number(run.overallConfidence) * 100).toFixed(1) : '',
+                sanitizeCSVField(getAutoInterpretRunStatusInfo(run.reviewStatus).label),
+                sanitizeCSVField(run.summary || run.reviewReason || ''),
+                sanitizeCSVField(run.blueprintFingerprint || '')
+            ].join(',') + '\n';
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `ConstructionMaster_看圖企業QA報表_${new Date().getTime()}.csv`;
+        link.click();
+        addAuditLog('匯出看圖企業QA報表', `共 ${totalRuns} 筆 / 標準案例 ${autoInterpretRegressionCases.length} 筆`);
+        showToast('看圖企業 QA 報表已匯出');
+    }
+
+    function getEnterpriseQaDiagnostics() {
+        return {
+            schemaVersion: SCHEMA_VERSION,
+            sessionId: APP_SESSION_ID,
+            qaProfile: getAutoInterpretQaPolicy(),
+            reviewState: autoInterpretReviewState,
+            latestRun: autoInterpretRuns[0] || null,
+            runCount: autoInterpretRuns.length,
+            regressionCaseCount: autoInterpretRegressionCases.length
+        };
     }
 
     function isAutoInterpretPlanOnlyModeEnabled() {
@@ -7187,6 +7986,55 @@
             depthLabel,
             planSummary,
             manualDepthValue
+        };
+    }
+
+    function buildBlueprintOcrCanvas(bounds) {
+        const off = document.createElement('canvas');
+        let sx = 0;
+        let sy = 0;
+        let sw = img.naturalWidth || 1;
+        let sh = img.naturalHeight || 1;
+        if (bounds && Number(bounds.widthPx) > 0 && Number(bounds.heightPx) > 0) {
+            const padX = Math.max(60, Number(bounds.widthPx) * 0.18);
+            const padY = Math.max(60, Number(bounds.heightPx) * 0.18);
+            sx = clampNumber(Number(bounds.x) - padX, 0, Math.max(0, (img.naturalWidth || 1) - 1));
+            sy = clampNumber(Number(bounds.y) - padY, 0, Math.max(0, (img.naturalHeight || 1) - 1));
+            sw = Math.max(1, Math.min((img.naturalWidth || 1) - sx, Number(bounds.widthPx) + padX * 2));
+            sh = Math.max(1, Math.min((img.naturalHeight || 1) - sy, Number(bounds.heightPx) + padY * 2));
+        }
+        const maxSide = 1800;
+        const ratio = Math.min(1, maxSide / Math.max(sw, sh));
+        off.width = Math.max(240, Math.round(sw * ratio));
+        off.height = Math.max(240, Math.round(sh * ratio));
+        const offCtx = off.getContext('2d', { willReadFrequently: true });
+        if (!offCtx) return null;
+        offCtx.drawImage(img, sx, sy, sw, sh, 0, 0, off.width, off.height);
+        return { canvas: off, sx, sy, sw, sh, ratio };
+    }
+
+    async function runBlueprintAnnotationOcr(options = {}) {
+        const { bounds = null, silent = false } = options;
+        await ensureBlueprintOcrLoaded();
+        if (!window.Tesseract) throw new Error('OCR 引擎載入失敗');
+        const source = buildBlueprintOcrCanvas(bounds);
+        if (!source || !source.canvas) throw new Error('OCR 畫布建立失敗');
+        const result = await window.Tesseract.recognize(source.canvas, 'eng+chi_tra');
+        const text = String(result && result.data && result.data.text ? result.data.text : '');
+        const candidates = extractBlueprintOcrDimensionCandidates(text);
+        const words = Array.isArray(result && result.data && result.data.words) ? result.data.words : [];
+        const avgWordConfidence = words.length
+            ? words.reduce((sum, item) => sum + (Number(item && item.confidence) || 0), 0) / words.length / 100
+            : 0;
+        if (!silent && !candidates.length) {
+            updateBlueprintAutoInterpretStatus('自動判讀: 未讀到明顯柱/樑尺寸標註（可試更高對比）', '#ffd48a');
+        }
+        return {
+            text,
+            candidates,
+            bestCandidate: candidates[0] || null,
+            avgWordConfidence: Math.max(0, Math.min(1, avgWordConfidence)),
+            source
         };
     }
 
@@ -7308,22 +8156,11 @@
         if (getCurrentUserLevel() !== 'pro') return showToast('尺寸標註辨識僅開放會員3（專家）');
         if (!img.src) return showToast('請先上傳圖紙再讀尺寸標註');
         try {
-            await ensureBlueprintOcrLoaded();
-            if (!window.Tesseract) return showToast('OCR 引擎載入失敗，請稍後重試');
             updateBlueprintAutoInterpretStatus('自動判讀: 正在讀取柱/樑尺寸標註...', '#bfe7ff');
-            const off = document.createElement('canvas');
-            const maxSide = 1800;
-            const ratio = Math.min(1, maxSide / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
-            off.width = Math.max(240, Math.round((img.naturalWidth || 1) * ratio));
-            off.height = Math.max(240, Math.round((img.naturalHeight || 1) * ratio));
-            const offCtx = off.getContext('2d', { willReadFrequently: true });
-            if (!offCtx) return showToast('暫時無法建立 OCR 畫布');
-            offCtx.drawImage(img, 0, 0, off.width, off.height);
-            const result = await window.Tesseract.recognize(off, 'eng+chi_tra');
-            const text = String(result && result.data && result.data.text ? result.data.text : '');
-            const candidates = extractBlueprintOcrDimensionCandidates(text);
+            const bounds = detectBlueprintPrimaryBounds();
+            const ocrResult = await runBlueprintAnnotationOcr({ bounds, silent: false });
+            const candidates = ocrResult.candidates;
             if (!candidates.length) {
-                updateBlueprintAutoInterpretStatus('自動判讀: 未讀到明顯柱/樑尺寸標註（可試更高對比）', '#ffd48a');
                 return showToast('沒有讀到像 B3 30x70 / C1 40x60 這類尺寸標註');
             }
             const optionsText = candidates
@@ -7331,8 +8168,13 @@
                 .map((item, idx) => `${idx + 1}=${item.tag || '未命名'} ${item.kind === 'column' ? '柱' : item.kind === 'beam' ? '梁' : '尺寸'} ${item.firstM.toFixed(2)}x${item.secondM.toFixed(2)}m`)
                 .join('\n');
             const picked = prompt(`已讀到以下尺寸標註，請選擇要套用的項目：\n${optionsText}\n0=取消`, '1');
-            const pickedIndex = Math.max(0, parseInt(String(picked || '0').trim(), 10) - 1);
-            if (!Number.isInteger(pickedIndex) || pickedIndex < 0 || pickedIndex >= candidates.length) {
+            const pickedNumber = parseInt(String(picked || '0').trim(), 10);
+            if (!Number.isInteger(pickedNumber) || pickedNumber <= 0) {
+                updateBlueprintAutoInterpretStatus(`自動判讀: 已讀到 ${candidates.length} 筆尺寸標註，等待手動選擇`, '#ffd48a');
+                return showToast('已取消套用尺寸標註');
+            }
+            const pickedIndex = pickedNumber - 1;
+            if (pickedIndex < 0 || pickedIndex >= candidates.length) {
                 updateBlueprintAutoInterpretStatus(`自動判讀: 已讀到 ${candidates.length} 筆尺寸標註，等待手動選擇`, '#ffd48a');
                 return showToast('已取消套用尺寸標註');
             }
@@ -7341,7 +8183,7 @@
                 return showToast('尺寸標註套用失敗，請手動確認欄位');
             }
             updateBlueprintAutoInterpretStatus(
-                `自動判讀: 已讀取尺寸標註 ${selected.tag || '未命名'} ${selected.kind === 'column' ? '柱' : selected.kind === 'beam' ? '梁' : ''} ${selected.firstM.toFixed(2)}×${selected.secondM.toFixed(2)} m`,
+                `自動判讀: 已讀取尺寸標註 ${selected.tag || '未命名'} ${selected.kind === 'column' ? '柱' : selected.kind === 'beam' ? '梁' : ''} ${selected.firstM.toFixed(2)}×${selected.secondM.toFixed(2)} m｜OCR ${(ocrResult.avgWordConfidence * 100).toFixed(0)}%`,
                 '#9fffc0'
             );
             showToast(`已套用尺寸標註：${selected.tag || '未命名'} ${selected.firstM.toFixed(2)}×${selected.secondM.toFixed(2)}m`);
@@ -7396,8 +8238,8 @@
 
         const visited = new Uint8Array(mask.length);
         const queue = new Int32Array(mask.length);
-        const minArea = Math.max(8, Math.floor(roiSize * 0.00022));
-        const maxArea = Math.max(minArea + 1, Math.floor(roiSize * 0.06));
+        const minArea = Math.max(6, Math.floor(roiSize * 0.00018));
+        const maxArea = Math.max(minArea + 1, Math.floor(roiSize * 0.055));
         let components = 0;
         let acceptedSamples = 0;
         for (let i = 0; i < mask.length; i += 1) {
@@ -7428,8 +8270,81 @@
         }
         if (components <= 0) return { count: 1, confidence: 0.18, sampleCount: 0 };
         const density = acceptedSamples / roiSize;
-        const confidence = Math.max(0.2, Math.min(0.94, 0.42 + Math.min(0.4, components / 80) + Math.min(0.12, density)));
+        const componentScore = Math.min(0.42, components / 70);
+        const densityScore = Math.min(0.14, density * 2.2);
+        const confidence = Math.max(0.22, Math.min(0.96, 0.38 + componentScore + densityScore));
         return { count: Math.max(1, components), confidence, sampleCount: components };
+    }
+
+    function applyOcrDimensionsToInputs(type, candidate) {
+        if (!candidate) return '';
+        const v1El = document.getElementById('v1');
+        const v2El = document.getElementById('v2');
+        const v3El = document.getElementById('v3');
+        const first = Number(candidate.firstM) || 0;
+        const second = Number(candidate.secondM) || 0;
+        if (type === 'M_COL' || type === 'C_COL') {
+            if (v1El && first > 0) v1El.value = first.toFixed(2);
+            if (v2El && second > 0) v2El.value = second.toFixed(2);
+            return `${candidate.tag || 'OCR'} 柱 ${first.toFixed(2)}×${second.toFixed(2)}m`;
+        }
+        if (type === 'M_BEAM_SIDES' || type === 'M_BEAM_ALL') {
+            const width = Math.min(first, second);
+            const depth = Math.max(first, second);
+            if (v2El && width > 0) v2El.value = width.toFixed(2);
+            if (v3El && depth > 0 && !shouldAutoInterpretPreserveManualDepth(type)) v3El.value = depth.toFixed(2);
+            return `${candidate.tag || 'OCR'} 梁 ${width.toFixed(2)}×${depth.toFixed(2)}m`;
+        }
+        return '';
+    }
+
+    function runAutoInterpretEngineeringChecks(input) {
+        const type = String(input && input.type || '');
+        const longM = Number(input && input.longM) || 0;
+        const shortM = Number(input && input.shortM) || 0;
+        const finalQty = Math.max(1, Number(input && input.finalQty) || 1);
+        const memoryQty = Math.max(0, Number(input && input.memoryQty) || 0);
+        const bounds = input && input.bounds ? input.bounds : null;
+        const ocrCandidate = input && input.ocrCandidate ? input.ocrCandidate : null;
+        const warnings = [];
+        let reason = '';
+
+        if (Math.max(longM, shortM) > 180) {
+            warnings.push('尺寸換算異常偏大');
+            reason = 'px→m 換算結果異常偏大，請先複核比例與主體框選';
+        }
+        if ((type === 'M_COL' || type === 'C_COL') && (Math.max(longM, shortM) > 3.5 || Math.min(longM, shortM) < 0.15)) {
+            warnings.push('柱尺寸超出常用範圍');
+            reason = reason || '柱尺寸超出常用範圍，請複核 OCR/比例';
+        }
+        if ((type === 'M_BEAM_SIDES' || type === 'M_BEAM_ALL') && shortM > 2.5) {
+            warnings.push('梁截面尺寸偏大');
+            reason = reason || '梁截面尺寸偏大，請複核';
+        }
+        if (type === 'M_WALL' && shortM > 12) {
+            warnings.push('牆厚/牆高疑似誤判');
+            reason = reason || '牆尺寸疑似誤判，請複核圖紙方向與比例';
+        }
+        if (memoryQty > 0 && finalQty > Math.max(memoryQty * 3, memoryQty + 8)) {
+            warnings.push('數量較歷史案例暴增');
+            reason = reason || '數量與歷史案例差距過大，請複核';
+        }
+        if (bounds && Number(bounds.coverage || 0) > 0.92) {
+            warnings.push('主體覆蓋率過高');
+            reason = reason || '主體框選過大，可能含標題欄或邊框';
+        }
+        if (ocrCandidate && (type === 'M_BEAM_SIDES' || type === 'M_BEAM_ALL')) {
+            const ocrMax = Math.max(Number(ocrCandidate.firstM) || 0, Number(ocrCandidate.secondM) || 0);
+            if (longM > 0 && ocrMax > 0 && ocrMax >= longM) {
+                warnings.push('梁長小於 OCR 截面尺寸');
+                reason = reason || '梁長與 OCR 尺寸不一致，請複核';
+            }
+        }
+        return {
+            warnings,
+            shouldReview: !!warnings.length,
+            reason
+        };
     }
 
     async function autoInterpretBlueprintAndCalculate() {
@@ -7443,6 +8358,10 @@
         autoInterpretGateReason = '';
         const runId = ++autoInterpretRunSeq;
         try {
+            const qaPolicy = getAutoInterpretQaPolicy();
+            const beforeInputs = getCurrentCalcInputSnapshot();
+            const actor = getCurrentMemberAccount();
+            let scaleSource = Number.isFinite(scalePixelsPerUnit) && scalePixelsPerUnit > 0 ? 'existing-scale' : 'prompt-long-edge';
             updateBlueprintAutoInterpretStatus(`自動判讀: 單一運算啟動 #${runId}（主體辨識中）`, '#bfe7ff');
             const qualityReport = updateBlueprintQualityStatus();
             const bounds = detectBlueprintPrimaryBounds();
@@ -7463,6 +8382,7 @@
                     scalePixelsPerUnit = bounds.longPx / knownLongMeters;
                     scale = scalePixelsPerUnit;
                     document.getElementById('scale-info').innerText = '✅ 比例已設（自動判讀）';
+                    scaleSource = 'prompt-long-edge';
                 } else {
                     updateBlueprintAutoInterpretStatus(`自動判讀: 僅像素(${Math.round(bounds.widthPx)}×${Math.round(bounds.heightPx)} px)`, '#ffd48a');
                     return showToast('尚未設定比例，已提供像素判讀；輸入實際尺寸後可自動換算公尺');
@@ -7474,57 +8394,88 @@
             const shortM = bounds.shortPx / scale;
             const currentType = String(document.getElementById('calcType').value || '');
             const memoryTypeMatch = findAutoInterpretMemoryMatch(bounds, qualityReport, '');
+            const autoApplyEnabled = !!(document.getElementById('advAutoInterpretAutoApply') && document.getElementById('advAutoInterpretAutoApply').checked);
+            let ocrResult = null;
+            let bestOcrCandidate = null;
+            let canAutoType = false;
+            try {
+                ocrResult = await runBlueprintAnnotationOcr({ bounds, silent: true });
+                bestOcrCandidate = ocrResult.bestCandidate || null;
+            } catch (_ocrErr) {
+                ocrResult = null;
+                bestOcrCandidate = null;
+            }
+            const ocrConfidence = bestOcrCandidate
+                ? Math.max(0, Math.min(0.98, (Number(bestOcrCandidate.score) || 0) * 0.55 + (Number(ocrResult && ocrResult.avgWordConfidence) || 0) * 0.45))
+                : 0;
             let type = currentType;
             if (!type.startsWith('R_')) {
-                const memoryDefault = memoryTypeMatch && memoryTypeMatch.best && memoryTypeMatch.similarity >= 0.72
-                    ? String(memoryTypeMatch.best.type || type)
-                    : type;
-                const picked = prompt(
-                    `請確認本次判讀構件類型（目前：${type}）
-` +
-                    `1=牆模板(M_WALL)
-` +
-                    `2=樑模板雙側(M_BEAM_SIDES)
-` +
-                    `3=樑模板三面(M_BEAM_ALL)
-` +
-                    `4=樓板/地坪體積(C_VOL)
-` +
-                    `5=柱體積(C_COL)
-` +
-                    `6=獨立柱模(M_COL)
-` +
-                    `7=開挖/回填(E_DIG)
-` +
-                    `0=維持目前
-` +
-                    `${memoryTypeMatch ? `記憶建議：${memoryDefault}｜${getAutoInterpretMemoryHint(memoryTypeMatch)}` : '記憶建議：目前尚無相似案例'}`,
-                    memoryDefault === 'M_WALL' ? '1'
-                        : memoryDefault === 'M_BEAM_SIDES' ? '2'
-                        : memoryDefault === 'M_BEAM_ALL' ? '3'
-                        : memoryDefault === 'C_VOL' ? '4'
-                        : memoryDefault === 'C_COL' ? '5'
-                        : memoryDefault === 'M_COL' ? '6'
-                        : memoryDefault === 'E_DIG' ? '7'
-                        : '0'
+                const ocrSuggestedType = bestOcrCandidate ? mapOcrCandidateToCalcType(bestOcrCandidate, type) : '';
+                const memoryDefault = bestOcrCandidate && ocrConfidence >= 0.62 && ocrSuggestedType
+                    ? ocrSuggestedType
+                    : (memoryTypeMatch && memoryTypeMatch.best && memoryTypeMatch.similarity >= 0.72
+                        ? String(memoryTypeMatch.best.type || type)
+                        : type);
+                canAutoType = autoApplyEnabled && (
+                    (memoryTypeMatch && memoryTypeMatch.similarity >= qaPolicy.autoApplyTypeSimilarity && memoryTypeMatch.best)
+                    || (bestOcrCandidate && ocrSuggestedType && ocrConfidence >= 0.72)
                 );
-                const pickMap = {
-                    '1': 'M_WALL',
-                    '2': 'M_BEAM_SIDES',
-                    '3': 'M_BEAM_ALL',
-                    '4': 'C_VOL',
-                    '5': 'C_COL',
-                    '6': 'M_COL',
-                    '7': 'E_DIG',
-                    '0': type
-                };
-                const nextType = pickMap[String(picked == null ? '0' : picked).trim()] || type;
-                if (nextType !== type) {
+                if (canAutoType) {
+                    type = bestOcrCandidate && ocrSuggestedType && ocrConfidence >= 0.72
+                        ? ocrSuggestedType
+                        : String(memoryTypeMatch && memoryTypeMatch.best ? memoryTypeMatch.best.type : type);
                     const typeEl = document.getElementById('calcType');
-                    if (typeEl) {
-                        typeEl.value = nextType;
+                    if (typeEl) { typeEl.value = type; updateUI(); }
+                } else {
+                    const picked = prompt(
+                        `請確認本次判讀構件類型（目前：${type}）
+` +
+                        `1=牆模板(M_WALL)
+` +
+                        `2=樑模板雙側(M_BEAM_SIDES)
+` +
+                        `3=樑模板三面(M_BEAM_ALL)
+` +
+                        `4=樓板/地坪體積(C_VOL)
+` +
+                        `5=柱體積(C_COL)
+` +
+                        `6=獨立柱模(M_COL)
+` +
+                        `7=開挖/回填(E_DIG)
+` +
+                        `0=維持目前
+` +
+                        `${bestOcrCandidate ? `OCR建議：${ocrSuggestedType || '未分類'} / ${bestOcrCandidate.tag || '未命名'} ${bestOcrCandidate.firstM.toFixed(2)}x${bestOcrCandidate.secondM.toFixed(2)}m｜` : ''}${memoryTypeMatch ? `記憶建議：${memoryDefault}｜${getAutoInterpretMemoryHint(memoryTypeMatch)}` : '記憶建議：目前尚無相似案例'}`,
+                        memoryDefault === 'M_WALL' ? '1'
+                            : memoryDefault === 'M_BEAM_SIDES' ? '2'
+                            : memoryDefault === 'M_BEAM_ALL' ? '3'
+                            : memoryDefault === 'C_VOL' ? '4'
+                            : memoryDefault === 'C_COL' ? '5'
+                            : memoryDefault === 'M_COL' ? '6'
+                            : memoryDefault === 'E_DIG' ? '7'
+                            : '0'
+                    );
+                    const pickMap = {
+                        '1': 'M_WALL',
+                        '2': 'M_BEAM_SIDES',
+                        '3': 'M_BEAM_ALL',
+                        '4': 'C_VOL',
+                        '5': 'C_COL',
+                        '6': 'M_COL',
+                        '7': 'E_DIG',
+                        '0': type
+                    };
+                    const nextType = pickMap[String(picked == null ? '0' : picked).trim()] || type;
+                    if (nextType !== type) {
+                        const typeEl = document.getElementById('calcType');
+                        if (typeEl) {
+                            typeEl.value = nextType;
+                            type = nextType;
+                            updateUI();
+                        }
+                    } else {
                         type = nextType;
-                        updateUI();
                     }
                 }
             }
@@ -7538,40 +8489,63 @@
             const countResult = estimateBlueprintObjectCount(bounds);
             const shouldAutoCount = !type.startsWith('R_');
             const memoryQty = memoryMatch && memoryMatch.best ? Math.max(1, Number(memoryMatch.best.quantity) || prevQty) : prevQty;
-            let pickedQty = (shouldAutoCount && countResult.confidence >= 0.55)
+            let pickedQty = (shouldAutoCount && countResult.confidence >= 0.48)
                 ? Math.max(1, Math.min(999, countResult.count))
                 : prevQty;
-            if (shouldAutoCount && memoryMatch && memoryMatch.similarity >= 0.76) {
-                pickedQty = Math.max(1, Math.min(999, Math.round(pickedQty * 0.55 + memoryQty * 0.45)));
+            if (shouldAutoCount && memoryMatch && memoryMatch.similarity >= 0.72) {
+                pickedQty = Math.max(1, Math.min(999, Math.round(pickedQty * 0.5 + memoryQty * 0.5)));
             }
+            const countConfHigh = countResult.confidence >= qaPolicy.autoApplyQtyConfidence;
+            const memoryConfHigh = memoryMatch && memoryMatch.similarity >= 0.82;
+            const canAutoQty = autoApplyEnabled && shouldAutoCount && (countConfHigh || memoryConfHigh);
             const useAutoQty = shouldAutoCount
-                ? confirm(
+                ? (canAutoQty ? true : confirm(
                     `AI 建議數量 ${pickedQty}（信心 ${(countResult.confidence * 100).toFixed(0)}%）` +
                     `${memoryMatch ? `
 相似案例：${memoryQty}（${Math.round(memoryMatch.similarity * 100)}%）` : ''}` +
                     `
 按「確定」套用，按「取消」保留目前數量 ${prevQty}。`
-                )
+                ))
                 : false;
             const finalQty = useAutoQty ? pickedQty : prevQty;
-            const geometryConfidence = Math.max(0.25, Math.min(0.95, Number(bounds.coverage || 0) * 2.4));
+            const geometryConfidence = Math.max(0.28, Math.min(0.96, Number(bounds.coverage || 0) * 2.6));
             const qualityConfidence = qualityToScore(qualityReport && qualityReport.quality);
-            const countConfidence = shouldAutoCount ? Number(countResult.confidence || 0) : 0.7;
-            const memoryConfidence = memoryMatch ? Math.min(0.96, memoryMatch.similarity) : 0;
-            const overallConfidence = Math.max(0, Math.min(1, geometryConfidence * 0.38 + qualityConfidence * 0.28 + countConfidence * 0.18 + memoryConfidence * 0.16));
+            const countConfidence = shouldAutoCount ? Number(countResult.confidence || 0) : 0.72;
+            const memoryConfidence = memoryMatch ? Math.min(0.98, memoryMatch.similarity) : 0;
+            const overallConfidence = Math.max(0, Math.min(1,
+                geometryConfidence * 0.32 + qualityConfidence * 0.22 + countConfidence * 0.18 + memoryConfidence * 0.14 + ocrConfidence * 0.14
+            ));
             const fillResult = applyAutoInterpretValuesToInputs(type, longM, shortM, finalQty);
+            const ocrAppliedSummary = applyOcrDimensionsToInputs(type, bestOcrCandidate);
             if (fillResult.preserveManualDepth && fillResult.depthMissing) {
                 autoInterpretNeedsReview = true;
                 autoInterpretGateReason = `已完成平面判讀，請手動輸入「${fillResult.depthLabel}」後再吸入清單`;
             }
+            const ruleCheck = runAutoInterpretEngineeringChecks({
+                type,
+                longM,
+                shortM,
+                finalQty,
+                memoryQty,
+                bounds,
+                ocrCandidate: bestOcrCandidate
+            });
+            if (!autoInterpretNeedsReview && ruleCheck.shouldReview) {
+                autoInterpretNeedsReview = true;
+                autoInterpretGateReason = ruleCheck.reason || '工程規則檢查未通過，請複核';
+            }
             previewCalc();
 
+            const confLevel = getAutoInterpretConfidenceLevel(overallConfidence);
             const qualityNote = qualityReport ? `｜品質${qualityReport.quality}` : '';
             const memoryNote = memoryMatch
                 ? `｜同類型記憶 ${getAutoInterpretMemoryHint(memoryMatch)}`
                 : (memoryTypeMatch ? `｜跨類型記憶 ${getAutoInterpretMemoryHint(memoryTypeMatch)}` : '｜記憶尚未建立');
+            const ocrNote = bestOcrCandidate
+                ? `｜OCR ${bestOcrCandidate.tag || '未命名'} ${bestOcrCandidate.firstM.toFixed(2)}×${bestOcrCandidate.secondM.toFixed(2)}m (${(ocrConfidence * 100).toFixed(0)}%)`
+                : '｜OCR 未命中';
             const countNote = shouldAutoCount
-                ? `｜數量建議 ${pickedQty}（信心 ${(countResult.confidence * 100).toFixed(0)}%）→ 套用 ${finalQty}`
+                ? `｜數量建議 ${pickedQty}（${(countResult.confidence * 100).toFixed(0)}%）→ 套用 ${finalQty}${canAutoQty ? ' 自動' : ''}`
                 : '｜鋼筋類數量維持手動';
             const manualDepthNote = fillResult.preserveManualDepth
                 ? `｜平面已回填 ${fillResult.planSummary}｜${fillResult.depthMissing ? `待手填 ${fillResult.depthLabel}` : `${fillResult.depthLabel}沿用 ${Number(fillResult.manualDepthValue || 0).toFixed(2)} m`}`
@@ -7579,23 +8553,28 @@
             const gateThreshold = getAutoInterpretGateThreshold();
             if (!type.startsWith('R_') && !autoInterpretNeedsReview && overallConfidence < gateThreshold) {
                 autoInterpretNeedsReview = true;
-                autoInterpretGateReason = `自動判讀信心 ${(overallConfidence * 100).toFixed(0)}% 低於門檻 ${(gateThreshold * 100).toFixed(0)}%，請手動複核尺寸/數量`;
+                autoInterpretGateReason = `${confLevel.icon} 信心 ${(overallConfidence * 100).toFixed(0)}% 低於門檻 ${(gateThreshold * 100).toFixed(0)}%，請複核尺寸/數量`;
             }
-            const learnResult = learnAutoInterpretMemory({
-                type,
-                quantity: finalQty,
-                longM,
-                shortM,
-                quality: qualityReport ? qualityReport.quality : '未知',
-                vector: buildBlueprintFeatureVector(bounds, qualityReport)
-            });
-            updateBlueprintAutoInterpretStatus(
-                `自動判讀: 單一運算 #${runId} 完成｜${bounds.widthPx.toFixed(0)}×${bounds.heightPx.toFixed(0)} px → ${longM.toFixed(2)}×${shortM.toFixed(2)} m${manualDepthNote}${countNote}${memoryNote}｜總信心 ${(overallConfidence * 100).toFixed(0)}%${qualityNote}${autoInterpretNeedsReview ? '｜需複核' : ''}｜已學習 ${learnResult.count} 筆`,
-                autoInterpretNeedsReview ? '#ffd48a' : '#9fffc0'
-            );
-            renderAutoInterpretMemoryPanel();
-            autoInterpretLastReport = {
+            const reviewStatus = autoInterpretNeedsReview ? 'review_required' : 'auto_passed';
+            const afterInputs = getCurrentCalcInputSnapshot();
+            const runRecord = {
                 runId,
+                ts: new Date().toISOString(),
+                actor,
+                memberAccount: actor,
+                sessionId: APP_SESSION_ID,
+                appVersion: SCHEMA_VERSION,
+                qaProfile: qaPolicy.profileName,
+                blueprintFingerprint: getBlueprintFingerprint(),
+                scaleSource,
+                workMode: String(document.body.dataset.workMode || ''),
+                bounds: {
+                    x: Number(bounds.x) || 0,
+                    y: Number(bounds.y) || 0,
+                    widthPx: Number(bounds.widthPx) || 0,
+                    heightPx: Number(bounds.heightPx) || 0,
+                    coverage: Number(bounds.coverage) || 0
+                },
                 type,
                 longM,
                 shortM,
@@ -7604,22 +8583,69 @@
                 depthLabel: fillResult.depthLabel,
                 quantity: finalQty,
                 suggestedQuantity: pickedQty,
-                countConfidence: countResult.confidence,
+                quality: qualityReport ? qualityReport.quality : '未知',
+                qualityReport,
+                geometryConfidence,
+                qualityConfidence,
+                countConfidence,
+                memoryConfidence,
+                ocrConfidence,
+                overallConfidence,
+                reviewStatus,
+                reviewReason: autoInterpretGateReason,
                 memorySimilarity: memoryMatch ? memoryMatch.similarity : (memoryTypeMatch ? memoryTypeMatch.similarity : 0),
                 memoryQuantity: memoryMatch && memoryMatch.best ? memoryMatch.best.quantity : (memoryTypeMatch && memoryTypeMatch.best ? memoryTypeMatch.best.quantity : null),
-                quality: qualityReport ? qualityReport.quality : '未知',
-                overallConfidence,
-                memoryStoreSize: learnResult.count,
                 memoryMatchedType: memoryMatch && memoryMatch.best ? memoryMatch.best.type : (memoryTypeMatch && memoryTypeMatch.best ? memoryTypeMatch.best.type : null),
-                inputSignature: `${type}|${String(v1El.value || '')}|${String(v2El.value || '')}|${String(v3El.value || '')}|${String(qtyEl.value || '')}`
+                beforeInputs,
+                afterInputs,
+                inputSignature: getCurrentCalcInputSignature(),
+                manualAdjustDetected: false,
+                vector: buildBlueprintFeatureVector(bounds, qualityReport),
+                autoAppliedType: canAutoType,
+                autoAppliedQty: canAutoQty,
+                ocrCandidate: bestOcrCandidate ? {
+                    tag: bestOcrCandidate.tag || '',
+                    kind: bestOcrCandidate.kind || '',
+                    firstM: Number(bestOcrCandidate.firstM) || 0,
+                    secondM: Number(bestOcrCandidate.secondM) || 0,
+                    score: Number(bestOcrCandidate.score) || 0
+                } : null,
+                summary: [ocrAppliedSummary, ruleCheck.warnings.join(' / ')].filter(Boolean).join('｜')
             };
+            runRecord.regressionCheck = evaluateAutoInterpretRegressionCase(runRecord);
+            recordAutoInterpretRun(runRecord);
+            updateAutoInterpretRunReviewStatus(runId, reviewStatus, autoInterpretGateReason || '');
+            const learnResult = learnAutoInterpretMemory({
+                runId,
+                type,
+                quantity: finalQty,
+                longM,
+                shortM,
+                quality: qualityReport ? qualityReport.quality : '未知',
+                vector: runRecord.vector,
+                reviewStatus,
+                overallConfidence
+            });
+            if (!learnResult.skipped) {
+                updateAutoInterpretRunReviewStatus(runId, reviewStatus, autoInterpretGateReason || '', { memoryLearned: true });
+            }
+            updateBlueprintAutoInterpretStatus(
+                `自動判讀: 單一運算 #${runId} 完成｜${bounds.widthPx.toFixed(0)}×${bounds.heightPx.toFixed(0)} px → ${longM.toFixed(2)}×${shortM.toFixed(2)} m${manualDepthNote}${countNote}${memoryNote}${ocrNote}｜${confLevel.icon} ${confLevel.label} ${(overallConfidence * 100).toFixed(0)}%${qualityNote}${autoInterpretNeedsReview ? '｜需複核' : ''}｜已學習 ${learnResult.count} 筆${learnResult.skipped ? '（待核准）' : ''}`,
+                autoInterpretNeedsReview ? confLevel.color : '#9fffc0'
+            );
+            renderAutoInterpretMemoryPanel();
+            autoInterpretLastReport = {
+                ...runRecord,
+                memoryStoreSize: learnResult.count
+            };
+            addAuditLog('自動判讀執行', `${type} / ${Math.round(overallConfidence * 100)}% / ${reviewStatus}${bestOcrCandidate ? ` / OCR ${bestOcrCandidate.tag || '命中'}` : ''}`);
             previewCalc();
             if (type.startsWith('R_')) {
                 showToast(`已完成單一運算：長邊 ${longM.toFixed(2)}m（鋼筋規格仍需手動填 v1）`);
             } else if (fillResult.preserveManualDepth && fillResult.depthMissing) {
                 showToast(`已抓到平面尺寸 ${fillResult.planSummary}，請手動輸入「${fillResult.depthLabel}」後再計算`);
             } else if (autoInterpretNeedsReview) {
-                showToast(`自動判讀完成但信心偏低（${(overallConfidence * 100).toFixed(0)}%），已記住本次結果，請先複核後再吸入清單`);
+                showToast(`自動判讀完成但需複核（${(overallConfidence * 100).toFixed(0)}%），請先完成複核通過或人工覆寫`);
             } else if (fillResult.preserveManualDepth) {
                 showToast(`已抓到平面尺寸 ${fillResult.planSummary}，並保留手填 ${fillResult.depthLabel}`);
             } else {
@@ -8502,15 +9528,15 @@
 
     function drawMeasurementPendingPoint(point) {
         ctx.strokeStyle = '#ffd166';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1.8;
         ctx.beginPath();
-        ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+        ctx.arc(point.x, point.y, 5.5, 0, Math.PI * 2);
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(point.x - 12, point.y);
-        ctx.lineTo(point.x + 12, point.y);
-        ctx.moveTo(point.x, point.y - 12);
-        ctx.lineTo(point.x, point.y + 12);
+        ctx.moveTo(point.x - 8, point.y);
+        ctx.lineTo(point.x + 8, point.y);
+        ctx.moveTo(point.x, point.y - 8);
+        ctx.lineTo(point.x, point.y + 8);
         ctx.stroke();
     }
 
@@ -8548,6 +9574,15 @@
         overlay.setAttribute('aria-hidden', 'true');
     }
 
+    function getManualPrecisionTargetClientPoint(clientX, clientY) {
+        const verticalOffsetPx = isMobileViewport() ? 76 : 0;
+        const horizontalOffsetPx = 0;
+        return {
+            x: clientX + horizontalOffsetPx,
+            y: clientY - verticalOffsetPx
+        };
+    }
+
     function renderManualPrecisionOverlay() {
         const overlay = document.getElementById('manualPrecisionOverlay');
         if (!overlay) return;
@@ -8556,33 +9591,41 @@
             return;
         }
 
-        overlay.innerHTML = `<div class="manual-precision-card"><span class="manual-precision-title">${manualPrecisionState.active ? '拖曳對線，放手後確認' : '已對位，可再拖曳或直接確認'}</span><canvas id="manualPrecisionCanvas" class="manual-precision-canvas" width="136" height="136"></canvas></div>`;
-        overlay.setAttribute('aria-hidden', 'false');
-
-        const overlayRect = canvasContainer.getBoundingClientRect();
-        const overlayWidth = 152;
-        const overlayHeight = 170;
         const rect = canvas.getBoundingClientRect();
+        const overlayRect = canvasContainer.getBoundingClientRect();
         const fallbackClientX = rect.left + calibrationPendingPoint.x * zoomLevel;
         const fallbackClientY = rect.top + calibrationPendingPoint.y * zoomLevel;
-        const anchorClientX = manualPrecisionState.clientX || fallbackClientX;
-        const anchorClientY = manualPrecisionState.clientY || fallbackClientY;
-        const localX = anchorClientX - overlayRect.left;
-        const localY = anchorClientY - overlayRect.top;
-        let left = localX - overlayWidth / 2;
-        let top = localY - overlayHeight - 18;
-        if (top < 8) top = Math.min(overlayRect.height - overlayHeight - 8, localY + 18);
-        left = clampNumber(left, 8, Math.max(8, overlayRect.width - overlayWidth - 8));
-        top = clampNumber(top, 8, Math.max(8, overlayRect.height - overlayHeight - 8));
-        overlay.style.left = `${left}px`;
-        overlay.style.top = `${top}px`;
+        const fingerClientX = manualPrecisionState.clientX || fallbackClientX;
+        const fingerClientY = manualPrecisionState.clientY || fallbackClientY;
+        const targetClientX = manualPrecisionState.targetClientX || fallbackClientX;
+        const targetClientY = manualPrecisionState.targetClientY || fallbackClientY;
+        const localFingerX = fingerClientX - overlayRect.left;
+        const localFingerY = fingerClientY - overlayRect.top;
+        const localTargetX = targetClientX - overlayRect.left;
+        const localTargetY = targetClientY - overlayRect.top;
+        const guideDx = localTargetX - localFingerX;
+        const guideDy = localTargetY - localFingerY;
+        const guideLength = Math.hypot(guideDx, guideDy);
+        const guideAngle = Math.atan2(guideDy, guideDx) * 180 / Math.PI;
+        const overlayWidth = 126;
+        const overlayHeight = 142;
+        const preferRight = localTargetX < overlayRect.width * 0.58;
+        let cardLeft = preferRight ? localTargetX + 18 : localTargetX - overlayWidth - 18;
+        let cardTop = localTargetY - overlayHeight / 2;
+        cardLeft = clampNumber(cardLeft, 8, Math.max(8, overlayRect.width - overlayWidth - 8));
+        cardTop = clampNumber(cardTop, 8, Math.max(8, overlayRect.height - overlayHeight - 8));
+
+        overlay.innerHTML = `<div class="manual-precision-guide-line" style="left:${localFingerX.toFixed(1)}px; top:${localFingerY.toFixed(1)}px; width:${guideLength.toFixed(1)}px; transform: rotate(${guideAngle.toFixed(2)}deg);"></div><div class="manual-precision-finger-dot" style="left:${localFingerX.toFixed(1)}px; top:${localFingerY.toFixed(1)}px;"></div><div class="manual-precision-target" style="left:${localTargetX.toFixed(1)}px; top:${localTargetY.toFixed(1)}px;"><span class="manual-precision-target-ring"></span></div><div class="manual-precision-card" style="left:${cardLeft.toFixed(1)}px; top:${cardTop.toFixed(1)}px;"><span class="manual-precision-title">${manualPrecisionState.active ? '拖曳手指，下方控制，上方小十字取點' : '已對位，可再拖曳或直接確認'}</span><canvas id="manualPrecisionCanvas" class="manual-precision-canvas" width="112" height="112"></canvas></div>`;
+        overlay.setAttribute('aria-hidden', 'false');
+        overlay.style.left = '0px';
+        overlay.style.top = '0px';
 
         const loupeCanvas = document.getElementById('manualPrecisionCanvas');
         if (!loupeCanvas) return;
         const loupeCtx = loupeCanvas.getContext('2d');
         if (!loupeCtx) return;
         const size = loupeCanvas.width;
-        const zoom = 3.4;
+        const zoom = 3.9;
         const sampleSize = size / zoom;
         const sx = clampNumber(calibrationPendingPoint.x - sampleSize / 2, 0, Math.max(0, img.naturalWidth - sampleSize));
         const sy = clampNumber(calibrationPendingPoint.y - sampleSize / 2, 0, Math.max(0, img.naturalHeight - sampleSize));
@@ -8653,13 +9696,16 @@
 
     function updateManualPrecisionPointFromClient(clientX, clientY) {
         if (!canvas.width || !canvas.height) return;
+        const targetClientPoint = getManualPrecisionTargetClientPoint(clientX, clientY);
         const rect = canvas.getBoundingClientRect();
         calibrationPendingPoint = {
-            x: clampNumber((clientX - rect.left) / zoomLevel, 0, img.naturalWidth),
-            y: clampNumber((clientY - rect.top) / zoomLevel, 0, img.naturalHeight)
+            x: clampNumber((targetClientPoint.x - rect.left) / zoomLevel, 0, img.naturalWidth),
+            y: clampNumber((targetClientPoint.y - rect.top) / zoomLevel, 0, img.naturalHeight)
         };
         manualPrecisionState.clientX = clientX;
         manualPrecisionState.clientY = clientY;
+        manualPrecisionState.targetClientX = targetClientPoint.x;
+        manualPrecisionState.targetClientY = targetClientPoint.y;
         redrawManualMeasurementCanvas();
         renderManualMeasurePad();
         renderManualPrecisionOverlay();
@@ -8783,12 +9829,14 @@
     }
 
     function drawMeasurementLine(p1, p2) {
-        ctx.strokeStyle = '#ff4757';
-        ctx.lineWidth = 3;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 110, 150, 0.48)';
+        ctx.lineWidth = 1.6;
         ctx.beginPath();
         ctx.moveTo(p1.x, p1.y);
         ctx.lineTo(p2.x, p2.y);
         ctx.stroke();
+        ctx.restore();
     }
 
     function autofillMeasuredDistance(m) {
@@ -9708,12 +10756,21 @@
     // 工具函數：動態載入外部腳本
     function loadExternalScript(src) {
         const existing = document.querySelector(`script[src="${src}"]`);
-        if (existing) return Promise.resolve();
+        if (existing) {
+            if (existing.dataset.loaded === '1') return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                existing.addEventListener('load', resolve, { once: true });
+                existing.addEventListener('error', reject, { once: true });
+            });
+        }
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src = src;
             script.async = true;
-            script.onload = resolve;
+            script.onload = () => {
+                script.dataset.loaded = '1';
+                resolve();
+            };
             script.onerror = reject;
             document.head.appendChild(script);
         });
@@ -10355,6 +11412,11 @@
         const typeText = document.getElementById('calcType').options[document.getElementById('calcType').selectedIndex].text.split(' (')[0]; 
         let customName = document.getElementById('customName').value.trim();
         let floor = document.getElementById('floor_tag').value.trim() || "未分層";
+        const currentInputSignature = getCurrentCalcInputSignature();
+        const activeReviewRun = findAutoInterpretRunById(autoInterpretReviewState.runId);
+        const linkedAutoRun = (activeReviewRun && String(activeReviewRun.inputSignature || '') === currentInputSignature ? activeReviewRun : null)
+            || autoInterpretRuns.find(run => String(run.inputSignature || '') === currentInputSignature)
+            || null;
         
         const v1 = readInputNumber('v1', 0);
         const v2 = readInputNumber('v2', 0);
@@ -10424,10 +11486,19 @@
             priceUnit: priceUnit,
             formula: safeFormula,
             formulaHint: safeFormulaHint,
-            breakdown: safeBreakdown
+            breakdown: safeBreakdown,
+            sourceAutoInterpretRunId: linkedAutoRun ? Number(linkedAutoRun.runId) || 0 : 0,
+            sourceAutoInterpretReviewStatus: linkedAutoRun ? String(linkedAutoRun.reviewStatus || '') : ''
         });
         
         saveData(); renderTable(); 
+        if (linkedAutoRun) {
+            autoInterpretRuns = autoInterpretRuns.map(run => Number(run.runId) === Number(linkedAutoRun.runId)
+                ? { ...run, importedAt: new Date().toISOString(), finalAction: 'added-to-list' }
+                : run);
+            persistAutoInterpretRuns();
+            addAuditLog('看圖結果吸入清單', `${linkedAutoRun.type || '-'} / ${getAutoInterpretRunStatusInfo(linkedAutoRun.reviewStatus).label} / run#${linkedAutoRun.runId}`);
+        }
         showToast(isDeduct ? '✂️ 已執行自動扣除' : '🚀 數據已吸入黑洞！');
     }
 
@@ -10600,6 +11671,7 @@
         const base = calcAdvancedEstimateFromBase(baseTotal);
         const low = calcAdvancedEstimateFromBase(baseTotal * (1 - stepPercent / 100));
         const high = calcAdvancedEstimateFromBase(baseTotal * (1 + stepPercent / 100));
+        const latestAutoRun = autoInterpretRuns[0] || autoInterpretLastReport;
 
         const projectName = (document.getElementById('project_name') && document.getElementById('project_name').value) || '未命名專案';
         const floorTag = (document.getElementById('floor_tag') && document.getElementById('floor_tag').value) || '未分層';
@@ -10624,7 +11696,11 @@
             ['敏感度波動(±%)', stepPercent],
             ['低情境報價(元)', Math.round(low.quoteTotal)],
             ['基準報價(元)', Math.round(base.quoteTotal)],
-            ['高情境報價(元)', Math.round(high.quoteTotal)]
+            ['高情境報價(元)', Math.round(high.quoteTotal)],
+            ['看圖 QA Profile', getAutoInterpretQaPolicy().profileLabel],
+            ['最近看圖構件', latestAutoRun ? latestAutoRun.type || '-' : '尚無'],
+            ['最近看圖信心(%)', latestAutoRun && Number.isFinite(Number(latestAutoRun.overallConfidence)) ? (Number(latestAutoRun.overallConfidence) * 100).toFixed(1) : '尚無'],
+            ['最近看圖狀態', latestAutoRun ? getAutoInterpretRunStatusInfo(latestAutoRun.reviewStatus).label : '尚無']
         ];
 
         let csv = '\uFEFF項目,數值\n';
@@ -11356,7 +12432,7 @@
         if (!box) return;
         box.classList.toggle('collapsed');
         const btn = box.querySelector('.mobile-test-log-actions .mobile-test-log-btn');
-        if (btn) btn.textContent = box.classList.contains('collapsed') ? '展開' : '收合';
+        if (btn) btn.textContent = box.classList.contains('collapsed') ? '紀錄' : '收合';
     }
 
     function clearMobileTestLog() {
@@ -11507,10 +12583,18 @@
         qualityTarget.style.color = qualitySource.style.color || '#c7d6e6';
         autoTarget.textContent = autoSource.textContent || '自動判讀: 尚未執行';
         autoTarget.style.color = autoSource.style.color || '#bfe7ff';
-        const qualityShort = (qualityTarget.textContent || '').replace(/^圖紙品質:\s*/, '');
-        const autoShort = (autoTarget.textContent || '').replace(/^自動判讀:\s*/, '');
-        const compact = `${qualityShort || '待檢查'} / ${autoShort || '尚未執行'}`;
-        summary.textContent = compact.length > 30 ? `${compact.slice(0, 29)}...` : compact;
+        const qualityShort = (qualityTarget.textContent || '')
+            .replace(/^圖紙品質:\s*/, '')
+            .replace(/（過暗）/g, '偏暗')
+            .replace(/（過亮）/g, '偏亮')
+            .replace(/可用/g, 'OK');
+        const autoShort = (autoTarget.textContent || '')
+            .replace(/^自動判讀:\s*/, '')
+            .replace(/單一運算/g, '單算')
+            .replace(/已完成/g, '完成')
+            .replace(/尚未執行/g, '未執行');
+        const compact = `${qualityShort || '待檢查'} / ${autoShort || '未執行'}`;
+        summary.textContent = compact.length > 18 ? `${compact.slice(0, 17)}...` : compact;
     }
 
     function toggleMobileBlueprintStatusCard(forceOpen) {
@@ -11793,6 +12877,8 @@
     applyQaProfile(currentQaProfile, true);
     applyBimSpecPreset(currentBimSpecPreset, true);
     renderAutoInterpretMemoryPanel();
+    renderAutoInterpretRunHistoryPanel();
+    renderAutoInterpretRegressionSummary();
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState !== 'visible') {
             sessionStorage.removeItem(OWNER_UNLOCK_SESSION_KEY);
