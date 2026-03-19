@@ -1047,6 +1047,14 @@ struct ContentView: View {
                         .font(.caption2)
                         .foregroundStyle(.indigo)
 
+                    Text(sessionManager.facadeTrackingStatusText)
+                        .font(.caption2.bold())
+                        .foregroundStyle(sessionManager.facadeTrackingStatusText.contains("已鎖定") ? .green : (sessionManager.facadeTrackingStatusText.contains("失鎖") ? .orange : .secondary))
+
+                    Text(sessionManager.facadeTrackingConfidenceText)
+                        .font(.caption2)
+                        .foregroundStyle(.cyan)
+
                     if sessionManager.facadeRealismOverallScore > 0 {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("IMAX 真實感：\(sessionManager.facadeRealismOverallScore)/100")

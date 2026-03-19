@@ -9,6 +9,7 @@ struct HologramARViewContainer: UIViewRepresentable {
     let blueprintImage: UIImage
     let physicalWidth: Double
     let modelName: String
+    var onTrackingStateChanged: ((Bool, Int, Int, Bool) -> Void)? = nil
 
     func makeUIView(context: Context) -> ARView {
         let arView = ARView(frame: .zero)
@@ -33,11 +34,12 @@ struct HologramARViewContainer: UIViewRepresentable {
     }
 
     func makeCoordinator() -> HologramCoordinator {
-        HologramCoordinator()
+        HologramCoordinator(onTrackingStateChanged: onTrackingStateChanged)
     }
 }
 
 final class HologramCoordinator: NSObject, ARSessionDelegate {
+    private let onTrackingStateChanged: ((Bool, Int, Int, Bool) -> Void)?
     weak var arView: ARView?
     private var loadedModel: ModelEntity?
     private var modelLoadTask: Task<Void, Never>?
@@ -52,10 +54,20 @@ final class HologramCoordinator: NSObject, ARSessionDelegate {
     private var sceneUpdateSubscription: Cancellable?
     private var lastSessionRunAt: TimeInterval = 0
     private var cachedReferenceSignature = ""
-    private var cachedReferenceImage: ARReferenceImage?
+    private var cachedReferenceImages: Set<ARReferenceImage> = []
+    private var smoothedAnchorTransform: simd_float4x4?
+    private var stableTrackingSampleCount = 0
+    private var lastTrackedAnchorAt: TimeInterval = 0
     private let minSessionRunInterval: TimeInterval = 0.35
     private let setupDebounceNanos: UInt64 = 180_000_000
+    private let stableTrackingFrameThreshold = 3
+    private let anchorSmoothingAlpha: Float = 0.28
+    private let lostTrackingGraceSeconds: TimeInterval = 1.2
     private let ciContext = CIContext()
+
+    init(onTrackingStateChanged: ((Bool, Int, Int, Bool) -> Void)? = nil) {
+        self.onTrackingStateChanged = onTrackingStateChanged
+    }
 
     deinit {
         modelLoadTask?.cancel()
@@ -102,18 +114,23 @@ final class HologramCoordinator: NSObject, ARSessionDelegate {
         }
         lastConfigSignature = signature
 
-        let referenceImage: ARReferenceImage
-        if signature == cachedReferenceSignature, let cachedReferenceImage {
-            referenceImage = cachedReferenceImage
+        let referenceImages: Set<ARReferenceImage>
+        if signature == cachedReferenceSignature, !cachedReferenceImages.isEmpty {
+            referenceImages = cachedReferenceImages
         } else {
-            guard let cgImage = optimizedCGImage(from: blueprint) else {
+            let cgImages = optimizedCGImages(from: blueprint)
+            guard !cgImages.isEmpty else {
                 return
             }
-            let builtReferenceImage = ARReferenceImage(cgImage, orientation: .up, physicalWidth: CGFloat(width))
-            builtReferenceImage.name = "FacadeBlueprint"
+            var builtImages: Set<ARReferenceImage> = []
+            for (index, cgImage) in cgImages.enumerated() {
+                let builtReferenceImage = ARReferenceImage(cgImage, orientation: .up, physicalWidth: CGFloat(width))
+                builtReferenceImage.name = "FacadeBlueprint_\(index)"
+                builtImages.insert(builtReferenceImage)
+            }
             cachedReferenceSignature = signature
-            cachedReferenceImage = builtReferenceImage
-            referenceImage = builtReferenceImage
+            cachedReferenceImages = builtImages
+            referenceImages = builtImages
         }
 
         if forceReset {
@@ -122,7 +139,7 @@ final class HologramCoordinator: NSObject, ARSessionDelegate {
 
         let config = ARWorldTrackingConfiguration()
         config.planeDetection = [.horizontal, .vertical]
-        config.detectionImages = [referenceImage]
+        config.detectionImages = referenceImages
         config.maximumNumberOfTrackedImages = 1
 
         if ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) {
@@ -167,6 +184,10 @@ final class HologramCoordinator: NSObject, ARSessionDelegate {
     }
 
     private func optimizedCGImage(from image: UIImage) -> CGImage? {
+        optimizedCGImages(from: image).first
+    }
+
+    private func optimizedCGImages(from image: UIImage) -> [CGImage] {
         let minDimension = max(1, min(image.size.width, image.size.height))
         let scaleUp: CGFloat = minDimension < 900 ? 3.0 : 1.0
         let targetSize = CGSize(width: image.size.width * scaleUp, height: image.size.height * scaleUp)
@@ -174,29 +195,38 @@ final class HologramCoordinator: NSObject, ARSessionDelegate {
         let redrawn = renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: targetSize))
         }
-        guard let inputCGImage = redrawn.cgImage else { return nil }
+        guard let inputCGImage = redrawn.cgImage else { return [] }
 
-        // Reduce specular glare and lift line contrast for blueprint tracking.
+        // Build multiple preprocessing variants so ARKit has more chances to lock onto noisy blueprints.
         let inputCI = CIImage(cgImage: inputCGImage)
-        let exposure = CIFilter(name: "CIExposureAdjust")
-        exposure?.setValue(inputCI, forKey: kCIInputImageKey)
-        exposure?.setValue(-0.4, forKey: kCIInputEVKey)
-        let exposureOutput = exposure?.outputImage ?? inputCI
+        func createVariant(exposureEV: Double, contrast: Double, brightness: Double, sharpenIntensity: Double, sharpenRadius: Double) -> CGImage? {
+            let exposure = CIFilter(name: "CIExposureAdjust")
+            exposure?.setValue(inputCI, forKey: kCIInputImageKey)
+            exposure?.setValue(exposureEV, forKey: kCIInputEVKey)
+            let exposureOutput = exposure?.outputImage ?? inputCI
 
-        let color = CIFilter(name: "CIColorControls")
-        color?.setValue(exposureOutput, forKey: kCIInputImageKey)
-        color?.setValue(0.0, forKey: kCIInputSaturationKey)
-        color?.setValue(1.24, forKey: kCIInputContrastKey)
-        color?.setValue(-0.03, forKey: kCIInputBrightnessKey)
-        let contrastOutput = color?.outputImage ?? exposureOutput
+            let color = CIFilter(name: "CIColorControls")
+            color?.setValue(exposureOutput, forKey: kCIInputImageKey)
+            color?.setValue(0.0, forKey: kCIInputSaturationKey)
+            color?.setValue(contrast, forKey: kCIInputContrastKey)
+            color?.setValue(brightness, forKey: kCIInputBrightnessKey)
+            let contrastOutput = color?.outputImage ?? exposureOutput
 
-        let sharpen = CIFilter(name: "CIUnsharpMask")
-        sharpen?.setValue(contrastOutput, forKey: kCIInputImageKey)
-        sharpen?.setValue(0.75, forKey: kCIInputIntensityKey)
-        sharpen?.setValue(1.1, forKey: kCIInputRadiusKey)
-        let finalImage = sharpen?.outputImage ?? contrastOutput
+            let sharpen = CIFilter(name: "CIUnsharpMask")
+            sharpen?.setValue(contrastOutput, forKey: kCIInputImageKey)
+            sharpen?.setValue(sharpenIntensity, forKey: kCIInputIntensityKey)
+            sharpen?.setValue(sharpenRadius, forKey: kCIInputRadiusKey)
+            let finalImage = sharpen?.outputImage ?? contrastOutput
+            return ciContext.createCGImage(finalImage, from: finalImage.extent)
+        }
 
-        return ciContext.createCGImage(finalImage, from: finalImage.extent) ?? inputCGImage
+        let variants = [
+            createVariant(exposureEV: -0.4, contrast: 1.24, brightness: -0.03, sharpenIntensity: 0.75, sharpenRadius: 1.1),
+            createVariant(exposureEV: -0.2, contrast: 1.38, brightness: -0.04, sharpenIntensity: 0.95, sharpenRadius: 1.25),
+            createVariant(exposureEV: -0.55, contrast: 1.18, brightness: -0.01, sharpenIntensity: 0.65, sharpenRadius: 0.95)
+        ].compactMap { $0 }
+
+        return variants.isEmpty ? [inputCGImage] : variants
     }
 
     private func loadModelIfNeeded(named modelName: String) {
@@ -293,6 +323,12 @@ final class HologramCoordinator: NSObject, ARSessionDelegate {
         blueprintAnchorEntity?.removeFromParent()
         blueprintAnchorEntity = nil
         trackedImageAnchorID = nil
+        smoothedAnchorTransform = nil
+        stableTrackingSampleCount = 0
+        lastTrackedAnchorAt = 0
+        Task { @MainActor in
+            self.onTrackingStateChanged?(false, 0, self.stableTrackingFrameThreshold, false)
+        }
     }
 
     private func blueprintFingerprint(_ image: UIImage) -> String {
@@ -328,11 +364,51 @@ final class HologramCoordinator: NSObject, ARSessionDelegate {
     }
 
     private func handleImageAnchorUpdate(_ imageAnchor: ARImageAnchor, shouldAttemptPlacement: Bool) {
-        trackedImageAnchorID = imageAnchor.identifier
-        updateBlueprintAnchorTransform(imageAnchor.transform)
-        if shouldAttemptPlacement {
+        let now = Date().timeIntervalSinceReferenceDate
+        if imageAnchor.isTracked {
+            trackedImageAnchorID = imageAnchor.identifier
+            lastTrackedAnchorAt = now
+            stableTrackingSampleCount += 1
+            let smoothed = smoothedAnchorTransform == nil
+                ? imageAnchor.transform
+                : interpolatedTransform(
+                    from: smoothedAnchorTransform ?? imageAnchor.transform,
+                    to: imageAnchor.transform,
+                    alpha: anchorSmoothingAlpha
+                )
+            smoothedAnchorTransform = smoothed
+            updateBlueprintAnchorTransform(smoothed)
+            Task { @MainActor in
+                self.onTrackingStateChanged?(true, self.stableTrackingSampleCount, self.stableTrackingFrameThreshold, false)
+            }
+        } else {
+            let recentLoss = now - lastTrackedAnchorAt <= lostTrackingGraceSeconds
+            if !recentLoss {
+                stableTrackingSampleCount = 0
+            }
+            Task { @MainActor in
+                self.onTrackingStateChanged?(false, self.stableTrackingSampleCount, self.stableTrackingFrameThreshold, recentLoss)
+            }
+            return
+        }
+
+        if shouldAttemptPlacement || stableTrackingSampleCount >= stableTrackingFrameThreshold {
             tryPlaceModelIfReady(animated: true)
         }
+    }
+
+    private func interpolatedTransform(from current: simd_float4x4, to target: simd_float4x4, alpha: Float) -> simd_float4x4 {
+        let currentTranslation = SIMD3<Float>(current.columns.3.x, current.columns.3.y, current.columns.3.z)
+        let targetTranslation = SIMD3<Float>(target.columns.3.x, target.columns.3.y, target.columns.3.z)
+        let blendedTranslation = simd_mix(currentTranslation, targetTranslation, SIMD3<Float>(repeating: alpha))
+
+        let currentRotation = simd_quatf(current)
+        let targetRotation = simd_quatf(target)
+        let blendedRotation = simd_slerp(currentRotation, targetRotation, alpha)
+
+        var matrix = simd_float4x4(blendedRotation)
+        matrix.columns.3 = SIMD4<Float>(blendedTranslation.x, blendedTranslation.y, blendedTranslation.z, 1)
+        return matrix
     }
 
     private func installInteractionGuards() {

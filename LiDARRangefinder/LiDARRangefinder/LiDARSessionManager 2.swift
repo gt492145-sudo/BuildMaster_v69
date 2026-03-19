@@ -306,6 +306,8 @@ final class LiDARSessionManager: ObservableObject {
     @Published var ifcSimulationStatusText: String = "IFC 模擬：待命"
     @Published var facadeHologramEnabled: Bool = false
     @Published var facadeHologramStatusText: String = "立面全息：待命"
+    @Published var facadeTrackingStatusText: String = "影像辨識：待命"
+    @Published var facadeTrackingConfidenceText: String = "辨識穩定度：0/100"
     @Published var facadeLifeModeEnabled: Bool = true
     @Published var facadeLifeModeStatusText: String = "生命感模式：開"
     @Published var interiorWalkthroughEnabled: Bool = true
@@ -2527,6 +2529,38 @@ final class LiDARSessionManager: ObservableObject {
         } else {
             setIFCStatus("IFC 模擬：已套用 IFC 模型生成 3D")
             setARPipelineRunning(label: "IFC模型")
+        }
+    }
+
+
+    func updateFacadeTrackingStatus(isTracked: Bool, stableSamples: Int, requiredSamples: Int, recentLoss: Bool) {
+        if isTracked {
+            let progress = max(0, min(100, Int((Double(stableSamples) / max(1.0, Double(requiredSamples))) * 100.0)))
+            if stableSamples >= requiredSamples {
+                facadeTrackingStatusText = "影像辨識：已鎖定"
+                facadeTrackingConfidenceText = "辨識穩定度：\(progress)/100｜可放置全息"
+                if facadeHologramEnabled {
+                    facadeHologramStatusText = "立面全息：追蹤穩定，可操作"
+                }
+            } else {
+                facadeTrackingStatusText = "影像辨識：鎖定中"
+                facadeTrackingConfidenceText = "辨識穩定度：\(progress)/100｜等待更多穩定樣本"
+                if facadeHologramEnabled {
+                    facadeHologramStatusText = "立面全息：辨識中，穩定後自動貼合"
+                }
+            }
+        } else if recentLoss {
+            facadeTrackingStatusText = "影像辨識：短暫失鎖"
+            facadeTrackingConfidenceText = "辨識穩定度：暫時下降｜保留短暫寬限"
+            if facadeHologramEnabled {
+                facadeHologramStatusText = "立面全息：追蹤波動中，暫時保留位置"
+            }
+        } else {
+            facadeTrackingStatusText = "影像辨識：未鎖定"
+            facadeTrackingConfidenceText = "辨識穩定度：0/100｜請重新對準圖紙"
+            if facadeHologramEnabled {
+                facadeHologramStatusText = "立面全息：等待重新鎖定圖紙"
+            }
         }
     }
 
