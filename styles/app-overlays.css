@@ -1,0 +1,64 @@
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+    .btn-export { background: linear-gradient(135deg, #2e8bc5, #236998); color: #f4fbff; padding: 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; cursor: pointer; font-weight: bold; flex: 1; transition: 0.2s; }
+    .btn-export:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .btn-export:active { transform: translateY(0); opacity: 0.93; }
+    .btn-clear { background: rgba(192, 57, 43, 0.18); color: #ffd2ce; padding: 10px; border: 1px solid rgba(231, 76, 60, 0.45); border-radius: 8px; cursor: pointer; font-weight: bold; flex: 1; transition: 0.2s; }
+    .btn-clear:hover { background: rgba(192, 57, 43, 0.28); color: #ffe2df; transform: translateY(-1px); }
+    .btn-clear:active { transform: translateY(0); opacity: 0.93; }
+    .touch-coach { position: fixed; right: 18px; top: 86px; z-index: 9998; display: flex; align-items: flex-start; gap: 10px; opacity: 1; transform: translateY(0); transition: opacity 0.25s ease, transform 0.25s ease; pointer-events: none; }
+    .touch-coach.hide { opacity: 0; transform: translateY(12px); }
+    .coach-avatar { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; font-size: 30px; background: radial-gradient(circle at 30% 30%, #ffd894, #ff9800); box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35); border: 2px solid rgba(255,255,255,0.45); }
+    .coach-bubble { max-width: 280px; padding: 10px 12px; border-radius: 14px; background: rgba(11, 22, 38, 0.92); border: 1px solid rgba(255,255,255,0.2); color: #eaf6ff; font-size: 0.86em; line-height: 1.45; box-shadow: 0 10px 24px rgba(0,0,0,0.35); position: relative; pointer-events: none; }
+    .coach-bubble::after { content: ''; position: absolute; right: -8px; top: 14px; width: 14px; height: 14px; background: rgba(11, 22, 38, 0.92); border-right: 1px solid rgba(255,255,255,0.2); border-top: 1px solid rgba(255,255,255,0.2); transform: rotate(45deg); }
+    .coach-close { position: absolute; top: 6px; right: 8px; border: none; background: transparent; color: #8dbad8; cursor: pointer; font-size: 14px; padding: 0; pointer-events: auto; }
+    .coach-close:hover { color: white; }
+    .coach-title { color: #ffd27a; font-weight: bold; margin-bottom: 2px; }
+    .coach-ai-row { margin-top: 8px; display: flex; gap: 6px; pointer-events: auto; }
+    .coach-ai-input { flex: 1; min-width: 0; border-radius: 8px; border: 1px solid rgba(255,255,255,0.22); background: rgba(4,10,20,0.78); color: #eaf6ff; padding: 6px 8px; font-size: 0.78em; pointer-events: auto; }
+    .coach-ai-btn { border: 1px solid rgba(255,255,255,0.25); background: rgba(122, 216, 255, 0.12); color: #dff3ff; border-radius: 8px; padding: 6px 8px; font-size: 0.75em; cursor: pointer; pointer-events: auto; }
+    .coach-ai-btn:hover { background: rgba(122, 216, 255, 0.2); }
+    .coach-ai-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .coach-guide { margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.18); padding-top: 8px; }
+    .coach-guide.hide { display: none; }
+    .coach-guide-step { font-size: 0.75em; color: #b6d8f0; margin-bottom: 6px; }
+    .coach-guide-actions { display: flex; gap: 6px; }
+    .coach-guide-btn { border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.08); color: #eaf6ff; border-radius: 8px; padding: 4px 8px; font-size: 0.74em; cursor: pointer; pointer-events: auto; }
+    .coach-guide-btn:hover { background: rgba(255,255,255,0.15); }
+    .coach-guide-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    body.high-contrast { --panel-bg: rgba(8, 14, 26, 0.62); --line-soft: rgba(255,255,255,0.32); --text-main: #ffffff; --text-subtle: #d4e4f4; --highlight: #ffc552; --accent: #7ad8ff; }
+    body.high-contrast { background-image: linear-gradient(rgba(4, 8, 14, 0.40), rgba(4, 8, 14, 0.40)), url('app-wallpaper.jpg'); }
+    body.high-contrast .input-wrapper input,
+    body.high-contrast .input-wrapper select { background: rgba(6, 14, 28, 0.72); border-color: rgba(255,255,255,0.38); color: #ffffff; }
+    body.high-contrast .tool-bar { background: rgba(255,255,255,0.05); }
+    body.high-contrast .tool-mini { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.28); color: #dce9f8; }
+    body.high-contrast .bim-card { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.35); }
+    body.high-contrast .bim-table-wrap { border-color: rgba(255,255,255,0.3); }
+    body.high-contrast td { border-bottom-color: rgba(255,255,255,0.18); }
+    body.high-contrast .mode-btn { background: rgba(255, 198, 90, 0.2); border-color: rgba(255, 218, 135, 0.68); color: #ffe5b0; }
+    body.high-contrast .live-badge { border-color: rgba(255,255,255,0.7); background: rgba(143, 88, 255, 0.55); color: #fff; }
+    body.high-contrast .level-btn { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.35); color: #fff3d1; }
+    body.high-contrast .level-btn.active { background: rgba(255, 198, 90, 0.35); }
+    body.high-contrast .work-btn { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.35); color: #e6f5ff; }
+    body.high-contrast .work-btn.active { background: rgba(90, 160, 235, 0.35); border-color: rgba(160, 220, 255, 0.8); }
+    body.sunlight-readable {
+        --panel-bg: rgba(4, 10, 20, 0.84);
+        --line-soft: rgba(255,255,255,0.52);
+        --text-main: #ffffff;
+        --text-subtle: #f2f7ff;
+        --highlight: #ffd54f;
+        --accent: #8fe7ff;
+        color: #ffffff;
+    }
+    body.sunlight-readable .tool-btn,
+    body.sunlight-readable .mode-btn,
+    body.sunlight-readable .level-btn,
+    body.sunlight-readable .work-btn {
+        border-width: 2px;
+        font-weight: 800;
+        text-shadow: 0 0 1px rgba(0,0,0,0.6);
+    }
+    body.sunlight-readable #scale-info,
+    body.sunlight-readable #measureAssistInfo,
+    body.sunlight-readable #gyroInfo {
+        font-weight: 800;
+    }

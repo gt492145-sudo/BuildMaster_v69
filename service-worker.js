@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'buildmaster-v80-sw-v1';
+const CACHE_VERSION = 'buildmaster-v80-sw-v5';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -9,7 +9,22 @@ const CORE_ASSETS = [
   './icon-512.png',
   './logo.png',
   './logo-app.png',
-  './app-wallpaper.jpg'
+  './app-wallpaper.jpg',
+  './styles/app-layout.css',
+  './styles/blueprint-core.css',
+  './styles/app-panels.css',
+  './styles/blueprint-effects.css',
+  './styles/app-overlays.css',
+  './styles/weather-effects.css',
+  './styles/app-responsive.css',
+  './scripts/core/core-bootstrap.js',
+  './scripts/features/materials-weather.js',
+  './scripts/features/measurement-logs.js',
+  './scripts/features/bim-qa.js',
+  './scripts/features/blueprint-measurement.js',
+  './scripts/features/calc-engine.js',
+  './scripts/features/app-shell.js',
+  './scripts/app-main.js'
 ];
 
 self.addEventListener('install', event => {
