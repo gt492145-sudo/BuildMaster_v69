@@ -1752,7 +1752,7 @@
             <div class="input-wrapper">
                 <label>地區資料來源</label>
                 <select id="regionSelect" onchange="handleRegionChange(this.value)">
-                    <option value="auto">自動判斷（定位）</option>
+                    <option value="auto">手動觸發定位</option>
                     <option value="全台共用">全台共用</option>
                     <option value="台北市">台北市</option>
                     <option value="新北市">新北市</option>
@@ -1763,8 +1763,8 @@
                 </select>
             </div>
             <div class="input-wrapper">
-                <label>定位同步</label>
-                <button class="tool-btn" style="width:100%;" onclick="autoDetectRegion()">📍 重新定位並套用</button>
+                <label>定位套用</label>
+                <button class="tool-btn" style="width:100%;" onclick="autoDetectRegion()">📍 按鈕定位並套用</button>
             </div>
         </div>
         <div class="input-row level-hide-basic">
@@ -1778,7 +1778,7 @@
             </div>
             <div class="input-wrapper">
                 <label>天氣更新方式</label>
-                <div class="bim-note" style="margin-top:4px; color:#9ad4ff;">已啟用自動更新（載入時 + 週期刷新）</div>
+                <div class="bim-note" style="margin-top:4px; color:#9ad4ff;">已啟用自動更新（不會自動要求定位）</div>
             </div>
         </div>
         <div class="input-row level-hide-basic">
@@ -1811,11 +1811,11 @@
             </button>
         </div>
         <div class="input-row">
-            <div class="input-wrapper"><label id="lbl_v1">長 / 寬A (m)</label><input type="number" id="v1" step="0.01" min="0" oninput="previewCalc()"></div>
-            <div class="input-wrapper"><label id="lbl_v2">寬 / 寬B (m)</label><input type="number" id="v2" step="0.01" min="0" oninput="previewCalc()"></div>
+            <div class="input-wrapper"><label id="lbl_v1">長 / 寬A (m)</label><input type="number" id="v1" step="0.01" min="0" oninput="previewCalc()" onblur="normalizeDimensionInputDisplay('v1')"></div>
+            <div class="input-wrapper"><label id="lbl_v2">寬 / 寬B (m)</label><input type="number" id="v2" step="0.01" min="0" oninput="previewCalc()" onblur="normalizeDimensionInputDisplay('v2')"></div>
         </div>
         <div class="input-row">
-            <div class="input-wrapper"><label id="lbl_v3">高 / 深 (m)</label><input type="number" id="v3" step="0.01" min="0" oninput="previewCalc()"></div>
+            <div class="input-wrapper"><label id="lbl_v3">高 / 深 (m)</label><input type="number" id="v3" step="0.01" min="0" oninput="previewCalc()" onblur="normalizeDimensionInputDisplay('v3')"></div>
             <div class="input-wrapper">
                 <label id="lbl_qty">數量 (N)</label>
                 <div style="display: flex; gap: 5px;">
@@ -1834,6 +1834,10 @@
         </div>
         <div class="input-row" style="margin-top: 15px; border: 1px dashed var(--money); padding: 10px; border-radius: 6px;">
             <div class="input-wrapper">
+                <label id="lbl_extraWaste">額外損耗 (%)</label>
+                <input type="number" id="extraWasteRate" placeholder="混凝土可另外加損耗" min="0" max="40" step="0.1" value="0" oninput="previewCalc()">
+            </div>
+            <div class="input-wrapper">
                 <label id="lbl_price" style="color: var(--money); font-size: 0.9em;">發包單價 ($/M³ 或 $/Kg)</label>
                 <input type="number" id="unitPrice" class="price-input" placeholder="請輸入單價" min="0" oninput="previewCalc()">
             </div>
@@ -1850,7 +1854,7 @@
         <button id="addBtn" class="btn-add" onclick="calculateAndAdd()">🚀 吸入計算清單</button>
         
         <table>
-            <thead><tr><th>樓層</th><th>項目</th><th>數量(基準/施工)</th><th>單價</th><th>公式</th><th>金額(基準/施工)</th><th>操作</th></tr></thead>
+            <thead><tr><th>樓層</th><th>項目</th><th>數量(基準/合計)</th><th>單價</th><th>公式</th><th>金額(基準/合計)</th><th>操作</th></tr></thead>
             <tbody id="listBody"></tbody>
         </table>
 
@@ -1983,7 +1987,7 @@
 </div>
 
 <div class="footer-bar work-mode-only-calc">
-    <div id="sumC">水泥: 0 M³</div>
+    <div id="sumC">混凝土: 0 M³</div>
     <div id="sumM">模板: 0 M²</div>
     <div id="sumE">土方: 0 M³</div>
     <div id="sumS">鋼筋: 0 Kg</div>
@@ -3330,26 +3334,22 @@
 
     async function initMaterialCatalog() {
         const savedRegion = localStorage.getItem(REGION_STORAGE_KEY);
+        const selector = document.getElementById('regionSelect');
         if (savedRegion) {
             currentRegionLabel = savedRegion;
             currentRegionMode = '手動';
-            const selector = document.getElementById('regionSelect');
             if (selector) selector.value = savedRegion;
         } else {
-            const detected = await detectRegionFromDevice();
-            if (detected) {
-                currentRegionLabel = detected;
-                currentRegionMode = '自動';
-                const selector = document.getElementById('regionSelect');
-                if (selector) selector.value = 'auto';
-            }
+            currentRegionLabel = '全台共用';
+            currentRegionMode = '預設';
+            if (selector) selector.value = '全台共用';
         }
         materialCatalog = await loadMaterialCatalog(currentRegionLabel);
         renderMaterialOptions(materialCatalog);
         updateMaterialChips(materialCatalog.length, null);
         updateRegionChip();
         updateMaterialSourceChip();
-        await refreshSiteWeather(true);
+        await refreshSiteWeather(true, { allowGps: false });
         startSiteWeatherAutoRefresh();
         initBimRuleEditor();
     }
@@ -3357,7 +3357,7 @@
     function startSiteWeatherAutoRefresh() {
         if (siteWeatherAutoRefreshTimer) clearInterval(siteWeatherAutoRefreshTimer);
         siteWeatherAutoRefreshTimer = setInterval(() => {
-            refreshSiteWeather(true);
+            refreshSiteWeather(true, { allowGps: false });
         }, SITE_WEATHER_REFRESH_MS);
     }
 
@@ -4348,8 +4348,7 @@
         materialCatalog.forEach(item => {
             const opt = document.createElement('option');
             opt.value = item.name;
-            const unitText = item.unit ? ` / ${item.unit}` : '';
-            opt.textContent = `${item.name} (${Number(item.price).toLocaleString()}${unitText})`;
+            opt.textContent = formatMaterialCatalogLabel(item);
             sel.appendChild(opt);
         });
         renderUnmatchedMaterialOptions();
@@ -4362,8 +4361,7 @@
         materialCatalog.forEach(item => {
             const opt = document.createElement('option');
             opt.value = item.name;
-            const unitText = item.unit ? ` / ${item.unit}` : '';
-            opt.textContent = `${item.name} (${Number(item.price).toLocaleString()}${unitText})`;
+            opt.textContent = formatMaterialCatalogLabel(item);
             sel.appendChild(opt);
         });
     }
@@ -6340,7 +6338,7 @@
         const selector = document.getElementById('regionSelect');
         if (selector) selector.value = 'auto';
         await handleRegionChange('auto');
-        await refreshSiteWeather(true);
+        await refreshSiteWeather(true, { allowGps: true });
     }
 
     function updateRegionChip() {
@@ -6362,6 +6360,17 @@
             : '';
         chip.innerHTML = `資料來源：<strong>${file}</strong>${timeText}${warningText}`;
         chip.classList.toggle('material-chip-warning', isFallback);
+    }
+
+    function formatMaterialCatalogLabel(item) {
+        if (!item) return '';
+        const name = String(item.name || '').trim() || '未命名材料';
+        const unit = String(item.unit || '').trim();
+        const price = Number(item.price);
+        const priceText = Number.isFinite(price) ? price.toLocaleString() : '-';
+        return unit
+            ? `${name} ｜ ${unit} ｜ ${priceText}`
+            : `${name} ｜ ${priceText}`;
     }
 
     function normalizeRegionName(name) {
@@ -6407,11 +6416,12 @@
     function getWeatherLocationSourceLabel(mode) {
         if (mode === 'manual-region') return '手動地區';
         if (mode === 'region-fallback') return '地區備援';
-        return 'GPS定位';
+        return '按鈕定位';
     }
 
-    async function resolveWeatherLocation() {
-        const coords = await getDeviceCoordinates();
+    async function resolveWeatherLocation(options = {}) {
+        const allowGps = !!(options && options.allowGps);
+        const coords = allowGps ? await getDeviceCoordinates() : null;
         const fallbackRegion = currentRegionLabel && currentRegionLabel !== '全台共用'
             ? (normalizeRegionName(currentRegionLabel) || currentRegionLabel)
             : '';
@@ -6643,11 +6653,11 @@
         setSiteWeatherNewsText(createWeatherNewsBulletin(weather), '#cfe6ff');
     }
 
-    async function refreshSiteWeather(silent = false) {
-        const location = await resolveWeatherLocation();
+    async function refreshSiteWeather(silent = false, options = {}) {
+        const location = await resolveWeatherLocation(options);
         if (!location) {
-            updateSiteWeatherUI(null, '無法取得定位或工地地區（請開啟定位或先選地區）');
-            if (!silent) showToast('無法取得定位，請開啟定位權限或先指定工地地區');
+            updateSiteWeatherUI(null, '尚未指定工地地區，可手動選城市或按按鈕定位');
+            if (!silent) showToast('請先手動選地區，或按「按鈕定位並套用」');
             return;
         }
         try {
@@ -6685,8 +6695,7 @@
         items.forEach(item => {
             const opt = document.createElement('option');
             opt.value = item.name;
-            const unitText = item.unit ? ` ${item.unit}` : '';
-            opt.textContent = `${item.name}  |  ${item.price.toLocaleString()}${unitText}`;
+            opt.textContent = formatMaterialCatalogLabel(item);
             select.appendChild(opt);
         });
     }
@@ -6718,10 +6727,9 @@
         }
         if (priceChip) {
             if (material) {
-                const unitText = material.unit ? ` / ${material.unit}` : '';
-                priceChip.innerHTML = `目前單價：<strong>${material.price.toLocaleString()}${unitText}</strong>`;
+                priceChip.innerHTML = `目前材料：<strong>${formatMaterialCatalogLabel(material)}</strong>`;
             } else {
-                priceChip.innerHTML = '目前單價：<strong>尚未選取</strong>';
+                priceChip.innerHTML = '目前材料：<strong>尚未選取</strong>';
             }
         }
     }
@@ -10121,7 +10129,7 @@
     }
 
     function getQuantityAdjustFactor(type, cat) {
-        if (cat === 'CEMENT' || String(type || '').startsWith('C_')) return 1.05;
+        if (cat === 'CEMENT' || String(type || '').startsWith('C_')) return 1;
         if (cat === 'STEEL' || String(type || '').startsWith('R_')) return 1.10;
         return 1;
     }
@@ -10169,6 +10177,40 @@
         const n = Number(v) || 0;
         const p = Math.pow(10, digits);
         return Math.round(n * p) / p;
+    }
+
+    function getExtraWasteRateForType(type) {
+        if (!String(type || '').startsWith('C_')) return 0;
+        const input = document.getElementById('extraWasteRate');
+        if (!input) return 0;
+        const rate = Number(input.value);
+        if (!Number.isFinite(rate)) return 0;
+        return Math.min(40, Math.max(0, rate));
+    }
+
+    function parseDimensionValueToMeters(rawValue, type) {
+        const text = String(rawValue ?? '').trim();
+        if (!text) return NaN;
+        const value = parseFloat(text);
+        if (!Number.isFinite(value)) return NaN;
+        const normalizedType = String(type || '');
+        const supportsCmShortcut = normalizedType.startsWith('M_') || normalizedType.startsWith('C_') || normalizedType.startsWith('E_');
+        if (!supportsCmShortcut) return value;
+        const hasDecimal = text.includes('.');
+        if (!hasDecimal && value >= 10 && value <= 9999) return value / 100;
+        return value;
+    }
+
+    function normalizeDimensionInputDisplay(inputId) {
+        const input = document.getElementById(inputId);
+        const type = document.getElementById('calcType') ? document.getElementById('calcType').value : '';
+        if (!input || !['v1', 'v2', 'v3'].includes(String(inputId || ''))) return;
+        const normalized = parseDimensionValueToMeters(input.value, type);
+        if (!Number.isFinite(normalized)) return;
+        if (String(type || '').startsWith('M_') || String(type || '').startsWith('C_') || String(type || '').startsWith('E_')) {
+            input.value = normalized.toFixed(2);
+            previewCalc();
+        }
     }
 
     // Independent audit path (formula duplicated intentionally for cross-check).
@@ -10234,8 +10276,16 @@
         const type = document.getElementById('calcType').value;
         const l1 = document.getElementById('lbl_v1'), l2 = document.getElementById('lbl_v2'), l3 = document.getElementById('lbl_v3');
         const lq = document.getElementById('lbl_qty'), lp = document.getElementById('lbl_price'), v3Input = document.getElementById('v3');
+        const wasteLabel = document.getElementById('lbl_extraWaste');
+        const wasteInput = document.getElementById('extraWasteRate');
 
         l1.style.color = '#888'; l2.style.color = '#888'; l3.style.color = '#888'; lq.style.color = '#888'; lq.innerText = '數量 (N)';
+        if (wasteLabel) wasteLabel.innerText = type.startsWith('C_') ? '混凝土損耗 (%)' : '額外損耗 (%)';
+        if (wasteInput) {
+            wasteInput.disabled = !type.startsWith('C_');
+            wasteInput.placeholder = type.startsWith('C_') ? '先算基準量，再另外加損耗' : '目前僅混凝土啟用';
+            wasteInput.style.opacity = type.startsWith('C_') ? '1' : '0.5';
+        }
 
         if (type === 'R_SLAB') {
             l1.innerText = '鋼筋規格 (分)'; l2.innerText = '單排長度/長向 L (m)'; l3.innerText = '排筋層數 (雙層請打2)'; lp.innerText = '發包單價 ($/Kg)';
@@ -10247,9 +10297,9 @@
             l1.innerText = '箍筋規格 (分)'; l2.innerText = '單圈展開長度 L (m)'; l3.innerText = '單柱/樑 總圈數'; lq.innerText = '柱/樑 總數量'; lp.innerText = '發包單價 ($/Kg)';
             l1.style.color = '#ff9800'; l3.style.color = '#00d2d3'; lq.style.color = '#00d2d3';
         } else if (type === 'M_BEAM_SIDES') {
-            l1.innerText = '樑長 L (m)'; l2.innerText = '樑寬 (無作用可不填)'; l3.innerText = '樑側淨高(扣版厚) (m)'; lp.innerText = '發包單價 ($/M²)'; l3.style.color = '#ff9800';
+            l1.innerText = '樑長 L (m / 整數可輸入 cm)'; l2.innerText = '樑寬 (無作用可不填)'; l3.innerText = '樑側淨高(扣版厚) (m / 整數可輸入 cm)'; lp.innerText = '發包單價 ($/M²)'; l3.style.color = '#ff9800';
         } else {
-            l1.innerText = '長 / 寬A (m)'; l2.innerText = '寬 / 寬B (m)'; l3.innerText = '高 / 深 (m)';
+            l1.innerText = '長 / 寬A (m / 整數可輸入 cm)'; l2.innerText = '寬 / 寬B (m / 整數可輸入 cm)'; l3.innerText = '高 / 深 (m / 整數可輸入 cm)';
             lp.innerText = (type.startsWith('M_')) ? '發包單價 ($/M²)' : '發包單價 ($/M³)';
         }
         previewCalc();
@@ -10295,6 +10345,10 @@
             return;
         }
         const result = verify.main;
+        const extraWasteRate = getExtraWasteRateForType(type);
+        const extraWasteQty = type.startsWith('C_') ? roundCalc((result.baseRes || 0) * (extraWasteRate / 100)) : 0;
+        const finalQty = type.startsWith('C_') ? roundCalc((result.baseRes || 0) + extraWasteQty) : (result.res || 0);
+        const finalCost = roundCalc(finalQty * up);
 
         let resultDisplay = '';
         let resultUnitDisplay = '';
@@ -10312,9 +10366,8 @@
             resultDisplay = `基準 ${baseQtyText}｜施工 ${adjustedQtyText}（${weightKg.toFixed(2)} kg / ${tons.toFixed(3)} t）`;
             resultUnitDisplay = '重量';
         } else if (selectedType.includes('混凝土') || selectedType.includes('水泥') || type.startsWith('C_')) {
-            const volume = result.res;
-            const trucks = Math.ceil(volume / 6);
-            resultDisplay = `基準 ${baseQtyText}｜施工 ${adjustedQtyText}（約需 ${trucks} 台預拌車 🚚）`;
+            const trucks = Math.ceil(finalQty / 6);
+            resultDisplay = `基準 ${(result.baseRes || 0).toFixed(3)} ${result.unit}｜損耗 ${extraWasteQty.toFixed(3)} ${result.unit}｜合計 ${finalQty.toFixed(3)} ${result.unit}（約需 ${trucks} 台預拌車 🚚）`;
             resultUnitDisplay = '體積';
         } else if (selectedType.includes('土方') || selectedType.includes('開挖') || selectedType.includes('回填') || type.startsWith('E_')) {
             const volume = result.res;
@@ -10328,12 +10381,23 @@
 
         document.getElementById('prev_qty').innerText = resultDisplay;
         document.getElementById('prev_unit').innerText = resultUnitDisplay;
-        document.getElementById('prev_cost').innerText = `基準 $ ${Math.round(result.baseTotalCost || 0).toLocaleString()}｜施工 $ ${Math.round(result.totalCost || 0).toLocaleString()}（係數 x${(result.adjustFactor || 1).toFixed(3)}）`;
+        if (selectedType.includes('混凝土') || selectedType.includes('水泥') || type.startsWith('C_')) {
+            const baseCost = roundCalc((result.baseRes || 0) * up);
+            const wasteCost = roundCalc(extraWasteQty * up);
+            document.getElementById('prev_cost').innerText = `基準 $ ${Math.round(baseCost).toLocaleString()}｜損耗 $ ${Math.round(wasteCost).toLocaleString()}｜合計 $ ${Math.round(finalCost).toLocaleString()}`;
+        } else {
+            document.getElementById('prev_cost').innerText = `基準 $ ${Math.round(result.baseTotalCost || 0).toLocaleString()}｜施工 $ ${Math.round(result.totalCost || 0).toLocaleString()}（係數 x${(result.adjustFactor || 1).toFixed(3)}）`;
+        }
         updateAddButtonState(true);
     }
 
     function readInputNumber(id, fallback = 0) {
-        const n = parseFloat(document.getElementById(id).value);
+        const input = document.getElementById(id);
+        if (!input) return fallback;
+        const type = document.getElementById('calcType') ? document.getElementById('calcType').value : '';
+        const n = ['v1', 'v2', 'v3'].includes(String(id || ''))
+            ? parseDimensionValueToMeters(input.value, type)
+            : parseFloat(input.value);
         return Number.isFinite(n) ? n : fallback;
     }
 
@@ -10465,6 +10529,8 @@
         let baseRes = Number(result.baseRes || 0);
         let res = Number(result.res || 0);
         let adjustFactor = Number(result.adjustFactor || 1);
+        let wasteRate = 0;
+        let wasteRes = 0;
         let name = typeText;
 
         if (isDeduct) { 
@@ -10474,6 +10540,11 @@
             res = -baseAbs;
             adjustFactor = 1;
             name = `扣除(${name})`; 
+        } else if (result.cat === 'CEMENT') {
+            wasteRate = getExtraWasteRateForType(type);
+            wasteRes = roundCalc(baseRes * (wasteRate / 100));
+            res = roundCalc(baseRes + wasteRes);
+            adjustFactor = roundCalc(res / Math.max(baseRes || 1, 1), 6);
         } else if (result.cat === 'STEEL') {
             name = `${typeText}(含損耗)`;
         }
@@ -10485,7 +10556,9 @@
         const priceUnit = getPriceUnitByType(type);
         const calcFormula = buildCalcFormulaText(type, v1, v2, v3, n);
         const formulaHint = getFormulaVariableHint(type);
-        const costBreakdown = `基準 ${Math.abs(baseRes).toFixed(3)} ${priceUnit} × ${up}｜施工 ${Math.abs(res).toFixed(3)} ${priceUnit} × ${up}（x${adjustFactor.toFixed(3)}）`;
+        const costBreakdown = result.cat === 'CEMENT'
+            ? `基準 ${Math.abs(baseRes).toFixed(3)} ${priceUnit} + 損耗 ${Math.abs(wasteRes).toFixed(3)} ${priceUnit} = 合計 ${Math.abs(res).toFixed(3)} ${priceUnit}`
+            : `基準 ${Math.abs(baseRes).toFixed(3)} ${priceUnit} × ${up}｜施工 ${Math.abs(res).toFixed(3)} ${priceUnit} × ${up}（x${adjustFactor.toFixed(3)}）`;
         
         // 安全處理使用者輸入
         const safeName = escapeHTML(name);
@@ -10499,6 +10572,8 @@
             name: safeName, 
             baseRes: baseRes,
             res: res, 
+            wasteRes: wasteRes,
+            wasteRate: wasteRate,
             adjustFactor: adjustFactor,
             up: up, 
             baseTotalCost: baseTotalCost,
@@ -10737,9 +10812,12 @@
         visibleList.forEach(({ item, idx, source }) => {
             const adjustedQty = Number(item.res || 0);
             const baseQty = Number.isFinite(Number(item.baseRes)) ? Number(item.baseRes) : adjustedQty;
+            const wasteQty = Number.isFinite(Number(item.wasteRes)) ? Number(item.wasteRes) : (item.cat === 'CEMENT' ? adjustedQty - baseQty : 0);
+            const wasteRate = Number.isFinite(Number(item.wasteRate)) ? Number(item.wasteRate) : Math.max(0, (Number(item.adjustFactor || 1) - 1) * 100);
             const adjustFactor = Number.isFinite(Number(item.adjustFactor)) ? Number(item.adjustFactor) : 1;
             const adjustedCost = Number(item.totalCost || 0);
             const baseCost = Number.isFinite(Number(item.baseTotalCost)) ? Number(item.baseTotalCost) : adjustedCost;
+            const isConcreteRow = item.cat === 'CEMENT';
             if (sums[item.cat] !== undefined) sums[item.cat] += adjustedQty; 
             sums.total += adjustedCost;
             const cloudTag = source === 'warroom'
@@ -10748,22 +10826,28 @@
             const removeBtn = source === 'warroom'
                 ? '<button style="width:auto; padding:4px 8px; margin:0; background:#4b6584; border:none; border-radius:4px; cursor:not-allowed;" title="雲端同步資料不可單筆刪除">鎖</button>'
                 : `<button style="width:auto; padding:4px 8px; margin:0; background:#e74c3c; border:none; border-radius:4px; cursor:pointer;" onclick="removeItem(${idx})">X</button>`;
+            const qtyCell = isConcreteRow
+                ? `基準 ${baseQty.toFixed(2)} + 損耗 ${wasteQty.toFixed(2)} = 合計 ${adjustedQty.toFixed(2)} <span style="font-size:0.8em;color:#888;">${item.unit || ''}</span><div style="font-size:0.75em;color:#8fb3cf;">損耗 ${wasteRate.toFixed(1)}%</div>`
+                : `基準 ${baseQty.toFixed(2)}｜施工 ${adjustedQty.toFixed(2)} <span style="font-size:0.8em;color:#888;">${item.unit || ''}</span><div style="font-size:0.75em;color:#8fb3cf;">係數 x${adjustFactor.toFixed(3)}</div>`;
+            const costCell = isConcreteRow
+                ? `基準 ${Math.round(baseCost).toLocaleString()} + 損耗 ${Math.round(adjustedCost - baseCost).toLocaleString()} = 合計 ${Math.round(adjustedCost).toLocaleString()}<div style="font-size:0.75em;color:#8fb3cf;">${item.breakdown || ''}</div>`
+                : `基準 ${Math.round(baseCost).toLocaleString()}｜施工 ${Math.round(adjustedCost).toLocaleString()}<div style="font-size:0.75em;color:#8fb3cf;">${item.breakdown || ''}</div>`;
 
             // 建立 DOM 元素以進一步防範 XSS
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${item.floor}</td>
                 <td style="color:${adjustedQty < 0 ? '#ff4757' : 'white'}">${item.name}${cloudTag}</td>
-                <td>基準 ${baseQty.toFixed(2)}｜施工 ${adjustedQty.toFixed(2)} <span style="font-size:0.8em;color:#888;">${item.unit||''}</span><div style="font-size:0.75em;color:#8fb3cf;">係數 x${adjustFactor.toFixed(3)}</div></td>
+                <td>${qtyCell}</td>
                 <td>${item.up} <span style="font-size:0.78em;color:#9bc2e5;">/ ${item.priceUnit || item.unit || '-'}</span></td>
                 <td style="font-size:0.8em;color:#cde3f5;" title="${item.formulaHint || ''}">${item.formula || '-'} <span style="color:#9bc2e5;">ⓘ</span></td>
-                <td style="color:var(--money); font-weight:bold;">基準 ${Math.round(baseCost).toLocaleString()}｜施工 ${Math.round(adjustedCost).toLocaleString()}<div style="font-size:0.75em;color:#8fb3cf;">${item.breakdown || ''}</div></td>
+                <td style="color:var(--money); font-weight:bold;">${costCell}</td>
                 <td>${removeBtn}</td>
             `;
             tbody.appendChild(tr);
         });
         
-        document.getElementById('sumC').innerText = `水泥: ${sums.CEMENT.toFixed(2)} M³`; 
+        document.getElementById('sumC').innerText = `混凝土: ${sums.CEMENT.toFixed(2)} M³`; 
         document.getElementById('sumM').innerText = `模板: ${sums.MOLD.toFixed(2)} M²`;
         document.getElementById('sumE').innerText = `土方: ${sums.EARTH.toFixed(2)} M³`; 
         document.getElementById('sumS').innerText = `鋼筋: ${sums.STEEL.toFixed(2)} Kg`;
@@ -11077,10 +11161,10 @@
         if (target.closest('#bimEstimateBody')) return '這裡是 BIM 估價預覽，可先確認匹配結果再匯入。';
 
         if (target.closest('#regionSelect')) return '可選地區價目；若地區資料筆數太少，系統會自動改用全台完整價目。';
-        if (target.closest('button[onclick="autoDetectRegion()"]')) return '按這裡用定位自動判斷地區並套用價目。';
+        if (target.closest('button[onclick="autoDetectRegion()"]')) return '按這裡才會要求定位，並把所在地區套用到價目與天氣。';
         if (target.closest('#siteWeatherInfo') || target.closest('#siteWeatherSafety') || target.closest('#siteWeatherNews')) return '這裡顯示工地即時天氣與施工建議，系統會自動更新。';
         if (target.closest('#materialSearch')) return '輸入關鍵字搜尋材料，例如：模板、混凝土、鋼筋。';
-        if (target.closest('#materialSelect')) return '從清單挑選材料，右側會顯示目前單價與單位。';
+        if (target.closest('#materialSelect')) return '材料清單順序為：名稱、計價單位、價錢。';
         if (target.closest('#materialCountChip')) return '這裡顯示目前載入的價目筆數，正常應該是多筆資料。';
         if (target.closest('button[onclick="applySelectedMaterialPrice()"]')) return '把選好的材料單價帶入「單價欄」，省去手動輸入。';
 
