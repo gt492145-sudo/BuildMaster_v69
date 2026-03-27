@@ -1,15 +1,10 @@
-const CACHE_VERSION = 'buildmaster-v80-sw-v5';
+const CACHE_VERSION = 'buildmaster-v831-sw-v42';
 const CORE_ASSETS = [
   './',
   './index.html',
+  './stake.html',
   './site.webmanifest',
-  './favicon-32.png',
-  './apple-touch-icon.png',
-  './icon-192.png',
-  './icon-512.png',
-  './logo.png',
   './logo-app.png',
-  './app-wallpaper.jpg',
   './styles/app-layout.css',
   './styles/blueprint-core.css',
   './styles/app-panels.css',
@@ -17,6 +12,10 @@ const CORE_ASSETS = [
   './styles/app-overlays.css',
   './styles/weather-effects.css',
   './styles/app-responsive.css',
+  './scripts/modules/shared-ui.js',
+  './scripts/modules/calc-pages.js',
+  './scripts/modules/stake-page.js',
+  './scripts/modules/navigation.js',
   './scripts/core/core-bootstrap.js',
   './scripts/features/materials-weather.js',
   './scripts/features/measurement-logs.js',
@@ -53,6 +52,7 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/api/')) return;
 
   // Keep HTML fresh but allow offline fallback.
   if (request.mode === 'navigate') {

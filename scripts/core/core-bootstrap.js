@@ -1,16 +1,16 @@
     // 1.0 資料隔離與相容性設定
     const STORAGE_KEY = 'bm_69:list';
-    const SCHEMA_VERSION = '8.0.0';
+    const SCHEMA_VERSION = '8.3.1';
     const SECURITY_UNLOCK_KEY = 'bm_69:security_unlocked';
     const OWNER_LOCK_HASH_KEY = 'cm_owner_lock_hash_v1';
     const OWNER_UNLOCK_SESSION_KEY = 'cm_owner_lock_unlocked_v1';
     const MEMBER_CODES_STORAGE_KEY = 'bm_69:member_codes';
+    const AUTH_TOKEN_KEY = 'bm_69:auth_token';
+    const API_BASE_URL_KEY = 'bm_69:api_base_url';
     const SECURITY_CONFIG = {
-        // 預設存取碼：BuildMaster@2026!
-        accessHash: '78e098f0bd34f7c3246e9c0d0b91cc6f78b1fe0321bc7bfc5c58215d838dc663',
-        allowedHosts: ['gt492145-sudo.github.io', 'localhost', '127.0.0.1']
+        allowedHosts: ['gt492145-sudo.github.io', 'localhost', '127.0.0.1'],
+        allowDirectIpHosts: true
     };
-    const SECURITY_PASSWORD_ENABLED = false; // temporary: bypass login password during network-edition edits
     const AI_API_ENABLED = true;
     let appBootstrapped = false;
     let scalePixelsPerUnit = 0;
@@ -208,8 +208,10 @@
     let bimRuleMap = {};
     let bimAuditLogs = [];
     let bimSnapshots = [];
-    let currentQaProfile = localStorage.getItem(QA_PROFILE_STORAGE_KEY) || 'enterprise';
-    let currentBimSpecPreset = localStorage.getItem(BIM_SPEC_PRESET_STORAGE_KEY) || 'public';
+    let stakingRunHistory = [];
+    let stakingReviewMemory = [];
+    let currentQaProfile = 'enterprise';
+    let currentBimSpecPreset = 'public';
     let memberCodeMap = {};
     let is3DView = false;
     let is360Spinning = false;
@@ -237,25 +239,19 @@
         smartLowConfidence: 0
     };
     let measurementLogs = [];
-    
-    // 載入資料並檢查版本 (降級策略)
     let list = [];
-    try {
-        const storedData = localStorage.getItem(STORAGE_KEY);
-        if (storedData) {
-            const parsed = JSON.parse(storedData);
-            // 簡單的版本檢查，若結構大改可在此處寫轉換邏輯
-            if (parsed.version && (parsed.version.startsWith('8.0') || parsed.version.startsWith('7.0') || parsed.version.startsWith('6.9'))) {
-                list = (parsed.data || []).filter(item => item && item.source !== 'warroom');
-            } else {
-                console.warn("偵測到舊版資料，嘗試載入...");
-                list = (Array.isArray(parsed) ? parsed : []).filter(item => item && item.source !== 'warroom');
-            }
-        }
-    } catch (e) {
-        console.error("資料解析失敗", e);
-        list = [];
-    }
+    let backendSessionState = {
+        token: '',
+        account: '',
+        sessionType: 'access',
+        userLevel: 'basic',
+        entitlements: {},
+        featureOverrides: {},
+        integrations: {},
+        canManageMembers: false
+    };
+    let workspaceHydratedFromBackend = false;
+    const workspacePersistTimers = {};
 
     const canvas = document.getElementById('drawCanvas');
     const ctx = canvas.getContext('2d');
@@ -280,13 +276,36 @@
     const DEMO_MODE_KEY = 'bm_69:demo_mode';
     const EDGE_AI_MIN_SCORE = 0.5;
     const EDGE_AI_ALLOWED_CLASSES = [];
-    let smartMeasureState = createDefaultSmartMeasureState();
+    let smartMeasureState = {
+        active: false,
+        mode: 'idle',
+        step: 'idle',
+        componentType: 'slab',
+        measurePlan: [],
+        currentTaskIndex: -1,
+        bounds: null,
+        suggestionLine: null,
+        guidePoints: [],
+        confirmedPoints: [],
+        qualityScore: 0,
+        fallbackUsed: false,
+        lastSnapUsed: false,
+        lastManualAdjust: false,
+        dragAdjustCount: 0,
+        nudgeAdjustCount: 0,
+        message: '未啟動',
+        lastResult: '',
+        lastQaSummary: ''
+    };
     const COACH_GUIDE_STEPS = [
-        { selector: '#regionSelect', message: '第 1 步：先選地區價目來源，確保抓到正確單價。' },
-        { selector: '#materialSearch', message: '第 2 步：輸入關鍵字搜尋材料，例如模板、混凝土、鋼筋。' },
-        { selector: 'button[onclick="applySelectedMaterialPrice()"]', message: '第 3 步：把材料單價套用到單價欄，省去手動輸入。' },
-        { selector: '#fileInput', message: '第 4 步：上傳圖紙，接著用定比例與量測取得尺寸。' },
-        { selector: '.btn-add', message: '第 5 步：確認預覽後按加入清單，最後可匯出報表。' }
+        { selector: '#workCalcBtn', message: '第 1 步：先記住新版固定規則，第 1 到 3 頁是計算模式；先從這裡進入計算頁。' },
+        { selector: '#calcMeasureCluster', message: '第 2 步：在第三頁先做智慧定比例與智慧量圖，讓圖紙尺寸和比例更穩定。' },
+        { selector: '#calcAiVisionCluster', message: '第 3 步：再做 AI 看圖辨識，包含快速判讀、精準辨識與柱樑尺寸標註。' },
+        { selector: '#calcIbmCluster', message: '第 4 步：第三頁只做 IBM 自動計算、估價預覽與匯入清單；放樣本身改在第四頁執行。' },
+        { selector: '.btn-add', message: '第 5 步：確認即時預覽後，把資料吸入計算清單並匯出報表。' },
+        { selector: '#workStakeBtn', message: '第 6 步：需要放樣時，再切到第四頁放樣模式；切換後只會顯示第四頁放樣相關內容。' },
+        { selector: '#stakeExecutionCluster', message: '第 7 步：第四頁先設定柱、牆、梁與高精度，再執行一鍵放樣流程。' },
+        { selector: '#stakeQaCluster', message: '第 8 步：最後做控制點配準、偏差熱圖、穩定度重測與放樣 QA。' }
     ];
     let coachTimer = null;
     let coachBound = false;
@@ -326,7 +345,13 @@
     let lifecycleGuardsBound = false;
     let watchdogLagStrikes = 0;
     let watchdogLastTickAt = 0;
+    let watchdogLastWarnAt = 0;
     let safeModeActive = false;
+    const WATCHDOG_INTERVAL_MS = 1500;
+    const WATCHDOG_LAG_THRESHOLD_MS = 2200;
+    const WATCHDOG_WARN_THROTTLE_MS = 10000;
+    const WATCHDOG_HIBERNATION_RESET_MS = 20000;
+
     let last3DMoveAt = 0;
     let qaStressMode = false;
     let qaStressRenderTimer = null;
@@ -448,6 +473,290 @@
         throw lastError || new Error('Network request failed');
     }
 
+    function cloneJsonPayload(value, fallback) {
+        try {
+            return JSON.parse(JSON.stringify(value));
+        } catch (_error) {
+            return fallback;
+        }
+    }
+
+    function normalizeApiBaseUrl(rawBase) {
+        const raw = String(rawBase || '').trim();
+        if (!raw || raw === '/') return '/api';
+        if (/^https?:\/\/[^/]+$/i.test(raw)) return `${raw}/api`;
+        return raw.replace(/\/+$/g, '');
+    }
+
+    function getApiBaseUrl() {
+        return normalizeApiBaseUrl(safeStorage.get(localStorage, API_BASE_URL_KEY, '/api'));
+    }
+
+    function buildApiUrl(pathName) {
+        const normalizedPath = String(pathName || '').startsWith('/') ? String(pathName) : `/${String(pathName || '')}`;
+        return `${getApiBaseUrl()}${normalizedPath}`;
+    }
+
+    async function apiRequest(pathName, options = {}) {
+        const method = options.method || 'GET';
+        const headers = {
+            'Accept': 'application/json',
+            ...(options.headers || {})
+        };
+        if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+        if (!options.skipAuth && backendSessionState.token) {
+            headers.Authorization = `Bearer ${backendSessionState.token}`;
+        }
+
+        const response = await fetchWithRetry(
+            buildApiUrl(pathName),
+            {
+                method,
+                headers,
+                body: options.body === undefined ? undefined : JSON.stringify(options.body)
+            },
+            {
+                retries: Number.isFinite(options.retries) ? options.retries : 1,
+                timeoutMs: Number.isFinite(options.timeoutMs) ? options.timeoutMs : 15000
+            }
+        );
+
+        const rawText = await response.text();
+        let payload = {};
+        if (rawText) {
+            try {
+                payload = JSON.parse(rawText);
+            } catch (_error) {
+                payload = { raw: rawText };
+            }
+        }
+
+        if (!response.ok) {
+            const error = new Error(payload.message || payload.error || `HTTP ${response.status}`);
+            error.status = response.status;
+            error.payload = payload;
+            if (response.status === 401 && options.skipAuth !== true) {
+                clearBackendSession(true);
+            }
+            throw error;
+        }
+
+        return payload;
+    }
+
+    function purgeLegacySecurityStorage() {
+        [
+            AI_COACH_API_KEY,
+            AI_COACH_ENDPOINT_KEY,
+            IBM_QUANTUM_KEY_STORAGE,
+            MEMBER_CODES_STORAGE_KEY,
+            STORAGE_KEY,
+            MEASUREMENT_LOG_STORAGE_KEY,
+            BIM_RULES_STORAGE_KEY,
+            BIM_AUDIT_STORAGE_KEY,
+            BIM_SNAPSHOT_STORAGE_KEY,
+            QA_PROFILE_STORAGE_KEY,
+            BIM_SPEC_PRESET_STORAGE_KEY,
+            'bm_69:auto_interpret_memory'
+        ].forEach((key) => safeStorage.remove(localStorage, key));
+    }
+
+    function setBackendSession(authPayload, tokenOverride) {
+        const view = authPayload && typeof authPayload === 'object' ? authPayload : {};
+        const nextToken = String(tokenOverride || view.token || '').trim();
+        backendSessionState = {
+            token: nextToken,
+            account: normalizeMemberAccount(view.account || ''),
+            sessionType: String(view.sessionType || 'access'),
+            userLevel: normalizeUserLevel(view.userLevel || 'basic'),
+            entitlements: view.entitlements && typeof view.entitlements === 'object' ? view.entitlements : {},
+            featureOverrides: view.featureOverrides && typeof view.featureOverrides === 'object' ? view.featureOverrides : {},
+            integrations: view.integrations && typeof view.integrations === 'object' ? view.integrations : {},
+            canManageMembers: !!view.canManageMembers
+        };
+        if (nextToken) safeStorage.set(sessionStorage, AUTH_TOKEN_KEY, nextToken);
+        sessionStorage.setItem(SECURITY_UNLOCK_KEY, '1');
+        if (backendSessionState.account && backendSessionState.sessionType === 'member') {
+            sessionStorage.setItem('bm_69:member', backendSessionState.account);
+        } else {
+            sessionStorage.removeItem('bm_69:member');
+        }
+        // After a successful login, default the UI to the granted level so
+        // stale local preferences do not make a pro session look restricted.
+        safeStorage.set(localStorage, USER_LEVEL_KEY, backendSessionState.userLevel);
+        applyUserLevel();
+    }
+
+    function clearBackendSession(keepVisualState = false) {
+        backendSessionState = {
+            token: '',
+            account: '',
+            sessionType: 'access',
+            userLevel: 'basic',
+            entitlements: {},
+            featureOverrides: {},
+            integrations: {},
+            canManageMembers: false
+        };
+        workspaceHydratedFromBackend = false;
+        safeStorage.remove(sessionStorage, AUTH_TOKEN_KEY);
+        sessionStorage.removeItem(SECURITY_UNLOCK_KEY);
+        sessionStorage.removeItem('bm_69:member');
+        if (!keepVisualState) safeStorage.set(localStorage, USER_LEVEL_KEY, 'basic');
+        applyUserLevel();
+    }
+
+    function getGrantedUserLevel() {
+        return normalizeUserLevel(backendSessionState.userLevel || 'basic');
+    }
+
+    function normalizePersistedUserLevel(rawLevel) {
+        const requested = normalizeUserLevel(rawLevel || getGrantedUserLevel());
+        const granted = getGrantedUserLevel();
+        const order = { basic: 1, standard: 2, pro: 3 };
+        return order[requested] <= order[granted] ? requested : granted;
+    }
+
+    function hasFeatureEntitlement(featureName) {
+        return !!(featureName && backendSessionState.entitlements && backendSessionState.entitlements[featureName]);
+    }
+
+    async function ensureFeatureAccess(featureName, deniedMessage) {
+        if (!backendSessionState.token) {
+            showSecurityLock('請先登入後再使用此功能。');
+            showToast('登入已失效，請重新驗證');
+            return false;
+        }
+        if (!hasFeatureEntitlement(featureName)) {
+            showToast(deniedMessage || '目前帳號沒有這項權限');
+            return false;
+        }
+        try {
+            await apiRequest('/features/authorize', {
+                method: 'POST',
+                body: { feature: featureName }
+            });
+            return true;
+        } catch (error) {
+            console.warn('後端權限驗證失敗', featureName, error);
+            showToast(deniedMessage || error.message || '權限驗證失敗');
+            if (error && error.status === 401) {
+                showSecurityLock('登入已失效，請重新驗證。');
+            }
+            return false;
+        }
+    }
+
+    function hydrateWorkspaceState(workspace, members) {
+        const data = workspace && typeof workspace === 'object' ? workspace : {};
+        list = Array.isArray(data.list) ? data.list.filter(item => item && item.source !== 'warroom') : [];
+        bimRuleMap = data.bimRuleMap && typeof data.bimRuleMap === 'object' ? cloneJsonPayload(data.bimRuleMap, {}) : {};
+        bimAuditLogs = Array.isArray(data.bimAuditLogs) ? cloneJsonPayload(data.bimAuditLogs, []) : [];
+        bimSnapshots = Array.isArray(data.bimSnapshots) ? cloneJsonPayload(data.bimSnapshots, []) : [];
+        measurementLogs = Array.isArray(data.measurementLogs) ? cloneJsonPayload(data.measurementLogs, []) : [];
+        currentQaProfile = QA_PROFILE_CONFIGS[data.qaProfile] ? data.qaProfile : 'enterprise';
+        currentBimSpecPreset = BIM_SPEC_PRESETS[data.bimSpecPreset] ? data.bimSpecPreset : 'public';
+        if (typeof autoInterpretMemoryCache !== 'undefined') {
+            autoInterpretMemoryCache = Array.isArray(data.autoInterpretMemory) ? cloneJsonPayload(data.autoInterpretMemory, []) : [];
+        }
+        if (typeof guidedPrecisionReviewCache !== 'undefined') {
+            guidedPrecisionReviewCache = Array.isArray(data.guidedPrecisionReviews) ? cloneJsonPayload(data.guidedPrecisionReviews, []) : [];
+        }
+        if (typeof blueprintLearningAssetCache !== 'undefined') {
+            blueprintLearningAssetCache = Array.isArray(data.blueprintLearningAssets) ? cloneJsonPayload(data.blueprintLearningAssets, []) : [];
+        }
+        if (typeof autoInterpretLearningJobCache !== 'undefined') {
+            autoInterpretLearningJobCache = Array.isArray(data.autoInterpretLearningJobs) ? cloneJsonPayload(data.autoInterpretLearningJobs, []) : [];
+        }
+        if (typeof autoInterpretLearningReviewCache !== 'undefined') {
+            autoInterpretLearningReviewCache = Array.isArray(data.autoInterpretLearningReviews) ? cloneJsonPayload(data.autoInterpretLearningReviews, []) : [];
+        }
+        if (typeof stakingRunHistory !== 'undefined') {
+            stakingRunHistory = Array.isArray(data.stakingRunHistory) ? cloneJsonPayload(data.stakingRunHistory, []) : [];
+        }
+        if (typeof stakingReviewMemory !== 'undefined') {
+            stakingReviewMemory = Array.isArray(data.stakingReviewMemory) ? cloneJsonPayload(data.stakingReviewMemory, []) : [];
+        }
+        memberCodeMap = {};
+        if (Array.isArray(members)) {
+            members.forEach((member) => {
+                const account = normalizeMemberAccount(member && member.account);
+                if (!account) return;
+                memberCodeMap[account] = {
+                    level: normalizeUserLevel(member.level || 'pro'),
+                    updatedAt: String(member.updatedAt || '')
+                };
+            });
+        }
+        workspaceHydratedFromBackend = true;
+        if (typeof renderAutoInterpretLearningPanel === 'function') {
+            renderAutoInterpretLearningPanel();
+        }
+        if (typeof renderAutoInterpretMemoryPanel === 'function') {
+            renderAutoInterpretMemoryPanel();
+        }
+        if (typeof renderGuidedPrecisionReviewPanel === 'function') {
+            renderGuidedPrecisionReviewPanel();
+        }
+        purgeLegacySecurityStorage();
+    }
+
+    async function loadWorkspaceBootstrap() {
+        if (!backendSessionState.token) return false;
+        const payload = await apiRequest('/data/bootstrap', {
+            method: 'GET',
+            retries: 0
+        });
+        hydrateWorkspaceState(payload.workspace || {}, payload.members || []);
+        return true;
+    }
+
+    function queueWorkspacePersist(resourceName, value, delayMs = 180) {
+        if (!backendSessionState.token) return false;
+        if (!hasFeatureEntitlement('dataSync')) return false;
+        const snapshot = cloneJsonPayload(value, null);
+        if (snapshot === null) return false;
+        if (workspacePersistTimers[resourceName]) {
+            clearTimeout(workspacePersistTimers[resourceName]);
+        }
+        workspacePersistTimers[resourceName] = setTimeout(async () => {
+            try {
+                await apiRequest(`/data/resource/${encodeURIComponent(resourceName)}`, {
+                    method: 'PUT',
+                    body: { value: snapshot },
+                    retries: 0,
+                    timeoutMs: 12000
+                });
+            } catch (error) {
+                console.warn('雲端同步失敗', resourceName, error);
+                if (error && error.status === 401) {
+                    showSecurityLock('登入已失效，請重新驗證。');
+                }
+            } finally {
+                delete workspacePersistTimers[resourceName];
+            }
+        }, delayMs);
+        return true;
+    }
+
+    async function restoreBackendSession() {
+        const token = safeStorage.get(sessionStorage, AUTH_TOKEN_KEY, '');
+        if (!token) return false;
+        backendSessionState.token = token;
+        try {
+            const me = await apiRequest('/me', {
+                method: 'GET',
+                retries: 0
+            });
+            setBackendSession(me, token);
+            return true;
+        } catch (error) {
+            console.warn('還原登入狀態失敗', error);
+            clearBackendSession();
+            return false;
+        }
+    }
+
     function enterSafeMode(reason) {
         if (safeModeActive) return;
         safeModeActive = true;
@@ -490,20 +799,34 @@
         if (watchdogTimer) return;
         watchdogLastTickAt = Date.now();
         watchdogLagStrikes = 0;
+        watchdogLastWarnAt = 0;
         watchdogTimer = setInterval(() => {
             const now = Date.now();
-            const drift = now - watchdogLastTickAt - 1500;
+            if (document.hidden) {
+                // Background tabs and wake-from-sleep can produce huge fake lag values.
+                watchdogLastTickAt = now;
+                watchdogLagStrikes = 0;
+                return;
+            }
+            const drift = now - watchdogLastTickAt - WATCHDOG_INTERVAL_MS;
             watchdogLastTickAt = now;
-            if (drift > 2200) {
+            if (drift > WATCHDOG_HIBERNATION_RESET_MS) {
+                watchdogLagStrikes = 0;
+                return;
+            }
+            if (drift > WATCHDOG_LAG_THRESHOLD_MS) {
                 watchdogLagStrikes += 1;
-                console.warn(`主執行緒卡頓偵測：${Math.round(drift)}ms`);
+                if (now - watchdogLastWarnAt >= WATCHDOG_WARN_THROTTLE_MS) {
+                    watchdogLastWarnAt = now;
+                    console.warn(`主執行緒卡頓偵測：${Math.round(drift)}ms`);
+                }
             } else if (watchdogLagStrikes > 0) {
                 watchdogLagStrikes -= 1;
             }
             if (!safeModeActive && watchdogLagStrikes >= 2) {
                 enterSafeMode(`event-loop lag ${Math.round(drift)}ms`);
             }
-        }, 1500);
+        }, WATCHDOG_INTERVAL_MS);
     }
 
     function bindLifecycleResilience() {
@@ -584,7 +907,15 @@
         loadDemoMode();
         loadFeatureFlags();
         loadWarRoomRowVisibility();
+        try {
+            await loadWorkspaceBootstrap();
+        } catch (error) {
+            console.error('工作區同步啟動失敗', error);
+            showToast('後端工作區同步失敗，請確認 API 已啟動');
+            throw error;
+        }
         applyUserLevel();
+        ensureWorkModeSectionOrder();
         applyWorkMode();
         applyAutoContrastMode();
         applyContrastMode();
@@ -593,18 +924,25 @@
         applyWarRoomStatus();
         window.addEventListener('online', applyWarRoomStatus);
         window.addEventListener('offline', applyWarRoomStatus);
+        applyQaProfile(currentQaProfile, true);
+        applyBimSpecPreset(currentBimSpecPreset, true);
         await initMaterialCatalog();
         updateUI();
         renderTable();
         applyAiCoachMode();
+        if (typeof renderMeasurementLogTable === 'function') renderMeasurementLogTable();
+        if (typeof renderAuditTable === 'function') renderAuditTable();
+        if (typeof renderSnapshotTable === 'function') renderSnapshotTable();
+        if (typeof renderAutoInterpretMemoryPanel === 'function') renderAutoInterpretMemoryPanel();
+        if (typeof renderGuidedPrecisionReviewPanel === 'function') renderGuidedPrecisionReviewPanel();
         hydrateInputFromUrlParam();
         runDeferredBootTasks();
     }
 
     function runDeferredBootTasks() {
-        runWhenIdle(() => {
+        runWhenIdle(async () => {
             initTouchCoach();
-            initUtilityWidgets();
+            await initUtilityWidgets();
         }, 800);
 
         runWhenIdle(() => {
@@ -702,18 +1040,22 @@
     }
 
     function getCurrentUserLevel() {
-        return normalizeUserLevel(safeStorage.get(localStorage, USER_LEVEL_KEY, 'basic'));
+        return normalizePersistedUserLevel(safeStorage.get(localStorage, USER_LEVEL_KEY, getGrantedUserLevel()));
     }
 
     function setUserLevel(level) {
-        const normalized = normalizeUserLevel(level);
+        const normalized = normalizePersistedUserLevel(level);
         safeStorage.set(localStorage, USER_LEVEL_KEY, normalized);
         applyUserLevel();
+        if (normalizeUserLevel(level) !== normalized) {
+            showToast(`已切換為目前帳號可用的最高等級：${getUserLevelLabel(normalized)}`);
+            return;
+        }
         showToast(`已切換：${getUserLevelLabel(normalized)}`);
     }
 
     function applyUserLevel() {
-        const normalized = getCurrentUserLevel();
+        const normalized = normalizePersistedUserLevel(safeStorage.get(localStorage, USER_LEVEL_KEY, getGrantedUserLevel()));
         safeStorage.set(localStorage, USER_LEVEL_KEY, normalized);
         document.body.setAttribute('data-user-level', normalized);
         const mapping = [
@@ -730,28 +1072,56 @@
     }
 
     function setWorkMode(mode) {
-        const normalized = (mode === 'stake') ? 'stake' : 'calc';
-        localStorage.setItem(WORK_MODE_KEY, normalized);
-        applyWorkMode();
-        if (normalized === 'stake') {
-            const level = getCurrentUserLevel();
-            if (level !== 'pro') {
-                showToast('已切換放樣模式（部分進階功能需會員3）');
-                return;
-            }
-            showToast('已切換放樣模式');
-            return;
+        const normalized = mode === 'stake' ? 'stake' : 'calc';
+        const targetUrl = normalized === 'stake' ? 'stake.html' : 'index.html';
+        try {
+            safeStorage.set(localStorage, WORK_MODE_KEY, normalized);
+        } catch (_e) {}
+        window.location.href = targetUrl;
+    }
+
+    function getCurrentWorkMode() {
+        const stored = safeStorage.get(localStorage, WORK_MODE_KEY, 'calc');
+        const mode = document.body && document.body.dataset && document.body.dataset.workMode
+            ? document.body.dataset.workMode
+            : stored;
+        return mode === 'stake' ? 'stake' : 'calc';
+    }
+
+    function ensureWorkModeAccess(expectedMode, deniedMessage) {
+        const expected = expectedMode === 'stake' ? 'stake' : 'calc';
+        const current = getCurrentWorkMode();
+        if (current === expected) return true;
+        showToast(deniedMessage || (expected === 'stake' ? '請先切到第四頁放樣模式' : '請先切到第三頁計算模式'));
+        return false;
+    }
+
+    function ensureWorkModeSectionOrder() {
+        const navigationModule = window.BuildMasterNavigationModule;
+        if (navigationModule && typeof navigationModule.ensureFixedPageOrder === 'function') {
+            navigationModule.ensureFixedPageOrder();
         }
-        showToast('已切換計算模式');
+    }
+
+    function scrollToWorkModeSection(mode) {
+        const navigationModule = window.BuildMasterNavigationModule;
+        if (navigationModule && typeof navigationModule.scrollToModeSection === 'function') {
+            navigationModule.scrollToModeSection(mode);
+        }
     }
 
     function applyWorkMode() {
-        const mode = localStorage.getItem(WORK_MODE_KEY) || 'calc';
-        document.body.setAttribute('data-work-mode', mode);
-        const calcBtn = document.getElementById('workCalcBtn');
-        const stakeBtn = document.getElementById('workStakeBtn');
-        if (calcBtn) calcBtn.classList.toggle('active', mode === 'calc');
-        if (stakeBtn) stakeBtn.classList.toggle('active', mode === 'stake');
+        const navigationModule = window.BuildMasterNavigationModule;
+        const mode = safeStorage.get(localStorage, WORK_MODE_KEY, 'calc') === 'stake' ? 'stake' : 'calc';
+        if (navigationModule && typeof navigationModule.applyWorkMode === 'function') {
+            navigationModule.applyWorkMode(WORK_MODE_KEY);
+        } else {
+            const calcBtn = document.getElementById('workCalcBtn');
+            const stakeBtn = document.getElementById('workStakeBtn');
+            if (calcBtn) calcBtn.classList.toggle('active', mode === 'calc');
+            if (stakeBtn) stakeBtn.classList.toggle('active', mode === 'stake');
+        }
+        document.body.dataset.workMode = mode;
     }
 
     function loadFeatureFlags() {
@@ -1004,6 +1374,34 @@
         startChaosMonkey();
     }
 
+    async function startBmAutoTestFromUi() {
+        if (isMemberSession()) {
+            showToast('自動測試僅限管理者，會員不可使用');
+            return;
+        }
+        const unlocked = await ensureOwnerUnlocked('自動測試');
+        if (!unlocked) return;
+        if (window.__bmAutoTestRunning) {
+            showToast('自動測試已在執行中');
+            return;
+        }
+        window.__bmAutoTestGate = {
+            v: 1,
+            at: Date.now(),
+            token: (typeof crypto !== 'undefined' && crypto.randomUUID)
+                ? crypto.randomUUID()
+                : String(Date.now()) + '-' + Math.random().toString(36).slice(2)
+        };
+        const script = document.createElement('script');
+        script.src = '/bm-auto-test.js?v=' + Date.now();
+        script.async = true;
+        script.onerror = function() {
+            showToast('無法載入 bm-auto-test.js，請確認伺服器已部署此檔');
+        };
+        document.body.appendChild(script);
+        showToast('已載入自動測試腳本');
+    }
+
     function toggleWarRoomRows() {
         showWarRoomRows = !showWarRoomRows;
         localStorage.setItem(SHOW_WAR_ROOM_ROWS_KEY, showWarRoomRows ? '1' : '0');
@@ -1016,6 +1414,23 @@
         laserChaosStats = { dirtyBlocked: 0, successWrites: 0 };
         updateLaserChaosChip();
         showToast('雷射資料計數已重置');
+    }
+
+    function isDirectIpHost(hostname) {
+        const raw = String(hostname || '').trim().toLowerCase();
+        if (!raw) return false;
+        if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(raw)) return true;
+        return raw.includes(':') && /^[a-f0-9:]+$/i.test(raw);
+    }
+
+    function isAllowedRuntimeHost(hostname) {
+        const raw = String(hostname || '').trim().toLowerCase();
+        if (!raw) return false;
+        if (SECURITY_CONFIG.allowedHosts.some(allowed => raw === allowed || raw.endsWith(`.${allowed}`))) {
+            return true;
+        }
+        if (raw.endsWith('.netlify.app') || raw.endsWith('.github.io')) return true;
+        return SECURITY_CONFIG.allowDirectIpHosts !== false && isDirectIpHost(raw);
     }
 
     function isDevHost() {
@@ -1033,11 +1448,11 @@
     }
 
     function currentMemberAccount() {
-        return normalizeMemberAccount(sessionStorage.getItem('bm_69:member') || '');
+        return normalizeMemberAccount(backendSessionState.account || sessionStorage.getItem('bm_69:member') || '');
     }
 
     function isMemberSession() {
-        return !!currentMemberAccount();
+        return backendSessionState.sessionType === 'member' && !!currentMemberAccount();
     }
 
     function isOwnerUnlocked() {
@@ -1071,9 +1486,10 @@
 
     function updateMonkeyControlsVisibility() {
         const mobileMonkeyBtn = document.getElementById('mobileMonkeyBtn');
-        if (!mobileMonkeyBtn) return;
+        const mobileAutoTestBtn = document.getElementById('mobileAutoTestBtn');
         const visible = !isMemberSession() && hasOwnerPassword() && isOwnerUnlocked();
-        mobileMonkeyBtn.style.display = visible ? '' : 'none';
+        if (mobileMonkeyBtn) mobileMonkeyBtn.style.display = visible ? '' : 'none';
+        if (mobileAutoTestBtn) mobileAutoTestBtn.style.display = visible ? '' : 'none';
     }
 
     async function setupOwnerPassword() {
@@ -1242,45 +1658,35 @@
             return false;
         }
 
-        const hostAllowed =
-            SECURITY_CONFIG.allowedHosts.includes(location.hostname) ||
-            location.hostname.endsWith('.netlify.app') ||
-            location.hostname.endsWith('.github.io');
+        const hostAllowed = isAllowedRuntimeHost(location.hostname);
         if (!hostAllowed) {
             showSecurityLock(`未授權網域：${location.hostname}`);
             return false;
         }
 
-        if (!SECURITY_PASSWORD_ENABLED) {
-            sessionStorage.setItem(SECURITY_UNLOCK_KEY, '1');
+        const restored = await restoreBackendSession();
+        if (restored) {
             hideSecurityLock();
             return true;
         }
 
-        const unlocked = sessionStorage.getItem(SECURITY_UNLOCK_KEY) === '1';
-        if (unlocked || isDevHost()) {
-            hideSecurityLock();
-            return true;
-        }
-
-        showSecurityLock('請輸入存取碼以啟用系統。');
+        showSecurityLock('請輸入後端存取碼或會員密碼以啟用系統。');
         const input = document.getElementById('securityCodeInput');
         const memberInput = document.getElementById('securityMemberInput');
         if (input) {
             input.addEventListener('keydown', ev => {
                 if (ev.key === 'Enter') submitSecurityCode();
-            }, { once: true });
+            });
         }
         if (memberInput) {
             memberInput.addEventListener('keydown', ev => {
                 if (ev.key === 'Enter') submitSecurityCode();
-            }, { once: true });
+            });
         }
         return false;
     }
 
     async function submitSecurityCode() {
-        loadMemberCodes();
         const memberInput = document.getElementById('securityMemberInput');
         const input = document.getElementById('securityCodeInput');
         const hint = document.getElementById('securityHint');
@@ -1290,26 +1696,30 @@
             if (hint) hint.innerText = '請先輸入存取碼';
             return;
         }
-        const hashed = await hashTextSHA256(code);
-        const memberHash = account ? memberCodeMap[account] : '';
-        const isMemberLogin = !!memberHash;
-        const ok = isMemberLogin ? (hashed === memberHash) : (hashed === SECURITY_CONFIG.accessHash);
-        if (!ok) {
-            if (hint) hint.innerText = '存取碼錯誤，請重試';
+        try {
+            const loginResult = await apiRequest('/auth/login', {
+                method: 'POST',
+                body: {
+                    account,
+                    password: code
+                },
+                skipAuth: true,
+                retries: 0,
+                timeoutMs: 12000
+            });
+            setBackendSession(loginResult, loginResult.token);
+            hideSecurityLock();
+            if (hint) hint.innerText = '';
+            if (memberInput) memberInput.value = '';
             if (input) input.value = '';
-            return;
+            await startApp();
+            showToast(loginResult.sessionType === 'member'
+                ? `會員「${loginResult.account}」驗證成功`
+                : '後端保護模式驗證成功');
+        } catch (error) {
+            console.warn('後端登入失敗', error);
+            if (hint) hint.innerText = account ? '會員帳號或密碼錯誤，請重試' : '存取碼錯誤或後端尚未啟用';
+            if (input) input.value = '';
         }
-        sessionStorage.setItem(SECURITY_UNLOCK_KEY, '1');
-        if (account) sessionStorage.setItem('bm_69:member', account);
-        if (isMemberLogin) {
-            localStorage.setItem(USER_LEVEL_KEY, 'pro');
-            document.body.setAttribute('data-user-level', 'pro');
-        }
-        hideSecurityLock();
-        if (hint) hint.innerText = '';
-        if (memberInput) memberInput.value = '';
-        if (input) input.value = '';
-        await startApp();
-        showToast(isMemberLogin ? `會員「${account}」驗證成功` : '保護模式驗證成功');
     }
 

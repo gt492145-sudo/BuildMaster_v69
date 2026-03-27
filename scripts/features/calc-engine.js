@@ -11,11 +11,190 @@
         return 1;
     }
 
+    function readOptionalNumber(id, fallback = 0) {
+        const input = document.getElementById(id);
+        const n = Number(input && input.value);
+        return Number.isFinite(n) ? n : fallback;
+    }
+
+    function getTemplateFormulaExtras() {
+        return {
+            surfaceMode: document.getElementById('templateSurfaceMode') ? document.getElementById('templateSurfaceMode').value : 'wall',
+            beamBottomIncludedInSlab: !!(document.getElementById('beamBottomIncludedInSlab') && document.getElementById('beamBottomIncludedInSlab').checked),
+            windowWidth: readOptionalNumber('templateWindowWidth', 0),
+            windowHeight: readOptionalNumber('templateWindowHeight', 0),
+            windowCount: readOptionalNumber('templateWindowCount', 0),
+            openingWidth: readOptionalNumber('templateOpeningWidth', 0),
+            openingHeight: readOptionalNumber('templateOpeningHeight', 0),
+            openingCount: readOptionalNumber('templateOpeningCount', 0),
+            wallThickness: readOptionalNumber('templateWallThickness', 0),
+            floorHeight: readOptionalNumber('templateFloorHeight', 0),
+            beamHeight: readOptionalNumber('templateBeamHeight', 0),
+            spanCount: readOptionalNumber('templateSpanCount', 0),
+            beamWallJointLength: readOptionalNumber('templateBeamWallJointLength', 0),
+            slabThickness: readOptionalNumber('templateSlabThickness', 0),
+            slabOpeningLength: readOptionalNumber('templateSlabOpeningLength', 0),
+            slabOpeningWidth: readOptionalNumber('templateSlabOpeningWidth', 0),
+            slabOpeningCount: readOptionalNumber('templateSlabOpeningCount', 0),
+            elevatorOpeningLength: readOptionalNumber('templateElevatorOpeningLength', 0),
+            elevatorOpeningWidth: readOptionalNumber('templateElevatorOpeningWidth', 0),
+            elevatorOpeningCount: readOptionalNumber('templateElevatorOpeningCount', 0),
+            shaftOpeningLength: readOptionalNumber('templateShaftOpeningLength', 0),
+            shaftOpeningWidth: readOptionalNumber('templateShaftOpeningWidth', 0),
+            shaftOpeningCount: readOptionalNumber('templateShaftOpeningCount', 0),
+            pedestalLength: readOptionalNumber('templatePedestalLength', 0),
+            pedestalWidth: readOptionalNumber('templatePedestalWidth', 0),
+            pedestalCount: readOptionalNumber('templatePedestalCount', 0),
+            beamJointLength: readOptionalNumber('templateBeamJointLength', 0),
+            beamJointWidth: readOptionalNumber('templateBeamJointWidth', 0),
+            beamJointSpanCount: readOptionalNumber('templateBeamJointSpanCount', 0),
+            stairMidPlatformWidth: readOptionalNumber('templateStairMidPlatformWidth', 0),
+            stairPlatformLength: readOptionalNumber('templateStairPlatformLength', 0),
+            stairUpperPlatformWidth: readOptionalNumber('templateStairUpperPlatformWidth', 0),
+            stairFloorHeight: readOptionalNumber('templateStairFloorHeight', 0)
+        };
+    }
+
+    function buildDefaultTemplateBreakdown() {
+        return {
+            mode: 'basic',
+            windowDeduct: 0,
+            openingDeduct: 0,
+            columnWallJointDeduct: 0,
+            beamWallJointDeduct: 0,
+            slabOpeningDeduct: 0,
+            elevatorOpeningDeduct: 0,
+            shaftOpeningDeduct: 0,
+            slabEdgeAdd: 0,
+            beamBottomDeduct: 0,
+            pedestalDeduct: 0,
+            beamJointDeduct: 0
+        };
+    }
+
+    function getTemplateDeductTotal(breakdown = {}) {
+        return [
+            Number(breakdown.windowDeduct || 0),
+            Number(breakdown.openingDeduct || 0),
+            Number(breakdown.columnWallJointDeduct || 0),
+            Number(breakdown.beamWallJointDeduct || 0),
+            Number(breakdown.slabOpeningDeduct || 0),
+            Number(breakdown.elevatorOpeningDeduct || 0),
+            Number(breakdown.shaftOpeningDeduct || 0),
+            Number(breakdown.beamBottomDeduct || 0),
+            Number(breakdown.pedestalDeduct || 0),
+            Number(breakdown.beamJointDeduct || 0)
+        ].reduce((sum, value) => sum + value, 0);
+    }
+
+    function calculateTemplateMoldAdjustment(type, v1, v2, v3, n, extras = {}) {
+        const breakdown = buildDefaultTemplateBreakdown();
+        if (type === 'M_WALL') {
+            const mode = String(extras.surfaceMode || 'wall');
+            breakdown.mode = mode;
+            if (mode === 'slab') {
+                const thickness = Math.max(0, Number(extras.slabThickness) || 0);
+                const openingLength = Math.max(0, Number(extras.slabOpeningLength) || 0);
+                const openingWidth = Math.max(0, Number(extras.slabOpeningWidth) || 0);
+                const openingCount = Math.max(0, Number(extras.slabOpeningCount) || 0);
+                const elevatorOpeningLength = Math.max(0, Number(extras.elevatorOpeningLength) || 0);
+                const elevatorOpeningWidth = Math.max(0, Number(extras.elevatorOpeningWidth) || 0);
+                const elevatorOpeningCount = Math.max(0, Number(extras.elevatorOpeningCount) || 0);
+                const shaftOpeningLength = Math.max(0, Number(extras.shaftOpeningLength) || 0);
+                const shaftOpeningWidth = Math.max(0, Number(extras.shaftOpeningWidth) || 0);
+                const shaftOpeningCount = Math.max(0, Number(extras.shaftOpeningCount) || 0);
+                const pedestalLength = Math.max(0, Number(extras.pedestalLength) || 0);
+                const pedestalWidth = Math.max(0, Number(extras.pedestalWidth) || 0);
+                const pedestalCount = Math.max(0, Number(extras.pedestalCount) || 0);
+                const beamJointLength = Math.max(0, Number(extras.beamJointLength) || 0);
+                const beamJointWidth = Math.max(0, Number(extras.beamJointWidth) || 0);
+                const beamJointSpanCount = Math.max(0, Number(extras.beamJointSpanCount) || 0);
+                breakdown.slabEdgeAdd = thickness > 0 ? thickness * (v1 + v2) * 2 * n : 0;
+                breakdown.slabOpeningDeduct = thickness > 0 ? thickness * (openingLength * openingWidth) * openingCount * n : 0;
+                breakdown.elevatorOpeningDeduct = thickness > 0 ? thickness * (elevatorOpeningLength * elevatorOpeningWidth) * elevatorOpeningCount * n : 0;
+                breakdown.shaftOpeningDeduct = thickness > 0 ? thickness * (shaftOpeningLength * shaftOpeningWidth) * shaftOpeningCount * n : 0;
+                breakdown.pedestalDeduct = pedestalLength * pedestalWidth * pedestalCount * n;
+                breakdown.beamJointDeduct = beamJointLength * beamJointWidth * beamJointSpanCount * 2 * n;
+                return breakdown;
+            }
+            const windowWidth = Math.max(0, (Number(extras.windowWidth) || 0) - 0.12);
+            const windowHeight = Math.max(0, (Number(extras.windowHeight) || 0) - 0.12);
+            const openingWidth = Math.max(0, (Number(extras.openingWidth) || 0) - 0.12);
+            const openingHeight = Math.max(0, (Number(extras.openingHeight) || 0) - 0.12);
+            const wallThickness = Math.max(0, Number(extras.wallThickness) || 0);
+            const floorHeight = Math.max(0, Number(extras.floorHeight) || 0);
+            const beamHeight = Math.max(0, Number(extras.beamHeight) || 0);
+            const spanCount = Math.max(0, Number(extras.spanCount) || 0);
+            const beamWallJointLength = Math.max(0, Number(extras.beamWallJointLength) || 0);
+            breakdown.windowDeduct = windowWidth * windowHeight * Math.max(0, Number(extras.windowCount) || 0) * n;
+            breakdown.openingDeduct = openingWidth * openingHeight * Math.max(0, Number(extras.openingCount) || 0) * n;
+            breakdown.columnWallJointDeduct = wallThickness * Math.max(0, floorHeight - beamHeight) * spanCount * 2 * n;
+            breakdown.beamWallJointDeduct = wallThickness * beamWallJointLength * n;
+            return breakdown;
+        }
+        if (type === 'M_BEAM_ALL' && extras.beamBottomIncludedInSlab) {
+            breakdown.beamBottomDeduct = v2 * v1 * n;
+        }
+        return breakdown;
+    }
+
+    function summarizeTemplateBreakdown(type, breakdown = {}) {
+        if (!breakdown) return '';
+        const parts = [];
+        const deductTotal = getTemplateDeductTotal(breakdown);
+        if (deductTotal > 0) parts.push(`扣總數 ${deductTotal.toFixed(3)} M²`);
+        if (type === 'M_WALL' && breakdown.mode === 'slab') {
+            if (breakdown.slabOpeningDeduct) parts.push(`扣地板開口 ${breakdown.slabOpeningDeduct.toFixed(3)} M²`);
+            if (breakdown.elevatorOpeningDeduct) parts.push(`扣電梯開口 ${breakdown.elevatorOpeningDeduct.toFixed(3)} M²`);
+            if (breakdown.shaftOpeningDeduct) parts.push(`扣管道開口 ${breakdown.shaftOpeningDeduct.toFixed(3)} M²`);
+            if (breakdown.pedestalDeduct) parts.push(`扣柱底座 ${breakdown.pedestalDeduct.toFixed(3)} M²`);
+            if (breakdown.beamJointDeduct) parts.push(`扣梁接頭 ${breakdown.beamJointDeduct.toFixed(3)} M²`);
+            if (breakdown.slabEdgeAdd) parts.push(`加四周封口 ${breakdown.slabEdgeAdd.toFixed(3)} M²`);
+            return parts.join('｜');
+        }
+        if (breakdown.windowDeduct) parts.push(`扣窗口 ${breakdown.windowDeduct.toFixed(3)} M²`);
+        if (breakdown.openingDeduct) parts.push(`扣開口 ${breakdown.openingDeduct.toFixed(3)} M²`);
+        if (breakdown.columnWallJointDeduct) parts.push(`扣柱牆接頭 ${breakdown.columnWallJointDeduct.toFixed(3)} M²`);
+        if (breakdown.beamWallJointDeduct) parts.push(`扣梁牆接頭 ${breakdown.beamWallJointDeduct.toFixed(3)} M²`);
+        if (breakdown.beamBottomDeduct) parts.push(`扣樑底 ${breakdown.beamBottomDeduct.toFixed(3)} M²`);
+        return parts.join('｜');
+    }
+
+    function updatePreviewSummaryCards(baseQtyText, adjustedQtyText, deductQtyText, costText) {
+        const baseCard = document.getElementById('prevBaseQtyCard');
+        const adjustedCard = document.getElementById('prevAdjustedQtyCard');
+        const deductCard = document.getElementById('prevDeductQtyCard');
+        const costCard = document.getElementById('prevCostCard');
+        if (baseCard) baseCard.innerText = baseQtyText;
+        if (adjustedCard) adjustedCard.innerText = adjustedQtyText;
+        if (deductCard) deductCard.innerText = deductQtyText;
+        if (costCard) costCard.innerText = costText;
+    }
+
     // 抽出獨立的計算邏輯，確保預覽和加入清單的結果絕對一致
-    function coreCalculate(type, v1, v2, v3, n, up) {
+    function coreCalculate(type, v1, v2, v3, n, up, templateExtras = {}) {
         let baseRes = 0, unit = '', cat = '';
+        let templateBreakdown = buildDefaultTemplateBreakdown();
         
-        if (type.startsWith('C_') || type.startsWith('E_')) {
+        if (type === 'C_STAIR') {
+            cat = 'CEMENT';
+            baseRes = ((v1 + v2) * v3 / 2) * n;
+            unit = 'M³';
+        } else if (type === 'M_STAIR') {
+            cat = 'MOLD';
+            baseRes = (
+                v1 * v2 +
+                v1 * v3 +
+                (Math.max(0, Number(templateExtras.stairMidPlatformWidth) || 0) * Math.max(0, Number(templateExtras.stairPlatformLength) || 0)) +
+                (Math.max(0, Number(templateExtras.stairUpperPlatformWidth) || 0) * Math.max(0, Number(templateExtras.stairPlatformLength) || 0)) +
+                (v1 * Math.max(0, Number(templateExtras.stairFloorHeight) || 0))
+            ) * n;
+            unit = 'M²';
+        } else if (type === 'M_FOOTING_EDGE') {
+            cat = 'MOLD';
+            baseRes = v3 * (v1 + v2) * 2 * n;
+            unit = 'M²';
+        } else if (type.startsWith('C_') || type.startsWith('E_')) {
             cat = type.startsWith('C_') ? 'CEMENT' : 'EARTH';
             baseRes = v1 * v2 * v3 * n;
             unit = 'M³';
@@ -35,6 +214,23 @@
             cat = 'MOLD'; baseRes = v1 * v2 * n; unit = 'M²'; 
         }
 
+        if (cat === 'MOLD' && !['M_STAIR', 'M_FOOTING_EDGE'].includes(String(type || ''))) {
+            templateBreakdown = calculateTemplateMoldAdjustment(type, v1, v2, v3, n, templateExtras);
+            baseRes = baseRes
+                - Number(templateBreakdown.windowDeduct || 0)
+                - Number(templateBreakdown.openingDeduct || 0)
+                - Number(templateBreakdown.columnWallJointDeduct || 0)
+                - Number(templateBreakdown.beamWallJointDeduct || 0)
+                - Number(templateBreakdown.slabOpeningDeduct || 0)
+                - Number(templateBreakdown.elevatorOpeningDeduct || 0)
+                - Number(templateBreakdown.shaftOpeningDeduct || 0)
+                - Number(templateBreakdown.beamBottomDeduct || 0)
+                - Number(templateBreakdown.pedestalDeduct || 0)
+                - Number(templateBreakdown.beamJointDeduct || 0)
+                + Number(templateBreakdown.slabEdgeAdd || 0);
+            baseRes = Math.max(0, baseRes);
+        }
+
         const adjustFactor = getQuantityAdjustFactor(type, cat);
         const adjustedRes = baseRes * adjustFactor;
         const baseTotalCost = baseRes * up;
@@ -45,6 +241,7 @@
             res: adjustedRes,
             unit,
             cat,
+            templateBreakdown,
             baseTotalCost,
             totalCost: adjustedTotalCost
         };
@@ -91,9 +288,28 @@
     }
 
     // Independent audit path (formula duplicated intentionally for cross-check).
-    function coreCalculateAudit(type, v1, v2, v3, n, up) {
+    function coreCalculateAudit(type, v1, v2, v3, n, up, templateExtras = {}) {
         let baseRes = 0, unit = '', cat = '';
-        if (type.startsWith('C_') || type.startsWith('E_')) {
+        let templateBreakdown = buildDefaultTemplateBreakdown();
+        if (type === 'C_STAIR') {
+            cat = 'CEMENT';
+            baseRes = roundCalc(((v1 + v2) * v3 / 2) * n);
+            unit = 'M³';
+        } else if (type === 'M_STAIR') {
+            cat = 'MOLD';
+            baseRes = roundCalc((
+                v1 * v2 +
+                v1 * v3 +
+                (Math.max(0, Number(templateExtras.stairMidPlatformWidth) || 0) * Math.max(0, Number(templateExtras.stairPlatformLength) || 0)) +
+                (Math.max(0, Number(templateExtras.stairUpperPlatformWidth) || 0) * Math.max(0, Number(templateExtras.stairPlatformLength) || 0)) +
+                (v1 * Math.max(0, Number(templateExtras.stairFloorHeight) || 0))
+            ) * n);
+            unit = 'M²';
+        } else if (type === 'M_FOOTING_EDGE') {
+            cat = 'MOLD';
+            baseRes = roundCalc(v3 * (v1 + v2) * 2 * n);
+            unit = 'M²';
+        } else if (type.startsWith('C_') || type.startsWith('E_')) {
             cat = type.startsWith('C_') ? 'CEMENT' : 'EARTH';
             baseRes = roundCalc(v1 * v2 * v3 * n);
             unit = 'M³';
@@ -120,6 +336,21 @@
             baseRes = roundCalc(v1 * v2 * n);
             unit = 'M²';
         }
+        if (cat === 'MOLD' && !['M_STAIR', 'M_FOOTING_EDGE'].includes(String(type || ''))) {
+            templateBreakdown = calculateTemplateMoldAdjustment(type, v1, v2, v3, n, templateExtras);
+            baseRes = roundCalc(Math.max(0, baseRes
+                - Number(templateBreakdown.windowDeduct || 0)
+                - Number(templateBreakdown.openingDeduct || 0)
+                - Number(templateBreakdown.columnWallJointDeduct || 0)
+                - Number(templateBreakdown.beamWallJointDeduct || 0)
+                - Number(templateBreakdown.slabOpeningDeduct || 0)
+                - Number(templateBreakdown.elevatorOpeningDeduct || 0)
+                - Number(templateBreakdown.shaftOpeningDeduct || 0)
+                - Number(templateBreakdown.beamBottomDeduct || 0)
+                - Number(templateBreakdown.pedestalDeduct || 0)
+                - Number(templateBreakdown.beamJointDeduct || 0)
+                + Number(templateBreakdown.slabEdgeAdd || 0)));
+        }
         const adjustFactor = getQuantityAdjustFactor(type, cat);
         const adjustedRes = roundCalc(baseRes * adjustFactor);
         const baseTotalCost = roundCalc(baseRes * up);
@@ -130,14 +361,15 @@
             res: adjustedRes,
             unit,
             cat,
+            templateBreakdown,
             baseTotalCost,
             totalCost: adjustedTotalCost
         };
     }
 
-    function verifyCalculationConsistency(type, v1, v2, v3, n, up) {
-        const main = coreCalculate(type, v1, v2, v3, n, up);
-        const audit = coreCalculateAudit(type, v1, v2, v3, n, up);
+    function verifyCalculationConsistency(type, v1, v2, v3, n, up, templateExtras = {}) {
+        const main = coreCalculate(type, v1, v2, v3, n, up, templateExtras);
+        const audit = coreCalculateAudit(type, v1, v2, v3, n, up, templateExtras);
         const eps = 0.000001;
         const ok = main.cat === audit.cat
             && main.unit === audit.unit
@@ -147,6 +379,23 @@
             && Math.abs((main.baseTotalCost || 0) - (audit.baseTotalCost || 0)) <= eps
             && Math.abs((main.totalCost || 0) - (audit.totalCost || 0)) <= eps;
         return { ok, main, audit };
+    }
+
+    function syncTemplateFormulaPanel() {
+        const type = document.getElementById('calcType') ? document.getElementById('calcType').value : '';
+        const panel = document.getElementById('templateFormulaPanel');
+        const wallSlabModeWrap = document.getElementById('templateWallSlabModeWrap');
+        const wallInputs = document.getElementById('templateWallInputs');
+        const slabInputs = document.getElementById('templateSlabInputs');
+        const stairInputs = document.getElementById('templateStairInputs');
+        if (!panel || !wallSlabModeWrap || !wallInputs || !slabInputs || !stairInputs) return;
+        const isTemplate = String(type || '').startsWith('M_');
+        panel.style.display = isTemplate ? '' : 'none';
+        const surfaceMode = document.getElementById('templateSurfaceMode') ? document.getElementById('templateSurfaceMode').value : 'wall';
+        wallSlabModeWrap.style.display = (type === 'M_WALL' || type === 'M_BEAM_ALL') ? '' : 'none';
+        wallInputs.style.display = type === 'M_WALL' && surfaceMode === 'wall' ? '' : 'none';
+        slabInputs.style.display = type === 'M_WALL' && surfaceMode === 'slab' ? '' : 'none';
+        stairInputs.style.display = type === 'M_STAIR' ? '' : 'none';
     }
 
     function updateUI() {
@@ -173,12 +422,25 @@
         } else if (type === 'R_HOOP') {
             l1.innerText = '箍筋規格 (分)'; l2.innerText = '單圈展開長度 L (m)'; l3.innerText = '單柱/樑 總圈數'; lq.innerText = '柱/樑 總數量'; lp.innerText = '發包單價 ($/Kg)';
             l1.style.color = '#ff9800'; l3.style.color = '#00d2d3'; lq.style.color = '#00d2d3';
+        } else if (type === 'C_STAIR') {
+            l1.innerText = '踏階高總和 (m / 整數可輸入 cm)';
+            l2.innerText = '踏階水平投影 (m / 整數可輸入 cm)';
+            l3.innerText = '樓梯寬 (m / 整數可輸入 cm)';
+            lp.innerText = '發包單價 ($/M³)';
+            l1.style.color = '#ff9800';
+            l2.style.color = '#00d2d3';
+            l3.style.color = '#c792ea';
         } else if (type === 'M_BEAM_SIDES') {
             l1.innerText = '樑長 L (m / 整數可輸入 cm)'; l2.innerText = '樑寬 (無作用可不填)'; l3.innerText = '樑側淨高(扣版厚) (m / 整數可輸入 cm)'; lp.innerText = '發包單價 ($/M²)'; l3.style.color = '#ff9800';
+        } else if (type === 'M_STAIR') {
+            l1.innerText = '梯寬 (m / 整數可輸入 cm)'; l2.innerText = '下斜長 (m / 整數可輸入 cm)'; l3.innerText = '上斜長 (m / 整數可輸入 cm)'; lp.innerText = '發包單價 ($/M²)';
+        } else if (type === 'M_FOOTING_EDGE') {
+            l1.innerText = '基礎長 (m / 整數可輸入 cm)'; l2.innerText = '基礎寬 (m / 整數可輸入 cm)'; l3.innerText = '版厚 (m / 整數可輸入 cm)'; lp.innerText = '發包單價 ($/M²)';
         } else {
             l1.innerText = '長 / 寬A (m / 整數可輸入 cm)'; l2.innerText = '寬 / 寬B (m / 整數可輸入 cm)'; l3.innerText = '高 / 深 (m / 整數可輸入 cm)';
             lp.innerText = (type.startsWith('M_')) ? '發包單價 ($/M²)' : '發包單價 ($/M³)';
         }
+        syncTemplateFormulaPanel();
         previewCalc();
     }
 
@@ -200,6 +462,7 @@
             document.getElementById('prev_qty').innerText = "--";
             document.getElementById('prev_unit').innerText = "單位";
             document.getElementById('prev_cost').innerText = validation.msg;
+            updatePreviewSummaryCards('--', '--', '--', '$ 0');
             updateAddButtonState(false, validation.msg);
             return;
         }
@@ -208,16 +471,19 @@
             document.getElementById('prev_qty').innerText = "需複核";
             document.getElementById('prev_unit').innerText = "AI判讀";
             document.getElementById('prev_cost').innerText = gate.msg;
+            updatePreviewSummaryCards('需複核', '需複核', '--', '$ 0');
             updateAddButtonState(false, gate.msg);
             return;
         }
 
-        const verify = verifyCalculationConsistency(type, v1, v2, v3, n, up);
+        const templateExtras = getTemplateFormulaExtras();
+        const verify = verifyCalculationConsistency(type, v1, v2, v3, n, up, templateExtras);
         if (!verify.ok) {
             const msg = '計算校核失敗（雙引擎不一致），已阻擋加入清單';
             document.getElementById('prev_qty').innerText = "校核失敗";
             document.getElementById('prev_unit').innerText = "請重試";
             document.getElementById('prev_cost').innerText = msg;
+            updatePreviewSummaryCards('校核失敗', '校核失敗', '--', '$ 0');
             updateAddButtonState(false, msg);
             return;
         }
@@ -226,6 +492,7 @@
         const extraWasteQty = type.startsWith('C_') ? roundCalc((result.baseRes || 0) * (extraWasteRate / 100)) : 0;
         const finalQty = type.startsWith('C_') ? roundCalc((result.baseRes || 0) + extraWasteQty) : (result.res || 0);
         const finalCost = roundCalc(finalQty * up);
+        const deductTotal = getTemplateDeductTotal(result.templateBreakdown || {});
 
         let resultDisplay = '';
         let resultUnitDisplay = '';
@@ -235,7 +502,8 @@
         if (type.startsWith('M_') || selectedType.includes('模板') || selectedType.includes('漆') || selectedType.includes('地磚')) {
             const area = result.res;
             const tsubo = area * 0.3025;
-            resultDisplay = `基準 ${baseQtyText}｜施工 ${adjustedQtyText}（${area.toFixed(2)} M² / ${tsubo.toFixed(2)} 坪）`;
+            const templateSummary = summarizeTemplateBreakdown(type, result.templateBreakdown);
+            resultDisplay = `基準 ${baseQtyText}｜施工 ${adjustedQtyText}${templateSummary ? `｜${templateSummary}` : ''}（${area.toFixed(2)} M² / ${tsubo.toFixed(2)} 坪）`;
             resultUnitDisplay = '面積';
         } else if (type.startsWith('R_') || selectedType.includes('鋼筋') || selectedType.includes('鐵')) {
             const weightKg = result.res;
@@ -262,8 +530,10 @@
             const baseCost = roundCalc((result.baseRes || 0) * up);
             const wasteCost = roundCalc(extraWasteQty * up);
             document.getElementById('prev_cost').innerText = `基準 $ ${Math.round(baseCost).toLocaleString()}｜損耗 $ ${Math.round(wasteCost).toLocaleString()}｜合計 $ ${Math.round(finalCost).toLocaleString()}`;
+            updatePreviewSummaryCards(baseQtyText, `${finalQty.toFixed(3)} ${result.unit}`, deductTotal > 0 ? `${deductTotal.toFixed(3)} M²` : '0.000', `$ ${Math.round(finalCost).toLocaleString()}`);
         } else {
             document.getElementById('prev_cost').innerText = `基準 $ ${Math.round(result.baseTotalCost || 0).toLocaleString()}｜施工 $ ${Math.round(result.totalCost || 0).toLocaleString()}（係數 x${(result.adjustFactor || 1).toFixed(3)}）`;
+            updatePreviewSummaryCards(baseQtyText, adjustedQtyText, deductTotal > 0 ? `${deductTotal.toFixed(3)} M²` : '0.000', `$ ${Math.round(result.totalCost || 0).toLocaleString()}`);
         }
         updateAddButtonState(true);
     }
@@ -286,6 +556,20 @@
 
         if (type === 'M_BEAM_SIDES') {
             if (v1 <= 0 || v3 <= 0) return { ok: false, msg: "請輸入樑長與樑高" };
+            return { ok: true, msg: "" };
+        }
+        if (type === 'M_STAIR') {
+            if (v1 <= 0 || v2 <= 0 || v3 <= 0) return { ok: false, msg: "請輸入梯寬、下斜長與上斜長" };
+            if (readOptionalNumber('templateStairPlatformLength', 0) <= 0) return { ok: false, msg: "請輸入平台長" };
+            if (readOptionalNumber('templateStairFloorHeight', 0) <= 0) return { ok: false, msg: "請輸入樓高" };
+            return { ok: true, msg: "" };
+        }
+        if (type === 'M_FOOTING_EDGE') {
+            if (v1 <= 0 || v2 <= 0 || v3 <= 0) return { ok: false, msg: "請輸入基礎長、寬與版厚" };
+            return { ok: true, msg: "" };
+        }
+        if (type === 'C_STAIR') {
+            if (v1 <= 0 || v2 <= 0 || v3 <= 0) return { ok: false, msg: "請輸入樓梯高、踏階投影與樓梯寬" };
             return { ok: true, msg: "" };
         }
         if (type === 'M_WALL') {
@@ -320,7 +604,7 @@
         return 'M³';
     }
 
-    function buildCalcFormulaText(type, v1, v2, v3, n) {
+    function buildCalcFormulaText(type, v1, v2, v3, n, templateExtras = {}) {
         const nText = Number.isFinite(n) ? n : 0;
         switch (type) {
         case 'C_BASE':
@@ -340,15 +624,23 @@
         case 'M_BEAM_SIDES':
             return `(樑長×樑高×2)×數量`;
         case 'M_BEAM_ALL':
-            return `((高×2+寬)×長)×數量`;
+            return templateExtras.beamBottomIncludedInSlab
+                ? `((高×2+寬)×長)×數量 - (樑底寬×長)×數量`
+                : `((高×2+寬)×長)×數量`;
+        case 'M_STAIR':
+            return `(梯寬×下斜長 + 梯寬×上斜長 + 中平台寬×平台長 + 上平台寬×平台長 + 梯寬×樓高)×數量`;
+        case 'M_FOOTING_EDGE':
+            return `版厚×(長+寬)×2×數量`;
         case 'M_WALL':
-            return `(長×高)×數量`;
+            return String(templateExtras.surfaceMode || 'wall') === 'slab'
+                ? `版模板: (長×寬)×數量 + 版厚×(長+寬)×2×數量 - 地板開口 - 電梯開口 - 管道開口 - 柱底座(長×寬×同位數柱×數量) - 梁接頭(長×寬×跨數×2×數量)`
+                : `(長×高)×數量 - 窗口扣除 - 開口扣除 - 柱牆接頭 - 梁牆接頭`;
         default:
             return `依 ${type} 計算`;
         }
     }
 
-    function getFormulaVariableHint(type) {
+    function getFormulaVariableHint(type, templateExtras = {}) {
         switch (type) {
         case 'C_BASE':
             return 'A=長(m), B=寬(m), 高=深(m), N=數量';
@@ -367,15 +659,42 @@
         case 'M_BEAM_SIDES':
             return '樑長=梁長度, 樑高=側模高度, N=梁數';
         case 'M_BEAM_ALL':
-            return '高=梁高, 寬=梁寬, 長=梁長, N=梁數';
+            return templateExtras.beamBottomIncludedInSlab
+                ? '高=梁高, 寬=梁寬, 長=梁長, N=梁數；樑底面積改由版面計算'
+                : '高=梁高, 寬=梁寬, 長=梁長, N=梁數';
+        case 'M_STAIR':
+            return 'v1=梯寬, v2=下斜長, v3=上斜長；另填中平台寬、平台長、上平台寬、樓高；梯側模板不計';
+        case 'M_FOOTING_EDGE':
+            return '長=基礎長, 寬=基礎寬, 高=版厚, N=座數';
         case 'M_WALL':
-            return '長=牆長, 高=牆高, N=片數';
+            return String(templateExtras.surfaceMode || 'wall') === 'slab'
+                ? '長/寬=版面尺寸, 版厚=另填, 地板/電梯/管道開口都各自按版厚×長×寬×數量扣除, 柱底座=長×寬×同位數柱, 梁接頭=長×寬×跨一樑左右×2, N=片數'
+                : '長=牆長, 高=牆高, 另可扣窗口/開口/柱牆接頭/梁牆接頭, N=片數';
         default:
             return '變數定義請依當前欄位標籤（v1/v2/v3/N）';
         }
     }
 
-    function calculateAndAdd() {
+    async function requestServerCoreCalculation(payload) {
+        return apiRequest('/calc/core', {
+            method: 'POST',
+            body: payload,
+            retries: 0,
+            timeoutMs: 15000
+        });
+    }
+
+    async function requestServerAdvancedEstimate(payload) {
+        return apiRequest('/calc/advanced-estimate', {
+            method: 'POST',
+            body: payload,
+            retries: 0,
+            timeoutMs: 15000
+        });
+    }
+
+    async function calculateAndAdd() {
+        if (typeof ensureWorkModeAccess === 'function' && !ensureWorkModeAccess('calc', '請先切到第三頁計算模式再吸入清單')) return;
         const type = document.getElementById('calcType').value;
         const typeText = document.getElementById('calcType').options[document.getElementById('calcType').selectedIndex].text.split(' (')[0]; 
         let customName = document.getElementById('customName').value.trim();
@@ -396,46 +715,49 @@
         }
 
         let isDeduct = confirm("這筆是要『扣除』的項目嗎？\n(如窗戶開口請點確定，一般計算點取消)");
-        
-        const verify = verifyCalculationConsistency(type, v1, v2, v3, n, up);
-        if (!verify.ok) {
-            return showToast('⚠️ 計算校核失敗（雙引擎不一致），請重新輸入或回報系統');
+        let result;
+        try {
+            result = await requestServerCoreCalculation({
+                type,
+                v1,
+                v2,
+                v3,
+                n,
+                up,
+                isDeduct,
+                extraWasteRate: getExtraWasteRateForType(type),
+                templateExtras: getTemplateFormulaExtras()
+            });
+        } catch (error) {
+            console.warn('後端核心計算失敗', error);
+            return showToast((error && error.message) || '後端核心計算失敗');
         }
-        // 呼叫統一公式引擎（已通過雙引擎校核）
-        let result = verify.main;
+
         let baseRes = Number(result.baseRes || 0);
         let res = Number(result.res || 0);
         let adjustFactor = Number(result.adjustFactor || 1);
-        let wasteRate = 0;
-        let wasteRes = 0;
+        let wasteRate = Number(result.wasteRate || 0);
+        let wasteRes = Number(result.wasteRes || 0);
         let name = typeText;
 
-        if (isDeduct) { 
-            const baseAbs = Math.abs(baseRes);
-            baseRes = -baseAbs;
-            // 扣除項目採用基準值，不再加損耗係數。
-            res = -baseAbs;
-            adjustFactor = 1;
-            name = `扣除(${name})`; 
-        } else if (result.cat === 'CEMENT') {
-            wasteRate = getExtraWasteRateForType(type);
-            wasteRes = roundCalc(baseRes * (wasteRate / 100));
-            res = roundCalc(baseRes + wasteRes);
-            adjustFactor = roundCalc(res / Math.max(baseRes || 1, 1), 6);
+        if (isDeduct) {
+            name = `扣除(${name})`;
         } else if (result.cat === 'STEEL') {
             name = `${typeText}(含損耗)`;
         }
 
         if (customName !== "") { name = `${name} [${customName}]`; }
 
-        const baseTotalCost = baseRes * up;
-        const totalCost = res * up;
+        const baseTotalCost = Number(result.baseTotalCost || (baseRes * up));
+        const totalCost = Number(result.totalCost || (res * up));
         const priceUnit = getPriceUnitByType(type);
-        const calcFormula = buildCalcFormulaText(type, v1, v2, v3, n);
-        const formulaHint = getFormulaVariableHint(type);
+        const templateExtras = getTemplateFormulaExtras();
+        const calcFormula = buildCalcFormulaText(type, v1, v2, v3, n, templateExtras);
+        const formulaHint = getFormulaVariableHint(type, templateExtras);
+        const templateSummary = summarizeTemplateBreakdown(type, result.templateBreakdown);
         const costBreakdown = result.cat === 'CEMENT'
             ? `基準 ${Math.abs(baseRes).toFixed(3)} ${priceUnit} + 損耗 ${Math.abs(wasteRes).toFixed(3)} ${priceUnit} = 合計 ${Math.abs(res).toFixed(3)} ${priceUnit}`
-            : `基準 ${Math.abs(baseRes).toFixed(3)} ${priceUnit} × ${up}｜施工 ${Math.abs(res).toFixed(3)} ${priceUnit} × ${up}（x${adjustFactor.toFixed(3)}）`;
+            : `基準 ${Math.abs(baseRes).toFixed(3)} ${priceUnit} × ${up}｜施工 ${Math.abs(res).toFixed(3)} ${priceUnit} × ${up}（x${adjustFactor.toFixed(3)}）${templateSummary ? `｜${templateSummary}` : ''}`;
         
         // 安全處理使用者輸入
         const safeName = escapeHTML(name);
@@ -618,9 +940,10 @@
         if (!silent) showToast(`敏感度已更新（±${stepPercent}%）`);
     }
 
-    function exportAdvancedEstimateReport() {
-        if (getCurrentUserLevel() !== 'pro') {
-            return showToast('此報表僅限會員3（專家）匯出');
+    async function exportAdvancedEstimateReport() {
+        if (typeof ensureWorkModeAccess === 'function' && !ensureWorkModeAccess('calc', '請先切到第三頁計算模式再匯出精算報表')) return;
+        if (!(await ensureFeatureAccess('advancedEstimateExport', '此報表僅限會員3（專家）匯出'))) {
+            return;
         }
         const baseTotal = getVisibleCostBaseTotal();
         if (baseTotal <= 0) {
@@ -633,9 +956,38 @@
         const profitRate = readPercentInput('advProfitRate', 12, 0, 60);
         const stepPercent = readPercentInput('advSensitivityStep', 10, 1, 50);
 
-        const base = calcAdvancedEstimateFromBase(baseTotal);
-        const low = calcAdvancedEstimateFromBase(baseTotal * (1 - stepPercent / 100));
-        const high = calcAdvancedEstimateFromBase(baseTotal * (1 + stepPercent / 100));
+        let base;
+        let low;
+        let high;
+        try {
+            base = await requestServerAdvancedEstimate({
+                baseTotal,
+                wasteRate,
+                mgmtRate,
+                taxRate,
+                profitRate,
+                strictMode: !!(document.getElementById('advProPrecisionMode') && document.getElementById('advProPrecisionMode').checked)
+            });
+            low = await requestServerAdvancedEstimate({
+                baseTotal: baseTotal * (1 - stepPercent / 100),
+                wasteRate,
+                mgmtRate,
+                taxRate,
+                profitRate,
+                strictMode: !!(document.getElementById('advProPrecisionMode') && document.getElementById('advProPrecisionMode').checked)
+            });
+            high = await requestServerAdvancedEstimate({
+                baseTotal: baseTotal * (1 + stepPercent / 100),
+                wasteRate,
+                mgmtRate,
+                taxRate,
+                profitRate,
+                strictMode: !!(document.getElementById('advProPrecisionMode') && document.getElementById('advProPrecisionMode').checked)
+            });
+        } catch (error) {
+            console.warn('後端精算報表失敗', error);
+            return showToast((error && error.message) || '後端精算報表失敗');
+        }
 
         const projectName = (document.getElementById('project_name') && document.getElementById('project_name').value) || '未命名專案';
         const floorTag = (document.getElementById('floor_tag') && document.getElementById('floor_tag').value) || '未分層';
@@ -753,12 +1105,6 @@
     }
     
     function saveData() { 
-        const payload = {
-            version: SCHEMA_VERSION,
-            data: list,
-            timestamp: new Date().toISOString()
-        };
-        const ok = safeStorage.set(localStorage, STORAGE_KEY, JSON.stringify(payload));
-        if (!ok) console.warn('saveData: 已跳過本機儲存，維持記憶體中的最新資料。');
+        queueWorkspacePersist('list', list);
     }
 

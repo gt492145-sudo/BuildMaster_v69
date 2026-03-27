@@ -1,0 +1,71 @@
+name: Deploy BuildMaster
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - ar-hologram-upgrade
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-buildmaster
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+      SERVER_DEPLOY_PATH: ${{ secrets.SERVER_DEPLOY_PATH }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        run: |
+          [ -n "$SERVER_HOST" ] || (echo "Missing SERVER_HOST" && exit 1)
+          [ -n "$SERVER_USER" ] || (echo "Missing SERVER_USER" && exit 1)
+          [ -n "$SERVER_DEPLOY_PATH" ] || (echo "Missing SERVER_DEPLOY_PATH" && exit 1)
+
+      - name: Build deployment tarball
+        run: |
+          tar -czf buildmaster-deploy.tgz \
+            --exclude='.git' \
+            --exclude='LiDARRangefinder' \
+            --exclude='server/.env.local' \
+            --exclude='*.tgz' \
+            --exclude='node_modules' \
+            --exclude='.cursor' \
+            .
+          ls -lh buildmaster-deploy.tgz
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
+
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload package to server
+        run: |
+          scp buildmaster-deploy.tgz "${SERVER_USER}@${SERVER_HOST}:/tmp/buildmaster-deploy.tgz"
+
+      - name: Deploy on server and restart services
+        run: |
+          ssh "${SERVER_USER}@${SERVER_HOST}" "set -euo pipefail; \
+            mkdir -p '${SERVER_DEPLOY_PATH}'; \
+            cd '${SERVER_DEPLOY_PATH}'; \
+            tar --warning=no-unknown-keyword -xzf /tmp/buildmaster-deploy.tgz; \
+            rm -f /tmp/buildmaster-deploy.tgz; \
+            sudo systemctl restart buildmaster; \
+            sudo systemctl restart nginx; \
+            sudo systemctl is-active buildmaster; \
+            sudo systemctl is-active nginx; \
+            curl -sS -I http://127.0.0.1:8787 | head -n 1; \
+            curl -sS -I http://127.0.0.1 | head -n 1"

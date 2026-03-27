@@ -1,9 +1,72 @@
     // --- 圖紙測量模組 (保留 V6.8 完整邏輯) ---
+    var blueprintAutoCalcAfterUploadTimer = null;
+    var BLUEPRINT_AUTO_CALC_AFTER_UPLOAD_KEY = 'bm_69:blueprint_auto_calc_after_upload';
+
+    function applyBlueprintAutoCalcAfterUploadPref() {
+        var el = document.getElementById('blueprintAutoCalcAfterUpload');
+        if (!el) return;
+        try {
+            var stored = localStorage.getItem(BLUEPRINT_AUTO_CALC_AFTER_UPLOAD_KEY);
+            // Default to enabled so upload immediately triggers auto calculation.
+            if (stored === null) {
+                el.checked = true;
+                localStorage.setItem(BLUEPRINT_AUTO_CALC_AFTER_UPLOAD_KEY, '1');
+            } else {
+                el.checked = stored === '1';
+            }
+        } catch (_e) {}
+    }
+
+    function syncBlueprintAutoCalcAfterUploadPref() {
+        var el = document.getElementById('blueprintAutoCalcAfterUpload');
+        if (!el) return;
+        try {
+            localStorage.setItem(BLUEPRINT_AUTO_CALC_AFTER_UPLOAD_KEY, el.checked ? '1' : '0');
+        } catch (_e) {}
+    }
+
+    function scheduleAutoBlueprintAutoCalcIfEnabled() {
+        var toggle = document.getElementById('blueprintAutoCalcAfterUpload');
+        if (!toggle || !toggle.checked) return;
+        // Use both dataset and localStorage so this still works
+        // even when getCurrentWorkMode is not in current scope.
+        var mode = 'calc';
+        try {
+            if (document.body && document.body.dataset && document.body.dataset.workMode) {
+                mode = document.body.dataset.workMode;
+            } else if (localStorage.getItem('bm_69:work_mode')) {
+                mode = localStorage.getItem('bm_69:work_mode');
+            }
+        } catch (_e) {}
+        if (mode !== 'calc') return;
+        if (blueprintAutoCalcAfterUploadTimer) clearTimeout(blueprintAutoCalcAfterUploadTimer);
+        blueprintAutoCalcAfterUploadTimer = setTimeout(function() {
+            blueprintAutoCalcAfterUploadTimer = null;
+            // Prefer full one-click pipeline (Blueprint + IBM),
+            // fallback to blueprint-only auto calc when BIM model is missing.
+            if (typeof runAutoBlueprintPlusBIM === 'function') {
+                runAutoBlueprintPlusBIM();
+                return;
+            }
+            if (typeof autoInterpretBlueprintAndCalculate === 'function') {
+                autoInterpretBlueprintAndCalculate();
+            }
+        }, 700);
+    }
+
     function loadImg(e) {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
         reader.onload = function(event) {
+            currentBlueprintUploadState = {
+                fileName: String(file.name || 'blueprint.png'),
+                mimeType: String(file.type || 'image/png'),
+                sizeBytes: Number(file.size) || 0,
+                dataUrl: String(event.target.result || ''),
+                sourceType: detectBlueprintSourceType(file),
+                captureMode: 'single-image'
+            };
             img.src = event.target.result;
             img.onload = () => {
                 // Always reset interaction state on new upload to avoid being stuck
@@ -23,10 +86,22 @@
                 syncImageFilterUI();
                 applyImageFilter();
                 reset3DView(true);
+                syncCanvasEmptyState();
+                updateTouchInteractionMode();
                 syncMobileMeasureModeUI();
                 renderManualMeasurePad();
                 fitBlueprintToViewport();
                 const qualityReport = updateBlueprintQualityStatus();
+                currentBlueprintUploadState = {
+                    ...(currentBlueprintUploadState || {}),
+                    width: Number(img.naturalWidth) || 0,
+                    height: Number(img.naturalHeight) || 0,
+                    orientation: img.naturalWidth >= img.naturalHeight ? 'landscape' : 'portrait',
+                    sourceType: currentBlueprintUploadState && currentBlueprintUploadState.sourceType
+                        ? currentBlueprintUploadState.sourceType
+                        : detectBlueprintSourceType(file)
+                };
+                updateAutoInterpretLearningSummary(`後台學習：已載入 ${currentBlueprintUploadState.sourceType || 'clean-blueprint'}｜待建立任務`, '#d7e9ff');
                 if (qualityReport && qualityReport.quality === '待重拍') {
                     showToast(`圖紙品質偏低（${qualityReport.issues.join('、')}），建議重拍再量測`);
                 } else if (qualityReport && qualityReport.quality === '可用') {
@@ -34,6 +109,7 @@
                 } else {
                     showToast('圖紙載入完成，可拖曳/縮放（雙擊可回適配視圖）');
                 }
+                scheduleAutoBlueprintAutoCalcIfEnabled();
             };
         };
         reader.readAsDataURL(file);
@@ -43,6 +119,28 @@
         if (!img.src) return showToast('請先上傳圖紙！');
         zoomLevel = Math.max(0.2, Math.min(5, zoomLevel + delta));
         applyZoom();
+    }
+
+    function focusCalcAdvancedPage() {
+        const navigationModule = window.BuildMasterNavigationModule;
+        if (navigationModule && typeof navigationModule.writeStoredWorkMode === 'function') {
+            navigationModule.writeStoredWorkMode('bm_69:work_mode', 'calc');
+        } else {
+            try {
+                localStorage.setItem('bm_69:work_mode', 'calc');
+            } catch (_e) {}
+        }
+        if (typeof applyWorkMode === 'function') applyWorkMode();
+        if (typeof scrollToWorkModeSection === 'function') scrollToWorkModeSection('calc');
+    }
+
+    function ensureCalcAdvancedPageReady(missingMessage) {
+        if (!document.getElementById('advAutoInterpretGate')) {
+            showToast(missingMessage || '第三頁計算區尚未載入');
+            return false;
+        }
+        focusCalcAdvancedPage();
+        return true;
     }
 
     function setZoomAt(clientX, clientY, targetZoom) {
@@ -76,6 +174,7 @@
         const zoomInfo = document.getElementById('zoom-info');
         if (zoomInfo) zoomInfo.innerText = `縮放: ${Math.round(zoomLevel * 100)}%`;
         renderSmartMeasureOverlay();
+        updateTouchInteractionMode();
     }
 
     function analyzeBlueprintImageQuality() {
@@ -271,12 +370,19 @@
     const AUTO_INTERPRET_GATE_DEFAULT_CONFIDENCE = 0.9;
     const AUTO_INTERPRET_MEMORY_STORAGE_KEY = 'bm_69:auto_interpret_memory';
     const AUTO_INTERPRET_MEMORY_MAX = 48;
+    const GUIDED_PRECISION_REVIEW_MAX = 80;
     let autoInterpretBusy = false;
     let autoInterpretRunSeq = 0;
     let autoInterpretLastReport = null;
     let autoInterpretNeedsReview = false;
     let autoInterpretGateReason = '';
     let autoInterpretMemoryCache = null;
+    let guidedPrecisionReviewCache = null;
+    let blueprintLearningAssetCache = null;
+    let autoInterpretLearningJobCache = null;
+    let autoInterpretLearningReviewCache = null;
+    let currentBlueprintUploadState = null;
+    let backendLearningPollTimer = null;
     let autoInterpretQaStats = createDefaultAutoInterpretQaStats();
     let guidedPrecisionCalcState = createDefaultGuidedPrecisionCalcState();
 
@@ -308,7 +414,12 @@
             consensusScore: 0,
             qualityLabel: '未知',
             summaryText: '',
-            statusText: ''
+            statusText: '',
+            crossValidationSummary: '',
+            reviewGateState: 'pending',
+            reviewGateReasons: [],
+            reviewFieldCount: 0,
+            multiSourceFieldCount: 0
         };
     }
 
@@ -319,20 +430,436 @@
         return 0.55;
     }
 
+    function detectBlueprintSourceType(file) {
+        const name = String(file && file.name || '').toLowerCase();
+        const mime = String(file && file.type || '').toLowerCase();
+        if (mime.includes('heic') || mime.includes('heif') || /^img[_-]/.test(name) || /^dsc[_-]/.test(name)) return 'mobile-photo';
+        if (name.includes('screenshot') || name.includes('screen shot') || name.startsWith('截圖') || mime.includes('webp')) return 'desktop-capture';
+        return 'clean-blueprint';
+    }
+
+    function clampBlueprintImageValue(value) {
+        return Math.max(0, Math.min(255, value));
+    }
+
+    function buildBlurredBlueprintCanvas(sourceCanvas, scale = 0.08) {
+        if (!sourceCanvas) return null;
+        const width = Math.max(1, Number(sourceCanvas.width) || 1);
+        const height = Math.max(1, Number(sourceCanvas.height) || 1);
+        const sample = document.createElement('canvas');
+        sample.width = Math.max(24, Math.round(width * scale));
+        sample.height = Math.max(24, Math.round(height * scale));
+        const sampleCtx = sample.getContext('2d');
+        if (!sampleCtx) return null;
+        sampleCtx.imageSmoothingEnabled = true;
+        sampleCtx.filter = 'blur(6px)';
+        sampleCtx.drawImage(sourceCanvas, 0, 0, sample.width, sample.height);
+        sampleCtx.filter = 'none';
+        const output = document.createElement('canvas');
+        output.width = width;
+        output.height = height;
+        const outputCtx = output.getContext('2d');
+        if (!outputCtx) return null;
+        outputCtx.imageSmoothingEnabled = true;
+        outputCtx.drawImage(sample, 0, 0, output.width, output.height);
+        return output;
+    }
+
+    function buildMobilePhotoEnhancedCanvas(sourceCanvas) {
+        if (!sourceCanvas) return null;
+        const width = Math.max(1, Number(sourceCanvas.width) || 1);
+        const height = Math.max(1, Number(sourceCanvas.height) || 1);
+        const output = document.createElement('canvas');
+        output.width = width;
+        output.height = height;
+        const outputCtx = output.getContext('2d', { willReadFrequently: true });
+        if (!outputCtx) return null;
+        outputCtx.drawImage(sourceCanvas, 0, 0, width, height);
+        const imageData = outputCtx.getImageData(0, 0, width, height);
+        const pixels = imageData.data;
+        const blurred = buildBlurredBlueprintCanvas(sourceCanvas, 0.06);
+        let blurPixels = null;
+        if (blurred) {
+            const blurCtx = blurred.getContext('2d', { willReadFrequently: true });
+            if (blurCtx) {
+                blurPixels = blurCtx.getImageData(0, 0, width, height).data;
+            }
+        }
+        for (let i = 0; i < pixels.length; i += 4) {
+            const r = pixels[i];
+            const g = pixels[i + 1];
+            const b = pixels[i + 2];
+            const luma = r * 0.299 + g * 0.587 + b * 0.114;
+            const bgR = blurPixels ? blurPixels[i] : r;
+            const bgG = blurPixels ? blurPixels[i + 1] : g;
+            const bgB = blurPixels ? blurPixels[i + 2] : b;
+            const bgLuma = bgR * 0.299 + bgG * 0.587 + bgB * 0.114;
+            const detail = luma - bgLuma;
+            const glareLike = luma > 225 && Math.abs(r - g) < 14 && Math.abs(g - b) < 14;
+            const normalizedLuma = clampBlueprintImageValue(184 + detail * 2.2 + (luma - bgLuma) * 0.35 - (glareLike ? 18 : 0));
+            const lineBoost = clampBlueprintImageValue(176 + detail * 3.4);
+            const merged = clampBlueprintImageValue(normalizedLuma * 0.7 + lineBoost * 0.3);
+            pixels[i] = merged;
+            pixels[i + 1] = merged;
+            pixels[i + 2] = merged;
+        }
+        outputCtx.putImageData(imageData, 0, 0);
+        return output;
+    }
+
+    function buildOcrBoostBlueprintCanvas(sourceCanvas) {
+        if (!sourceCanvas) return null;
+        const width = Math.max(1, Number(sourceCanvas.width) || 1);
+        const height = Math.max(1, Number(sourceCanvas.height) || 1);
+        const output = document.createElement('canvas');
+        output.width = width;
+        output.height = height;
+        const outputCtx = output.getContext('2d', { willReadFrequently: true });
+        if (!outputCtx) return null;
+        outputCtx.drawImage(sourceCanvas, 0, 0, width, height);
+        const imageData = outputCtx.getImageData(0, 0, width, height);
+        const pixels = imageData.data;
+        let sum = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+            sum += pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114;
+        }
+        const mean = sum / Math.max(1, pixels.length / 4);
+        const threshold = Math.max(118, Math.min(210, mean + 10));
+        for (let i = 0; i < pixels.length; i += 4) {
+            const luma = pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114;
+            const value = luma >= threshold ? 244 : 38;
+            pixels[i] = value;
+            pixels[i + 1] = value;
+            pixels[i + 2] = value;
+        }
+        outputCtx.putImageData(imageData, 0, 0);
+        return output;
+    }
+
+    function buildNormalizedBlueprintCanvas(sourceType) {
+        if (!img.src || !img.naturalWidth || !img.naturalHeight) return null;
+        const normalizedType = String(sourceType || 'clean-blueprint').trim() || 'clean-blueprint';
+        const bounds = (normalizedType === 'mobile-photo' || normalizedType === 'desktop-capture')
+            ? detectBlueprintPrimaryBounds()
+            : null;
+        const cropPaddingRatio = normalizedType === 'mobile-photo' ? 0.06 : 0.03;
+        const cropX = bounds ? Math.max(0, Math.floor(bounds.x - bounds.widthPx * cropPaddingRatio)) : 0;
+        const cropY = bounds ? Math.max(0, Math.floor(bounds.y - bounds.heightPx * cropPaddingRatio)) : 0;
+        const cropRight = bounds
+            ? Math.min(img.naturalWidth, Math.ceil(bounds.x + bounds.widthPx * (1 + cropPaddingRatio)))
+            : img.naturalWidth;
+        const cropBottom = bounds
+            ? Math.min(img.naturalHeight, Math.ceil(bounds.y + bounds.heightPx * (1 + cropPaddingRatio)))
+            : img.naturalHeight;
+        const cropWidth = Math.max(1, cropRight - cropX);
+        const cropHeight = Math.max(1, cropBottom - cropY);
+        const canvasOut = document.createElement('canvas');
+        canvasOut.width = cropWidth;
+        canvasOut.height = cropHeight;
+        const ctxOut = canvasOut.getContext('2d', { willReadFrequently: true });
+        if (!ctxOut) return null;
+        ctxOut.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+        const imageData = ctxOut.getImageData(0, 0, cropWidth, cropHeight);
+        const pixels = imageData.data;
+        let lumaSum = 0;
+        let lumaSqSum = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+            const luma = pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114;
+            lumaSum += luma;
+            lumaSqSum += luma * luma;
+        }
+        const sampleCount = Math.max(1, pixels.length / 4);
+        const meanLuma = lumaSum / sampleCount;
+        const variance = Math.max(0, lumaSqSum / sampleCount - meanLuma * meanLuma);
+        const stdLuma = Math.sqrt(variance);
+        const targetMean = normalizedType === 'mobile-photo' ? 188 : (normalizedType === 'desktop-capture' ? 176 : 166);
+        const contrastBoost = normalizedType === 'mobile-photo'
+            ? (stdLuma < 52 ? 1.34 : 1.2)
+            : (normalizedType === 'desktop-capture' ? 1.08 : 1.03);
+        const brightnessOffset = targetMean - meanLuma;
+        const grayscaleBlend = normalizedType === 'mobile-photo' ? 0.14 : 0.05;
+        for (let i = 0; i < pixels.length; i += 4) {
+            const r = pixels[i];
+            const g = pixels[i + 1];
+            const b = pixels[i + 2];
+            const luma = r * 0.299 + g * 0.587 + b * 0.114;
+            const boostedR = (r - meanLuma) * contrastBoost + meanLuma + brightnessOffset;
+            const boostedG = (g - meanLuma) * contrastBoost + meanLuma + brightnessOffset;
+            const boostedB = (b - meanLuma) * contrastBoost + meanLuma + brightnessOffset;
+            pixels[i] = clampBlueprintImageValue(boostedR * (1 - grayscaleBlend) + luma * grayscaleBlend);
+            pixels[i + 1] = clampBlueprintImageValue(boostedG * (1 - grayscaleBlend) + luma * grayscaleBlend);
+            pixels[i + 2] = clampBlueprintImageValue(boostedB * (1 - grayscaleBlend) + luma * grayscaleBlend);
+        }
+        ctxOut.putImageData(imageData, 0, 0);
+        return {
+            canvas: canvasOut,
+            meta: {
+                sourceProfile: normalizedType === 'mobile-photo'
+                    ? 'mobile-photo-normalized'
+                    : (normalizedType === 'desktop-capture' ? 'desktop-capture-normalized' : 'clean-blueprint-normalized'),
+                boundsApplied: !!bounds,
+                crop: { x: cropX, y: cropY, width: cropWidth, height: cropHeight },
+                originalSize: { width: img.naturalWidth, height: img.naturalHeight },
+                outputSize: { width: cropWidth, height: cropHeight },
+                meanLumaBefore: Math.round(meanLuma),
+                contrastBoost: Math.round(contrastBoost * 100) / 100
+            }
+        };
+    }
+
+    function getBlueprintLearningAssetStore() {
+        if (Array.isArray(blueprintLearningAssetCache)) return blueprintLearningAssetCache;
+        blueprintLearningAssetCache = [];
+        return blueprintLearningAssetCache;
+    }
+
+    function getAutoInterpretLearningJobStore() {
+        if (Array.isArray(autoInterpretLearningJobCache)) return autoInterpretLearningJobCache;
+        autoInterpretLearningJobCache = [];
+        return autoInterpretLearningJobCache;
+    }
+
+    function getAutoInterpretLearningReviewStore() {
+        if (Array.isArray(autoInterpretLearningReviewCache)) return autoInterpretLearningReviewCache;
+        autoInterpretLearningReviewCache = [];
+        return autoInterpretLearningReviewCache;
+    }
+
+    function updateAutoInterpretLearningSummary(text, color = '#d7e9ff') {
+        const box = document.getElementById('autoInterpretLearningSummary');
+        if (!box) return;
+        box.innerText = text;
+        box.style.color = color;
+    }
+
+    function getAutoInterpretLearningStatusMeta(status) {
+        const key = String(status || '').trim();
+        if (key === 'completed') return { label: '已達標', color: '#9fffc0' };
+        if (key === 'approved_manual') return { label: '人工通過', color: '#bfe7ff' };
+        if (key === 'review_required') return { label: '待人工審核', color: '#ffd48a' };
+        if (key === 'rejected') return { label: '已退回', color: '#ff9a9a' };
+        if (key === 'failed') return { label: '執行失敗', color: '#ff9a9a' };
+        if (key === 'running') return { label: '學習中', color: '#8be9fd' };
+        return { label: '排隊中', color: '#d7e9ff' };
+    }
+
+    function getBlueprintSourceTypeLabel(sourceType) {
+        const key = String(sourceType || '').trim();
+        if (key === 'mobile-photo') return '手機拍照';
+        if (key === 'desktop-capture') return '電腦截圖';
+        return '正式藍圖';
+    }
+
+    function getBlueprintSourceProfileLabel(sourceProfile) {
+        const key = String(sourceProfile || '').trim();
+        if (key === 'mobile-photo-normalized') return '手機圖基礎校正';
+        if (key === 'mobile-photo-shadowfix') return '手機圖陰影壓平';
+        if (key === 'mobile-photo-ocr-boost') return '手機圖文字強化';
+        if (key === 'desktop-capture-normalized') return '截圖線條優化';
+        if (key === 'clean-blueprint-normalized') return '藍圖標準化';
+        return key;
+    }
+
+    function renderAutoInterpretLearningPanel() {
+        const body = document.getElementById('autoInterpretLearningBody');
+        const jobs = getAutoInterpretLearningJobStore();
+        const assets = getBlueprintLearningAssetStore();
+        if (!body) return;
+        if (!jobs.length) {
+            body.innerHTML = '<tr><td colspan="6" style="color:#99b2c9;">尚無後台自動學習任務</td></tr>';
+            updateAutoInterpretLearningSummary('後台學習：尚未建立任務', '#d7e9ff');
+            return;
+        }
+        body.innerHTML = '';
+        const running = jobs.filter((item) => String(item && item.status || '') === 'running').length;
+        const review = jobs.filter((item) => String(item && item.status || '') === 'review_required').length;
+        const completed = jobs.filter((item) => ['completed', 'approved_manual'].includes(String(item && item.status || ''))).length;
+        updateAutoInterpretLearningSummary(`後台學習：執行中 ${running}｜待審核 ${review}｜已達標 ${completed}`, running ? '#8be9fd' : (review ? '#ffd48a' : '#d7e9ff'));
+        jobs.slice(0, 10).forEach((job) => {
+            const tr = document.createElement('tr');
+            const statusMeta = getAutoInterpretLearningStatusMeta(job.status);
+            const asset = assets.find((item) => String(item && item.assetId || '') === String(job.assetId || '')) || {};
+            const bestReport = job.bestReport || {};
+            const attempts = Array.isArray(job.attempts) ? job.attempts.length : 0;
+            const dimensionText = Number(bestReport.longM || 0) > 0 && Number(bestReport.shortM || 0) > 0
+                ? `${Number(bestReport.longM || 0).toFixed(2)}×${Number(bestReport.shortM || 0).toFixed(2)}m`
+                : '';
+            const summaryText = [
+                asset.sourceType ? `來源 ${getBlueprintSourceTypeLabel(asset.sourceType)}` : '',
+                asset.sourceProfile && asset.sourceProfile !== asset.sourceType ? `前處理 ${getBlueprintSourceProfileLabel(asset.sourceProfile)}` : '',
+                attempts ? `重跑 ${attempts}/${Number(job.maxAttempts) || 3}` : '尚未重跑',
+                bestReport.type ? `類型 ${bestReport.type}` : '',
+                dimensionText,
+                Number(bestReport.quantity) ? `數量 ${bestReport.quantity}` : '',
+                bestReport.notes ? String(bestReport.notes) : '',
+                job.lastError ? `錯誤 ${job.lastError}` : ''
+            ].filter(Boolean).join('｜');
+            const actionHtml = String(job.status || '') === 'review_required'
+                ? `<button class="tool-btn" style="padding:4px 8px; border-color:#9fffc0; color:#dfffea;" onclick="reviewAutoInterpretLearningJob('${String(job.jobId || '')}', 'approved')">通過</button> <button class="tool-btn" style="padding:4px 8px; border-color:#ffcc80; color:#ffe9c7;" onclick="reviewAutoInterpretLearningJob('${String(job.jobId || '')}', 'rejected')">退回</button>`
+                : `<button class="tool-btn" style="padding:4px 8px;" onclick="refreshAutoInterpretLearningJob('${String(job.jobId || '')}')">更新</button>`;
+            tr.innerHTML = `<td>${new Date(job.createdAt || Date.now()).toLocaleString('zh-TW')}</td><td>${escapeHTML(getBlueprintSourceTypeLabel(String(asset.sourceType || job.sourceProfile || '')))}</td><td style="color:${statusMeta.color};">${escapeHTML(statusMeta.label)}</td><td>${Number(job.bestScore || 0).toFixed(1)} / 99.9</td><td>${escapeHTML(summaryText || '-')}</td><td>${actionHtml}</td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    async function buildBackendLearningUploadPayload() {
+        if (!currentBlueprintUploadState || !currentBlueprintUploadState.dataUrl) return null;
+        const maxSide = 1800;
+        const sourceType = String(currentBlueprintUploadState.sourceType || 'clean-blueprint').trim() || 'clean-blueprint';
+        const normalized = buildNormalizedBlueprintCanvas(sourceType);
+        const normalizedVariants = [];
+        let width = Number(currentBlueprintUploadState.width) || Number(img.naturalWidth) || 0;
+        let height = Number(currentBlueprintUploadState.height) || Number(img.naturalHeight) || 0;
+        let outputCanvas = null;
+        let sourceProfile = sourceType;
+        if (normalized && normalized.canvas) {
+            outputCanvas = normalized.canvas;
+            width = Number(normalized.meta && normalized.meta.outputSize && normalized.meta.outputSize.width) || width;
+            height = Number(normalized.meta && normalized.meta.outputSize && normalized.meta.outputSize.height) || height;
+            sourceProfile = String(normalized.meta && normalized.meta.sourceProfile || sourceType);
+            normalizedVariants.push({
+                stage: 'client-normalize',
+                sourceType,
+                sourceProfile,
+                boundsApplied: !!(normalized.meta && normalized.meta.boundsApplied),
+                crop: normalized.meta && normalized.meta.crop ? normalized.meta.crop : null,
+                meanLumaBefore: normalized.meta && normalized.meta.meanLumaBefore,
+                contrastBoost: normalized.meta && normalized.meta.contrastBoost,
+                outputWidth: width,
+                outputHeight: height
+            });
+        }
+        if (!outputCanvas) {
+            outputCanvas = document.createElement('canvas');
+            outputCanvas.width = Math.max(1, width);
+            outputCanvas.height = Math.max(1, height);
+            const fallbackCtx = outputCanvas.getContext('2d');
+            if (fallbackCtx) {
+                fallbackCtx.drawImage(img, 0, 0, outputCanvas.width, outputCanvas.height);
+            }
+        }
+        if (sourceType === 'mobile-photo') {
+            const shadowCorrected = buildMobilePhotoEnhancedCanvas(outputCanvas);
+            if (shadowCorrected) {
+                outputCanvas = shadowCorrected;
+                width = shadowCorrected.width;
+                height = shadowCorrected.height;
+                sourceProfile = 'mobile-photo-shadowfix';
+                normalizedVariants.push({
+                    stage: 'mobile-shadow-fix',
+                    sourceType,
+                    sourceProfile,
+                    outputWidth: width,
+                    outputHeight: height
+                });
+                const ocrBoost = buildOcrBoostBlueprintCanvas(shadowCorrected);
+                if (ocrBoost) {
+                    outputCanvas = ocrBoost;
+                    width = ocrBoost.width;
+                    height = ocrBoost.height;
+                    sourceProfile = 'mobile-photo-ocr-boost';
+                    normalizedVariants.push({
+                        stage: 'mobile-ocr-boost',
+                        sourceType,
+                        sourceProfile,
+                        outputWidth: width,
+                        outputHeight: height
+                    });
+                }
+            }
+        }
+        let finalCanvas = outputCanvas;
+        let dataUrl = finalCanvas.toDataURL(sourceType === 'desktop-capture' ? 'image/png' : 'image/jpeg', 0.92);
+        if (width > maxSide || height > maxSide || dataUrl.length > 5_500_000) {
+            const scale = Math.min(1, maxSide / Math.max(width || 1, height || 1));
+            const resized = document.createElement('canvas');
+            resized.width = Math.max(1, Math.round((width || 1) * scale));
+            resized.height = Math.max(1, Math.round((height || 1) * scale));
+            const resizedCtx = resized.getContext('2d');
+            if (resizedCtx) {
+                resizedCtx.drawImage(finalCanvas, 0, 0, resized.width, resized.height);
+                finalCanvas = resized;
+                width = resized.width;
+                height = resized.height;
+                normalizedVariants.push({
+                    stage: 'client-resize',
+                    sourceType,
+                    sourceProfile,
+                    outputWidth: width,
+                    outputHeight: height
+                });
+                dataUrl = finalCanvas.toDataURL(sourceType === 'desktop-capture' ? 'image/png' : 'image/jpeg', 0.9);
+            }
+        }
+        return {
+            ...currentBlueprintUploadState,
+            dataUrl,
+            width,
+            height,
+            sourceType,
+            sourceProfile,
+            normalizedVariants,
+            orientation: currentBlueprintUploadState.orientation || (width >= height ? 'landscape' : 'portrait')
+        };
+    }
+
+    function syncAutoInterpretLearningCaches(jobPayload, assetPayload, reviewsPayload) {
+        if (assetPayload) {
+            const assets = getBlueprintLearningAssetStore().slice();
+            const assetId = String(assetPayload.assetId || '');
+            const index = assets.findIndex((item) => String(item && item.assetId || '') === assetId);
+            if (index >= 0) assets[index] = { ...assets[index], ...assetPayload };
+            else assets.unshift(assetPayload);
+            blueprintLearningAssetCache = assets.slice(0, 160);
+        }
+        if (jobPayload) {
+            const jobs = getAutoInterpretLearningJobStore().slice();
+            const jobId = String(jobPayload.jobId || '');
+            const index = jobs.findIndex((item) => String(item && item.jobId || '') === jobId);
+            if (index >= 0) jobs[index] = { ...jobs[index], ...jobPayload };
+            else jobs.unshift(jobPayload);
+            autoInterpretLearningJobCache = jobs.slice(0, 160);
+        }
+        if (Array.isArray(reviewsPayload) && reviewsPayload.length) {
+            const reviews = getAutoInterpretLearningReviewStore().slice();
+            reviewsPayload.forEach((review) => {
+                const reviewId = String(review && review.reviewId || '');
+                const index = reviews.findIndex((item) => String(item && item.reviewId || '') === reviewId);
+                if (index >= 0) reviews[index] = { ...reviews[index], ...review };
+                else reviews.unshift(review);
+            });
+            autoInterpretLearningReviewCache = reviews.slice(0, 160);
+        }
+    }
+
     function getAutoInterpretMemoryStore() {
         if (Array.isArray(autoInterpretMemoryCache)) return autoInterpretMemoryCache;
-        try {
-            const parsed = JSON.parse(localStorage.getItem(AUTO_INTERPRET_MEMORY_STORAGE_KEY) || '[]');
-            autoInterpretMemoryCache = Array.isArray(parsed) ? parsed : [];
-        } catch (_err) {
-            autoInterpretMemoryCache = [];
-        }
+        autoInterpretMemoryCache = [];
         return autoInterpretMemoryCache;
     }
 
     function persistAutoInterpretMemoryStore(store) {
         autoInterpretMemoryCache = Array.isArray(store) ? store.slice(0, AUTO_INTERPRET_MEMORY_MAX) : [];
-        localStorage.setItem(AUTO_INTERPRET_MEMORY_STORAGE_KEY, JSON.stringify(autoInterpretMemoryCache));
+        autoInterpretMemoryHiddenLocally = false;
+        autoInterpretMemoryLocalHiddenKeys = new Set();
+        queueWorkspacePersist('autoInterpretMemory', autoInterpretMemoryCache);
+    }
+
+    async function enrichAutoInterpretServerQa(report) {
+        if (!report) return report;
+        try {
+            const payload = await apiRequest('/qa/auto-interpret', {
+                method: 'POST',
+                body: { report },
+                retries: 0,
+                timeoutMs: 12000
+            });
+            report.serverQaScore = Number(payload && payload.qaScore ? payload.qaScore : 0);
+            report.serverQaLevel = payload && payload.qaLevel ? payload.qaLevel : '';
+        } catch (error) {
+            console.warn('看圖 QA 後端評分失敗', error);
+        }
+        return report;
     }
 
     function buildBlueprintFeatureVector(bounds, qualityReport) {
@@ -388,25 +915,53 @@
         };
     }
 
+    let autoInterpretMemoryHiddenLocally = false;
+    let autoInterpretMemoryLocalHiddenKeys = new Set();
+    let autoInterpretMemoryVisibleRows = [];
+    let guidedPrecisionReviewHiddenLocally = false;
+
+    function getAutoInterpretMemoryLocalKey(item) {
+        return [
+            String(item && item.ts || ''),
+            String(item && item.type || ''),
+            String(item && item.quantity || ''),
+            String(item && item.longM || ''),
+            String(item && item.shortM || '')
+        ].join('|');
+    }
+
     function renderAutoInterpretMemoryPanel() {
         const body = document.getElementById('autoInterpretMemoryBody');
         const summary = document.getElementById('autoInterpretMemorySummary');
         const store = getAutoInterpretMemoryStore();
         if (!body || !summary) return;
         body.innerHTML = '';
+        autoInterpretMemoryVisibleRows = [];
+        if (autoInterpretMemoryHiddenLocally) {
+            body.innerHTML = '<tr><td colspan="6" style="color:#99b2c9;">本機畫面已清空，AI 看圖記憶仍保留；重新整理頁面後可再顯示。</td></tr>';
+            summary.innerText = `記憶庫：本機畫面已清空｜實際保留 ${store.length} 筆`;
+            return;
+        }
         if (!store.length) {
             body.innerHTML = '<tr><td colspan="6" style="color:#99b2c9;">尚無已學習案例</td></tr>';
             summary.innerText = '記憶庫：尚未建立';
             return;
         }
-        const typeCounts = store.reduce((acc, item) => {
+        const visibleStore = store.filter(item => !autoInterpretMemoryLocalHiddenKeys.has(getAutoInterpretMemoryLocalKey(item)));
+        autoInterpretMemoryVisibleRows = visibleStore.slice();
+        if (!visibleStore.length) {
+            body.innerHTML = '<tr><td colspan="6" style="color:#99b2c9;">本機畫面已隱藏所有案例，記憶仍保留；重新整理頁面後可再顯示。</td></tr>';
+            summary.innerText = `記憶庫：本機已隱藏｜實際保留 ${store.length} 筆`;
+            return;
+        }
+        const typeCounts = visibleStore.reduce((acc, item) => {
             const key = String(item.type || '未分類');
             acc[key] = (acc[key] || 0) + 1;
             return acc;
         }, {});
         const topTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([type, count]) => `${type}:${count}`).join(' / ');
-        summary.innerText = `記憶庫：共 ${store.length} 筆｜類型分佈 ${topTypes || '無'}${autoInterpretLastReport && autoInterpretLastReport.memoryStoreSize ? `｜最近套用後總數 ${autoInterpretLastReport.memoryStoreSize}` : ''}`;
-        store.slice(0, 12).forEach((item, idx) => {
+        summary.innerText = `記憶庫：畫面 ${visibleStore.length} 筆｜實際保留 ${store.length} 筆｜類型分佈 ${topTypes || '無'}${autoInterpretLastReport && autoInterpretLastReport.memoryStoreSize ? `｜最近套用後總數 ${autoInterpretLastReport.memoryStoreSize}` : ''}`;
+        visibleStore.slice(0, 12).forEach((item, idx) => {
             const tr = document.createElement('tr');
             const ratio = item && item.vector ? Number(item.vector.ratio || 0) : 0;
             tr.innerHTML = `<td>${new Date(item.ts || Date.now()).toLocaleString('zh-TW')}</td><td>${item.type || '-'}</td><td>${item.quantity || '-'}</td><td>${Number(item.longM || 0).toFixed(2)} × ${Number(item.shortM || 0).toFixed(2)} m</td><td>${item.quality || '未知'} / 比例 ${ratio.toFixed(2)}</td><td><button class="tool-btn" style="padding:4px 8px;" onclick="deleteAutoInterpretMemory(${idx})">刪除</button></td>`;
@@ -415,19 +970,406 @@
     }
 
     function deleteAutoInterpretMemory(index) {
-        const store = getAutoInterpretMemoryStore().slice();
-        if (index < 0 || index >= store.length) return;
-        const removed = store.splice(index, 1)[0];
-        persistAutoInterpretMemoryStore(store);
+        const removed = autoInterpretMemoryVisibleRows[index];
+        if (!removed) return;
+        autoInterpretMemoryLocalHiddenKeys.add(getAutoInterpretMemoryLocalKey(removed));
         renderAutoInterpretMemoryPanel();
-        showToast(`已刪除記憶：${removed && removed.type ? removed.type : '案例'}`);
+        showToast(`已從本機畫面隱藏記憶：${removed && removed.type ? removed.type : '案例'}（雲端記憶仍保留）`);
     }
 
     function clearAutoInterpretMemory() {
         if (!confirm('確定清空 AI 看圖學習記憶庫嗎？')) return;
-        persistAutoInterpretMemoryStore([]);
+        autoInterpretMemoryHiddenLocally = true;
         renderAutoInterpretMemoryPanel();
-        showToast('AI 看圖學習記憶庫已清空');
+        showToast('已清空本機畫面，AI 看圖記憶仍保留');
+    }
+
+    function getGuidedPrecisionReviewStore() {
+        if (Array.isArray(guidedPrecisionReviewCache)) return guidedPrecisionReviewCache;
+        guidedPrecisionReviewCache = [];
+        return guidedPrecisionReviewCache;
+    }
+
+    function persistGuidedPrecisionReviewStore(store) {
+        guidedPrecisionReviewCache = Array.isArray(store) ? store.slice(0, GUIDED_PRECISION_REVIEW_MAX) : [];
+        guidedPrecisionReviewHiddenLocally = false;
+        queueWorkspacePersist('guidedPrecisionReviews', guidedPrecisionReviewCache);
+    }
+
+    function getGuidedPrecisionConfidenceRoute(report = autoInterpretLastReport) {
+        const overallConfidence = Number(report && report.overallConfidence) || 0;
+        const needsReview = !!(report && report.needsReview);
+        if (needsReview || overallConfidence < 0.72) {
+            return {
+                key: 'manual',
+                label: '人工把關',
+                note: '需人工確認後才能進核心記憶',
+                color: '#ffb88a'
+            };
+        }
+        if (overallConfidence < 0.86) {
+            return {
+                key: 'review',
+                label: '研究複核',
+                note: '建議先複核再決定是否進核心記憶',
+                color: '#ffd48a'
+            };
+        }
+        return {
+            key: 'candidate',
+            label: '核心候選',
+            note: '結果穩定，可由管理者審核通過後進核心記憶',
+            color: '#9fffc0'
+        };
+    }
+
+    function attachGuidedPrecisionReviewMeta(report, overrides = {}) {
+        const nextReport = {
+            ...(report && typeof report === 'object' ? report : {}),
+            ...overrides
+        };
+        const route = getGuidedPrecisionConfidenceRoute(nextReport);
+        nextReport.confidenceRouteKey = route.key;
+        nextReport.confidenceRouteLabel = route.label;
+        nextReport.confidenceRouteNote = route.note;
+        return nextReport;
+    }
+
+    function buildGuidedPrecisionReviewRecord(report, status, options = {}) {
+        const valueSet = options.valueSet || report.valueSet || buildCurrentCalcValueSet();
+        const route = getGuidedPrecisionConfidenceRoute(report);
+        const reviewedAt = status === 'pending' ? '' : new Date().toISOString();
+        const quantity = Math.max(1, Number(valueSet.qty || report.quantity) || 1);
+        const id = String(options.id || report.reviewRecordId || `guided-${Number(report.runId) || 0}-${String(report.inputSignature || 'draft')}`);
+        return {
+            id,
+            ts: String(options.ts || new Date().toISOString()),
+            runId: Number(report.runId) || 0,
+            status: String(status || 'pending'),
+            routeKey: route.key,
+            routeLabel: route.label,
+            overallConfidence: Number(report.overallConfidence) || 0,
+            type: String(valueSet.type || report.type || '').trim(),
+            quantity,
+            valueSet: {
+                type: String(valueSet.type || '').trim(),
+                v1: String(valueSet.v1 || ''),
+                v2: String(valueSet.v2 || ''),
+                v3: String(valueSet.v3 || ''),
+                qty: String(valueSet.qty || quantity)
+            },
+            needsReview: !!report.needsReview,
+            reviewFields: Array.isArray(report.reviewFields) ? report.reviewFields.slice() : [],
+            pendingFields: Array.isArray(report.pendingFields) ? report.pendingFields.slice() : [],
+            fieldConfidenceSummary: String(report.fieldConfidenceSummary || ''),
+            crossValidationSummary: String(report.crossValidationSummary || ''),
+            memorySimilarity: Number(report.memorySimilarity) || 0,
+            decisionNote: String(options.decisionNote || '').trim(),
+            reviewedAt,
+            inputSignature: String(report.inputSignature || ''),
+            sourceLabel: String(options.sourceLabel || '極強精準辨識')
+        };
+    }
+
+    function upsertGuidedPrecisionReviewRecord(record) {
+        if (!record || !record.id) return null;
+        const store = getGuidedPrecisionReviewStore().slice();
+        const index = store.findIndex(item => String(item && item.id || '') === String(record.id));
+        if (index >= 0) {
+            const previous = store[index] || {};
+            store[index] = {
+                ...previous,
+                ...record,
+                ts: String(previous.ts || record.ts || new Date().toISOString())
+            };
+        } else {
+            store.unshift(record);
+        }
+        persistGuidedPrecisionReviewStore(store);
+        return store.find(item => String(item && item.id || '') === String(record.id)) || record;
+    }
+
+    function getGuidedPrecisionReviewStatusLabel(status) {
+        if (status === 'approved') return '已通過';
+        if (status === 'corrected') return '修正通過';
+        if (status === 'rejected') return '已退回';
+        return '待審核';
+    }
+
+    function renderGuidedPrecisionReviewPanel() {
+        const summary = document.getElementById('guidedPrecisionReviewSummary');
+        const body = document.getElementById('guidedPrecisionReviewBody');
+        const store = getGuidedPrecisionReviewStore();
+        if (!summary || !body) return;
+        if (guidedPrecisionReviewHiddenLocally) {
+            summary.innerText = `極強審核：本機畫面已清空｜實際保留 ${store.length} 筆`;
+            body.innerHTML = '<tr><td colspan="5" style="color:#99b2c9;">本機畫面已清空，審核研究紀錄仍保留；重新整理頁面後可再顯示。</td></tr>';
+            return;
+        }
+        if (!store.length) {
+            summary.innerText = '極強審核：尚無待審核或研究紀錄';
+            body.innerHTML = '<tr><td colspan="5" style="color:#99b2c9;">尚無極強審核紀錄</td></tr>';
+            return;
+        }
+        const counts = store.reduce((acc, item) => {
+            const key = String(item && item.status || 'pending');
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+        }, {});
+        summary.innerText = `極強審核：待審核 ${counts.pending || 0}｜已通過 ${counts.approved || 0}｜修正通過 ${counts.corrected || 0}｜已退回 ${counts.rejected || 0}`;
+        body.innerHTML = '';
+        store.slice(0, 10).forEach((item) => {
+            const tr = document.createElement('tr');
+            const valueText = [item.type || '-', item.valueSet && item.valueSet.v1 ? `${item.valueSet.v1}×${item.valueSet.v2 || '-'}` : '', item.quantity ? `數量 ${item.quantity}` : '']
+                .filter(Boolean)
+                .join(' / ');
+            const reviewedText = item.reviewedAt ? `｜${new Date(item.reviewedAt).toLocaleString('zh-TW')}` : '';
+            tr.innerHTML = `<td>${new Date(item.ts || Date.now()).toLocaleString('zh-TW')}</td><td>${escapeHTML(getGuidedPrecisionReviewStatusLabel(item.status))}</td><td>${escapeHTML(String(item.routeLabel || '-'))}</td><td>${escapeHTML(valueText || '-')}</td><td>${escapeHTML([item.fieldConfidenceSummary, item.crossValidationSummary, item.decisionNote, reviewedText].filter(Boolean).join('｜') || '-')}</td>`;
+            body.appendChild(tr);
+        });
+    }
+
+    async function refreshAutoInterpretLearningJob(jobId, options = {}) {
+        const id = String(jobId || '').trim();
+        if (!id) return null;
+        try {
+            const payload = await apiRequest(`/learning/auto-interpret/jobs/${encodeURIComponent(id)}`, {
+                method: 'GET',
+                retries: 0,
+                timeoutMs: 15000
+            });
+            syncAutoInterpretLearningCaches(payload.job, payload.asset, payload.reviews);
+            renderAutoInterpretLearningPanel();
+            if (options.reloadBootstrap && typeof loadWorkspaceBootstrap === 'function') {
+                await loadWorkspaceBootstrap();
+                renderAutoInterpretLearningPanel();
+                renderAutoInterpretMemoryPanel();
+            }
+            return payload;
+        } catch (error) {
+            updateAutoInterpretLearningSummary(`後台學習：讀取任務失敗｜${error && error.message ? error.message : '請稍後再試'}`, '#ff9a9a');
+            throw error;
+        }
+    }
+
+    async function pollAutoInterpretLearningJob(jobId) {
+        if (backendLearningPollTimer) {
+            clearTimeout(backendLearningPollTimer);
+            backendLearningPollTimer = null;
+        }
+        const poll = async () => {
+            try {
+                const payload = await refreshAutoInterpretLearningJob(jobId);
+                const status = String(payload && payload.job && payload.job.status || '');
+                const bestScore = Number(payload && payload.job && payload.job.bestScore || 0).toFixed(1);
+                const statusMeta = getAutoInterpretLearningStatusMeta(status);
+                updateAutoInterpretLearningSummary(`後台學習：${statusMeta.label}｜最佳 ${bestScore} / 99.9`, statusMeta.color);
+                if (status === 'running' || status === 'queued') {
+                    backendLearningPollTimer = setTimeout(poll, 3000);
+                    return;
+                }
+                if (typeof loadWorkspaceBootstrap === 'function') {
+                    await loadWorkspaceBootstrap();
+                    renderAutoInterpretLearningPanel();
+                    renderAutoInterpretMemoryPanel();
+                }
+                if (status === 'completed' || status === 'approved_manual') {
+                    showToast(`後台學習已完成，最佳分數 ${bestScore} / 99.9`);
+                } else if (status === 'review_required') {
+                    showToast(`後台學習已跑完 ${payload.job.maxAttempts} 輪，最佳 ${bestScore} / 99.9，請人工審核`);
+                } else if (status === 'failed') {
+                    showToast(`後台學習失敗：${payload.job.lastError || '請稍後再試'}`);
+                }
+            } catch (error) {
+                updateAutoInterpretLearningSummary(`後台學習：更新失敗｜${error && error.message ? error.message : '請稍後再試'}`, '#ff9a9a');
+            }
+        };
+        await poll();
+    }
+
+    async function startBackendAutoInterpretLearning() {
+        if (!ensureCalcAdvancedPageReady('第三頁 AI 看圖區尚未載入')) return;
+        if (!(await ensureFeatureAccess('blueprintAutoInterpret', '後台自動學習僅開放會員3（專家）'))) return;
+        if (!img.src || !currentBlueprintUploadState || !currentBlueprintUploadState.dataUrl) {
+            return showToast('請先上傳手機圖、電腦截圖或正式藍圖，再啟動後台學習');
+        }
+        try {
+            const payload = await buildBackendLearningUploadPayload();
+            if (!payload) return showToast('目前沒有可上傳的圖紙資料');
+            updateAutoInterpretLearningSummary('後台學習：上傳圖紙中...', '#8be9fd');
+            const upload = await apiRequest('/learning/blueprints/upload', {
+                method: 'POST',
+                body: payload,
+                retries: 0,
+                timeoutMs: 30000
+            });
+            syncAutoInterpretLearningCaches(null, upload.asset, []);
+            updateAutoInterpretLearningSummary(`後台學習：已接收 ${getBlueprintSourceTypeLabel(upload.asset.sourceType)}，已做校正，建立任務中...`, '#8be9fd');
+            const created = await apiRequest('/learning/auto-interpret/jobs', {
+                method: 'POST',
+                body: {
+                    assetId: upload.asset.assetId,
+                    thresholdScore: 95,
+                    maxAttempts: 3
+                },
+                retries: 0,
+                timeoutMs: 15000
+            });
+            syncAutoInterpretLearningCaches(created.job, upload.asset, []);
+            renderAutoInterpretLearningPanel();
+            updateAutoInterpretLearningSummary(`後台學習：已建立任務，開始重跑辨識 #${created.job.jobId}`, '#8be9fd');
+            showToast(`後台學習已建立，來源 ${getBlueprintSourceTypeLabel(upload.asset.sourceType)}，已先校正再開始自動重跑`);
+            await pollAutoInterpretLearningJob(created.job.jobId);
+        } catch (error) {
+            updateAutoInterpretLearningSummary(`後台學習：建立失敗｜${error && error.message ? error.message : '請稍後再試'}`, '#ff9a9a');
+            showToast(`後台學習啟動失敗：${error && error.message ? error.message : '請稍後再試'}`);
+        }
+    }
+
+    async function reviewAutoInterpretLearningJob(jobId, decision) {
+        const id = String(jobId || '').trim();
+        if (!id) return;
+        const normalizedDecision = String(decision || '').trim().toLowerCase();
+        if (normalizedDecision === 'approved' && !confirm('確定要把這筆後台學習結果加入核心記憶嗎？')) return;
+        if (normalizedDecision === 'rejected' && !confirm('確定要退回這筆後台學習結果嗎？')) return;
+        const note = prompt(
+            normalizedDecision === 'approved'
+                ? '可選填審核備註（例如：手機圖已人工確認）'
+                : '可選填退回原因（例如：尺寸與現場不符）',
+            ''
+        );
+        try {
+            const payload = await apiRequest(`/learning/auto-interpret/jobs/${encodeURIComponent(id)}/review`, {
+                method: 'POST',
+                body: {
+                    decision: normalizedDecision,
+                    note: String(note || '').trim()
+                },
+                retries: 0,
+                timeoutMs: 15000
+            });
+            syncAutoInterpretLearningCaches(payload.job, null, []);
+            if (typeof loadWorkspaceBootstrap === 'function') {
+                await loadWorkspaceBootstrap();
+                renderAutoInterpretMemoryPanel();
+            }
+            renderAutoInterpretLearningPanel();
+            showToast(normalizedDecision === 'approved' ? '已人工通過並加入核心記憶' : '已退回此筆後台學習結果');
+        } catch (error) {
+            updateAutoInterpretLearningSummary(`後台學習：審核失敗｜${error && error.message ? error.message : '請稍後再試'}`, '#ff9a9a');
+            showToast(`後台學習審核失敗：${error && error.message ? error.message : '請稍後再試'}`);
+        }
+    }
+
+    function clearGuidedPrecisionReviewHistory() {
+        if (!confirm('確定清空極強審核研究紀錄嗎？')) return;
+        guidedPrecisionReviewHiddenLocally = true;
+        renderGuidedPrecisionReviewPanel();
+        showToast('已清空本機畫面，極強審核研究紀錄仍保留');
+    }
+
+    function syncGuidedPrecisionReviewRecord(status, options = {}) {
+        if (!autoInterpretLastReport || String(autoInterpretLastReport.precisionMode || '') !== 'guided') return null;
+        const valueSet = options.valueSet || buildCurrentCalcValueSet();
+        const nextReport = attachGuidedPrecisionReviewMeta(autoInterpretLastReport, {
+            type: String(valueSet.type || autoInterpretLastReport.type || '').trim(),
+            quantity: Math.max(1, Number(valueSet.qty || autoInterpretLastReport.quantity) || 1),
+            valueSet,
+            needsReview: status === 'pending' ? !!autoInterpretLastReport.needsReview : false,
+            pendingFields: status === 'pending' ? (Array.isArray(autoInterpretLastReport.pendingFields) ? autoInterpretLastReport.pendingFields.slice() : []) : [],
+            reviewFields: status === 'pending' ? (Array.isArray(autoInterpretLastReport.reviewFields) ? autoInterpretLastReport.reviewFields.slice() : []) : [],
+            decisionStatus: status,
+            reviewDecisionLabel: getGuidedPrecisionReviewStatusLabel(status)
+        });
+        const record = upsertGuidedPrecisionReviewRecord(buildGuidedPrecisionReviewRecord(nextReport, status, {
+            id: nextReport.reviewRecordId,
+            valueSet,
+            decisionNote: options.decisionNote || '',
+            ts: options.ts
+        }));
+        if (!record) return null;
+        autoInterpretLastReport = {
+            ...nextReport,
+            reviewRecordId: record.id
+        };
+        renderGuidedPrecisionReviewPanel();
+        updateAutoInterpretQaSummary(autoInterpretLastReport);
+        return record;
+    }
+
+    function approveGuidedPrecisionToCoreMemory() {
+        if (!autoInterpretLastReport || String(autoInterpretLastReport.precisionMode || '') !== 'guided') {
+            return showToast('目前沒有可審核的極強精準結果');
+        }
+        if (autoInterpretLastReport.needsReview) {
+            return showToast('這筆極強結果仍需複核；若已手動確認，請用「修正後通過」');
+        }
+        const valueSet = buildCurrentCalcValueSet();
+        const missing = getGuidedPrecisionMissingValueLabels(valueSet);
+        if (missing.length) return showToast(`請先補齊：${missing.join('、')}`);
+        const memorySample = buildGuidedPrecisionMemorySampleFromValueSet(valueSet);
+        const learnResult = learnAutoInterpretMemory(memorySample || {});
+        const record = syncGuidedPrecisionReviewRecord('approved', {
+            valueSet,
+            decisionNote: '欄位已確認，審核通過後納入核心記憶'
+        });
+        if (record) {
+            autoInterpretLastReport = attachGuidedPrecisionReviewMeta(autoInterpretLastReport, {
+                memoryStoreSize: learnResult.count,
+                needsReview: false,
+                pendingFields: [],
+                reviewFields: []
+            });
+            renderAutoInterpretMemoryPanel();
+            updateBlueprintAutoInterpretStatus(`極強精準: 已審核通過並寫入核心記憶｜${record.routeLabel}`, '#9fffc0');
+            recordAutoInterpretLog('guided-auto-interpret', '極強精準', autoInterpretLastReport, '審核通過後加入核心記憶');
+            showToast('極強結果已審核通過，並加入核心記憶');
+        }
+    }
+
+    function approveGuidedPrecisionWithCurrentValues() {
+        if (!autoInterpretLastReport || String(autoInterpretLastReport.precisionMode || '') !== 'guided') {
+            return showToast('目前沒有可修正的極強精準結果');
+        }
+        const valueSet = buildCurrentCalcValueSet();
+        const missing = getGuidedPrecisionMissingValueLabels(valueSet);
+        if (missing.length) return showToast(`修正後仍缺少：${missing.join('、')}`);
+        const memorySample = buildGuidedPrecisionMemorySampleFromValueSet(valueSet);
+        const learnResult = learnAutoInterpretMemory(memorySample || {});
+        const record = syncGuidedPrecisionReviewRecord('corrected', {
+            valueSet,
+            decisionNote: '以目前欄位值修正後通過，並納入核心記憶'
+        });
+        if (record) {
+            autoInterpretLastReport = attachGuidedPrecisionReviewMeta(autoInterpretLastReport, {
+                type: String(valueSet.type || autoInterpretLastReport.type || ''),
+                quantity: Math.max(1, Number(valueSet.qty || autoInterpretLastReport.quantity) || 1),
+                valueSet,
+                memoryStoreSize: learnResult.count,
+                needsReview: false,
+                pendingFields: [],
+                reviewFields: []
+            });
+            renderAutoInterpretMemoryPanel();
+            updateBlueprintAutoInterpretStatus(`極強精準: 已依目前欄位修正通過｜${record.routeLabel}`, '#bfe7ff');
+            recordAutoInterpretLog('guided-auto-interpret', '極強精準', autoInterpretLastReport, '人工修正後通過並加入核心記憶');
+            showToast('極強結果已依目前欄位修正通過，並加入核心記憶');
+        }
+    }
+
+    function rejectGuidedPrecisionResult() {
+        if (!autoInterpretLastReport || String(autoInterpretLastReport.precisionMode || '') !== 'guided') {
+            return showToast('目前沒有可退回的極強精準結果');
+        }
+        const record = syncGuidedPrecisionReviewRecord('rejected', {
+            valueSet: buildCurrentCalcValueSet(),
+            decisionNote: '本次極強結果退回，保留研究但不進核心記憶'
+        });
+        if (record) {
+            updateBlueprintAutoInterpretStatus('極強精準: 本次結果已退回，僅保留研究紀錄', '#ffb0b0');
+            recordAutoInterpretLog('guided-auto-interpret', '極強精準', autoInterpretLastReport, '審核退回，不進核心記憶');
+            showToast('本次極強結果已退回，不會進入核心記憶');
+        }
     }
 
     function learnAutoInterpretMemory(sample) {
@@ -493,8 +1435,11 @@
             autoInterpretGateReason = '';
             if (String(autoInterpretLastReport.precisionMode || '') === 'guided' && guidedPrecisionCalcState.baseAnalysis) {
                 syncGuidedPrecisionStateFromCurrentInputs('手動修正');
-                autoInterpretLastReport = {
-                    ...autoInterpretLastReport,
+                const nextNeedsReview = guidedPrecisionCalcState.reviewGateState !== 'ready';
+                autoInterpretNeedsReview = nextNeedsReview;
+                autoInterpretGateReason = nextNeedsReview ? buildGuidedPrecisionReviewGateReason(guidedPrecisionCalcState) : '';
+                autoInterpretLastReport = attachGuidedPrecisionReviewMeta({
+                    ...buildGuidedPrecisionReportPayload(autoInterpretLastReport),
                     type,
                     quantity: Math.max(1, Number(qty) || 1),
                     overallConfidence: guidedPrecisionCalcState.consensusScore,
@@ -505,23 +1450,35 @@
                     ),
                     pendingFields: guidedPrecisionCalcState.pendingRequiredFields.slice(),
                     valueSet: buildCurrentCalcValueSet(),
-                    needsReview: false,
+                    needsReview: nextNeedsReview,
+                    decisionStatus: 'pending',
+                    reviewDecisionLabel: getGuidedPrecisionReviewStatusLabel('pending'),
                     inputSignature: currentSignature
-                };
+                });
                 renderGuidedPrecisionPanel();
                 updateAutoInterpretQaSummary(autoInterpretLastReport);
-                updateBlueprintAutoInterpretStatus('極強精準: 已手動調整欄位並同步候選卡', '#bfe7ff');
+                updateBlueprintAutoInterpretStatus(
+                    nextNeedsReview
+                        ? `極強精準: 已手動調整欄位，但仍需複核 ${autoInterpretLastReport.reviewFields.join('、') || '候選一致性'}`
+                        : '極強精準: 已手動調整欄位並同步候選卡',
+                    nextNeedsReview ? '#ffd48a' : '#bfe7ff'
+                );
                 return;
             }
             updateBlueprintAutoInterpretStatus('自動判讀: 已手動調整參數，解除複核鎖定', '#bfe7ff');
-            updateAutoInterpretQaSummary({
+            autoInterpretLastReport = attachGuidedPrecisionReviewMeta({
                 ...autoInterpretLastReport,
                 type,
                 quantity: Math.max(1, Number(qty) || 1),
+                pendingFields: [],
                 valueSet: buildCurrentCalcValueSet(),
+                reviewFields: [],
                 needsReview: false,
+                decisionStatus: 'pending',
+                reviewDecisionLabel: getGuidedPrecisionReviewStatusLabel('pending'),
                 inputSignature: currentSignature
             });
+            updateAutoInterpretQaSummary(autoInterpretLastReport);
         }
     }
 
@@ -692,8 +1649,8 @@
     }
 
     async function readBlueprintSizeAnnotations() {
-        if (document.body.dataset.workMode !== 'calc') return showToast('請切換到計算模式第三頁再使用尺寸標註辨識');
-        if (getCurrentUserLevel() !== 'pro') return showToast('尺寸標註辨識僅開放會員3（專家）');
+        focusCalcAdvancedPage();
+        if (!(await ensureFeatureAccess('blueprintAnnotationOcr', '尺寸標註辨識僅開放會員3（專家）'))) return;
         if (!img.src) return showToast('請先上傳圖紙再讀尺寸標註');
         try {
             await ensureBlueprintOcrLoaded();
@@ -912,6 +1869,29 @@
         };
     }
 
+    function getGuidedPrecisionMissingValueLabels(valueSet) {
+        const source = valueSet && typeof valueSet === 'object' ? valueSet : {};
+        const missing = [];
+        if (!String(source.type || '').trim()) missing.push('工種');
+        if (!String(source.v1 || '').trim()) missing.push('v1');
+        if (!String(source.v2 || '').trim()) missing.push('v2');
+        if (!String(source.qty || '').trim()) missing.push('數量');
+        return missing;
+    }
+
+    function buildGuidedPrecisionMemorySampleFromValueSet(valueSet) {
+        if (!guidedPrecisionCalcState.baseAnalysis) return null;
+        const vector = buildBlueprintFeatureVector(guidedPrecisionCalcState.baseAnalysis.bounds, guidedPrecisionCalcState.baseAnalysis.qualityReport);
+        return {
+            type: String(valueSet.type || '').trim(),
+            quantity: Math.max(1, Number(valueSet.qty) || 1),
+            longM: Number(valueSet.v1) || Number(guidedPrecisionCalcState.baseAnalysis.longM || 0),
+            shortM: Number(valueSet.v2) || Number(guidedPrecisionCalcState.baseAnalysis.shortM || 0),
+            quality: guidedPrecisionCalcState.qualityLabel,
+            vector
+        };
+    }
+
     function buildGuidedPrecisionFieldConfidenceSummary(fieldConfidence, schema = []) {
         const labels = new Map((Array.isArray(schema) ? schema : []).map(item => [item.id, item.label]));
         const parts = Object.entries(fieldConfidence || {})
@@ -942,6 +1922,164 @@
             : '';
     }
 
+    function createGuidedPrecisionCandidateEvidence(candidate) {
+        return {
+            source: String(candidate && candidate.source || '候選'),
+            confidence: clampNumber(Number(candidate && candidate.confidence) || 0, 0.18, 0.98),
+            detail: String(candidate && candidate.detail || '')
+        };
+    }
+
+    function getGuidedPrecisionCandidateSourceList(candidate) {
+        const list = Array.isArray(candidate && candidate.sourceList) ? candidate.sourceList : [];
+        if (list.length) {
+            return Array.from(new Set(list.map(item => String(item || '').trim()).filter(Boolean)));
+        }
+        const single = String(candidate && candidate.source || '').trim();
+        return single ? [single] : [];
+    }
+
+    function getGuidedPrecisionCandidateSourceSummary(candidate) {
+        const sourceList = getGuidedPrecisionCandidateSourceList(candidate);
+        return sourceList.length ? sourceList.join(' + ') : '未標記來源';
+    }
+
+    function mergeGuidedPrecisionCandidateEvidence(existingCandidate, nextCandidate) {
+        const evidenceList = Array.isArray(existingCandidate && existingCandidate.evidenceList)
+            ? existingCandidate.evidenceList.slice()
+            : [];
+        const nextEvidenceList = Array.isArray(nextCandidate && nextCandidate.evidenceList) && nextCandidate.evidenceList.length
+            ? nextCandidate.evidenceList
+            : [createGuidedPrecisionCandidateEvidence(nextCandidate)];
+        nextEvidenceList.forEach(entry => {
+            const source = String(entry && entry.source || '').trim();
+            const detail = String(entry && entry.detail || '');
+            const duplicate = evidenceList.some(item => String(item.source || '').trim() === source && String(item.detail || '') === detail);
+            if (!duplicate) evidenceList.push(createGuidedPrecisionCandidateEvidence(entry));
+        });
+        const sourceList = Array.from(new Set(evidenceList.map(item => String(item.source || '').trim()).filter(Boolean)));
+        const baseConfidence = Math.max(
+            Number(existingCandidate && (existingCandidate.baseConfidence || existingCandidate.confidence) || 0),
+            Number(nextCandidate && (nextCandidate.baseConfidence || nextCandidate.confidence) || 0)
+        );
+        const supportBonus = Math.min(0.16, Math.max(0, sourceList.length - 1) * 0.05);
+        return {
+            ...existingCandidate,
+            confidence: clampNumber(baseConfidence + supportBonus, 0.18, 0.98),
+            baseConfidence,
+            source: sourceList[0] || String(existingCandidate && existingCandidate.source || nextCandidate && nextCandidate.source || '候選'),
+            sourceList,
+            supportingSourceCount: sourceList.length,
+            evidenceList
+        };
+    }
+
+    function buildGuidedPrecisionFieldCrossValidation(fieldId, spec, fieldState, selected) {
+        const candidates = fieldState && Array.isArray(fieldState.candidates) ? fieldState.candidates : [];
+        const conflictText = getGuidedPrecisionConflictText(fieldId, candidates);
+        const supportingSourceCount = selected
+            ? Math.max(1, Number(selected.supportingSourceCount || getGuidedPrecisionCandidateSourceList(selected).length || 1))
+            : 0;
+        const reviewReasons = [];
+        if (spec && spec.required && !selected) reviewReasons.push('缺少已確認候選');
+        if (selected && Number(selected.confidence || 0) < 0.72) reviewReasons.push('選定候選信心偏低');
+        if (conflictText && supportingSourceCount < 2) reviewReasons.push(conflictText);
+        const sourceSummary = selected ? getGuidedPrecisionCandidateSourceSummary(selected) : '';
+        const summaryParts = [];
+        if (selected) summaryParts.push(`交叉驗證 ${supportingSourceCount} 源`);
+        else summaryParts.push('尚未選定候選');
+        summaryParts.push(`候選 ${candidates.length} 筆`);
+        if (sourceSummary) summaryParts.push(sourceSummary);
+        return {
+            candidateCount: candidates.length,
+            supportingSourceCount,
+            sourceSummary,
+            reviewRequired: reviewReasons.length > 0,
+            reviewReasons,
+            summaryText: summaryParts.join('｜')
+        };
+    }
+
+    function buildGuidedPrecisionCrossValidationSummary(state) {
+        const nextState = state || guidedPrecisionCalcState;
+        const reviewReasons = [];
+        let reviewFieldCount = 0;
+        let multiSourceFieldCount = 0;
+        (Array.isArray(nextState.schema) ? nextState.schema : []).forEach(spec => {
+            const fieldState = nextState.fields && nextState.fields[spec.id] ? nextState.fields[spec.id] : null;
+            const crossValidation = fieldState && fieldState.crossValidation ? fieldState.crossValidation : null;
+            if (!crossValidation) return;
+            if (crossValidation.supportingSourceCount >= 2) multiSourceFieldCount += 1;
+            if (crossValidation.reviewRequired) {
+                reviewFieldCount += 1;
+                crossValidation.reviewReasons.forEach(reason => {
+                    reviewReasons.push(`${spec.label}：${reason}`);
+                });
+            }
+        });
+        nextState.multiSourceFieldCount = multiSourceFieldCount;
+        nextState.reviewFieldCount = reviewFieldCount;
+        nextState.reviewGateReasons = reviewReasons.slice(0, 6);
+        nextState.reviewGateState = nextState.pendingRequiredFields.length
+            ? 'pending'
+            : (reviewFieldCount > 0 ? 'review' : 'ready');
+        nextState.crossValidationSummary = `多來源候選交叉驗證：${multiSourceFieldCount}/${(nextState.schema || []).length} 欄達雙源支持｜欄位級複核 ${reviewFieldCount} 欄`;
+        return nextState;
+    }
+
+    function buildGuidedPrecisionFieldCrossValidationReport(state = guidedPrecisionCalcState) {
+        const result = {};
+        (Array.isArray(state && state.schema) ? state.schema : []).forEach(spec => {
+            const fieldState = state && state.fields ? state.fields[spec.id] : null;
+            const crossValidation = fieldState && fieldState.crossValidation ? fieldState.crossValidation : null;
+            if (!crossValidation) return;
+            result[spec.id] = {
+                label: spec.label,
+                candidateCount: crossValidation.candidateCount,
+                supportingSourceCount: crossValidation.supportingSourceCount,
+                sourceSummary: crossValidation.sourceSummary,
+                reviewRequired: crossValidation.reviewRequired,
+                reviewReasons: crossValidation.reviewReasons.slice()
+            };
+        });
+        return result;
+    }
+
+    function getGuidedPrecisionReviewFieldLabels(state = guidedPrecisionCalcState) {
+        const labels = [];
+        (Array.isArray(state && state.schema) ? state.schema : []).forEach(spec => {
+            const fieldState = state && state.fields ? state.fields[spec.id] : null;
+            const crossValidation = fieldState && fieldState.crossValidation ? fieldState.crossValidation : null;
+            if (crossValidation && crossValidation.reviewRequired) labels.push(spec.label);
+        });
+        return labels;
+    }
+
+    function buildGuidedPrecisionReviewGateReason(state = guidedPrecisionCalcState) {
+        if (!state) return '';
+        if (Array.isArray(state.pendingRequiredFields) && state.pendingRequiredFields.length) {
+            return `極強精準模式仍有待補欄位：${state.pendingRequiredFields.join('、')}`;
+        }
+        if (Array.isArray(state.reviewGateReasons) && state.reviewGateReasons.length) {
+            return `極強精準模式仍需欄位級複核：${state.reviewGateReasons.join('｜')}`;
+        }
+        return '';
+    }
+
+    function buildGuidedPrecisionReportPayload(baseReport = {}) {
+        const reviewFields = getGuidedPrecisionReviewFieldLabels(guidedPrecisionCalcState);
+        return attachGuidedPrecisionReviewMeta({
+            ...baseReport,
+            crossValidationReport: buildGuidedPrecisionFieldCrossValidationReport(guidedPrecisionCalcState),
+            crossValidationSummary: String(guidedPrecisionCalcState.crossValidationSummary || ''),
+            multiSourceFieldCount: Number(guidedPrecisionCalcState.multiSourceFieldCount || 0),
+            reviewFieldCount: Number(guidedPrecisionCalcState.reviewFieldCount || 0),
+            reviewFields,
+            reviewGateState: String(guidedPrecisionCalcState.reviewGateState || 'pending'),
+            reviewGateReasons: Array.isArray(guidedPrecisionCalcState.reviewGateReasons) ? guidedPrecisionCalcState.reviewGateReasons.slice() : []
+        });
+    }
+
     function updateAutoInterpretQaSummary(report = autoInterpretLastReport) {
         const box = document.getElementById('autoInterpretQaSummary');
         if (!box) return;
@@ -957,10 +2095,20 @@
         const pending = Array.isArray(report.pendingFields) && report.pendingFields.length
             ? `｜待補 ${report.pendingFields.join('、')}`
             : '';
-        const review = report.needsReview ? '｜需複核' : '';
+        const review = report.needsReview
+            ? `｜需複核${Array.isArray(report.reviewFields) && report.reviewFields.length ? ` ${report.reviewFields.join('、')}` : ''}`
+            : '';
+        const crossValidation = String(report.crossValidationSummary || '').trim();
+        const serverQa = Number.isFinite(Number(report.serverQaScore))
+            ? `｜後端QA ${String(report.serverQaLevel || '').trim() || '待評'} ${Math.round(Number(report.serverQaScore) || 0)}`
+            : '';
         const modeLabel = String(report.precisionMode || '') === 'guided' ? '極強精準' : '快速版';
-        box.innerText = `看圖 QA：${modeLabel}｜總信心 ${overall}%${fieldSummary ? `｜${fieldSummary}` : ''}${pending}${review}`;
-        box.style.color = report.needsReview ? '#ffd48a' : (String(report.precisionMode || '') === 'guided' ? '#fff1b8' : '#d8ebff');
+        const routeText = String(report.confidenceRouteLabel || '').trim();
+        const decisionText = String(report.reviewDecisionLabel || '').trim();
+        box.innerText = `看圖 QA：${modeLabel}｜總信心 ${overall}%${routeText ? `｜分流 ${routeText}` : ''}${decisionText ? `｜審核 ${decisionText}` : ''}${fieldSummary ? `｜${fieldSummary}` : ''}${crossValidation ? `｜${crossValidation}` : ''}${pending}${review}${serverQa}`;
+        box.style.color = String(report.decisionStatus || '') === 'rejected'
+            ? '#ff9a9a'
+            : (report.needsReview ? '#ffd48a' : (String(report.precisionMode || '') === 'guided' ? '#fff1b8' : '#d8ebff'));
         autoInterpretQaStats.lastSummary = box.innerText;
         updateQaDashboard();
     }
@@ -1091,20 +2239,29 @@
             ? String(nextValue)
             : (fieldId === 'qty' ? String(nextValue) : Number(nextValue).toFixed(3));
         const listRef = fieldBuckets[fieldId];
+        const evidence = createGuidedPrecisionCandidateEvidence(candidate);
         const next = {
             id: `${fieldId}_${listRef.length + 1}`,
             fieldId,
             value: nextValue,
             source: String(candidate.source || '候選'),
-            confidence: clampNumber(Number(candidate.confidence) || 0, 0.18, 0.98),
+            confidence: evidence.confidence,
+            baseConfidence: evidence.confidence,
             detail: String(candidate.detail || ''),
-            normalizedValue
+            normalizedValue,
+            sourceList: [String(candidate.source || '候選')],
+            supportingSourceCount: 1,
+            evidenceList: [evidence]
         };
         const existingIndex = listRef.findIndex(item => item.normalizedValue === normalizedValue);
         if (existingIndex >= 0) {
-            if (next.confidence > listRef[existingIndex].confidence) {
-                listRef[existingIndex] = { ...listRef[existingIndex], ...next, id: listRef[existingIndex].id };
+            const merged = mergeGuidedPrecisionCandidateEvidence(listRef[existingIndex], next);
+            if (Number(next.confidence || 0) >= Number(listRef[existingIndex].confidence || 0)) {
+                merged.detail = next.detail || listRef[existingIndex].detail || '';
+                merged.value = next.value;
+                merged.source = next.source || listRef[existingIndex].source;
             }
+            listRef[existingIndex] = { ...merged, id: listRef[existingIndex].id };
             return;
         }
         listRef.push(next);
@@ -1318,6 +2475,7 @@
                 ? fieldState.candidates.find(item => item.id === fieldState.selectedCandidateId)
                 : null;
             fieldState.selectedConfidence = selected ? Number(selected.confidence || 0) : 0;
+            fieldState.crossValidation = buildGuidedPrecisionFieldCrossValidation(spec.id, spec, fieldState, selected);
             if (spec.required) {
                 if (!selected) pending.push(spec.label);
                 else {
@@ -1328,6 +2486,7 @@
         });
         nextState.pendingRequiredFields = pending;
         nextState.consensusScore = confidenceCount > 0 ? (confidenceSum / confidenceCount) : 0;
+        buildGuidedPrecisionCrossValidationSummary(nextState);
         return nextState;
     }
 
@@ -1393,7 +2552,7 @@
         const memoryText = nextState.memoryMatch
             ? `同類記憶 ${Math.round((Number(nextState.memoryMatch.similarity) || 0) * 100)}%`
             : (baseAnalysis.memoryTypeMatch ? `跨類記憶 ${Math.round((Number(baseAnalysis.memoryTypeMatch.similarity) || 0) * 100)}%` : '記憶未命中');
-        nextState.summaryText = '已整合幾何輪廓、尺寸標註、記憶案例與數量估算，預選第一建議；確認後才會回填欄位。';
+        nextState.summaryText = '已建立多來源候選交叉驗證卡，整合幾何輪廓、尺寸標註、記憶案例與數量估算；通過欄位級複核後才會解除 gate。';
         nextState.statusText = `品質 ${nextState.qualityLabel}｜${ocrText}｜${countText}｜${memoryText}`;
         return nextState;
     }
@@ -1456,7 +2615,7 @@
             fieldState.conflictText = getGuidedPrecisionConflictText(fieldId, fieldState.candidates);
         });
         guidedPrecisionCalcState.recommendedType = snapshot.currentType || guidedPrecisionCalcState.recommendedType;
-        guidedPrecisionCalcState.summaryText = '已同步目前欄位值，可直接套用，也可保留其他候選交叉比對。';
+        guidedPrecisionCalcState.summaryText = '已同步目前欄位值，並重新寫回多來源候選交叉驗證卡；可直接套用，也可保留其他候選交叉比對。';
         guidedPrecisionCalcState.statusText = `${guidedPrecisionCalcState.statusText}｜已同步${sourceText}`;
         recomputeGuidedPrecisionState(guidedPrecisionCalcState);
     }
@@ -1467,8 +2626,8 @@
         return getSmartMeasurePlan(type).some(task => task && task.field === fieldId);
     }
 
-    function startGuidedPrecisionSmartMeasure(fieldId) {
-        if (getCurrentUserLevel() !== 'pro') return showToast('智慧量圖精修僅開放會員3（專家）');
+    async function startGuidedPrecisionSmartMeasure(fieldId) {
+        if (!(await ensureFeatureAccess('guidedPrecisionRefine', '智慧量圖精修僅開放會員3（專家）'))) return;
         if (is3DView) return showToast('請先關閉 3D 檢視再做智慧量圖精修');
         if (!img.src) return showToast('請先上傳圖紙再做智慧量圖精修');
         if (!scalePixelsPerUnit) return showToast('請先完成比例校正，再做欄位精修');
@@ -1537,13 +2696,26 @@
         const pendingText = guidedPrecisionCalcState.pendingRequiredFields.length
             ? `待補 ${guidedPrecisionCalcState.pendingRequiredFields.join('、')}`
             : (guidedPrecisionCalcState.applied ? '已套用到計算欄位' : '可直接套用目前預選');
+        const gateText = guidedPrecisionCalcState.reviewGateState === 'ready'
+            ? '欄位級複核通過，可直接進入計算'
+            : (guidedPrecisionCalcState.reviewGateState === 'review'
+                ? `欄位級複核中：${guidedPrecisionCalcState.reviewFieldCount} 欄仍需確認`
+                : pendingText);
+        const gateReasonText = guidedPrecisionCalcState.reviewGateReasons.length
+            ? `複核原因：${guidedPrecisionCalcState.reviewGateReasons.join('｜')}`
+            : '';
+        const reviewMeta = getGuidedPrecisionConfidenceRoute(autoInterpretLastReport);
+        const reviewDecisionText = autoInterpretLastReport && autoInterpretLastReport.reviewDecisionLabel
+            ? `｜審核狀態：${autoInterpretLastReport.reviewDecisionLabel}`
+            : '';
         const fieldsHtml = (guidedPrecisionCalcState.schema || []).map(spec => {
             const fieldState = guidedPrecisionCalcState.fields[spec.id];
             const selected = getGuidedPrecisionSelectedCandidate(spec.id);
             const fieldTone = getGuidedPrecisionTone(fieldState && fieldState.selectedConfidence);
             const actionButtons = (fieldState && Array.isArray(fieldState.candidates) ? fieldState.candidates : []).map(candidate => {
                 const activeClass = fieldState.selectedCandidateId === candidate.id ? ' active' : '';
-                const buttonText = `${formatGuidedPrecisionCandidateValue(spec.id, candidate)}｜${candidate.source}｜${Math.round((Number(candidate.confidence) || 0) * 100)}%`;
+                const sourceSummary = getGuidedPrecisionCandidateSourceSummary(candidate);
+                const buttonText = `${formatGuidedPrecisionCandidateValue(spec.id, candidate)}｜${sourceSummary}｜${candidate.supportingSourceCount || 1} 源｜${Math.round((Number(candidate.confidence) || 0) * 100)}%`;
                 const handler = spec.id === 'type'
                     ? `chooseGuidedPrecisionType('${String(candidate.value || '')}')`
                     : `selectGuidedPrecisionCandidate('${spec.id}','${candidate.id}')`;
@@ -1556,17 +2728,23 @@
             if (spec.id !== 'type' && (!selected || Number(fieldState.selectedConfidence || 0) < 0.72)) {
                 assistButtons.push(`<button type="button" class="precision-review-btn" onclick="focusGuidedPrecisionField('${spec.id}')">手動補這一欄</button>`);
             }
+            const crossValidation = fieldState && fieldState.crossValidation ? fieldState.crossValidation : null;
             const detailText = selected
-                ? `${selected.source}${selected.detail ? `｜${selected.detail}` : ''}${fieldState && fieldState.conflictText ? `｜${fieldState.conflictText}` : ''}`
+                ? [
+                    `${getGuidedPrecisionCandidateSourceSummary(selected)}${selected.detail ? `｜${selected.detail}` : ''}`,
+                    crossValidation && crossValidation.summaryText ? crossValidation.summaryText : '',
+                    crossValidation && crossValidation.reviewReasons.length ? `待複核：${crossValidation.reviewReasons.join('、')}` : '',
+                    fieldState && fieldState.conflictText ? fieldState.conflictText : ''
+                ].filter(Boolean).join('｜')
                 : (spec.required ? '目前沒有可直接套用的候選，請先手填或重新辨識。' : '目前沒有候選，可保留空白。');
             const noteText = selected
-                ? `${fieldTone.label} ${Math.round((Number(selected.confidence) || 0) * 100)}%`
+                ? `${fieldTone.label} ${Math.round((Number(selected.confidence) || 0) * 100)}%｜${crossValidation && crossValidation.supportingSourceCount ? `${crossValidation.supportingSourceCount} 源` : '1 源'}`
                 : (spec.required ? '需補值' : '選填');
             const candidateButtons = [actionButtons, assistButtons.join('')].filter(Boolean).join('');
             return `<div class="precision-review-field"><div class="precision-review-field-head"><span class="precision-review-field-label">${escapeHTML(spec.label)}</span><span class="precision-review-field-note ${fieldTone.className}">${escapeHTML(noteText)}</span></div><div class="precision-review-candidates">${candidateButtons || `<button type="button" class="precision-review-btn" onclick="focusGuidedPrecisionField('${spec.id}')">手動補這一欄</button>`}</div><div class="precision-review-detail">${escapeHTML(detailText)}</div></div>`;
         }).join('');
         panel.hidden = false;
-        panel.innerHTML = `<div class="precision-review-head"><span class="precision-review-title">極強精準模式 #${guidedPrecisionCalcState.runId}｜${escapeHTML(getCalcTypeDisplayName(guidedPrecisionCalcState.recommendedType))}</span><span class="precision-review-badge">${escapeHTML(tone.label)} ${Math.round(guidedPrecisionCalcState.consensusScore * 100)}%</span></div><div class="precision-review-summary">${escapeHTML(guidedPrecisionCalcState.summaryText)}<br>${escapeHTML(guidedPrecisionCalcState.statusText)}<br>${escapeHTML(pendingText)}</div><div class="precision-review-grid">${fieldsHtml}</div><div class="precision-review-actions"><button class="tool-btn" type="button" style="border-color:#ffd166; color:#fff1b8;" onclick="applyGuidedPrecisionSelections()">套用目前選擇</button><button class="tool-btn" type="button" style="border-color:#90caf9; color:#dceeff;" onclick="runGuidedPrecisionAutoInterpret()">重新分析</button><button class="tool-btn" type="button" style="border-color:#9bc2e5; color:#d7ebff;" onclick="clearGuidedPrecisionCalcState()">關閉高精度卡</button></div>`;
+        panel.innerHTML = `<div class="precision-review-head"><span class="precision-review-title">極強精準模式 #${guidedPrecisionCalcState.runId}｜${escapeHTML(getCalcTypeDisplayName(guidedPrecisionCalcState.recommendedType))}</span><span class="precision-review-badge">${escapeHTML(tone.label)} ${Math.round(guidedPrecisionCalcState.consensusScore * 100)}%</span></div><div class="precision-review-summary">${escapeHTML(guidedPrecisionCalcState.summaryText)}<br>${escapeHTML(guidedPrecisionCalcState.statusText)}<br>${escapeHTML(guidedPrecisionCalcState.crossValidationSummary || '')}<br>${escapeHTML(gateText)}${gateReasonText ? `<br>${escapeHTML(gateReasonText)}` : ''}<br>${escapeHTML(`信心分流：${reviewMeta.label}｜${reviewMeta.note}${reviewDecisionText}`)}</div><div class="precision-review-grid">${fieldsHtml}</div><div class="precision-review-actions"><button class="tool-btn" type="button" style="border-color:#ffd166; color:#fff1b8;" onclick="applyGuidedPrecisionSelections()">套用目前選擇</button><button class="tool-btn" type="button" style="border-color:#9fffc0; color:#eaffef;" onclick="approveGuidedPrecisionToCoreMemory()">審核通過入核心</button><button class="tool-btn" type="button" style="border-color:#90caf9; color:#dceeff;" onclick="approveGuidedPrecisionWithCurrentValues()">以目前欄位修正後通過</button><button class="tool-btn" type="button" style="border-color:#ffb0b0; color:#ffe3e3;" onclick="rejectGuidedPrecisionResult()">退回本次結果</button><button class="tool-btn" type="button" style="border-color:#90caf9; color:#dceeff;" onclick="runGuidedPrecisionAutoInterpret()">重新分析</button><button class="tool-btn" type="button" style="border-color:#9bc2e5; color:#d7ebff;" onclick="clearGuidedPrecisionCalcState()">關閉高精度卡</button></div>`;
     }
 
     function focusGuidedPrecisionField(fieldId) {
@@ -1592,15 +2770,24 @@
     }
 
     function clearGuidedPrecisionCalcState(silent = false) {
+        const keepReviewGate = !silent
+            && !!(autoInterpretLastReport
+                && String(autoInterpretLastReport.precisionMode || '') === 'guided'
+                && autoInterpretLastReport.needsReview);
         guidedPrecisionCalcState = createDefaultGuidedPrecisionCalcState();
-        if (autoInterpretNeedsReview && String(autoInterpretGateReason || '').includes('極強精準')) {
+        if (!keepReviewGate && autoInterpretNeedsReview && String(autoInterpretGateReason || '').includes('極強精準')) {
             autoInterpretNeedsReview = false;
             autoInterpretGateReason = '';
         }
         renderGuidedPrecisionPanel();
         if (!silent) {
-            updateBlueprintAutoInterpretStatus('自動判讀: 已關閉極強精準模式', '#bfe7ff');
-            showToast('已關閉極強精準模式');
+            updateBlueprintAutoInterpretStatus(
+                keepReviewGate
+                    ? '自動判讀: 已關閉極強精準卡，但複核 gate 仍保留'
+                    : '自動判讀: 已關閉極強精準模式',
+                keepReviewGate ? '#ffd48a' : '#bfe7ff'
+            );
+            showToast(keepReviewGate ? '已關閉候選卡，但仍需先完成複核' : '已關閉極強精準模式');
         }
     }
 
@@ -1655,6 +2842,13 @@
 
     function recordAutoInterpretLog(mode, modeLabel, report, summaryText = '') {
         if (!report) return;
+        const reviewFields = Array.isArray(report.reviewFields) && report.reviewFields.length
+            ? report.reviewFields.slice()
+            : (Array.isArray(report.pendingFields) ? report.pendingFields.slice() : []);
+        const summaryParts = [
+            String(summaryText || report.summaryText || report.fieldConfidenceSummary || '').trim(),
+            String(report.crossValidationSummary || '').trim()
+        ].filter(Boolean);
         recordMeasurementLog({
             mode,
             modeLabel,
@@ -1672,18 +2866,24 @@
             nudgeAdjustCount: 0,
             qualityScore: Math.round((Number(report.overallConfidence) || 0) * 100),
             fallbackUsed: false,
-            summary: String(summaryText || report.summaryText || report.fieldConfidenceSummary || '').trim(),
+            summary: summaryParts.join('｜'),
             precisionMode: String(report.precisionMode || ''),
             overallConfidence: Number(report.overallConfidence) || 0,
             fieldConfidence: report.fieldConfidence || {},
             fieldConfidenceSummary: String(report.fieldConfidenceSummary || ''),
+            crossValidationSummary: String(report.crossValidationSummary || ''),
+            crossValidationReport: report.crossValidationReport || {},
             valueSet: report.valueSet || buildCurrentCalcValueSet(),
-            reviewFields: Array.isArray(report.pendingFields) ? report.pendingFields.slice() : [],
+            reviewFields,
+            reviewGateState: String(report.reviewGateState || ''),
+            reviewGateReasons: Array.isArray(report.reviewGateReasons) ? report.reviewGateReasons.slice() : [],
+            reviewFieldCount: Number(report.reviewFieldCount) || reviewFields.length,
+            multiSourceFieldCount: Number(report.multiSourceFieldCount) || 0,
             needsReview: !!report.needsReview
         });
     }
 
-    function applyGuidedPrecisionSelections() {
+    async function applyGuidedPrecisionSelections() {
         if (!guidedPrecisionCalcState.active) return showToast('目前沒有極強精準候選可套用');
         const typeEl = document.getElementById('calcType');
         const targetType = String(guidedPrecisionCalcState.recommendedType || '');
@@ -1712,27 +2912,32 @@
         const quantity = Math.max(1, Number(qtyInput && qtyInput.value) || 1);
         const fieldConfidence = buildGuidedPrecisionFieldConfidenceMap();
         const fieldConfidenceSummary = buildGuidedPrecisionFieldConfidenceSummary(fieldConfidence, guidedPrecisionCalcState.schema);
+        const guidedReportBase = buildGuidedPrecisionReportPayload({
+            runId: guidedPrecisionCalcState.runId,
+            type: finalType,
+            quantity,
+            overallConfidence: guidedPrecisionCalcState.consensusScore,
+            precisionMode: 'guided',
+            fieldConfidence,
+            fieldConfidenceSummary,
+            memorySimilarity: guidedPrecisionCalcState.memoryMatch ? Number(guidedPrecisionCalcState.memoryMatch.similarity || 0) : 0,
+            memoryStoreSize: getAutoInterpretMemoryStore().length,
+            valueSet: buildGuidedPrecisionSelectedValueSet(),
+            ocrCandidateCount: Array.isArray(guidedPrecisionCalcState.baseAnalysis && guidedPrecisionCalcState.baseAnalysis.ocrCandidates)
+                ? guidedPrecisionCalcState.baseAnalysis.ocrCandidates.length
+                : 0,
+            inputSignature: getGuidedPrecisionCurrentSignature()
+        });
         if (missing.length > 0) {
             autoInterpretNeedsReview = true;
             autoInterpretGateReason = `極強精準模式仍有待補欄位：${missing.join('、')}`;
             autoInterpretLastReport = {
-                runId: guidedPrecisionCalcState.runId,
-                type: finalType,
-                quantity,
-                overallConfidence: guidedPrecisionCalcState.consensusScore,
-                precisionMode: 'guided',
-                fieldConfidence,
-                fieldConfidenceSummary,
-                memorySimilarity: guidedPrecisionCalcState.memoryMatch ? Number(guidedPrecisionCalcState.memoryMatch.similarity || 0) : 0,
-                memoryStoreSize: getAutoInterpretMemoryStore().length,
+                ...guidedReportBase,
                 pendingFields: missing.slice(),
-                valueSet: buildGuidedPrecisionSelectedValueSet(),
                 needsReview: true,
-                ocrCandidateCount: Array.isArray(guidedPrecisionCalcState.baseAnalysis && guidedPrecisionCalcState.baseAnalysis.ocrCandidates)
-                    ? guidedPrecisionCalcState.baseAnalysis.ocrCandidates.length
-                    : 0,
-                inputSignature: getGuidedPrecisionCurrentSignature()
+                reviewFields: getGuidedPrecisionReviewFieldLabels(guidedPrecisionCalcState)
             };
+            await enrichAutoInterpretServerQa(autoInterpretLastReport);
             guidedPrecisionCalcState.applied = false;
             updateBlueprintAutoInterpretStatus(`極強精準: 已套用部分候選，仍待補 ${missing.join('、')}`, '#ffd48a');
             previewCalc();
@@ -1742,51 +2947,53 @@
             return showToast(`請補齊：${missing.join('、')}`);
         }
 
-        let learnResult = { count: getAutoInterpretMemoryStore().length };
-        if (guidedPrecisionCalcState.baseAnalysis) {
-            const vector = buildBlueprintFeatureVector(guidedPrecisionCalcState.baseAnalysis.bounds, guidedPrecisionCalcState.baseAnalysis.qualityReport);
-            learnResult = learnAutoInterpretMemory({
-                type: finalType,
-                quantity,
-                longM: readInputNumber('v1', 0) || Number(guidedPrecisionCalcState.baseAnalysis.longM || 0),
-                shortM: readInputNumber('v2', 0) || Number(guidedPrecisionCalcState.baseAnalysis.shortM || 0),
-                quality: guidedPrecisionCalcState.qualityLabel,
-                vector
-            });
-        }
         guidedPrecisionCalcState.applied = true;
-        autoInterpretNeedsReview = false;
-        autoInterpretGateReason = '';
-        autoInterpretLastReport = {
-            runId: guidedPrecisionCalcState.runId,
-            type: finalType,
-            quantity,
-            overallConfidence: guidedPrecisionCalcState.consensusScore,
-            precisionMode: 'guided',
-            fieldConfidence,
-            fieldConfidenceSummary,
-            memorySimilarity: guidedPrecisionCalcState.memoryMatch ? Number(guidedPrecisionCalcState.memoryMatch.similarity || 0) : 0,
-            memoryStoreSize: learnResult.count,
-            pendingFields: [],
-                valueSet: buildGuidedPrecisionSelectedValueSet(),
-            needsReview: false,
-            ocrCandidateCount: Array.isArray(guidedPrecisionCalcState.baseAnalysis && guidedPrecisionCalcState.baseAnalysis.ocrCandidates)
-                ? guidedPrecisionCalcState.baseAnalysis.ocrCandidates.length
-                : 0,
-            inputSignature: getGuidedPrecisionCurrentSignature()
-        };
-        updateBlueprintAutoInterpretStatus(`極強精準: 已套用 ${getCalcTypeDisplayName(finalType)}｜欄位共識 ${Math.round(guidedPrecisionCalcState.consensusScore * 100)}%｜記憶 ${learnResult.count} 筆`, '#9fffc0');
+        const reviewStillRequired = guidedPrecisionCalcState.reviewGateState !== 'ready';
+        autoInterpretNeedsReview = reviewStillRequired;
+        autoInterpretGateReason = reviewStillRequired ? buildGuidedPrecisionReviewGateReason(guidedPrecisionCalcState) : '';
+        autoInterpretLastReport = attachGuidedPrecisionReviewMeta(buildGuidedPrecisionReportPayload({
+            ...guidedReportBase,
+            memoryStoreSize: getAutoInterpretMemoryStore().length,
+            pendingFields: guidedPrecisionCalcState.pendingRequiredFields.slice(),
+            needsReview: reviewStillRequired,
+            decisionStatus: 'pending',
+            reviewDecisionLabel: getGuidedPrecisionReviewStatusLabel('pending')
+        }));
+        const queuedRecord = syncGuidedPrecisionReviewRecord('pending', {
+            valueSet: buildCurrentCalcValueSet(),
+            decisionNote: reviewStillRequired
+                ? '已套用極強結果，仍待審核後才能進核心記憶'
+                : '已套用極強結果，待管理者確認是否進核心記憶'
+        });
+        await enrichAutoInterpretServerQa(autoInterpretLastReport);
+        updateBlueprintAutoInterpretStatus(
+            reviewStillRequired
+                ? `極強精準: 已套用 ${getCalcTypeDisplayName(finalType)}，但仍需欄位級複核 ${autoInterpretLastReport.reviewFields.join('、') || '候選一致性'}｜已送審核研究區`
+                : `極強精準: 已套用 ${getCalcTypeDisplayName(finalType)}｜欄位共識 ${Math.round(guidedPrecisionCalcState.consensusScore * 100)}%｜${queuedRecord ? queuedRecord.routeLabel : autoInterpretLastReport.confidenceRouteLabel}｜待審核後進核心記憶`,
+            reviewStillRequired ? '#ffd48a' : '#9fffc0'
+        );
         previewCalc();
         renderAutoInterpretMemoryPanel();
         renderGuidedPrecisionPanel();
         trackAutoInterpretQaStats('guided', autoInterpretLastReport, { incrementRun: false, applied: true });
-        recordAutoInterpretLog('guided-auto-interpret', '極強精準', autoInterpretLastReport, `已套用極強精準結果｜${fieldConfidenceSummary || '欄位已確認'}`);
-        showToast(`極強精準結果已套用：${getCalcTypeDisplayName(finalType)}`);
+        recordAutoInterpretLog(
+            'guided-auto-interpret',
+            '極強精準',
+            autoInterpretLastReport,
+            reviewStillRequired
+                ? `已套用但仍需複核，且已送審核研究區｜${fieldConfidenceSummary || '候選已套用'}`
+                : `已套用極強精準結果，待審核通過後才進核心記憶｜${fieldConfidenceSummary || '欄位已確認'}`
+        );
+        showToast(
+            reviewStillRequired
+                ? `已套用 ${getCalcTypeDisplayName(finalType)}，但仍需複核後再進核心記憶`
+                : `極強精準結果已套用，待審核通過後再進核心記憶`
+        );
     }
 
     async function runGuidedPrecisionAutoInterpret() {
-        if (document.body.dataset.workMode !== 'calc') return showToast('請切換到計算模式第三頁再使用極強精準辨識');
-        if (getCurrentUserLevel() !== 'pro') return showToast('極強精準辨識僅開放會員3（專家）');
+        if (!ensureCalcAdvancedPageReady('第三頁精準辨識區尚未載入')) return;
+        if (!(await ensureFeatureAccess('guidedPrecisionAuto', '極強精準辨識僅開放會員3（專家）'))) return;
         if (autoInterpretBusy) return showToast('單一運算進行中，請稍候完成');
         if (!img.src) return showToast('請先上傳圖紙再做極強精準辨識');
         autoInterpretBusy = true;
@@ -1831,8 +3038,9 @@
             const fieldConfidence = buildGuidedPrecisionFieldConfidenceMap();
             const fieldConfidenceSummary = buildGuidedPrecisionFieldConfidenceSummary(fieldConfidence, guidedPrecisionCalcState.schema);
             autoInterpretNeedsReview = true;
-            autoInterpretGateReason = '極強精準模式已產生逐欄候選，請確認後按「套用目前選擇」或直接手動修正';
-            autoInterpretLastReport = {
+            autoInterpretGateReason = buildGuidedPrecisionReviewGateReason(guidedPrecisionCalcState)
+                || '極強精準模式已產生逐欄候選，請確認後按「套用目前選擇」或直接手動修正';
+            autoInterpretLastReport = attachGuidedPrecisionReviewMeta(buildGuidedPrecisionReportPayload({
                 runId,
                 type: guidedPrecisionCalcState.recommendedType,
                 quantity: stage.currentQty,
@@ -1849,12 +3057,15 @@
                 pendingFields: guidedPrecisionCalcState.pendingRequiredFields.slice(),
                 valueSet: buildGuidedPrecisionSelectedValueSet(),
                 needsReview: true,
+                decisionStatus: 'pending',
+                reviewDecisionLabel: getGuidedPrecisionReviewStatusLabel('pending'),
                 ocrCandidateCount: Array.isArray(stage.ocrCandidates) ? stage.ocrCandidates.length : 0,
                 inputSignature: getGuidedPrecisionCurrentSignature()
-            };
+            }));
+            await enrichAutoInterpretServerQa(autoInterpretLastReport);
             renderGuidedPrecisionPanel();
             updateBlueprintAutoInterpretStatus(
-                `極強精準: #${runId} 已建立逐欄候選｜${stage.longM.toFixed(2)}×${stage.shortM.toFixed(2)} m｜OCR ${stage.ocrCandidates.length} 筆｜共識 ${Math.round(guidedPrecisionCalcState.consensusScore * 100)}%｜待確認`,
+                `極強精準: #${runId} 已建立逐欄候選｜${stage.longM.toFixed(2)}×${stage.shortM.toFixed(2)} m｜OCR ${stage.ocrCandidates.length} 筆｜${guidedPrecisionCalcState.crossValidationSummary}｜待確認`,
                 '#ffd166'
             );
             trackAutoInterpretQaStats('guided', autoInterpretLastReport);
@@ -1866,9 +3077,9 @@
     }
 
     async function autoInterpretBlueprintAndCalculate() {
-        if (document.body.dataset.workMode !== 'calc') return showToast('請切換到計算模式第三頁再使用自動計算');
-        if (getCurrentUserLevel() !== 'pro') return showToast('看圖自動判讀僅開放會員3（專家）');
-        if (!document.getElementById('advAutoInterpretGate')) return showToast('請在計算第三頁使用自動計算');
+        if (typeof ensureWorkModeAccess === 'function' && !ensureWorkModeAccess('calc', '請先切到第三頁計算模式再做看圖自動判讀')) return;
+        if (!ensureCalcAdvancedPageReady('第三頁自動計算區尚未載入')) return;
+        if (!(await ensureFeatureAccess('blueprintAutoInterpret', '看圖自動判讀僅開放會員3（專家）'))) return;
         if (autoInterpretBusy) return showToast('單一運算進行中，請稍候完成');
         if (!img.src) return showToast('請先上傳圖紙再做自動判讀');
         clearGuidedPrecisionCalcState(true);
@@ -2014,16 +3225,18 @@
                 autoInterpretNeedsReview = true;
                 autoInterpretGateReason = `自動判讀信心 ${(overallConfidence * 100).toFixed(0)}% 低於門檻 ${(gateThreshold * 100).toFixed(0)}%，請手動複核尺寸/數量`;
             }
-            const learnResult = learnAutoInterpretMemory({
-                type,
-                quantity: finalQty,
-                longM,
-                shortM,
-                quality: qualityReport ? qualityReport.quality : '未知',
-                vector: buildBlueprintFeatureVector(bounds, qualityReport)
-            });
+            const learnResult = autoInterpretNeedsReview
+                ? { count: getAutoInterpretMemoryStore().length, updated: false }
+                : learnAutoInterpretMemory({
+                    type,
+                    quantity: finalQty,
+                    longM,
+                    shortM,
+                    quality: qualityReport ? qualityReport.quality : '未知',
+                    vector: buildBlueprintFeatureVector(bounds, qualityReport)
+                });
             updateBlueprintAutoInterpretStatus(
-                `自動判讀: 單一運算 #${runId} 完成｜${bounds.widthPx.toFixed(0)}×${bounds.heightPx.toFixed(0)} px → ${longM.toFixed(2)}×${shortM.toFixed(2)} m${manualDepthNote}${countNote}${memoryNote}｜總信心 ${(overallConfidence * 100).toFixed(0)}%${qualityNote}${autoInterpretNeedsReview ? '｜需複核' : ''}｜已學習 ${learnResult.count} 筆`,
+                `自動判讀: 單一運算 #${runId} 完成｜${bounds.widthPx.toFixed(0)}×${bounds.heightPx.toFixed(0)} px → ${longM.toFixed(2)}×${shortM.toFixed(2)} m${manualDepthNote}${countNote}${memoryNote}｜總信心 ${(overallConfidence * 100).toFixed(0)}%${qualityNote}${autoInterpretNeedsReview ? '｜需複核｜暫不寫入核心記憶' : ''}｜已學習 ${learnResult.count} 筆`,
                 autoInterpretNeedsReview ? '#ffd48a' : '#9fffc0'
             );
             renderAutoInterpretMemoryPanel();
@@ -2050,9 +3263,11 @@
                 pendingFields: fillResult.depthMissing ? [fillResult.depthLabel] : [],
                 valueSet: buildCurrentCalcValueSet(),
                 needsReview: autoInterpretNeedsReview,
+                reviewFields: fillResult.depthMissing ? [fillResult.depthLabel] : (autoInterpretNeedsReview ? ['尺寸/數量'] : []),
                 ocrCandidateCount: 0,
                 inputSignature: `${type}|${String(v1El.value || '')}|${String(v2El.value || '')}|${String(v3El.value || '')}|${String(qtyEl.value || '')}`
             };
+            await enrichAutoInterpretServerQa(autoInterpretLastReport);
             trackAutoInterpretQaStats('quick', autoInterpretLastReport);
             recordAutoInterpretLog('auto-interpret', '快速看圖', autoInterpretLastReport, `快速看圖完成｜${fieldConfidenceSummary || '已完成欄位估計'}`);
             previewCalc();
@@ -2061,7 +3276,7 @@
             } else if (fillResult.preserveManualDepth && fillResult.depthMissing) {
                 showToast(`已抓到平面尺寸 ${fillResult.planSummary}，請手動輸入「${fillResult.depthLabel}」後再計算`);
             } else if (autoInterpretNeedsReview) {
-                showToast(`自動判讀完成但信心偏低（${(overallConfidence * 100).toFixed(0)}%），已記住本次結果，請先複核後再吸入清單`);
+                showToast(`自動判讀完成但信心偏低（${(overallConfidence * 100).toFixed(0)}%），本次不會寫入核心記憶，請先複核`);
             } else if (fillResult.preserveManualDepth) {
                 showToast(`已抓到平面尺寸 ${fillResult.planSummary}，並保留手填 ${fillResult.depthLabel}`);
             } else {
@@ -2073,14 +3288,10 @@
     }
 
     async function runAutoBlueprintPlusBIM() {
-        if (document.body.dataset.workMode !== 'calc') {
-            return showToast('請切換到計算模式第三頁再使用自動計算');
-        }
-        if (getCurrentUserLevel() !== 'pro') {
-            return showToast('此功能僅限會員3（專家）');
-        }
-        if (!document.getElementById('advAutoInterpretGate')) {
-            return showToast('請在計算第三頁使用自動計算');
+        if (typeof ensureWorkModeAccess === 'function' && !ensureWorkModeAccess('calc', '請先切到第三頁計算模式再做 IBM 自動計算')) return;
+        if (!ensureCalcAdvancedPageReady('第三頁自動計算區尚未載入')) return;
+        if (!(await ensureFeatureAccess('autoBlueprintBim', '此功能僅限會員3（專家）'))) {
+            return;
         }
         if (autoInterpretBusy || edgeAiDetectBusy) {
             return showToast('AI 流程執行中，請稍候');
@@ -2104,33 +3315,86 @@
             return showToast('流程完成：已自動看圖計算（未載入 BIM，跳過 BIM 自動計算）');
         }
 
-        updateBlueprintAutoInterpretStatus('一鍵流程：步驟2/2 BIM 技術自動計算中...', '#bfe7ff');
+        updateBlueprintAutoInterpretStatus('一鍵流程：步驟2/2 IBM 自動計算中...', '#bfe7ff');
         runBimTechAutoCalculation();
-        updateBlueprintAutoInterpretStatus('一鍵流程完成：看圖判讀 + BIM 技術自動計算已完成', '#9fffc0');
+        updateBlueprintAutoInterpretStatus('一鍵流程完成：看圖判讀 + IBM 自動計算已完成', '#9fffc0');
         const infoBox = document.getElementById('bimAutoCalcInfo');
-        if (infoBox) infoBox.innerText = `一鍵流程完成：圖紙自動判讀 + BIM 自動計算｜執行時間 ${new Date().toLocaleTimeString('zh-TW')}`;
-        showToast('✅ 一鍵完成：自動看圖計算 + 3BIM');
+        if (infoBox) infoBox.innerText = `一鍵流程完成：圖紙自動判讀 + IBM 自動計算｜執行時間 ${new Date().toLocaleTimeString('zh-TW')}`;
+        showToast('✅ 一鍵完成：自動看圖計算 + IBM 自動計算');
     }
 
     function fitBlueprintToViewport() {
         if (!img.src || !canvasContainer || !img.naturalWidth || !img.naturalHeight) return;
-        const padding = 12;
-        const viewW = Math.max(120, canvasContainer.clientWidth - padding);
-        const viewH = Math.max(120, canvasContainer.clientHeight - padding);
-        const ratioW = viewW / img.naturalWidth;
-        const ratioH = viewH / img.naturalHeight;
-        let targetZoom = Math.min(ratioW, ratioH);
-        if (isMobileViewport()) {
-            // Keep a small overflow margin on mobile so the drawing can pan
-            // in both axes instead of feeling locked after upload.
-            targetZoom *= 1.08;
-        }
-        zoomLevel = Math.max(0.2, Math.min(5, targetZoom));
+        const viewportMetrics = getBlueprintViewportMetrics();
+        if (!viewportMetrics) return;
+        zoomLevel = viewportMetrics.fitZoom;
         applyZoom();
         const contentW = img.naturalWidth * zoomLevel;
         const contentH = img.naturalHeight * zoomLevel;
         canvasContainer.scrollLeft = Math.max(0, (contentW - canvasContainer.clientWidth) / 2);
         canvasContainer.scrollTop = Math.max(0, (contentH - canvasContainer.clientHeight) / 2);
+        updateTouchInteractionMode();
+    }
+
+    function getBlueprintViewportMetrics(targetZoom = zoomLevel) {
+        if (!img.src || !canvasContainer || !img.naturalWidth || !img.naturalHeight) return null;
+        const padding = 12;
+        const viewW = Math.max(120, canvasContainer.clientWidth - padding);
+        const viewH = Math.max(120, canvasContainer.clientHeight - padding);
+        const ratioW = viewW / img.naturalWidth;
+        const ratioH = viewH / img.naturalHeight;
+        let fitZoom = Math.min(ratioW, ratioH);
+        if (isMobileViewport()) {
+            // Keep a small overflow margin on mobile so the drawing can pan
+            // in both axes instead of feeling locked after upload.
+            fitZoom *= 1.08;
+        }
+        fitZoom = Math.max(0.2, Math.min(5, fitZoom));
+        const resolvedZoom = Math.max(0.2, Math.min(5, Number(targetZoom) || fitZoom));
+        const contentW = img.naturalWidth * resolvedZoom;
+        const contentH = img.naturalHeight * resolvedZoom;
+        return {
+            fitZoom,
+            resolvedZoom,
+            overflowX: Math.max(0, contentW - canvasContainer.clientWidth),
+            overflowY: Math.max(0, contentH - canvasContainer.clientHeight)
+        };
+    }
+
+    function canSingleFingerPanBlueprint() {
+        if (!canUseBlueprintGestures()) return false;
+        const metrics = getBlueprintViewportMetrics();
+        if (!metrics) return false;
+        const zoomedPastFit = zoomLevel > metrics.fitZoom + 0.018;
+        const hasOverflow = metrics.overflowX > 18 || metrics.overflowY > 18;
+        const isScrolled = (canvasContainer && (canvasContainer.scrollLeft > 6 || canvasContainer.scrollTop > 6));
+        return zoomedPastFit || hasOverflow || isScrolled;
+    }
+
+    function getBlueprintTouchMode() {
+        const hasBlueprint = !!(img && img.getAttribute('src'));
+        const allow3DDrag = is3DView && !is360Spinning && !gyroState.enabled;
+        const activeMeasure = isMeasureInteractionMode(drawMode);
+        if (!hasBlueprint) return 'idle';
+        if (allow3DDrag) return '3d';
+        if (activeMeasure) return 'measure';
+        return canSingleFingerPanBlueprint() ? 'pan' : 'page';
+    }
+
+    function updateBlueprintTouchHint(mode = getBlueprintTouchMode()) {
+        const touchHint = document.getElementById('touchGestureInfo');
+        const mobileTouchHint = document.getElementById('mobileBlueprintTouchInfo');
+        const hintText = mode === 'measure'
+            ? '量圖模式：單指取點 / 拖曳微調'
+            : mode === '3d'
+                ? '3D 模式：單指拖曳視角 / 雙指縮放'
+                : mode === 'pan'
+                    ? '圖面已放大：單指拖圖 / 雙指縮放'
+                    : mode === 'page'
+                        ? '一般瀏覽：單指滑頁 / 雙指縮放'
+                        : '上傳圖後可縮放與滑動';
+        if (touchHint) touchHint.innerText = hintText;
+        if (mobileTouchHint) mobileTouchHint.innerText = hintText;
     }
 
     function apply3DTransform() {
@@ -2149,20 +3413,26 @@
     function updateTouchInteractionMode() {
         const wrapper = document.getElementById('img-wrapper');
         const canvasEl = document.getElementById('drawCanvas');
-        const allow3DDrag = is3DView && !is360Spinning && !gyroState.enabled;
-        const activeMeasure = isMeasureInteractionMode(drawMode);
-        const relaxedTouchAction = 'pan-x pan-y pinch-zoom';
+        const hasBlueprint = !!(img && img.getAttribute('src'));
+        const touchMode = getBlueprintTouchMode();
+        const relaxedTouchAction = hasBlueprint ? 'pan-y pinch-zoom' : 'auto';
         const lockedTouchAction = 'none';
+        const surfaceTouchAction = touchMode === 'measure' || touchMode === '3d' || touchMode === 'pan'
+            ? lockedTouchAction
+            : relaxedTouchAction;
 
         if (wrapper) {
-            wrapper.style.touchAction = allow3DDrag ? lockedTouchAction : relaxedTouchAction;
+            wrapper.style.touchAction = surfaceTouchAction;
         }
         if (canvasEl) {
-            canvasEl.style.touchAction = (allow3DDrag || activeMeasure) ? lockedTouchAction : relaxedTouchAction;
+            canvasEl.style.touchAction = surfaceTouchAction;
         }
         if (canvasContainer) {
-            canvasContainer.style.touchAction = (allow3DDrag || activeMeasure) ? lockedTouchAction : relaxedTouchAction;
+            canvasContainer.style.touchAction = surfaceTouchAction;
+            canvasContainer.style.overscrollBehavior = (touchMode === 'pan' || touchMode === 'measure' || touchMode === '3d') ? 'contain' : 'auto';
+            canvasContainer.dataset.touchMode = touchMode;
         }
+        updateBlueprintTouchHint(touchMode);
     }
 
     function updateGyroUI() {
@@ -3460,8 +4730,9 @@
         showToast(fallbackUsed ? '智慧量圖已啟動（低信心建議，可隨時切回手動）' : '智慧量圖已啟動，請依提示確認測點');
     }
 
-    function startSmartCalibration() {
-        if (getCurrentUserLevel() !== 'pro') return showToast('智慧定比例僅開放會員3（專家）第三頁使用');
+    async function startSmartCalibration() {
+        if (typeof ensureWorkModeAccess === 'function' && !ensureWorkModeAccess('calc', '請先切到第三頁計算模式再做智慧定比例')) return;
+        if (!(await ensureFeatureAccess('smartCalibration', '智慧定比例僅開放會員3（專家）第三頁使用'))) return;
         if (is3DView) return showToast('請先關閉 3D 檢視再做智慧定比例');
         if (!img.src) return showToast('請先上傳圖紙再做智慧定比例');
         measureQaStats.calibrationStarts += 1;
@@ -3469,8 +4740,9 @@
         prepareSmartMeasure('smart-calibration');
     }
 
-    function startSmartMeasure() {
-        if (getCurrentUserLevel() !== 'pro') return showToast('智慧量圖僅開放會員3（專家）第三頁使用');
+    async function startSmartMeasure() {
+        if (typeof ensureWorkModeAccess === 'function' && !ensureWorkModeAccess('calc', '請先切到第三頁計算模式再做智慧量圖')) return;
+        if (!(await ensureFeatureAccess('smartMeasure', '智慧量圖僅開放會員3（專家）第三頁使用'))) return;
         if (is3DView) return showToast('請先關閉 3D 檢視再做智慧量圖');
         if (!img.src) return showToast('請先上傳圖紙再做智慧量圖');
         if (!scalePixelsPerUnit) return showToast('請先設定比例！');
@@ -4048,8 +5320,12 @@
             qualityInfo.innerText = '圖紙品質: 待檢查';
             qualityInfo.style.color = '#c7d6e6';
         }
+        currentBlueprintUploadState = null;
+        updateAutoInterpretLearningSummary('後台學習：尚未建立任務', '#d7e9ff');
         updateBlueprintAutoInterpretStatus('自動判讀: 尚未執行', '#bfe7ff');
         reset3DView(true);
+        syncCanvasEmptyState();
+        updateTouchInteractionMode();
         showToast('已移除上傳圖紙');
     }
 
@@ -4062,7 +5338,7 @@
     let edgeAiSafetyTimer = null;
 
     async function startEdgeAIVision() {
-        if (getCurrentUserLevel() !== 'pro') return showToast('AI 視覺點料僅開放會員3（專家）');
+        if (!(await ensureFeatureAccess('aiVision', 'AI 視覺點料僅開放會員3（專家）'))) return;
         if (!featureFlags.aiVision) {
             return showToast('AI 視覺盤點目前已停用（請先到總控開啟）');
         }
@@ -4194,6 +5470,12 @@
     }
 
     const canvasContainer = document.getElementById('canvas-container');
+    function syncCanvasEmptyState() {
+        if (!canvasContainer) return;
+        const hasBlueprint = !!(img && img.getAttribute('src'));
+        canvasContainer.dataset.empty = hasBlueprint ? 'false' : 'true';
+        canvasContainer.setAttribute('aria-label', hasBlueprint ? '圖紙畫布' : '尚未上傳圖紙');
+    }
     canvasContainer.addEventListener('mousedown', begin3DDrag);
     canvasContainer.addEventListener('touchstart', begin3DDrag, { passive: true });
     window.addEventListener('mousemove', on3DDragMove);
@@ -4301,8 +5583,12 @@
             return;
         }
         blueprintPinchState.active = false;
-        // Let the browser handle single-finger panning natively on mobile.
-        blueprintPanState.active = false;
+        blueprintPanState.active = canSingleFingerPanBlueprint();
+        if (blueprintPanState.active) {
+            blueprintPanState.lastX = e.touches[0].clientX;
+            blueprintPanState.lastY = e.touches[0].clientY;
+            if (e.cancelable) e.preventDefault();
+        }
         blueprintPanState.moved = false;
     }
 
@@ -4318,15 +5604,33 @@
             if (e.cancelable) e.preventDefault();
             return;
         }
-        // Native one-finger scrolling handles the rest.
+        if (blueprintPanState.active && e.touches.length === 1) {
+            const touch = e.touches[0];
+            const dx = touch.clientX - blueprintPanState.lastX;
+            const dy = touch.clientY - blueprintPanState.lastY;
+            blueprintPanState.lastX = touch.clientX;
+            blueprintPanState.lastY = touch.clientY;
+            if (Math.abs(dx) > 1 || Math.abs(dy) > 1) blueprintPanState.moved = true;
+            if (canvasContainer) {
+                canvasContainer.scrollLeft -= dx;
+                canvasContainer.scrollTop -= dy;
+            }
+            if (e.cancelable) e.preventDefault();
+        }
     }
 
     function onBlueprintTouchEnd() {
+        if (blueprintPanState.moved || blueprintPinchState.active) {
+            suppressNextCanvasTouch = true;
+            suppressNextCanvasClick = true;
+            blueprintTapState.lastAt = 0;
+        }
         if (blueprintPinchState.active) {
             blueprintPinchState.active = false;
         }
         blueprintPanState.active = false;
         blueprintPanState.moved = false;
+        updateTouchInteractionMode();
     }
 
     function onBlueprintWheelZoom(e) {
@@ -4345,6 +5649,10 @@
 
     function onBlueprintTapForFit(e) {
         if (!canUseBlueprintGestures()) return;
+        if (suppressNextCanvasTouch) {
+            suppressNextCanvasTouch = false;
+            return;
+        }
         if (!e.changedTouches || e.changedTouches.length !== 1) return;
         const t = e.changedTouches[0];
         const now = Date.now();
@@ -4420,6 +5728,9 @@
             handleWrapperPointTap(e.clientX, e.clientY, e);
         }, true);
     }
+
+    syncCanvasEmptyState();
+    updateTouchInteractionMode();
 
     function handleCanvasPointInput(clientX, clientY) {
         if (drawMode === 'none') return;
@@ -4503,3 +5814,8 @@
         handleCanvasPointInput(t.clientX, t.clientY);
     }, { passive: true });
 
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', applyBlueprintAutoCalcAfterUploadPref);
+    } else {
+        applyBlueprintAutoCalcAfterUploadPref();
+    }

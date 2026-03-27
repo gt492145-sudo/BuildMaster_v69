@@ -4,21 +4,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Construction Master V8.0 - 預算決策系統 (會員上線版)</title>
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<title>Construction Master V8.3.1 - 預算決策系統 (會員上線版)</title>
 <link rel="manifest" href="site.webmanifest">
 <meta name="theme-color" content="#0b1220">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Construction Master">
 <meta name="referrer" content="no-referrer">
-<link rel="stylesheet" href="styles/app-layout.css">
-<link rel="stylesheet" href="styles/blueprint-core.css">
-<link rel="stylesheet" href="styles/app-panels.css">
-<link rel="stylesheet" href="styles/blueprint-effects.css">
-<link rel="stylesheet" href="styles/app-overlays.css">
-<link rel="stylesheet" href="styles/weather-effects.css">
-<link rel="stylesheet" href="styles/app-responsive.css">
+<link rel="stylesheet" href="styles/app-layout.css?v=v832">
+<link rel="stylesheet" href="styles/blueprint-core.css?v=v831">
+<link rel="stylesheet" href="styles/app-panels.css?v=v831">
+<link rel="stylesheet" href="styles/blueprint-effects.css?v=v831">
+<link rel="stylesheet" href="styles/app-overlays.css?v=v831">
+<link rel="stylesheet" href="styles/weather-effects.css?v=v831">
+<link rel="stylesheet" href="styles/app-responsive.css?v=v842">
 </head>
 <body>
 
@@ -40,31 +38,43 @@
         <p id="securityMessage">請輸入存取碼以啟用系統。</p>
         <input id="securityMemberInput" class="security-input" type="text" placeholder="會員帳號（選填，可用自訂密碼）">
         <input id="securityCodeInput" class="security-input" type="password" placeholder="輸入存取碼">
-        <button class="tool-btn" style="width:100%;" onclick="submitSecurityCode()">解鎖並進入</button>
+        <button class="tool-btn" style="width:100%;">解鎖並進入</button>
         <div id="securityHint" class="security-hint"></div>
     </div>
 </div>
 <div id="securityWatermark" class="security-watermark"></div>
 
 <header>
-    <img src="logo-app.png" class="logo-img" alt="Black Hole Logo">
-    <div class="header-title">Construction Master V8.0 - BLACK HOLE POWER <span class="live-badge">正式版 LIVE</span> <span class="live-badge">v80 進階更新</span></div>
+    <div class="logo-img logo-blackhole-photo" aria-label="Construction Master black hole logo">
+        <span class="blackhole-accretion-cloud" aria-hidden="true"></span>
+        <span class="blackhole-jet blackhole-jet-top" aria-hidden="true"></span>
+        <span class="blackhole-jet blackhole-jet-bottom" aria-hidden="true"></span>
+    </div>
+    <div class="header-brand">
+        <div class="header-kicker">Premium Touch Workspace</div>
+        <div class="header-title">Construction Master <span class="header-version">V8.3.1</span></div>
+        <div class="header-subtitle">
+            <span class="live-badge">正式版 LIVE</span>
+            <span class="live-badge">V8.3.1 放樣整合版</span>
+            <span class="header-meta-chip">圖面觸控優先</span>
+        </div>
+    </div>
     <div class="level-switch">
-        <button id="levelBasicBtn" class="level-btn" onclick="setUserLevel('1')">會員1（基礎）</button>
-        <button id="levelStandardBtn" class="level-btn" onclick="setUserLevel('2')">會員2（工程）</button>
-        <button id="levelProBtn" class="level-btn" onclick="setUserLevel('3')">會員3（專家）</button>
+        <button id="levelBasicBtn" class="level-btn">會員1（基礎）</button>
+        <button id="levelStandardBtn" class="level-btn">會員2（工程）</button>
+        <button id="levelProBtn" class="level-btn">會員3（專家）</button>
     </div>
     <div class="work-switch">
-        <button id="workCalcBtn" class="work-btn active" onclick="window.location.href='index.html'">🧮 計算模式</button>
-        <button id="workStakeBtn" class="work-btn" onclick="window.location.href='stake.html'">📍 放樣模式</button>
+        <button id="workCalcBtn" class="work-btn active">🧮 計算模式</button>
+        <button id="workStakeBtn" class="work-btn">📍 放樣模式</button>
     </div>
     <div class="header-actions">
-        <button id="coachToggle" class="mode-btn" onclick="toggleCoachMode()">解說員: 開</button>
-        <button id="aiCoachToggle" class="mode-btn level-only-pro" onclick="toggleAiCoachMode()">AI解說: 關</button>
-        <button id="btnWarRoom" class="mode-btn level-only-pro" style="border-color: #00e676; color: #00e676; font-weight: 900;" onclick="toggleWarRoom()">🌐 戰情室: 離線</button>
-        <button id="coachGuideBtn" class="mode-btn" onclick="startCoachGuide(true)">新手導覽</button>
-        <button id="contrastToggle" class="mode-btn" onclick="toggleContrastMode()">高對比: 關</button>
-        <button id="contrastAutoToggle" class="mode-btn" onclick="toggleAutoContrastMode()">自動: 關</button>
+        <button id="coachToggle" class="mode-btn">解說員: 開</button>
+        <button id="aiCoachToggle" class="mode-btn level-only-pro">AI解說: 關</button>
+        <button id="btnWarRoom" class="mode-btn level-only-pro" style="border-color: #00e676; color: #00e676; font-weight: 900;">🌐 戰情室: 離線</button>
+        <button id="coachGuideBtn" class="mode-btn">新手導覽</button>
+        <button id="contrastToggle" class="mode-btn">高對比: 關</button>
+        <button id="contrastAutoToggle" class="mode-btn">自動: 關</button>
     </div>
 </header>
 
@@ -81,6 +91,18 @@
         <div class="drawer-header">🛠️ 戰術工具箱</div>
         <div id="mobileFocusBtn" class="drawer-item" data-mobile-action="toggle-focus">
             <span>🧲 視圖模式：自動</span>
+        </div>
+
+        <div class="drawer-item" data-mobile-action="mode-calc">
+            <span>🧮 切換到計算模式</span>
+        </div>
+
+        <div class="drawer-item" data-mobile-action="mode-stake">
+            <span>📍 切換到放樣模式</span>
+        </div>
+
+        <div class="drawer-item" data-mobile-action="top">
+            <span>⬆️ 回到頂部</span>
         </div>
 
         <div class="drawer-item level-hide-basic" data-mobile-action="scan">
@@ -129,6 +151,9 @@
         <div class="drawer-item" id="mobileMonkeyBtn" data-mobile-action="toggle-chaos" style="display:none;">
             <span>🐒 混沌猴子</span>
         </div>
+        <div class="drawer-item" id="mobileAutoTestBtn" data-mobile-action="start-bm-autotest" style="display:none;">
+            <span>🤖 藍圖自動測試（15 張）</span>
+        </div>
 
         <hr style="border: 0.5px solid var(--line-soft); margin: 10px 0;">
 
@@ -160,37 +185,60 @@
 <div class="main-layout">
     <div class="drawing-panel">
         <div class="tool-bar">
-            <input type="file" id="fileInput" class="mobile-toolbar-core" onchange="loadImg(event)" style="width: 150px; color: #888;">
-            <button class="tool-btn mobile-toolbar-extra" onclick="changeZoom(0.2)">🔍 放大</button>
-            <button class="tool-btn mobile-toolbar-extra" onclick="changeZoom(-0.2)">🔍 縮小</button>
-            <button class="tool-btn mobile-toolbar-core" style="border-color:#ffd180; color:#ffe8c8;" onclick="fitBlueprintToViewport()">🖼️ 適配視圖</button>
-            <span id="zoom-info" class="mobile-toolbar-extra" style="color:#ffe0b2; font-size:0.82em; min-width:64px;">縮放: 100%</span>
-            <button class="tool-btn mobile-toolbar-core" style="border-color: #d35400" onclick="startCalibration()">📏 定比例</button>
-            <button class="tool-btn mobile-toolbar-core" style="border-color: var(--money)" onclick="startMeasure()">📐 測量</button>
-            <button class="tool-btn level-only-standard mobile-toolbar-extra" style="border-color: #00d2d3; color: #00d2d3;" onclick="connectLaserRuler()">🔫 連線藍牙雷射尺</button>
-            <button id="btnMeasureAssist" class="tool-btn level-hide-basic mobile-toolbar-extra" onclick="toggleMeasureAssist()">📏 量圖輔助: 關</button>
-            <button class="tool-btn level-hide-basic mobile-toolbar-extra" onclick="calibrateMeasureAssist()">🧲 校正量圖</button>
-            <button id="btnMeasureStrict" class="tool-btn level-hide-basic mobile-toolbar-extra" onclick="toggleMeasureStrictMode()">🛡 量圖嚴格: 關</button>
-            <button class="tool-btn mobile-toolbar-core" onclick="clearCanvas()">🧽 清空標註</button>
-            <button class="tool-btn mobile-toolbar-extra" onclick="removeLoadedImage()">🗑️ 移除圖紙</button>
-            <button id="btn3D" class="tool-btn level-only-pro mobile-toolbar-extra" onclick="toggle3DView()">🧊 3D檢視</button>
-            <button id="btn360" class="tool-btn level-only-pro mobile-toolbar-extra" onclick="toggle360Spin()">🌀 360翻轉</button>
-            <button class="tool-btn level-only-pro mobile-toolbar-extra" onclick="reset3DView()">🎯 重設視角</button>
-            <button id="btnAutoScan3D" class="tool-btn level-hide-basic mobile-toolbar-extra" style="border-color: #b388ff; color: #e040fb;" onclick="autoQuantumScan()">🌌 一鍵掃描 3D</button>
-            <button id="btnGyro" class="tool-btn level-only-pro mobile-toolbar-extra" onclick="toggleGyroMode()">🧭 陀螺儀: 關</button>
-            <button class="tool-btn level-only-pro mobile-toolbar-extra" onclick="calibrateGyroBaseline()">🎯 校正陀螺儀</button>
-            <button class="tool-btn level-only-pro mobile-toolbar-extra" onclick="startEdgeAIVision()">👁️ AI視覺點料</button>
-            <label class="tool-mini mobile-toolbar-extra">對比 <input type="range" id="imgContrast" min="0.7" max="1.5" step="0.01" value="1" oninput="updateImageFilter('contrast', this.value)"></label>
-            <label class="tool-mini mobile-toolbar-extra">亮度 <input type="range" id="imgBrightness" min="0.7" max="1.4" step="0.01" value="1" oninput="updateImageFilter('brightness', this.value)"></label>
-            <button class="tool-btn level-hide-basic mobile-toolbar-extra" onclick="autoEnhanceImage()">✨ 自動優化</button>
-            <button class="tool-btn level-hide-basic mobile-toolbar-extra" onclick="resetImageFilter()">♻️ 重設畫質</button>
-            <span id="measureAssistInfo" class="level-hide-basic mobile-toolbar-extra" style="color:#bdeecf; font-size:0.8em;">量圖輔助: 未啟用</span>
-            <span id="gyroInfo" class="level-only-pro mobile-toolbar-extra" style="color:#9fd0ff; font-size:0.8em;">陀螺儀: 未啟用</span>
-            <span id="blueprint-quality-info" class="mobile-toolbar-extra" style="color:#c7d6e6; font-size:0.8em;">圖紙品質: 待檢查</span>
-            <span id="blueprint-auto-interpret-info" class="mobile-toolbar-extra" style="color:#bfe7ff; font-size:0.8em;">自動判讀: 尚未執行</span>
-            <span id="scale-info" class="mobile-toolbar-core" style="color:var(--highlight); font-size:0.8em; margin-left:auto;">比例: 未設定</span>
+            <div class="tool-group tool-group--file">
+                <span class="tool-group-label">圖紙</span>
+                <input type="file" id="fileInput" class="mobile-toolbar-core toolbar-file-input" onchange="loadImg(event)">
+                <button class="tool-btn mobile-toolbar-core tool-btn--ghost" onclick="removeLoadedImage()">移除圖紙</button>
+            </div>
+            <div class="tool-group">
+                <span class="tool-group-label">視圖</span>
+                <button class="tool-btn mobile-toolbar-extra" onclick="changeZoom(0.2)">放大</button>
+                <button class="tool-btn mobile-toolbar-extra" onclick="changeZoom(-0.2)">縮小</button>
+                <button class="tool-btn mobile-toolbar-core tool-btn--warm" onclick="fitBlueprintToViewport()">適配視圖</button>
+                <span id="zoom-info" class="toolbar-status-chip mobile-toolbar-extra">縮放: 100%</span>
+                <span id="touchGestureInfo" class="toolbar-status-chip toolbar-status-chip--accent mobile-toolbar-extra">上傳圖後可縮放與滑動</span>
+            </div>
+            <div class="tool-group">
+                <span class="tool-group-label">量測</span>
+                <button class="tool-btn mobile-toolbar-core tool-btn--warm" onclick="startCalibration()">定比例</button>
+                <button class="tool-btn mobile-toolbar-core tool-btn--money" onclick="startMeasure()">測量</button>
+                <button class="tool-btn level-only-standard mobile-toolbar-extra tool-btn--accent" onclick="connectLaserRuler()">連線藍牙雷射尺</button>
+                <button id="btnMeasureAssist" class="tool-btn level-hide-basic mobile-toolbar-extra" onclick="toggleMeasureAssist()">量圖輔助: 關</button>
+                <button class="tool-btn level-hide-basic mobile-toolbar-extra" onclick="calibrateMeasureAssist()">校正量圖</button>
+                <button id="btnMeasureStrict" class="tool-btn level-hide-basic mobile-toolbar-extra" onclick="toggleMeasureStrictMode()">量圖嚴格: 關</button>
+                <button class="tool-btn mobile-toolbar-core tool-btn--ghost" onclick="clearCanvas()">清空標註</button>
+            </div>
+            <div class="tool-group mobile-toolbar-extra">
+                <span class="tool-group-label">智慧分析</span>
+                <button id="btn3D" class="tool-btn level-only-pro mobile-toolbar-extra" onclick="toggle3DView()">3D檢視</button>
+                <button id="btn360" class="tool-btn level-only-pro mobile-toolbar-extra" onclick="toggle360Spin()">360翻轉</button>
+                <button class="tool-btn level-only-pro mobile-toolbar-extra" onclick="reset3DView()">重設視角</button>
+                <button id="btnAutoScan3D" class="tool-btn level-hide-basic mobile-toolbar-extra tool-btn--accent" onclick="autoQuantumScan()">一鍵掃描 3D</button>
+                <button id="btnGyro" class="tool-btn level-only-pro mobile-toolbar-extra" onclick="toggleGyroMode()">陀螺儀: 關</button>
+                <button class="tool-btn level-only-pro mobile-toolbar-extra" onclick="calibrateGyroBaseline()">校正陀螺儀</button>
+                <button class="tool-btn level-only-pro mobile-toolbar-extra" onclick="startEdgeAIVision()">AI視覺點料</button>
+            </div>
+            <div class="tool-group mobile-toolbar-extra">
+                <span class="tool-group-label">畫質</span>
+                <label class="tool-mini">對比 <input type="range" id="imgContrast" min="0.7" max="1.5" step="0.01" value="1" oninput="updateImageFilter('contrast', this.value)"></label>
+                <label class="tool-mini">亮度 <input type="range" id="imgBrightness" min="0.7" max="1.4" step="0.01" value="1" oninput="updateImageFilter('brightness', this.value)"></label>
+                <button class="tool-btn level-hide-basic mobile-toolbar-extra" onclick="autoEnhanceImage()">自動優化</button>
+                <button class="tool-btn level-hide-basic mobile-toolbar-extra" onclick="resetImageFilter()">重設畫質</button>
+            </div>
+            <div class="tool-group tool-group--status mobile-toolbar-extra">
+                <span class="tool-group-label">狀態</span>
+                <span id="measureAssistInfo" class="toolbar-status-chip level-hide-basic">量圖輔助: 未啟用</span>
+                <span id="gyroInfo" class="toolbar-status-chip level-only-pro">陀螺儀: 未啟用</span>
+                <span id="blueprint-quality-info" class="toolbar-status-chip">圖紙品質: 待檢查</span>
+                <span id="blueprint-auto-interpret-info" class="toolbar-status-chip">自動判讀: 尚未執行</span>
+                <span id="scale-info" class="toolbar-status-chip toolbar-status-chip--warm mobile-toolbar-core">比例: 未設定</span>
+            </div>
         </div>
         <div id="canvas-container">
+            <div class="blueprint-workspace-meta" aria-hidden="true">
+                <span class="blueprint-workspace-chip">Premium Touch</span>
+                <span class="blueprint-workspace-chip blueprint-workspace-chip--muted">單指依狀態滑頁或拖圖</span>
+            </div>
             <div id="mobileBlueprintStatus" class="mobile-blueprint-status collapsed" aria-hidden="true">
                 <button type="button" class="mobile-blueprint-status-toggle" onclick="toggleMobileBlueprintStatusCard()">
                     <span class="mobile-blueprint-status-toggle-label">圖面</span>
@@ -199,6 +247,7 @@
                 <div class="mobile-blueprint-status-body">
                     <span id="mobileBlueprintQualityInfo" class="mobile-blueprint-status-line" style="color:#c7d6e6;">圖紙品質: 待檢查</span>
                     <span id="mobileBlueprintAutoInterpretInfo" class="mobile-blueprint-status-line" style="color:#bfe7ff;">自動判讀: 尚未執行</span>
+                    <span id="mobileBlueprintTouchInfo" class="mobile-blueprint-status-line" style="color:#d4c8ff;">上傳圖後可縮放與滑動</span>
                 </div>
             </div>
             <div id="manualPrecisionOverlay" class="manual-precision-overlay" aria-hidden="true"></div>
@@ -237,7 +286,6 @@
         <div class="group-title">全域 QA 等級總覽</div>
         <div class="bim-grid">
             <div class="bim-card">BIM QA 等級<strong id="qaLevelBim">-</strong></div>
-            <div class="bim-card">放樣 QA 等級<strong id="qaLevelLayout">-</strong></div>
             <div class="bim-card">量圖 QA 等級<strong id="qaLevelMeasure">-</strong></div>
             <div class="bim-card">整體 QA 等級<strong id="qaLevelOverall">-</strong></div>
         </div>
@@ -263,10 +311,14 @@
         <div id="qaTopCauses" class="bim-note">QA 關鍵因子：尚未分析</div>
         </section>
 
-        <section class="level-only-pro work-mode-only-stake">
+        <!-- 固定規則：放樣內容只放在第四頁 -->
+        <section id="stakeModePage" class="level-only-pro">
         <div class="group-title">
-            BIM 模型檢核
+            第四頁｜BIM 模型檢核與放樣
             <span style="font-size: 0.6em; color: #98c8ff;">QA v1</span>
+        </div>
+        <div class="bim-actions" style="margin-top:8px; margin-bottom:8px;">
+            <button class="tool-btn" style="border-color:#90caf9; color:#dceeff;" onclick="setWorkMode('calc')">↩️ 回第三頁看圖/估價</button>
         </div>
         <div class="input-row">
             <div class="input-wrapper">
@@ -289,6 +341,9 @@
             <div class="bim-card">面積總量<strong id="bimQtyArea">0</strong></div>
             <div class="bim-card">體積總量<strong id="bimQtyVolume">0</strong></div>
             <div class="bim-card">計數總量<strong id="bimQtyCount">0</strong></div>
+        </div>
+        <div class="bim-grid">
+            <div class="bim-card">放樣 QA 等級<strong id="qaLevelLayout">-</strong></div>
         </div>
         <div class="bim-table-wrap">
             <table>
@@ -331,31 +386,38 @@
                 </table>
             </div>
         </div>
-        <div class="bim-actions">
-            <button class="tool-btn" style="border-color:#80d8ff; color:#d8f3ff;" onclick="runBimTechAutoCalculation()">⚡ BIM 技術自動計算</button>
-            <button class="tool-btn" onclick="generateBIMEstimate()">🧮 BIM 自動估價預覽</button>
-            <button class="tool-btn" onclick="importBIMEstimateToList()">📥 匯入估價到清單</button>
-        </div>
-        <div id="bimAutoCalcInfo" class="bim-note" style="margin-top:6px;">BIM 技術自動計算：尚未執行</div>
-        <div class="bim-estimate-wrap">
-            <table>
-                <thead><tr><th>構件類型</th><th>對應材料</th><th>數量</th><th>單價</th><th>小計</th></tr></thead>
-                <tbody id="bimEstimateBody"></tbody>
-            </table>
-        </div>
         <div class="bim-rule-wrap" style="border-color: rgba(198, 170, 255, 0.38); background: rgba(173, 130, 255, 0.08);">
             <div class="bim-note" style="margin-top:0;">BIM 放樣助手（MVP）：由模型自動抽取放樣點，並輸出 QA 驗證報告。</div>
-            <div class="bim-actions">
+            <div id="stakeExecutionCluster" class="action-cluster action-cluster--accent">
+                <div class="action-cluster-header">
+                    <div>
+                        <div class="action-cluster-title">放樣執行設定</div>
+                        <div class="action-cluster-note">先選擇構件類型與放樣精度，再執行第四頁放樣流程。</div>
+                    </div>
+                    <div class="action-cluster-chip">Page 4 Staking</div>
+                </div>
+                <div class="action-cluster-tags">
                 <label class="tool-mini"><input id="layoutTypeColumn" type="checkbox" checked> 柱</label>
                 <label class="tool-mini"><input id="layoutTypeWall" type="checkbox" checked> 牆</label>
                 <label class="tool-mini"><input id="layoutTypeBeam" type="checkbox" checked> 梁</label>
                 <label class="tool-mini"><input id="layoutHighPrecisionToggle" type="checkbox" checked> 放樣高精度</label>
             </div>
-            <div class="bim-actions">
+                <div class="action-cluster-grid">
                 <button class="tool-btn" style="border-color:#9fa8da; color:#e5e8ff;" onclick="runDesktopStakingPipeline()">🚀 一鍵放樣流程</button>
-                <button class="tool-btn" style="border-color:#b388ff; color:#e8d9ff;" onclick="runQuantumAutoStakeLayout()">⚛️ 核心自進放樣</button>
+                <button class="tool-btn" style="border-color:#b388ff; color:#e8d9ff;" onclick="runQuantumAutoStakeLayout()">⚛️ IBM 雲端放樣</button>
                 <button class="tool-btn" onclick="generateBimLayoutPoints()">📍 產生放樣點</button>
                 <button class="tool-btn" style="border-color:#00e5ff; color:#bff8ff;" onclick="enhanceBimStakingQuality()">🛡️ 強化放樣</button>
+                </div>
+            </div>
+            <div id="stakeQaCluster" class="action-cluster action-cluster--warm">
+                <div class="action-cluster-header">
+                    <div>
+                        <div class="action-cluster-title">QA 檢核與修正</div>
+                        <div class="action-cluster-note">集中做控制點配準、偏差分析、穩定度與置信度檢核。</div>
+                    </div>
+                    <div class="action-cluster-chip">QA Control</div>
+                </div>
+                <div class="action-cluster-grid">
                 <button class="tool-btn" style="border-color:#ffca80; color:#ffe7c7;" onclick="applyLayoutControlPointAlignment()">🧭 控制點配準</button>
                 <button class="tool-btn" style="border-color:#ff8a65; color:#ffd7cb;" onclick="runBimLayoutDeviationHeatmap()">🌡️ 偏差熱圖</button>
                 <button class="tool-btn" style="border-color:#ef9a9a; color:#ffe5e5;" onclick="runBimLayoutStabilityRetest()">🔁 穩定度重測(3輪)</button>
@@ -364,11 +426,24 @@
                 <button class="tool-btn" onclick="optimizeBimLayoutPointsForPrecision()">🎯 高精度修正</button>
                 <button class="tool-btn" onclick="groupBimLayoutPointsForQa()">🧩 自動分群 QA</button>
                 <button class="tool-btn" onclick="runBimLayoutQa()">🧪 執行放樣 QA</button>
+                </div>
+            </div>
+            <div id="stakeExportCluster" class="action-cluster">
+                <div class="action-cluster-header">
+                    <div>
+                        <div class="action-cluster-title">輸出、補點與現場抽驗</div>
+                        <div class="action-cluster-note">完成 QA 後再匯出放樣點、QA 報告與施工包。</div>
+                    </div>
+                    <div class="action-cluster-chip">Export</div>
+                </div>
+                <div class="action-cluster-grid">
                 <button class="tool-btn" onclick="exportBimLayoutPoints()">⬇️ 匯出放樣點 CSV</button>
                 <button class="tool-btn" onclick="exportBimLayoutQaReport()">⬇️ 匯出 QA 報告 CSV</button>
                 <button class="tool-btn" style="border-color:#90caf9; color:#dceeff;" onclick="exportBimConstructionPackage()">📦 匯出施工包</button>
                 <button class="tool-btn" style="border-color:#ffe082; color:#fff2c4;" onclick="suggestLayoutControlPointsCoverage()">🧭 自動補點建議</button>
                 <button class="tool-btn" style="border-color:#ce93d8; color:#f3dcff;" onclick="startLayoutFieldSpotCheck()">🧪 現場抽驗模式</button>
+                </div>
+            </div>
             </div>
             <div class="input-row" style="margin-top: 8px; border: 1px dashed #ffca80; padding: 10px; border-radius: 6px; background: rgba(255, 202, 128, 0.08);">
                 <div class="input-wrapper">
@@ -401,10 +476,10 @@
             </div>
             <div class="input-row" style="margin-top: 10px; border: 1px dashed #b388ff; padding: 10px; border-radius: 6px; background: rgba(179, 136, 255, 0.05);">
                 <div class="input-wrapper">
-                    <label style="color: #b388ff; font-weight: bold; font-size: 0.85em;">🔑 IBM Cloud Token (放樣直連)</label>
+                    <label style="color: #b388ff; font-weight: bold; font-size: 0.85em;">🔐 IBM Quantum 後端代理</label>
                     <div style="display:flex; gap:8px; align-items:center;">
-                        <input type="password" id="ibmQuantumKey" placeholder="請貼上您的 IBM Cloud API 金鑰" style="border-color: #b388ff; box-shadow: 0 0 8px rgba(179,136,255,0.2);">
-                        <button class="tool-btn" type="button" id="ibmQuantumKeyToggleBtn" onclick="toggleIBMQuantumKeyVisibility()" style="border-color:#b388ff; color:#e8d9ff; white-space:nowrap;">👁️ 顯示</button>
+                        <input type="password" id="ibmQuantumKey" placeholder="正式金鑰已移至後端安全代理" style="border-color: #b388ff; box-shadow: 0 0 8px rgba(179,136,255,0.2);">
+                        <button class="tool-btn" type="button" id="ibmQuantumKeyToggleBtn" onclick="toggleIBMQuantumKeyVisibility()" style="border-color:#b388ff; color:#e8d9ff; white-space:nowrap;">後端代理</button>
                         <button class="tool-btn" type="button" onclick="clearIBMQuantumKey()" style="border-color:#ff9aa2; color:#ffd7dc; white-space:nowrap;">🧹 清除</button>
                     </div>
                 </div>
@@ -420,6 +495,34 @@
                 <table>
                     <thead><tr><th>ID</th><th>來源構件</th><th>類型</th><th>點位</th><th>X</th><th>Y</th><th>Z</th><th>樓層</th><th>群組</th><th>偏差</th><th>信心</th></tr></thead>
                     <tbody id="bimLayoutBody"></tbody>
+                </table>
+            </div>
+            <div class="group-title level-only-pro" style="margin-top:14px;">放樣學習摘要</div>
+            <div class="bim-note level-only-pro" id="stakingLearningSummary" style="margin-top:6px; color:#d7e9ff;">放樣學習：尚未建立</div>
+            <div class="bim-note level-only-pro" id="stakingSuggestionHint" style="margin-top:6px; color:#d8dff0;">相似案例建議：尚未命中</div>
+            <div class="bim-actions level-only-pro" style="margin-top:8px;">
+                <button class="tool-btn" style="border-color:#9bc2e5; color:#d7ebff;" onclick="renderStakingLearningPanel()">🔄 重新整理放樣學習</button>
+                <button class="tool-btn" style="border-color:#80cbc4; color:#d4fff9;" onclick="applyStakingMemorySuggestion()">🧭 套用相似案例建議</button>
+                <button class="tool-btn" style="border-color:#9fa8da; color:#e5e8ff;" onclick="approveStakingMemory()">✅ 通過入核心</button>
+                <button class="tool-btn" style="border-color:#b39ddb; color:#efe3ff;" onclick="approveStakingMemoryWithCurrentState()">🛠️ 以目前狀態修正後通過</button>
+                <button class="tool-btn" style="border-color:#ffcc80; color:#ffe9c7;" onclick="rejectStakingMemory()">↩️ 退回本次結果</button>
+            </div>
+            <div class="bim-note level-only-pro" id="stakingRunReviewSummary" style="margin-top:10px; color:#d7e9ff;">放樣審核：尚無待審核紀錄</div>
+            <div class="bim-actions level-only-pro" style="margin-top:8px;">
+                <button id="stakingRunHistoryClearBtn" class="tool-btn" style="border-color:#ffcc80; color:#ffe9c7;" onclick="clearStakingRunHistory()">🧹 清空放樣學習紀錄</button>
+                <button id="stakingReviewMemoryClearBtn" class="tool-btn" style="border-color:#ffcc80; color:#ffe9c7;" onclick="clearStakingReviewMemory()">🧠 清空放樣核心記憶</button>
+            </div>
+            <div class="bim-table-wrap level-only-pro" style="max-height:180px; margin-top:8px;">
+                <table>
+                    <thead><tr><th>時間</th><th>狀態</th><th>模型</th><th>類型</th><th>QA</th><th>摘要</th></tr></thead>
+                    <tbody id="stakingRunHistoryBody"></tbody>
+                </table>
+            </div>
+            <div class="bim-note level-only-pro" id="stakingReviewMemorySummary" style="margin-top:10px; color:#d7e9ff;">放樣核心記憶：尚未建立</div>
+            <div class="bim-table-wrap level-only-pro" style="max-height:180px; margin-top:8px;">
+                <table>
+                    <thead><tr><th>時間</th><th>狀態</th><th>模型</th><th>建議</th><th>核心摘要</th></tr></thead>
+                    <tbody id="stakingReviewMemoryBody"></tbody>
                 </table>
             </div>
         </div>
@@ -485,19 +588,16 @@
                 </table>
             </div>
         </div>
-        <div class="bim-note">支援模型文字解析：自動統計構件類型、讀取部分工程量欄位，作為 QA 與算量前檢核。</div>
-        </section>
-
-        <div class="group-title">
+        <div id="stakeProjectTitle" class="group-title">
             專案與位置設定
-            <span style="font-size: 0.6em; color: #666;">會員專用模組</span>
+            <span style="font-size: 0.6em; color: #666;">第四頁放樣專用</span>
         </div>
-        <div class="input-row">
+        <div id="stakeProjectMetaRow" class="input-row">
             <div class="input-wrapper"><label>工地建案名稱</label><input type="text" id="project_name" value="" placeholder="請輸入建案名稱"></div>
             <div class="input-wrapper"><label>樓層/分區標籤</label><input type="text" id="floor_tag" placeholder="如: 1F, B1, 基礎"></div>
         </div>
-        <div class="member-wrap level-hide-basic">
-            <div class="bim-note" style="margin-top:0;">會員密碼管理（本機）：可新增會員帳號並自訂登入密碼。</div>
+        <div id="stakeMemberWrap" class="member-wrap level-hide-basic">
+            <div class="bim-note" style="margin-top:0;">會員管理（後端）：可新增會員帳號、更新密碼，並指定是否允許使用 IBM 放樣。</div>
             <div class="input-row">
                 <div class="input-wrapper">
                     <label>會員帳號</label>
@@ -505,22 +605,33 @@
                 </div>
                 <div class="input-wrapper">
                     <label>會員密碼</label>
-                    <input type="password" id="memberPasswordInput" placeholder="輸入新密碼（至少6碼）">
+                    <input type="password" id="memberPasswordInput" placeholder="新會員必填；留空可只更新權限">
+                </div>
+                <div class="input-wrapper">
+                    <label>IBM 放樣</label>
+                    <label class="tool-mini"><input type="checkbox" id="memberQuantumAccessInput"> 允許使用 IBM 雲端放樣</label>
                 </div>
             </div>
             <div class="bim-actions">
-                <button class="tool-btn" onclick="saveMemberCode()">💾 儲存會員密碼</button>
+                <button class="tool-btn" onclick="saveMemberCode()">💾 儲存會員</button>
                 <button class="tool-btn" onclick="deleteMemberCodeFromInput()">🗑 刪除會員</button>
             </div>
             <div class="member-table">
                 <table>
-                    <thead><tr><th>會員帳號</th><th>操作</th></tr></thead>
+                    <thead><tr><th>會員帳號</th><th>權限</th><th>操作</th></tr></thead>
                     <tbody id="memberCodeBody"></tbody>
                 </table>
             </div>
         </div>
+        <div class="bim-note">支援模型文字解析：自動統計構件類型、讀取部分工程量欄位，作為 QA 與算量前檢核。</div>
+        </section>
 
-        <section class="work-mode-only-calc">
+        <!-- 固定規則：第1~3頁只保留計算內容 -->
+        <section id="calcModePage">
+        <div class="group-title">
+            第1~3頁｜計算與自動估算
+            <span style="font-size: 0.6em; color: #98c8ff;">固定顯示計算按鍵</span>
+        </div>
         <button class="tool-btn level-only-standard" style="width: 100%; margin-bottom: 15px; border-color: #e91e63; color: #ffb1c2; font-size: 1.1em; padding: 10px;" onclick="startVoiceAgent()">
             🎙️ 呼叫工地語音助理 (點我說話)
         </button>
@@ -531,10 +642,13 @@
                     <optgroup label="模板與混凝土">
                         <option value="C_VOL">通用體積 (長x寬x高)</option>
                         <option value="C_COL">柱體積 (AxBxH)</option>
+                        <option value="C_STAIR">樓梯混凝土 ((高+寬)x深/2)</option>
                         <option value="M_WALL">版牆模板 (長x寬)</option>
                         <option value="M_COL">獨立柱模 (長+寬)x2x高</option> 
                         <option value="M_BEAM_SIDES">一般樑模-雙側 (長x側高x2側)</option> 
                         <option value="M_BEAM_ALL">獨立樑模-三面 (高x2+寬)x長</option>
+                        <option value="M_STAIR">樓梯模板 (斜板+平台+封口)</option>
+                        <option value="M_FOOTING_EDGE">單柱基礎周邊模板 (版厚x(長+寬)x2)</option>
                     </optgroup>
                     <optgroup label="鋼筋工程 (分號轉換)">
                         <option value="R_SLAB">鋼筋 - 樓板/牆 (雙層網)</option>
@@ -628,6 +742,88 @@
                 </div>
             </div>
         </div>
+        <div id="templateFormulaPanel" class="bim-rule-wrap" style="margin-top:10px; display:none;">
+            <div class="action-cluster-header">
+                <div>
+                    <div class="action-cluster-title">模板扣減與補正</div>
+                    <div class="action-cluster-note">牆模板可扣窗口、開口與接頭；版模板可扣地板開口並加四周封口板模；樑模板可選擇不算樑底；樓梯與單柱基礎用固定公式計算。</div>
+                </div>
+                <div class="action-cluster-chip">Template Rule</div>
+            </div>
+            <div id="templateWallSlabModeWrap" class="input-row" style="margin-top:8px;">
+                <div class="input-wrapper">
+                    <label>版牆模板模式</label>
+                    <select id="templateSurfaceMode" onchange="syncTemplateFormulaPanel(); previewCalc();">
+                        <option value="wall">牆模板</option>
+                        <option value="slab">版模板</option>
+                    </select>
+                </div>
+                <div class="input-wrapper">
+                    <label>梁底已併入版面</label>
+                    <label class="tool-mini" style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+                        <input type="checkbox" id="beamBottomIncludedInSlab" checked onchange="previewCalc()">
+                        樑模板不另算樑底
+                    </label>
+                </div>
+            </div>
+            <div id="templateWallInputs" style="display:none;">
+                <div class="input-row" style="margin-top:8px;">
+                    <div class="input-wrapper"><label>窗寬 (m)</label><input type="number" id="templateWindowWidth" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>窗高 (m)</label><input type="number" id="templateWindowHeight" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>窗口數</label><input type="number" id="templateWindowCount" step="1" min="0" value="0" oninput="previewCalc()"></div>
+                </div>
+                <div class="input-row">
+                    <div class="input-wrapper"><label>牆面開口寬 (m)</label><input type="number" id="templateOpeningWidth" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>牆面開口高 (m)</label><input type="number" id="templateOpeningHeight" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>牆面開口數</label><input type="number" id="templateOpeningCount" step="1" min="0" value="0" oninput="previewCalc()"></div>
+                </div>
+                <div class="input-row">
+                    <div class="input-wrapper"><label>牆厚 (m)</label><input type="number" id="templateWallThickness" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>樓高 (m)</label><input type="number" id="templateFloorHeight" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>樑高 (m)</label><input type="number" id="templateBeamHeight" step="0.01" min="0" oninput="previewCalc()"></div>
+                </div>
+                <div class="input-row">
+                    <div class="input-wrapper"><label>柱牆接頭 N跨</label><input type="number" id="templateSpanCount" step="1" min="0" value="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>梁牆接頭水平長 (m)</label><input type="number" id="templateBeamWallJointLength" step="0.01" min="0" oninput="previewCalc()"></div>
+                </div>
+            </div>
+            <div id="templateSlabInputs" style="display:none;">
+                <div class="input-row" style="margin-top:8px;">
+                    <div class="input-wrapper"><label>版厚 (m)</label><input type="number" id="templateSlabThickness" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>地板開口長 (m)</label><input type="number" id="templateSlabOpeningLength" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>地板開口寬 (m)</label><input type="number" id="templateSlabOpeningWidth" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>地板開口數</label><input type="number" id="templateSlabOpeningCount" step="1" min="0" value="0" oninput="previewCalc()"></div>
+                </div>
+                <div class="input-row">
+                    <div class="input-wrapper"><label>電梯開口長 (m)</label><input type="number" id="templateElevatorOpeningLength" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>電梯開口寬 (m)</label><input type="number" id="templateElevatorOpeningWidth" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>電梯開口數</label><input type="number" id="templateElevatorOpeningCount" step="1" min="0" value="0" oninput="previewCalc()"></div>
+                </div>
+                <div class="input-row">
+                    <div class="input-wrapper"><label>管道開口長 (m)</label><input type="number" id="templateShaftOpeningLength" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>管道開口寬 (m)</label><input type="number" id="templateShaftOpeningWidth" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>管道開口數</label><input type="number" id="templateShaftOpeningCount" step="1" min="0" value="0" oninput="previewCalc()"></div>
+                </div>
+                <div class="input-row">
+                    <div class="input-wrapper"><label>柱底座長 (m)</label><input type="number" id="templatePedestalLength" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>柱底座寬 (m)</label><input type="number" id="templatePedestalWidth" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>同位數柱</label><input type="number" id="templatePedestalCount" step="1" min="0" value="0" oninput="previewCalc()"></div>
+                </div>
+                <div class="input-row">
+                    <div class="input-wrapper"><label>梁接頭長 (m)</label><input type="number" id="templateBeamJointLength" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>梁接頭寬 (m)</label><input type="number" id="templateBeamJointWidth" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>跨一樑數</label><input type="number" id="templateBeamJointSpanCount" step="1" min="0" value="0" oninput="previewCalc()"></div>
+                </div>
+            </div>
+            <div id="templateStairInputs" style="display:none;">
+                <div class="input-row" style="margin-top:8px;">
+                    <div class="input-wrapper"><label>中平台寬 (m)</label><input type="number" id="templateStairMidPlatformWidth" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>平台長 (m)</label><input type="number" id="templateStairPlatformLength" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>上平台寬 (m)</label><input type="number" id="templateStairUpperPlatformWidth" step="0.01" min="0" oninput="previewCalc()"></div>
+                    <div class="input-wrapper"><label>樓高 (m)</label><input type="number" id="templateStairFloorHeight" step="0.01" min="0" oninput="previewCalc()"></div>
+                </div>
+            </div>
+        </div>
         <div class="input-row">
             <div class="input-wrapper">
                 <label>AI 盤點類別白名單（逗號分隔，留空=全部）</label>
@@ -646,8 +842,30 @@
         </div>
 
         <div class="preview-bar">
-            💡 即時算力：<span class="preview-val" id="prev_qty">0.00</span> <span id="prev_unit" style="color:var(--accent); font-weight:bold;">單位</span> | 
-            小計：<span class="preview-val" id="prev_cost" style="color:var(--highlight)">$ 0</span>
+            <div class="preview-bar-head">
+                <span class="preview-bar-kicker">即時算力</span>
+                <span id="prev_unit" class="preview-unit-chip">單位</span>
+            </div>
+            <div class="preview-bar-main" id="prev_qty">0.00</div>
+            <div class="preview-bar-sub" id="prev_cost">$ 0</div>
+        </div>
+        <div class="preview-summary-grid">
+            <div class="preview-summary-card">
+                <span class="preview-summary-label">基準數量</span>
+                <strong id="prevBaseQtyCard">0.000</strong>
+            </div>
+            <div class="preview-summary-card">
+                <span class="preview-summary-label">施工數量</span>
+                <strong id="prevAdjustedQtyCard">0.000</strong>
+            </div>
+            <div class="preview-summary-card">
+                <span class="preview-summary-label">扣除總數</span>
+                <strong id="prevDeductQtyCard">0.000</strong>
+            </div>
+            <div class="preview-summary-card preview-summary-card--accent">
+                <span class="preview-summary-label">計價小計</span>
+                <strong id="prevCostCard">$ 0</strong>
+            </div>
         </div>
         <div class="bim-note" style="margin-top:6px; color:#b9d8ef;">
             價格說明：小計 = 計價數量 × 單價。鋼筋以 Kg 計價、模板以 M² 計價、混凝土/土方以 M³ 計價。
@@ -660,11 +878,20 @@
             <tbody id="listBody"></tbody>
         </table>
 
-        <div class="group-title level-only-pro">計算第三頁｜進階試算（會員3 專用）</div>
-        <div class="bim-actions level-only-pro" style="margin-bottom:10px;">
+        <div id="calcAdvancedPage" class="group-title level-only-pro">計算第三頁｜IBM 自動計算與進階試算（會員3 專用）</div>
+        <div id="calcMeasureCluster" class="action-cluster action-cluster--accent level-only-pro" style="margin-bottom:10px;">
+            <div class="action-cluster-header">
+                <div>
+                    <div class="action-cluster-title">智慧量測工具</div>
+                    <div class="action-cluster-note">先做智慧定比例，再啟動智慧量圖，第三頁所有量測判讀都以這裡為入口。</div>
+                </div>
+                <div class="action-cluster-chip">Page 3 Calc</div>
+            </div>
+            <div class="action-cluster-grid">
             <button class="tool-btn" style="border-color:#80d8ff; color:#dff6ff;" onclick="startSmartCalibration()">🧠 智慧定比例</button>
             <button class="tool-btn" style="border-color:#ffd166; color:#fff2bf;" onclick="startSmartMeasure()">✨ 智慧量圖</button>
-            <span id="smartMeasureInfo" style="color:#bfe7ff; font-size:0.8em; align-self:center;">智慧量圖: 未啟動</span>
+            </div>
+            <div id="smartMeasureInfo" class="action-cluster-note" style="margin-top:8px;">智慧量圖: 未啟動</div>
         </div>
         <div class="input-row level-only-pro">
             <div class="input-wrapper">
@@ -718,15 +945,66 @@
                 </label>
                 <div class="bim-note" style="margin-top:6px;">適合柱、樑、混凝土、土方等三維項目，避免立面尺寸亂算。</div>
             </div>
+            <div class="input-wrapper">
+                <label>上傳後自動計算</label>
+                <label class="tool-mini" style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+                    <input type="checkbox" id="blueprintAutoCalcAfterUpload" onchange="syncBlueprintAutoCalcAfterUploadPref()">
+                    圖紙載入完成後自動跑「看圖自動判讀試算」（僅計算模式、會員3）
+                </label>
+                <div class="bim-note" style="margin-top:6px;">若流程中出現比例或構件類型確認視窗，仍需您手動輸入；關閉此選項則維持手動按鈕。</div>
         </div>
-        <div class="bim-actions level-only-pro" style="margin-top:8px;">
+        </div>
+        <div id="calcAiVisionCluster" class="action-cluster level-only-pro" style="margin-top:8px;">
+            <div class="action-cluster-header">
+                <div>
+                    <div class="action-cluster-title">AI 看圖辨識</div>
+                    <div class="action-cluster-note">第三頁先做快速判讀、精準辨識與 OCR 尺寸標註，也可把手機圖、電腦截圖、正式藍圖送進後台自動學習。</div>
+                </div>
+                <div class="action-cluster-chip">AI Vision</div>
+            </div>
+            <div class="action-cluster-grid">
             <button class="tool-btn" style="border-color:#7ed6df; color:#dffcff;" onclick="autoInterpretBlueprintAndCalculate()">🤖 第三頁看圖自動判讀試算</button>
-            <button class="tool-btn" style="border-color:#ffd166; color:#fff1b8;" onclick="runGuidedPrecisionAutoInterpret()">🎯 極強精準辨識</button>
+                <button class="tool-btn" style="border-color:#ffd166; color:#fff1b8;" onclick="runGuidedPrecisionAutoInterpret()">🎯 精準辨識</button>
             <button class="tool-btn" style="border-color:#ffd59c; color:#fff1d6;" onclick="readBlueprintSizeAnnotations()">🔎 讀柱樑尺寸標註</button>
-            <button class="tool-btn" style="border-color:#b39ddb; color:#efe3ff;" onclick="runAutoBlueprintPlusBIM()">🤖+🏗️ 第三頁自動看圖計算+BIM</button>
+                <button class="tool-btn" style="border-color:#b39ddb; color:#efe3ff;" onclick="runAutoBlueprintPlusBIM()">🤖+⚛️ 串接 IBM 自動計算</button>
+                <button class="tool-btn" style="border-color:#8be9fd; color:#dfffff;" onclick="startBackendAutoInterpretLearning()">☁️ 後台自動學習</button>
+        </div>
+        </div>
+        <div id="calcIbmCluster" class="bim-rule-wrap level-only-pro" style="margin-top:10px; border-color: rgba(128, 216, 255, 0.32); background: rgba(88, 170, 255, 0.08);">
+            <div class="action-cluster-header">
+                <div>
+                    <div class="action-cluster-title">IBM / BIM 自動估算</div>
+                    <div class="action-cluster-note">這裡只做計算與估價；BIM 模型上傳、放樣點、放樣 QA 固定在第四頁。</div>
+                </div>
+                <div class="action-cluster-chip">IBM Auto Calc</div>
+            </div>
+            <div class="action-cluster-grid" style="margin-top:8px;">
+                <button class="tool-btn" style="border-color:#90caf9; color:#dceeff;" onclick="setWorkMode('stake')">📍 去第四頁準備 BIM/放樣</button>
+                <button class="tool-btn" style="border-color:#80d8ff; color:#d8f3ff;" onclick="runBimTechAutoCalculation()">⚛️ IBM 自動計算</button>
+                <button class="tool-btn" onclick="generateBIMEstimate()">🧮 IBM/BIM 自動估價預覽</button>
+                <button class="tool-btn" onclick="importBIMEstimateToList()">📥 匯入 IBM/BIM 估價到清單</button>
+            </div>
+            <div id="bimAutoCalcInfo" class="bim-note" style="margin-top:6px;">IBM 自動計算：尚未執行</div>
+            <div class="bim-estimate-wrap">
+                <table>
+                    <thead><tr><th>構件類型</th><th>對應材料</th><th>數量</th><th>單價</th><th>小計</th></tr></thead>
+                    <tbody id="bimEstimateBody"></tbody>
+                </table>
+            </div>
         </div>
         <div id="guidedPrecisionPanel" class="precision-review-panel level-only-pro" hidden></div>
         <div id="autoInterpretQaSummary" class="bim-note level-only-pro" style="margin-top:6px; color:#d8ebff;">看圖 QA：待命</div>
+        <div class="group-title level-only-pro" style="margin-top:14px;">後台自動學習</div>
+        <div id="autoInterpretLearningSummary" class="bim-note level-only-pro" style="margin-top:6px; color:#d7e9ff;">後台學習：尚未建立任務</div>
+        <div class="bim-actions level-only-pro" style="margin-top:8px;">
+            <button class="tool-btn" style="border-color:#9bc2e5; color:#d7ebff;" onclick="renderAutoInterpretLearningPanel()">🔄 重新整理後台學習</button>
+        </div>
+        <div class="bim-table-wrap level-only-pro" style="max-height:220px; margin-top:8px;">
+            <table>
+                <thead><tr><th>時間</th><th>來源</th><th>狀態</th><th>最佳分數</th><th>摘要</th><th>操作</th></tr></thead>
+                <tbody id="autoInterpretLearningBody"></tbody>
+            </table>
+        </div>
         <div id="advEstimateSummary" class="bim-note level-only-pro" style="margin-top:6px; color:#d7e9ff;">進階試算：待命</div>
         <div id="advSensitivitySummary" class="bim-note level-only-pro" style="margin-top:6px; color:#cfe8ff;">敏感度：待命</div>
         <div id="advPrecisionAudit" class="bim-note level-only-pro" style="margin-top:6px; color:#c6dcff;">精算稽核：待命</div>
@@ -735,12 +1013,25 @@
         <div class="bim-note level-only-pro" id="autoInterpretMemorySummary" style="margin-top:6px; color:#d7e9ff;">記憶庫：尚未建立</div>
         <div class="bim-actions level-only-pro" style="margin-top:8px;">
             <button class="tool-btn" style="border-color:#b39ddb; color:#efe3ff;" onclick="renderAutoInterpretMemoryPanel()">🔄 重新整理記憶</button>
-            <button class="tool-btn" style="border-color:#ffcc80; color:#ffe9c7;" onclick="clearAutoInterpretMemory()">🧠 清空記憶庫</button>
+            <button id="autoInterpretMemoryClearBtn" class="tool-btn" style="border-color:#ffcc80; color:#ffe9c7;" onclick="clearAutoInterpretMemory()">🧠 清空記憶庫</button>
         </div>
         <div class="bim-table-wrap level-only-pro" style="max-height:180px; margin-top:8px;">
             <table>
                 <thead><tr><th>時間</th><th>類型</th><th>數量</th><th>尺寸</th><th>品質/比例</th><th>操作</th></tr></thead>
                 <tbody id="autoInterpretMemoryBody"></tbody>
+            </table>
+        </div>
+
+        <div class="group-title level-only-pro">極強審核研究區</div>
+        <div class="bim-note level-only-pro" id="guidedPrecisionReviewSummary" style="margin-top:6px; color:#d7e9ff;">極強審核：尚無待審核或研究紀錄</div>
+        <div class="bim-actions level-only-pro" style="margin-top:8px;">
+            <button class="tool-btn" style="border-color:#9bc2e5; color:#d7ebff;" onclick="renderGuidedPrecisionReviewPanel()">🔄 重新整理審核區</button>
+            <button id="guidedPrecisionReviewClearBtn" class="tool-btn" style="border-color:#ffcc80; color:#ffe9c7;" onclick="clearGuidedPrecisionReviewHistory()">🧹 清空審核研究紀錄</button>
+        </div>
+        <div class="bim-table-wrap level-only-pro" style="max-height:180px; margin-top:8px;">
+            <table>
+                <thead><tr><th>時間</th><th>狀態</th><th>分流</th><th>結果</th><th>摘要</th></tr></thead>
+                <tbody id="guidedPrecisionReviewBody"></tbody>
             </table>
         </div>
 
@@ -793,7 +1084,7 @@
     </div>
 </div>
 
-<div class="footer-bar work-mode-only-calc">
+<div class="footer-bar">
     <div id="sumC">混凝土: 0 M³</div>
     <div id="sumM">模板: 0 M²</div>
     <div id="sumE">土方: 0 M³</div>
@@ -806,7 +1097,7 @@
     <div class="coach-bubble">
         <button class="coach-close" onclick="hideCoach(true)" aria-label="關閉解說員">x</button>
         <div class="coach-title">小教練</div>
-        <div id="coachText">哈囉，先上傳圖紙，我陪你一步步完成。</div>
+        <div id="coachText">哈囉，現在是新版導覽：第1到3頁做計算，第4頁做放樣；你點到哪一組，我就解說哪一組。</div>
         <div class="coach-ai-row">
             <input id="coachAiInput" class="coach-ai-input" type="text" placeholder="可問：IFC有幾根柱？BIM估價風險是什麼？">
             <button id="coachAiAskBtn" class="coach-ai-btn" onclick="askAiCoachManual()">問AI</button>
@@ -823,13 +1114,17 @@
     <div class="coach-avatar" aria-hidden="true">🐣</div>
 </div>
 
-<script src="scripts/core/core-bootstrap.js"></script>
-<script src="scripts/features/materials-weather.js"></script>
-<script src="scripts/features/measurement-logs.js"></script>
-<script src="scripts/features/bim-qa.js"></script>
-<script src="scripts/features/blueprint-measurement.js"></script>
-<script src="scripts/features/calc-engine.js"></script>
-<script src="scripts/features/app-shell.js"></script>
-<script src="scripts/app-main.js"></script>
+<script src="scripts/modules/shared-ui.js?v=v825"></script>
+<script src="scripts/modules/calc-pages.js?v=v831"></script>
+<script src="scripts/modules/stake-page.js?v=v825"></script>
+<script src="scripts/modules/navigation.js?v=v833"></script>
+<script src="scripts/core/core-bootstrap.js?v=v837"></script>
+<script src="scripts/features/materials-weather.js?v=v831"></script>
+<script src="scripts/features/measurement-logs.js?v=v827"></script>
+<script src="scripts/features/bim-qa.js?v=v832"></script>
+<script src="scripts/features/blueprint-measurement.js?v=v840"></script>
+<script src="scripts/features/calc-engine.js?v=v832"></script>
+<script src="scripts/features/app-shell.js?v=v836"></script>
+<script src="scripts/app-main.js?v=v825"></script>
 </body>
 </html>

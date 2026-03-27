@@ -257,7 +257,7 @@
         --weather-sunbeam-opacity: 0.02;
     }
     body.weather-scene-good {
-        background-image: linear-gradient(rgba(6, 18, 24, 0.18), rgba(6, 18, 24, 0.18)), url('app-wallpaper.jpg');
+        background-image: linear-gradient(rgba(6, 18, 24, 0.18), rgba(6, 18, 24, 0.18));
         --weather-glow-opacity: 0.22;
         --weather-fog-opacity: 0.03;
     }
@@ -269,7 +269,7 @@
         text-shadow: 0 0 10px rgba(142, 255, 212, 0.4);
     }
     body.weather-scene-caution {
-        background-image: linear-gradient(rgba(38, 28, 8, 0.28), rgba(38, 28, 8, 0.28)), url('app-wallpaper.jpg');
+        background-image: linear-gradient(rgba(38, 28, 8, 0.28), rgba(38, 28, 8, 0.28));
         --weather-rain-opacity: 0.26;
         --weather-rain-speed: 1.05s;
         --weather-rain-near-opacity: 0.20;
@@ -285,7 +285,7 @@
         text-shadow: 0 0 12px rgba(255, 204, 123, 0.35);
     }
     body.weather-scene-bad {
-        background-image: linear-gradient(rgba(24, 10, 14, 0.42), rgba(24, 10, 14, 0.42)), url('app-wallpaper.jpg');
+        background-image: linear-gradient(rgba(24, 10, 14, 0.42), rgba(24, 10, 14, 0.42));
         --weather-rain-opacity: 0.45;
         --weather-rain-speed: 0.62s;
         --weather-rain-near-opacity: 0.34;

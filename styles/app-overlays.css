@@ -26,7 +26,7 @@
     .coach-guide-btn:hover { background: rgba(255,255,255,0.15); }
     .coach-guide-btn:disabled { opacity: 0.45; cursor: not-allowed; }
     body.high-contrast { --panel-bg: rgba(8, 14, 26, 0.62); --line-soft: rgba(255,255,255,0.32); --text-main: #ffffff; --text-subtle: #d4e4f4; --highlight: #ffc552; --accent: #7ad8ff; }
-    body.high-contrast { background-image: linear-gradient(rgba(4, 8, 14, 0.40), rgba(4, 8, 14, 0.40)), url('app-wallpaper.jpg'); }
+    body.high-contrast { background-image: linear-gradient(rgba(4, 8, 14, 0.40), rgba(4, 8, 14, 0.40)); }
     body.high-contrast .input-wrapper input,
     body.high-contrast .input-wrapper select { background: rgba(6, 14, 28, 0.72); border-color: rgba(255,255,255,0.38); color: #ffffff; }
     body.high-contrast .tool-bar { background: rgba(255,255,255,0.05); }

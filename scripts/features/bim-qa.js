@@ -1,25 +1,44 @@
-    function initUtilityWidgets() {
+    async function initUtilityWidgets() {
         initQuantumTokenField();
         renderUnmatchedMaterialOptions();
         renderUnmatchedWizard();
         initUnitSelectors();
-        initMemberManager();
+        await initMemberManager();
         loadAuditLogs();
         renderAuditTable();
+        loadStakingRunHistory();
+        loadStakingReviewMemory();
+        renderStakingLearningPanel();
         loadMeasurementLogs();
         renderMeasurementLogTable();
         loadSnapshots();
         renderSnapshotTable();
     }
 
+    const STAKING_RUN_HISTORY_MAX = 120;
+    const STAKING_REVIEW_MEMORY_MAX = 80;
+    let activeStakingRunId = '';
+    let stakingSuggestionState = {
+        match: null,
+        similarity: 0
+    };
+
     function initQuantumTokenField() {
         const input = document.getElementById('ibmQuantumKey');
         if (!input) return;
-        const saved = safeStorage.get(localStorage, IBM_QUANTUM_KEY_STORAGE, '');
-        if (saved && !input.value) input.value = saved;
-        input.addEventListener('input', () => {
-            safeStorage.set(localStorage, IBM_QUANTUM_KEY_STORAGE, input.value.trim());
-        });
+        const toggleBtn = document.getElementById('ibmQuantumKeyToggleBtn');
+        input.value = '';
+        input.type = 'password';
+        input.readOnly = true;
+        input.disabled = true;
+        input.placeholder = backendSessionState.integrations && backendSessionState.integrations.ibmQuantumConfigured
+            ? '已改由後端安全代理；需管理者額外開通 IBM 權限'
+            : '後端尚未設定 IBM Quantum 金鑰';
+        if (toggleBtn) {
+            toggleBtn.disabled = true;
+            toggleBtn.textContent = '後端代理';
+            toggleBtn.title = '正式金鑰已搬到後端';
+        }
     }
 
     function toggleIBMQuantumKeyVisibility() {
@@ -35,7 +54,7 @@
         const input = document.getElementById('ibmQuantumKey');
         if (input) input.value = '';
         safeStorage.remove(localStorage, IBM_QUANTUM_KEY_STORAGE);
-        showToast('已清除 IBM Cloud 金鑰');
+        showToast('瀏覽器端 IBM 金鑰已停用，請改用後端代理設定');
     }
 
     function normalizeMemberAccount(account) {
@@ -43,21 +62,64 @@
     }
 
     function loadMemberCodes() {
+        if (workspaceHydratedFromBackend) {
+            memberCodeMap = memberCodeMap && typeof memberCodeMap === 'object' ? memberCodeMap : {};
+            return;
+        }
         try {
-            const parsed = JSON.parse(localStorage.getItem(MEMBER_CODES_STORAGE_KEY) || '{}');
-            memberCodeMap = parsed && typeof parsed === 'object' ? parsed : {};
+            memberCodeMap = {};
         } catch (_e) {
             memberCodeMap = {};
         }
     }
 
     function persistMemberCodes() {
-        localStorage.setItem(MEMBER_CODES_STORAGE_KEY, JSON.stringify(memberCodeMap));
+        renderMemberCodeTable();
     }
 
-    function initMemberManager() {
+    async function initMemberManager() {
         loadMemberCodes();
+        if (backendSessionState.canManageMembers) {
+            try {
+                const payload = await apiRequest('/admin/members', {
+                    method: 'GET',
+                    retries: 0
+                });
+                memberCodeMap = {};
+                (payload.members || []).forEach((member) => {
+                    const account = normalizeMemberAccount(member && member.account);
+                    if (!account) return;
+                    memberCodeMap[account] = {
+                        ibmEnabled: !!(member && member.featureOverrides && member.featureOverrides.quantumStake),
+                        level: normalizeUserLevel(member.level || 'pro'),
+                        updatedAt: String(member.updatedAt || '')
+                    };
+                });
+            } catch (error) {
+                console.warn('載入會員名單失敗', error);
+            }
+        }
+        const accInput = document.getElementById('memberAccountInput');
+        if (accInput && !accInput.dataset.bindMemberEditor) {
+            accInput.addEventListener('input', refreshMemberEditorFromInput);
+            accInput.dataset.bindMemberEditor = '1';
+        }
+        refreshMemberEditorFromInput();
         renderMemberCodeTable();
+    }
+
+    function refreshMemberEditorFromInput() {
+        const accInput = document.getElementById('memberAccountInput');
+        const pwdInput = document.getElementById('memberPasswordInput');
+        const quantumInput = document.getElementById('memberQuantumAccessInput');
+        const account = normalizeMemberAccount(accInput && accInput.value);
+        const member = account ? memberCodeMap[account] : null;
+        if (quantumInput) quantumInput.checked = !!(member && member.ibmEnabled);
+        if (pwdInput) {
+            pwdInput.placeholder = member
+                ? '留空可只更新 IBM 權限；輸入則同步改密碼'
+                : '新會員必填（至少6碼）';
+        }
     }
 
     function renderMemberCodeTable() {
@@ -67,33 +129,74 @@
         const accounts = Object.keys(memberCodeMap).sort();
         if (!accounts.length) {
             const tr = document.createElement('tr');
-            tr.innerHTML = '<td colspan="2" style="color:#99b2c9;">尚無會員帳號</td>';
+            tr.innerHTML = '<td colspan="3" style="color:#99b2c9;">尚無會員帳號</td>';
             body.appendChild(tr);
             return;
         }
         accounts.forEach(acc => {
+            const member = memberCodeMap[acc] || {};
+            const levelText = member && member.level ? getUserLevelLabel(member.level) : '';
+            const ibmText = member && member.ibmEnabled ? 'IBM 放樣：開' : 'IBM 放樣：關';
+            const permissionText = [levelText, ibmText].filter(Boolean).join('｜');
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${escapeHTML(acc)}</td><td><button class="tool-btn" style="padding:4px 8px;" onclick="deleteMemberCode('${escapeHTML(acc)}')">刪除</button></td>`;
+            tr.innerHTML = `<td>${escapeHTML(acc)}</td><td>${escapeHTML(permissionText)}</td><td><button class="tool-btn" style="padding:4px 8px;" onclick="useMemberCode('${escapeHTML(acc)}')">編輯</button> <button class="tool-btn" style="padding:4px 8px;" onclick="deleteMemberCode('${escapeHTML(acc)}')">刪除</button></td>`;
             body.appendChild(tr);
         });
+    }
+
+    function useMemberCode(account) {
+        const acc = normalizeMemberAccount(account);
+        const accInput = document.getElementById('memberAccountInput');
+        const pwdInput = document.getElementById('memberPasswordInput');
+        const quantumInput = document.getElementById('memberQuantumAccessInput');
+        const member = memberCodeMap[acc];
+        if (!accInput || !member) return;
+        accInput.value = acc;
+        if (pwdInput) pwdInput.value = '';
+        if (quantumInput) quantumInput.checked = !!member.ibmEnabled;
+        refreshMemberEditorFromInput();
+        showToast(`已帶入會員「${acc}」設定`);
     }
 
     async function saveMemberCode() {
         const accInput = document.getElementById('memberAccountInput');
         const pwdInput = document.getElementById('memberPasswordInput');
+        const quantumInput = document.getElementById('memberQuantumAccessInput');
         const account = normalizeMemberAccount(accInput && accInput.value);
         const password = String((pwdInput && pwdInput.value) || '').trim();
         if (!account) return showToast('請輸入會員帳號');
         if (!/^[a-z0-9_.-]{3,30}$/.test(account)) return showToast('會員帳號格式：3-30碼，可用英文/數字/._-');
-        if (password.length < 6) return showToast('會員密碼至少 6 碼');
-        const hashed = await hashTextSHA256(password);
-        memberCodeMap[account] = hashed;
-        persistMemberCodes();
-        renderMemberCodeTable();
-        if (accInput) accInput.value = account;
-        if (pwdInput) pwdInput.value = '';
-        addAuditLog('會員密碼更新', account);
-        showToast(`會員「${account}」密碼已更新`);
+        const existing = !!memberCodeMap[account];
+        if (!existing && password.length < 6) return showToast('新會員密碼至少 6 碼');
+        if (existing && password && password.length < 6) return showToast('會員密碼至少 6 碼');
+        try {
+            const payload = await apiRequest('/admin/members', {
+                method: 'POST',
+                body: {
+                    account,
+                    featureOverrides: {
+                        quantumStake: !!(quantumInput && quantumInput.checked)
+                    },
+                    password,
+                    level: 'pro'
+                },
+                retries: 0
+            });
+            memberCodeMap[account] = {
+                ibmEnabled: !!(payload && payload.member && payload.member.featureOverrides && payload.member.featureOverrides.quantumStake),
+                level: normalizeUserLevel(payload && payload.member ? payload.member.level : 'pro'),
+                updatedAt: payload && payload.member ? String(payload.member.updatedAt || '') : ''
+            };
+            persistMemberCodes();
+            if (accInput) accInput.value = account;
+            if (pwdInput) pwdInput.value = '';
+            refreshMemberEditorFromInput();
+            addAuditLog('會員密碼更新', account);
+            showToast(existing ? `會員「${account}」權限已更新` : `會員「${account}」已建立`);
+        } catch (error) {
+            console.warn('會員儲存失敗', error);
+            showToast((error && error.message) || '會員資料儲存失敗');
+        }
     }
 
     function deleteMemberCodeFromInput() {
@@ -103,29 +206,40 @@
         deleteMemberCode(account);
     }
 
-    function deleteMemberCode(account) {
+    async function deleteMemberCode(account) {
         const acc = normalizeMemberAccount(account);
         if (!acc) return showToast('會員帳號不可為空');
         if (!memberCodeMap[acc]) return showToast('找不到此會員帳號');
         if (!confirm(`確定刪除會員「${acc}」？`)) return;
-        delete memberCodeMap[acc];
-        persistMemberCodes();
-        renderMemberCodeTable();
-        addAuditLog('會員刪除', acc);
-        showToast(`已刪除會員「${acc}」`);
+        try {
+            await apiRequest(`/admin/members/${encodeURIComponent(acc)}`, {
+                method: 'DELETE',
+                retries: 0
+            });
+            delete memberCodeMap[acc];
+            persistMemberCodes();
+            addAuditLog('會員刪除', acc);
+            showToast(`已刪除會員「${acc}」`);
+        } catch (error) {
+            console.warn('會員刪除失敗', error);
+            showToast((error && error.message) || '會員刪除失敗');
+        }
     }
 
     function loadAuditLogs() {
+        if (workspaceHydratedFromBackend) {
+            bimAuditLogs = Array.isArray(bimAuditLogs) ? bimAuditLogs : [];
+            return;
+        }
         try {
-            const parsed = JSON.parse(localStorage.getItem(BIM_AUDIT_STORAGE_KEY) || '[]');
-            bimAuditLogs = Array.isArray(parsed) ? parsed : [];
+            bimAuditLogs = [];
         } catch (_e) {
             bimAuditLogs = [];
         }
     }
 
     function persistAuditLogs() {
-        localStorage.setItem(BIM_AUDIT_STORAGE_KEY, JSON.stringify(bimAuditLogs.slice(0, 120)));
+        queueWorkspacePersist('bimAuditLogs', bimAuditLogs.slice(0, 120));
     }
 
     function addAuditLog(action, detail) {
@@ -159,16 +273,19 @@
     }
 
     function loadSnapshots() {
+        if (workspaceHydratedFromBackend) {
+            bimSnapshots = Array.isArray(bimSnapshots) ? bimSnapshots : [];
+            return;
+        }
         try {
-            const parsed = JSON.parse(localStorage.getItem(BIM_SNAPSHOT_STORAGE_KEY) || '[]');
-            bimSnapshots = Array.isArray(parsed) ? parsed : [];
+            bimSnapshots = [];
         } catch (_e) {
             bimSnapshots = [];
         }
     }
 
     function persistSnapshots() {
-        localStorage.setItem(BIM_SNAPSHOT_STORAGE_KEY, JSON.stringify(bimSnapshots.slice(0, 40)));
+        queueWorkspacePersist('bimSnapshots', bimSnapshots.slice(0, 40));
     }
 
     function snapshotSummaryText(snap) {
@@ -230,6 +347,555 @@
             `;
             body.appendChild(tr);
         });
+    }
+
+    function loadStakingRunHistory() {
+        if (workspaceHydratedFromBackend) {
+            stakingRunHistory = Array.isArray(stakingRunHistory) ? stakingRunHistory : [];
+            return;
+        }
+        try {
+            stakingRunHistory = [];
+        } catch (_e) {
+            stakingRunHistory = [];
+        }
+    }
+
+    function loadStakingReviewMemory() {
+        if (workspaceHydratedFromBackend) {
+            stakingReviewMemory = Array.isArray(stakingReviewMemory) ? stakingReviewMemory : [];
+            return;
+        }
+        try {
+            stakingReviewMemory = [];
+        } catch (_e) {
+            stakingReviewMemory = [];
+        }
+    }
+
+    let stakingRunHistoryHiddenLocally = false;
+    let stakingReviewMemoryHiddenLocally = false;
+
+    function persistStakingRunHistoryStore(store) {
+        stakingRunHistory = Array.isArray(store) ? store.slice(0, STAKING_RUN_HISTORY_MAX) : [];
+        stakingRunHistoryHiddenLocally = false;
+        queueWorkspacePersist('stakingRunHistory', stakingRunHistory.slice(0, STAKING_RUN_HISTORY_MAX));
+    }
+
+    function persistStakingReviewMemoryStore(store) {
+        stakingReviewMemory = Array.isArray(store) ? store.slice(0, STAKING_REVIEW_MEMORY_MAX) : [];
+        stakingReviewMemoryHiddenLocally = false;
+        queueWorkspacePersist('stakingReviewMemory', stakingReviewMemory.slice(0, STAKING_REVIEW_MEMORY_MAX));
+    }
+
+    function getStakingRunHistoryStore() {
+        return Array.isArray(stakingRunHistory) ? stakingRunHistory : [];
+    }
+
+    function getStakingReviewMemoryStore() {
+        return Array.isArray(stakingReviewMemory) ? stakingReviewMemory : [];
+    }
+
+    function getStakingReviewStatusLabel(status) {
+        if (status === 'approved') return '已通過';
+        if (status === 'corrected') return '修正通過';
+        if (status === 'rejected') return '已退回';
+        return '待審核';
+    }
+
+    function getCurrentStakingSelection() {
+        return {
+            column: !!document.getElementById('layoutTypeColumn')?.checked,
+            wall: !!document.getElementById('layoutTypeWall')?.checked,
+            beam: !!document.getElementById('layoutTypeBeam')?.checked
+        };
+    }
+
+    function formatStakingSelectionLabel(selection) {
+        const chosen = [];
+        if (selection && selection.column) chosen.push('柱');
+        if (selection && selection.wall) chosen.push('牆');
+        if (selection && selection.beam) chosen.push('梁');
+        return chosen.length ? chosen.join(' / ') : '未勾選';
+    }
+
+    function getCurrentStakingHighPrecisionEnabled() {
+        return !!document.getElementById('layoutHighPrecisionToggle')?.checked;
+    }
+
+    function getCurrentLayoutConfidenceStats(points = bimLayoutPoints) {
+        const rows = Array.isArray(points) ? points : [];
+        const high = rows.filter(p => p && p.confidenceLevel === 'high').length;
+        const medium = rows.filter(p => p && p.confidenceLevel === 'medium').length;
+        const low = rows.filter(p => p && p.confidenceLevel === 'low').length;
+        const total = Math.max(1, rows.length);
+        return {
+            high,
+            medium,
+            low,
+            highRatio: high / total,
+            mediumRatio: medium / total,
+            lowRatio: low / total
+        };
+    }
+
+    function getCurrentStakingTopTypesSummary(limit = 4) {
+        if (!bimModelData || !bimModelData.typeCounts) return '未載入模型';
+        const rows = Object.entries(bimModelData.typeCounts)
+            .filter(([, count]) => Number(count) > 0)
+            .sort((a, b) => Number(b[1]) - Number(a[1]))
+            .slice(0, limit)
+            .map(([type, count]) => `${formatIfcTypeDisplay(type)}:${count}`);
+        return rows.length ? rows.join('｜') : '未解析到構件';
+    }
+
+    function buildStakingModelSignature(selection = getCurrentStakingSelection()) {
+        if (!bimModelData) return '未載入模型';
+        const typeSummary = Object.entries(bimModelData.typeCounts || {})
+            .filter(([, count]) => Number(count) > 0)
+            .sort((a, b) => Number(b[1]) - Number(a[1]))
+            .slice(0, 6)
+            .map(([type, count]) => `${normalizeIfcType(type)}:${count}`)
+            .join('|');
+        return [
+            String(bimModelData.fileName || '未命名模型').trim(),
+            Number(bimModelData.totalEntities || 0),
+            Number(bimModelData.totalElements || 0),
+            `${selection.column ? 1 : 0}${selection.wall ? 1 : 0}${selection.beam ? 1 : 0}`,
+            typeSummary
+        ].join('::');
+    }
+
+    function clampStakingMetric(value, min = 0, max = 1) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return min;
+        return Math.max(min, Math.min(max, n));
+    }
+
+    function buildStakingFeatureVector(context = {}) {
+        const selection = context.selection || getCurrentStakingSelection();
+        const points = Array.isArray(context.points) ? context.points : bimLayoutPoints;
+        const confidence = context.confidenceStats || getCurrentLayoutConfidenceStats(points);
+        const qaScore = Number.isFinite(Number(context.qaScore))
+            ? Number(context.qaScore)
+            : Number(bimLayoutQaResult && bimLayoutQaResult.qaScore || 0);
+        const groupCount = Number.isFinite(Number(context.groupCount))
+            ? Number(context.groupCount)
+            : Number((bimLayoutQaResult && bimLayoutQaResult.groupCount) || new Set((points || []).map(p => String(p && p.layoutGroup || ''))).size || 0);
+        const spacingScore = Number.isFinite(Number(context.spacingStabilityScore))
+            ? Number(context.spacingStabilityScore)
+            : Number(bimLayoutQaResult && bimLayoutQaResult.spacingStabilityScore || 0);
+        const groupStability = Number.isFinite(Number(context.groupStabilityScore))
+            ? Number(context.groupStabilityScore)
+            : Number(bimLayoutQaResult && bimLayoutQaResult.groupStabilityScore || 0);
+        const totalElements = Number.isFinite(Number(context.totalElements))
+            ? Number(context.totalElements)
+            : Number(bimModelData && bimModelData.totalElements || 0);
+        const totalEntities = Number.isFinite(Number(context.totalEntities))
+            ? Number(context.totalEntities)
+            : Number(bimModelData && bimModelData.totalEntities || 0);
+        const pointCount = Number.isFinite(Number(context.pointCount))
+            ? Number(context.pointCount)
+            : Number(points && points.length || 0);
+        const alignmentApplied = context.alignmentApplied == null ? !!layoutAlignmentState : !!context.alignmentApplied;
+        const precisionEnabled = context.precisionEnabled == null ? getCurrentStakingHighPrecisionEnabled() : !!context.precisionEnabled;
+        return [
+            selection.column ? 1 : 0,
+            selection.wall ? 1 : 0,
+            selection.beam ? 1 : 0,
+            clampStakingMetric(totalEntities / 2000),
+            clampStakingMetric(totalElements / 500),
+            clampStakingMetric(pointCount / 300),
+            clampStakingMetric(groupCount / 60),
+            clampStakingMetric(qaScore / 100),
+            clampStakingMetric(confidence.highRatio),
+            clampStakingMetric(confidence.mediumRatio),
+            clampStakingMetric(confidence.lowRatio),
+            precisionEnabled ? 1 : 0,
+            alignmentApplied ? 1 : 0,
+            clampStakingMetric(spacingScore / 100),
+            clampStakingMetric(groupStability / 100)
+        ];
+    }
+
+    function calcCosineSimilarity(a, b) {
+        const left = Array.isArray(a) ? a : [];
+        const right = Array.isArray(b) ? b : [];
+        if (!left.length || !right.length || left.length !== right.length) return 0;
+        let dot = 0;
+        let normA = 0;
+        let normB = 0;
+        for (let i = 0; i < left.length; i += 1) {
+            const av = Number(left[i]) || 0;
+            const bv = Number(right[i]) || 0;
+            dot += av * bv;
+            normA += av * av;
+            normB += bv * bv;
+        }
+        if (normA <= 0 || normB <= 0) return 0;
+        return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+    }
+
+    function readStakingSummaryText(elementId, fallback = '') {
+        const el = document.getElementById(elementId);
+        return String(el && el.innerText || fallback).trim();
+    }
+
+    function buildStakingRunRecord(status = 'pending', options = {}) {
+        const existing = options.existingRecord || null;
+        const selection = options.selection || safeCloneJson(existing && existing.selection ? existing.selection : getCurrentStakingSelection(), getCurrentStakingSelection());
+        const confidenceStats = options.confidenceStats || getCurrentLayoutConfidenceStats(options.points || bimLayoutPoints);
+        const pointCount = Number.isFinite(Number(options.pointCount))
+            ? Number(options.pointCount)
+            : Number(Array.isArray(options.points) ? options.points.length : bimLayoutPoints.length || 0);
+        const qaScore = Number.isFinite(Number(options.qaScore))
+            ? Number(options.qaScore)
+            : Number(bimLayoutQaResult && bimLayoutQaResult.qaScore || 0);
+        const qaLevel = String(options.qaLevel || (bimLayoutQaResult && bimLayoutQaResult.qaLevel) || (qaScore > 0 ? getQaLevelByScore(qaScore) : '-'));
+        const groupCount = Number.isFinite(Number(options.groupCount))
+            ? Number(options.groupCount)
+            : Number((bimLayoutQaResult && bimLayoutQaResult.groupCount) || new Set((bimLayoutPoints || []).map(p => String(p && p.layoutGroup || ''))).size || 0);
+        const decisionStatus = String(status || options.decisionStatus || existing && existing.decisionStatus || 'pending');
+        const reviewedAt = decisionStatus === 'pending'
+            ? ''
+            : String(options.reviewedAt || new Date().toISOString());
+        return {
+            id: String(options.id || existing && existing.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+            ts: String(options.ts || existing && existing.ts || new Date().toISOString()),
+            fileName: String(options.fileName || existing && existing.fileName || bimModelData && bimModelData.fileName || '未載入模型'),
+            modelSignature: String(options.modelSignature || existing && existing.modelSignature || buildStakingModelSignature(selection)),
+            topTypesSummary: String(options.topTypesSummary || existing && existing.topTypesSummary || getCurrentStakingTopTypesSummary()),
+            totalEntities: Number.isFinite(Number(options.totalEntities)) ? Number(options.totalEntities) : Number(existing && existing.totalEntities || bimModelData && bimModelData.totalEntities || 0),
+            totalElements: Number.isFinite(Number(options.totalElements)) ? Number(options.totalElements) : Number(existing && existing.totalElements || bimModelData && bimModelData.totalElements || 0),
+            selection,
+            selectionLabel: String(options.selectionLabel || formatStakingSelectionLabel(selection)),
+            precisionEnabled: options.precisionEnabled == null ? getCurrentStakingHighPrecisionEnabled() : !!options.precisionEnabled,
+            alignmentApplied: options.alignmentApplied == null ? !!layoutAlignmentState : !!options.alignmentApplied,
+            alignmentControlCount: Number.isFinite(Number(options.alignmentControlCount))
+                ? Number(options.alignmentControlCount)
+                : Number(existing && existing.alignmentControlCount || layoutAlignmentState && layoutAlignmentState.controlCount || 0),
+            pointCount,
+            groupCount,
+            qaScore,
+            qaLevel,
+            spacingStabilityScore: Number.isFinite(Number(options.spacingStabilityScore))
+                ? Number(options.spacingStabilityScore)
+                : Number(existing && existing.spacingStabilityScore || bimLayoutQaResult && bimLayoutQaResult.spacingStabilityScore || 0),
+            groupStabilityScore: Number.isFinite(Number(options.groupStabilityScore))
+                ? Number(options.groupStabilityScore)
+                : Number(existing && existing.groupStabilityScore || bimLayoutQaResult && bimLayoutQaResult.groupStabilityScore || 0),
+            confidenceHigh: confidenceStats.high,
+            confidenceMedium: confidenceStats.medium,
+            confidenceLow: confidenceStats.low,
+            heatmapSummary: String(options.heatmapSummary || readStakingSummaryText('layoutHeatmapSummary', existing && existing.heatmapSummary || '偏差熱圖：尚未分析')),
+            stabilitySummary: String(options.stabilitySummary || readStakingSummaryText('layoutStabilitySummary', existing && existing.stabilitySummary || '穩定度重測：尚未執行')),
+            confidenceSummary: String(options.confidenceSummary || readStakingSummaryText('layoutConfidenceSummary', existing && existing.confidenceSummary || '置信度分層：尚未分析')),
+            coverageSummary: String(options.coverageSummary || readStakingSummaryText('layoutCoverageSummary', existing && existing.coverageSummary || '補點建議：尚未分析')),
+            spotCheckSummary: String(options.spotCheckSummary || readStakingSummaryText('layoutSpotCheckSummary', existing && existing.spotCheckSummary || '現場抽驗：尚未抽驗')),
+            qaSummary: String(options.qaSummary || readStakingSummaryText('bimLayoutQaSummary', existing && existing.qaSummary || '放樣 QA：尚未執行')),
+            pipelineType: String(options.pipelineType || existing && existing.pipelineType || 'manual'),
+            sourceLabel: String(options.sourceLabel || existing && existing.sourceLabel || '放樣流程'),
+            decisionStatus,
+            decisionLabel: getStakingReviewStatusLabel(decisionStatus),
+            decisionNote: String(options.decisionNote || existing && existing.decisionNote || ''),
+            reviewedAt,
+            featureVector: buildStakingFeatureVector({
+                selection,
+                pointCount,
+                groupCount,
+                qaScore,
+                totalEntities: options.totalEntities,
+                totalElements: options.totalElements,
+                confidenceStats,
+                precisionEnabled: options.precisionEnabled,
+                alignmentApplied: options.alignmentApplied,
+                spacingStabilityScore: options.spacingStabilityScore,
+                groupStabilityScore: options.groupStabilityScore
+            })
+        };
+    }
+
+    function upsertStakingRunRecord(record) {
+        if (!record || !record.id) return null;
+        const store = getStakingRunHistoryStore().slice();
+        const index = store.findIndex(item => String(item && item.id || '') === String(record.id));
+        if (index >= 0) store[index] = { ...store[index], ...record };
+        else store.unshift(record);
+        store.sort((a, b) => String(b && b.ts || '').localeCompare(String(a && a.ts || '')));
+        persistStakingRunHistoryStore(store.slice(0, STAKING_RUN_HISTORY_MAX));
+        renderStakingLearningPanel();
+        return record;
+    }
+
+    function getCurrentStakingRunRecord() {
+        const store = getStakingRunHistoryStore();
+        if (activeStakingRunId) {
+            const active = store.find(item => String(item && item.id || '') === String(activeStakingRunId));
+            if (active) return active;
+        }
+        return store.find(item => item && item.decisionStatus === 'pending') || store[0] || null;
+    }
+
+    function syncCurrentStakingRunRecord(status = 'pending', options = {}) {
+        const existing = getCurrentStakingRunRecord();
+        const record = buildStakingRunRecord(status, {
+            ...options,
+            id: options.id || existing && existing.id || activeStakingRunId || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            ts: options.ts || existing && existing.ts,
+            existingRecord: existing
+        });
+        activeStakingRunId = record.id;
+        return upsertStakingRunRecord(record);
+    }
+
+    function buildStakingReviewMemoryEntry(record, status = 'approved', options = {}) {
+        const source = record || getCurrentStakingRunRecord();
+        if (!source) return null;
+        return {
+            id: String(options.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+            ts: new Date().toISOString(),
+            sourceRunId: String(source.id || ''),
+            status: status === 'corrected' ? 'corrected' : 'approved',
+            statusLabel: getStakingReviewStatusLabel(status),
+            fileName: String(source.fileName || ''),
+            modelSignature: String(source.modelSignature || ''),
+            topTypesSummary: String(source.topTypesSummary || ''),
+            selection: safeCloneJson(source.selection || {}, {}),
+            selectionLabel: String(source.selectionLabel || ''),
+            recommendedHighPrecision: !!source.precisionEnabled,
+            recommendedQaProfile: String(getQaProfileConfig().label || ''),
+            recommendedSpecPreset: String(getBimSpecPreset().label || ''),
+            recommendedCoverage: String(source.coverageSummary || ''),
+            recommendedSpotCheck: String(source.spotCheckSummary || ''),
+            approvedQaScore: Number(source.qaScore || 0),
+            approvedQaLevel: String(source.qaLevel || '-'),
+            pointCount: Number(source.pointCount || 0),
+            groupCount: Number(source.groupCount || 0),
+            decisionNote: String(options.decisionNote || source.decisionNote || ''),
+            featureVector: safeCloneJson(source.featureVector || [], []),
+            useCount: Number(options.useCount || 1)
+        };
+    }
+
+    function learnStakingReviewMemory(record, status = 'approved', options = {}) {
+        const entry = buildStakingReviewMemoryEntry(record, status, options);
+        if (!entry) return null;
+        const store = getStakingReviewMemoryStore().slice();
+        const currentVector = Array.isArray(entry.featureVector) ? entry.featureVector : [];
+        const similarIndex = store.findIndex(item => {
+            if (String(item && item.modelSignature || '') === String(entry.modelSignature)) return true;
+            const similarity = calcCosineSimilarity(item && item.featureVector, currentVector);
+            return similarity >= 0.985;
+        });
+        if (similarIndex >= 0) {
+            const existing = store[similarIndex];
+            store[similarIndex] = {
+                ...existing,
+                ...entry,
+                id: existing.id,
+                useCount: Number(existing.useCount || 1) + 1,
+                ts: new Date().toISOString()
+            };
+        } else {
+            store.unshift(entry);
+        }
+        store.sort((a, b) => String(b && b.ts || '').localeCompare(String(a && a.ts || '')));
+        persistStakingReviewMemoryStore(store.slice(0, STAKING_REVIEW_MEMORY_MAX));
+        renderStakingLearningPanel();
+        return entry;
+    }
+
+    function findBestStakingMemorySuggestion() {
+        if (!bimModelData) return null;
+        const store = getStakingReviewMemoryStore();
+        if (!store.length) return null;
+        const currentSignature = buildStakingModelSignature();
+        const currentVector = buildStakingFeatureVector();
+        let best = null;
+        let bestSimilarity = 0;
+        store.forEach(item => {
+            let similarity = calcCosineSimilarity(item && item.featureVector, currentVector);
+            if (String(item && item.modelSignature || '') === String(currentSignature)) {
+                similarity = Math.max(similarity, 1);
+            }
+            if (similarity > bestSimilarity) {
+                bestSimilarity = similarity;
+                best = item;
+            }
+        });
+        if (!best || bestSimilarity < 0.72) return null;
+        return {
+            ...best,
+            similarity: bestSimilarity
+        };
+    }
+
+    function applyStakingMemorySuggestion() {
+        const match = findBestStakingMemorySuggestion();
+        if (!match) return showToast('目前沒有可套用的相似放樣建議');
+        const selection = match.selection || {};
+        const columnBox = document.getElementById('layoutTypeColumn');
+        const wallBox = document.getElementById('layoutTypeWall');
+        const beamBox = document.getElementById('layoutTypeBeam');
+        const precisionBox = document.getElementById('layoutHighPrecisionToggle');
+        if (columnBox) columnBox.checked = !!selection.column;
+        if (wallBox) wallBox.checked = !!selection.wall;
+        if (beamBox) beamBox.checked = !!selection.beam;
+        if (precisionBox) precisionBox.checked = !!match.recommendedHighPrecision;
+        renderStakingLearningPanel();
+        showToast(`已套用相似案例建議：${match.selectionLabel || '放樣設定'}｜相似度 ${Math.round(Number(match.similarity || 0) * 100)}%`);
+    }
+
+    function approveStakingMemory() {
+        if (!bimModelData || !bimLayoutPoints.length) return showToast('請先完成至少一次放樣流程，再進行放樣學習審核');
+        const record = getCurrentStakingRunRecord();
+        if (!record) return showToast('目前沒有可通過的放樣學習紀錄');
+        syncCurrentStakingRunRecord('approved', {
+            decisionNote: '人工確認通過'
+        });
+        learnStakingReviewMemory(getCurrentStakingRunRecord(), 'approved', {
+            decisionNote: '人工確認通過'
+        });
+        addAuditLog('放樣學習通過', `${record.fileName || '未命名模型'} / QA ${record.qaLevel} ${record.qaScore}`);
+        showToast('放樣結果已通過，並加入核心記憶');
+    }
+
+    function approveStakingMemoryWithCurrentState() {
+        if (!bimModelData || !bimLayoutPoints.length) return showToast('請先完成至少一次放樣流程，再進行放樣學習審核');
+        const record = syncCurrentStakingRunRecord('corrected', {
+            decisionNote: '依目前放樣狀態修正後通過'
+        });
+        if (!record) return showToast('目前沒有可修正通過的放樣紀錄');
+        learnStakingReviewMemory(record, 'corrected', {
+            decisionNote: '依目前放樣狀態修正後通過'
+        });
+        addAuditLog('放樣學習修正通過', `${record.fileName || '未命名模型'} / QA ${record.qaLevel} ${record.qaScore}`);
+        showToast('放樣結果已依目前狀態修正通過，並加入核心記憶');
+    }
+
+    function rejectStakingMemory() {
+        if (!bimModelData || !bimLayoutPoints.length) return showToast('請先完成至少一次放樣流程，再進行放樣學習審核');
+        const record = syncCurrentStakingRunRecord('rejected', {
+            decisionNote: '本次放樣結果退回，不納入核心記憶'
+        });
+        if (!record) return showToast('目前沒有可退回的放樣紀錄');
+        addAuditLog('放樣學習退回', `${record.fileName || '未命名模型'} / QA ${record.qaLevel} ${record.qaScore}`);
+        showToast('本次放樣結果已退回，保留歷史但不進核心記憶');
+    }
+
+    function clearStakingRunHistory() {
+        if (!getStakingRunHistoryStore().length) return showToast('目前沒有放樣學習紀錄');
+        if (!confirm(`確定清空 ${getStakingRunHistoryStore().length} 筆放樣學習紀錄嗎？`)) return;
+        stakingRunHistoryHiddenLocally = true;
+        activeStakingRunId = '';
+        renderStakingLearningPanel();
+        showToast('已清空本機畫面，放樣學習紀錄仍保留');
+    }
+
+    function clearStakingReviewMemory() {
+        if (!getStakingReviewMemoryStore().length) return showToast('目前沒有放樣核心記憶');
+        if (!confirm(`確定清空 ${getStakingReviewMemoryStore().length} 筆放樣核心記憶嗎？`)) return;
+        stakingReviewMemoryHiddenLocally = true;
+        renderStakingLearningPanel();
+        showToast('已清空本機畫面，放樣核心記憶仍保留');
+    }
+
+    function renderStakingLearningPanel() {
+        const summary = document.getElementById('stakingLearningSummary');
+        const hintBox = document.getElementById('stakingSuggestionHint');
+        const reviewSummary = document.getElementById('stakingRunReviewSummary');
+        const reviewBody = document.getElementById('stakingRunHistoryBody');
+        const memorySummary = document.getElementById('stakingReviewMemorySummary');
+        const memoryBody = document.getElementById('stakingReviewMemoryBody');
+        const historyStore = getStakingRunHistoryStore();
+        const memoryStore = getStakingReviewMemoryStore();
+        const pendingCount = historyStore.filter(item => item && item.decisionStatus === 'pending').length;
+        const approvedCount = historyStore.filter(item => item && item.decisionStatus === 'approved').length;
+        const correctedCount = historyStore.filter(item => item && item.decisionStatus === 'corrected').length;
+        const rejectedCount = historyStore.filter(item => item && item.decisionStatus === 'rejected').length;
+        const bestMatch = findBestStakingMemorySuggestion();
+        stakingSuggestionState = {
+            match: bestMatch,
+            similarity: Number(bestMatch && bestMatch.similarity || 0)
+        };
+
+        if (summary) {
+            summary.innerText = `放樣學習：待審核 ${pendingCount}｜已通過 ${approvedCount}｜修正通過 ${correctedCount}｜已退回 ${rejectedCount}｜核心記憶 ${memoryStore.length}`;
+        }
+        if (hintBox) {
+            if (bestMatch) {
+                hintBox.innerText = `相似案例建議：${bestMatch.fileName || '未命名模型'}｜相似度 ${Math.round(Number(bestMatch.similarity || 0) * 100)}%｜建議 ${bestMatch.selectionLabel || '未標示'}｜高精度 ${bestMatch.recommendedHighPrecision ? '開' : '關'}｜QA ${bestMatch.approvedQaLevel || '-'} ${bestMatch.approvedQaScore || 0}`;
+                hintBox.style.color = '#bfe7ff';
+            } else {
+                hintBox.innerText = '相似案例建議：尚未命中，可先跑一次放樣流程並人工審核建立核心記憶';
+                hintBox.style.color = '#d8dff0';
+            }
+        }
+        if (reviewSummary) {
+            const latest = historyStore[0];
+            reviewSummary.innerText = stakingRunHistoryHiddenLocally
+                ? `放樣審核：本機畫面已清空｜實際保留 ${historyStore.length} 筆`
+                : latest
+                ? `放樣審核：最近 ${latest.fileName || '未命名模型'}｜${latest.selectionLabel || '-'}｜QA ${latest.qaLevel || '-'} ${latest.qaScore || 0}｜${latest.decisionLabel || '待審核'}`
+                : '放樣審核：尚無待審核紀錄';
+        }
+        if (reviewBody) {
+            reviewBody.innerHTML = '';
+            if (stakingRunHistoryHiddenLocally) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="6" style="color:#99b2c9;">本機畫面已清空，放樣學習紀錄仍保留；重新整理頁面後可再顯示。</td>';
+                reviewBody.appendChild(tr);
+            } else if (!historyStore.length) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="6" style="color:#99b2c9;">尚無放樣學習紀錄</td>';
+                reviewBody.appendChild(tr);
+            } else {
+                historyStore.slice(0, 12).forEach(item => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${new Date(item.ts).toLocaleString('zh-TW')}</td>
+                        <td>${escapeHTML(item.decisionLabel || getStakingReviewStatusLabel(item.decisionStatus))}</td>
+                        <td>${escapeHTML(item.fileName || '-')}</td>
+                        <td>${escapeHTML(item.selectionLabel || '-')}</td>
+                        <td>${escapeHTML(`${item.qaLevel || '-'} / ${item.qaScore || 0}`)}</td>
+                        <td>${escapeHTML([item.pointCount ? `${item.pointCount} 點` : '', item.coverageSummary || '', item.spotCheckSummary || ''].filter(Boolean).join('｜') || '-')}</td>
+                    `;
+                    reviewBody.appendChild(tr);
+                });
+            }
+        }
+        if (memorySummary) {
+            const latestMemory = memoryStore[0];
+            memorySummary.innerText = stakingReviewMemoryHiddenLocally
+                ? `放樣核心記憶：本機畫面已清空｜實際保留 ${memoryStore.length} 筆`
+                : latestMemory
+                ? `放樣核心記憶：共 ${memoryStore.length} 筆｜最近 ${latestMemory.fileName || '未命名模型'}｜${latestMemory.selectionLabel || '-'}｜QA ${latestMemory.approvedQaLevel || '-'} ${latestMemory.approvedQaScore || 0}`
+                : '放樣核心記憶：尚未建立';
+        }
+        if (memoryBody) {
+            memoryBody.innerHTML = '';
+            if (stakingReviewMemoryHiddenLocally) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="5" style="color:#99b2c9;">本機畫面已清空，放樣核心記憶仍保留；重新整理頁面後可再顯示。</td>';
+                memoryBody.appendChild(tr);
+            } else if (!memoryStore.length) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="5" style="color:#99b2c9;">尚無放樣核心記憶</td>';
+                memoryBody.appendChild(tr);
+            } else {
+                memoryStore.slice(0, 10).forEach(item => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${new Date(item.ts).toLocaleString('zh-TW')}</td>
+                        <td>${escapeHTML(item.statusLabel || getStakingReviewStatusLabel(item.status))}</td>
+                        <td>${escapeHTML(item.fileName || '-')}</td>
+                        <td>${escapeHTML(`${item.selectionLabel || '-'}｜高精度 ${item.recommendedHighPrecision ? '開' : '關'}`)}</td>
+                        <td>${escapeHTML([item.recommendedCoverage || '', item.recommendedSpotCheck || '', `QA ${item.approvedQaLevel || '-'} ${item.approvedQaScore || 0}`].filter(Boolean).join('｜') || '-')}</td>
+                    `;
+                    memoryBody.appendChild(tr);
+                });
+            }
+        }
     }
 
     function renderBimEstimateTableFromRows() {
@@ -464,9 +1130,11 @@
             const spotBox = document.getElementById('layoutSpotCheckSummary');
             if (spotBox) spotBox.innerText = '現場抽驗：尚未抽驗';
             layoutSpotCheckSelection = [];
+            activeStakingRunId = '';
             renderBIMSummary(bimModelData);
             renderBimLayoutTable();
             renderBimLayoutQaSummary();
+            renderStakingLearningPanel();
             addAuditLog('載入模型', `${file.name} / ${bimModelData.totalEntities} 筆實體`);
             const overallQa = getOverallQaSummary();
             showToast(`模型已載入：${file.name}｜整體 QA ${overallQa.level} / ${overallQa.score}`);
@@ -607,7 +1275,7 @@
 
     function applyQaProfile(profile, silent = false) {
         currentQaProfile = QA_PROFILE_CONFIGS[profile] ? profile : 'enterprise';
-        localStorage.setItem(QA_PROFILE_STORAGE_KEY, currentQaProfile);
+        queueWorkspacePersist('qaProfile', currentQaProfile);
         updateQaProfileUi();
         if (bimModelData) renderBIMSummary(bimModelData);
         else updateQaDashboard();
@@ -617,7 +1285,7 @@
 
     function applyBimSpecPreset(preset, silent = false) {
         currentBimSpecPreset = BIM_SPEC_PRESETS[preset] ? preset : 'public';
-        localStorage.setItem(BIM_SPEC_PRESET_STORAGE_KEY, currentBimSpecPreset);
+        queueWorkspacePersist('bimSpecPreset', currentBimSpecPreset);
         updateBimSpecUi();
         if (bimModelData) renderBIMSummary(bimModelData);
         if (bimLayoutQaResult) renderBimLayoutQaSummary();
@@ -860,24 +1528,15 @@
     }
 
     function loadBimRules() {
-        bimRuleMap = {};
-        try {
-            const raw = localStorage.getItem(BIM_RULES_STORAGE_KEY);
-            if (!raw) return;
-            const parsed = JSON.parse(raw);
-            if (!parsed || typeof parsed !== 'object') return;
-            Object.keys(parsed).forEach(key => {
-                const t = normalizeIfcType(key);
-                const v = String(parsed[key] || '').trim();
-                if (t && v) bimRuleMap[t] = v;
-            });
-        } catch (e) {
-            console.warn('BIM 規則載入失敗', e);
+        if (workspaceHydratedFromBackend) {
+            bimRuleMap = bimRuleMap && typeof bimRuleMap === 'object' ? bimRuleMap : {};
+            return;
         }
+        bimRuleMap = {};
     }
 
     function persistBimRules() {
-        localStorage.setItem(BIM_RULES_STORAGE_KEY, JSON.stringify(bimRuleMap));
+        queueWorkspacePersist('bimRuleMap', bimRuleMap);
     }
 
     function renderBimRuleTable() {
@@ -1055,6 +1714,7 @@
     }
 
     function generateBIMEstimate() {
+        if (typeof ensureWorkModeAccess === 'function' && !ensureWorkModeAccess('calc', '請先切到第三頁計算模式再做 BIM 估價')) return;
         if (!bimModelData || !bimModelData.totalEntities) {
             return showToast('請先上傳模型檔');
         }
@@ -1117,18 +1777,19 @@
     }
 
     function runBimTechAutoCalculation() {
+        if (typeof ensureWorkModeAccess === 'function' && !ensureWorkModeAccess('calc', '請先切到第三頁計算模式再做 IBM 自動計算')) return;
         if (!bimModelData || !bimModelData.totalEntities) {
-            setBimAutoCalcInfo('BIM 技術自動計算：請先上傳模型檔', '#ffd48a');
+            setBimAutoCalcInfo('IBM 自動計算：請先上傳模型檔', '#ffd48a');
             return showToast('請先上傳模型檔');
         }
         if (!materialCatalog.length) {
-            setBimAutoCalcInfo('BIM 技術自動計算：尚未載入材料價格', '#ffd48a');
+            setBimAutoCalcInfo('IBM 自動計算：尚未載入材料價格', '#ffd48a');
             return showToast('尚未載入材料價格資料');
         }
 
         generateBIMEstimate();
         if (!bimEstimateRows.length) {
-            setBimAutoCalcInfo('BIM 技術自動計算：估價筆數為 0', '#ffd48a');
+            setBimAutoCalcInfo('IBM 自動計算：估價筆數為 0', '#ffd48a');
             return showToast('目前沒有可計算的 BIM 估價項目');
         }
 
@@ -1155,7 +1816,7 @@
         }
 
         if (!imported) {
-            setBimAutoCalcInfo('BIM 技術自動計算：沒有可匯入項目（請補齊材料對應）', '#ffd48a');
+            setBimAutoCalcInfo('IBM 自動計算：沒有可匯入項目（請補齊材料對應）', '#ffd48a');
             return showToast('沒有可匯入的 BIM 估價項目');
         }
 
@@ -1163,17 +1824,18 @@
         renderTable();
         const unmatched = bimEstimateRows.filter(r => !r.price).length;
         const estimatedTotal = bimEstimateRows.reduce((sum, row) => sum + (Number(row.subtotal) || 0), 0);
-        addAuditLog('BIM技術自動計算', `估價 ${bimEstimateRows.length} 筆、匯入 ${imported} 筆、替換舊自動 ${removedAuto} 筆`);
+        addAuditLog('IBM自動計算', `估價 ${bimEstimateRows.length} 筆、匯入 ${imported} 筆、替換舊自動 ${removedAuto} 筆`);
         setBimAutoCalcInfo(
-            `BIM 技術自動計算完成：估價 ${bimEstimateRows.length} 筆｜匯入 ${imported} 筆｜未匹配 ${unmatched} 筆｜預估 ${Math.round(estimatedTotal).toLocaleString()} 元`,
+            `IBM 自動計算完成：估價 ${bimEstimateRows.length} 筆｜匯入 ${imported} 筆｜未匹配 ${unmatched} 筆｜預估 ${Math.round(estimatedTotal).toLocaleString()} 元`,
             '#9ef5c2'
         );
-        showToast(`BIM 技術自動計算完成：已匯入 ${imported} 筆（已替換舊自動 ${removedAuto} 筆）`);
+        showToast(`IBM 自動計算完成：已匯入 ${imported} 筆（已替換舊自動 ${removedAuto} 筆）`);
     }
 
     function importBIMEstimateToList() {
+        if (typeof ensureWorkModeAccess === 'function' && !ensureWorkModeAccess('calc', '請先切到第三頁計算模式再匯入 BIM 估價')) return;
         if (!bimEstimateRows.length) {
-            return showToast('請先執行 BIM 自動估價預覽');
+            return showToast('請先執行 IBM/BIM 自動估價預覽');
         }
         createDataSnapshot('匯入估價前', true);
         const floor = document.getElementById('floor_tag').value.trim() || 'BIM';
@@ -1559,12 +2221,12 @@
         return lines;
     }
 
-    function exportBimConstructionPackage() {
+    async function exportBimConstructionPackage() {
         if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
         runBimLayoutConfidenceLayering(stakingConservativeMode, true);
-        if (!bimLayoutQaResult) runBimLayoutQa();
+        if (!bimLayoutQaResult) await runBimLayoutQa();
         const qaScore = bimLayoutQaResult ? Number(bimLayoutQaResult.qaScore || 0) : 0;
-        const qaLevel = getQaLevelByScore(qaScore);
+        const qaLevel = bimLayoutQaResult && bimLayoutQaResult.qaLevel ? bimLayoutQaResult.qaLevel : getQaLevelByScore(qaScore);
         const activeQaGate = getActiveStakingQaGate();
         if (qaScore < activeQaGate) {
             addAuditLog('匯出施工包阻擋', `QA ${qaScore}（${qaLevel}）未達門檻 ${activeQaGate} / 天氣模式 ${latestWeatherAdviceLevel}`);
@@ -2097,7 +2759,7 @@
         return { removed, kept: bimLayoutPoints.length };
     }
 
-    function enhanceBimStakingQuality() {
+    async function enhanceBimStakingQuality() {
         if (!bimLayoutPoints.length) {
             generateBimLayoutPoints();
             if (!bimLayoutPoints.length) return;
@@ -2111,13 +2773,13 @@
         optimizeBimLayoutPointsForPrecision();
         optimizeBimLayoutPointsForPrecision();
         groupBimLayoutPointsForQa();
-        runBimLayoutQa();
+        await runBimLayoutQa();
 
         const beforeScore = bimLayoutQaResult ? Number(bimLayoutQaResult.qaScore || 0) : 0;
         if (beforeScore < 90) {
             const trimmed = pruneBimLayoutOutliersByNearestDistance();
             groupBimLayoutPointsForQa();
-            runBimLayoutQa();
+            await runBimLayoutQa();
             const afterScore = bimLayoutQaResult ? Number(bimLayoutQaResult.qaScore || 0) : 0;
             addAuditLog('強化放樣', `初始 ${beforeScore} -> 強化 ${afterScore} / 移除離群 ${trimmed.removed}`);
             showToast(`強化放樣完成：${beforeScore} → ${afterScore}（移除 ${trimmed.removed} 個離群點）`);
@@ -2128,10 +2790,13 @@
         showToast(`強化放樣完成：QA ${beforeScore}（已達高品質）`);
     }
 
-    function runDesktopStakingPipeline() {
+    async function runDesktopStakingPipeline() {
         setWorkMode('stake');
         if (!bimModelData || !Array.isArray(bimModelData.elements) || !bimModelData.elements.length) {
             return showToast('請先上傳模型檔，再執行一鍵放樣流程');
+        }
+        if (!(await ensureFeatureAccess('stakingDesktopPipeline', '一鍵放樣流程僅開放會員3（專家）'))) {
+            return;
         }
 
         const startedAt = performance.now();
@@ -2154,12 +2819,18 @@
         runBimLayoutConfidenceLayering(false);
         suggestLayoutControlPointsCoverage();
         startLayoutFieldSpotCheck();
-        runBimLayoutQa();
+        await runBimLayoutQa();
 
         const qaScore = bimLayoutQaResult ? Number(bimLayoutQaResult.qaScore || 0) : 0;
         const qaLevel = getQaLevelByScore(qaScore);
         const costMs = Math.round(performance.now() - startedAt);
+        syncCurrentStakingRunRecord('pending', {
+            sourceLabel: '一鍵放樣流程',
+            pipelineType: 'desktop',
+            decisionNote: `一鍵放樣完成 / 耗時 ${costMs}ms`
+        });
         addAuditLog('一鍵放樣流程', `點位 ${bimLayoutPoints.length} / QA ${qaLevel} ${qaScore} / 耗時 ${costMs}ms`);
+        renderStakingLearningPanel();
         showToast(`一鍵放樣完成：${bimLayoutPoints.length} 點｜QA ${qaLevel} ${qaScore}｜${costMs}ms`);
     }
 
@@ -2167,13 +2838,9 @@
         if (!bimModelData || !Array.isArray(bimModelData.elements) || !bimModelData.elements.length) {
             return showToast('⚠️ 核心雷達未偵測到目標：請先上傳模型檔');
         }
-
-        const ibmKeyInput = document.getElementById('ibmQuantumKey');
-        const ibmKey = (ibmKeyInput && ibmKeyInput.value.trim()) || safeStorage.get(localStorage, IBM_QUANTUM_KEY_STORAGE, '');
-        if (!ibmKey) {
-            return showToast('❌ 缺少 IBM Cloud API 金鑰！請先插入金鑰以開啟雲端通道。');
+        if (!(await ensureFeatureAccess('quantumStake', '核心自進放樣需管理者額外開通 IBM 權限'))) {
+            return;
         }
-        safeStorage.set(localStorage, IBM_QUANTUM_KEY_STORAGE, ibmKey);
 
         setWorkMode('stake');
         generateBimLayoutPoints();
@@ -2195,21 +2862,15 @@
         document.body.style.boxShadow = 'inset 0 0 80px rgba(179, 136, 255, 0.8)';
 
         try {
-            const response = await fetch('https://api.quantum-computing.ibm.com/v2/jobs', {
+            await apiRequest('/ibm/quantum-job', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${ibmKey}`
-                },
-                body: JSON.stringify({
+                body: {
                     program: qasmCode,
                     backend: 'ibmq_qasm_simulator'
-                })
+                },
+                retries: 0,
+                timeoutMs: 20000
             });
-            if (!response.ok) {
-                const errText = await response.text();
-                throw new Error(`HTTP ${response.status} ${errText.slice(0, 120)}`);
-            }
 
             showToast('⚡ [IBM 實驗室] 運算中... 高速最佳化處理中！');
             await new Promise(resolve => setTimeout(resolve, 1500));
@@ -2218,7 +2879,7 @@
             if (highPrecisionToggle && !highPrecisionToggle.checked) highPrecisionToggle.checked = true;
             optimizeBimLayoutPointsForPrecision();
             groupBimLayoutPointsForQa();
-            runBimLayoutQa();
+            await runBimLayoutQa();
             quantumStakeAutoRuns += 1;
             renderBimLayoutQaSummary();
             addAuditLog('真・核心自進放樣', `成功呼叫 IBM API / 第 ${quantumStakeAutoRuns} 次 / 點位 ${bimLayoutPoints.length}`);
@@ -2419,96 +3080,60 @@
         layoutSpotCheckSelection = [];
         renderBimLayoutTable();
         renderBimLayoutQaSummary();
+        activeStakingRunId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        syncCurrentStakingRunRecord('pending', {
+            id: activeStakingRunId,
+            sourceLabel: '生成放樣點',
+            pipelineType: 'manual'
+        });
         addAuditLog('生成放樣點', `${bimLayoutPoints.length} 筆`);
+        renderStakingLearningPanel();
         showToast(`已生成放樣點 ${bimLayoutPoints.length} 筆（${grouped.groupCount} 組）`);
     }
 
-    function runBimLayoutQa() {
+    async function runBimLayoutQa() {
         if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
+        if (!(await ensureFeatureAccess('bimLayoutQa', '放樣 QA 驗證暫時不可用'))) {
+            return;
+        }
         const highPrecisionToggle = document.getElementById('layoutHighPrecisionToggle');
         const precisionEnabled = !(highPrecisionToggle && !highPrecisionToggle.checked);
-        const profile = getQaProfileConfig();
-        const spec = getBimSpecPreset();
-        const keySet = new Set();
-        let duplicatePointCount = 0;
-        let missingGeometryCount = 0;
-        let outOfRangeCount = 0;
-        let namingInvalidCount = 0;
-        let missingFloorTagCount = 0;
-        let duplicateClusterCount = 0;
-        let maxDeviation = 0;
-        const validPoints = [];
-        bimLayoutPoints.forEach(p => {
-            const valid = [p.x, p.y, p.z].every(Number.isFinite);
-            if (!valid) {
-                missingGeometryCount += 1;
-                return;
-            }
-            validPoints.push(p);
-            const key = `${p.x.toFixed(2)}|${p.y.toFixed(2)}|${p.z.toFixed(2)}`;
-            if (keySet.has(key)) duplicatePointCount += 1;
-            else keySet.add(key);
-            if (Math.abs(p.x) > spec.maxAbsCoord || Math.abs(p.y) > spec.maxAbsCoord || Math.abs(p.z) > spec.maxAbsCoord) outOfRangeCount += 1;
-            if (spec.pointIdPattern && !spec.pointIdPattern.test(String(p.id || ''))) namingInvalidCount += 1;
-            if (spec.requireFloorTag && !String(p.floorTag || '').trim()) missingFloorTagCount += 1;
-            maxDeviation = Math.max(maxDeviation, Math.abs(p.z));
-        });
-        const nearestDistances = [];
-        for (let i = 0; i < validPoints.length; i += 1) {
-            let nearest = Infinity;
-            for (let j = 0; j < validPoints.length; j += 1) {
-                if (i === j) continue;
-                const dx = validPoints[i].x - validPoints[j].x;
-                const dy = validPoints[i].y - validPoints[j].y;
-                const dz = validPoints[i].z - validPoints[j].z;
-                const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                if (d < nearest) nearest = d;
-                if (j > i && d < spec.duplicateToleranceM) duplicateClusterCount += 1;
-            }
-            if (Number.isFinite(nearest) && nearest < Infinity) nearestDistances.push(nearest);
+        try {
+            const payload = await apiRequest('/qa/bim-layout', {
+                method: 'POST',
+                body: {
+                    points: bimLayoutPoints,
+                    precisionEnabled,
+                    qaProfile: currentQaProfile,
+                    bimSpecPreset: currentBimSpecPreset
+                },
+                retries: 0,
+                timeoutMs: 20000
+            });
+            bimLayoutQaResult = {
+                ...payload,
+                checkedAt: payload && payload.checkedAt ? payload.checkedAt : new Date().toISOString()
+            };
+            renderBimLayoutQaSummary();
+            const profile = getQaProfileConfig();
+            const spec = getBimSpecPreset();
+            const qaLevel = String(payload && payload.qaLevel ? payload.qaLevel : getQaLevelByScore(payload.qaScore || 0));
+            syncCurrentStakingRunRecord('pending', {
+                sourceLabel: '放樣 QA',
+                pipelineType: activeStakingRunId ? 'manual-qa' : 'manual',
+                qaScore: Number(payload && payload.qaScore || 0),
+                qaLevel,
+                spacingStabilityScore: Number(payload && payload.spacingStabilityScore || 0),
+                groupStabilityScore: Number(payload && payload.groupStabilityScore || 0),
+                groupCount: Number(payload && payload.groupCount || 0)
+            });
+            addAuditLog('放樣QA檢核', `等級 ${qaLevel} / 分數 ${payload.qaScore || 0} / 100 / 制度 ${profile.label} / 規格 ${spec.label}`);
+            renderStakingLearningPanel();
+            showToast(`放樣 QA 完成：${qaLevel}（${payload.qaScore || 0} 分，命名 ${payload.namingInvalidCount || 0}，樓層缺漏 ${payload.missingFloorTagCount || 0}）`);
+        } catch (error) {
+            console.warn('放樣 QA 驗證失敗', error);
+            showToast((error && error.message) || '放樣 QA 驗證失敗');
         }
-        const meanDist = nearestDistances.length ? (nearestDistances.reduce((a, b) => a + b, 0) / nearestDistances.length) : 0;
-        const varianceDist = nearestDistances.length
-            ? (nearestDistances.reduce((acc, d) => {
-                const diff = d - meanDist;
-                return acc + diff * diff;
-            }, 0) / nearestDistances.length)
-            : 0;
-        const stdDist = Math.sqrt(varianceDist);
-        const cv = meanDist > 0 ? (stdDist / meanDist) : 1;
-        const spacingStabilityScore = Math.max(0, Math.min(100, Math.round((1 - cv) * 100)));
-        const groupStats = evaluateGroupStability(validPoints);
-
-        const penalty = duplicatePointCount * profile.layoutDuplicatePenalty
-            + duplicateClusterCount * profile.clusterPenalty
-            + missingGeometryCount * profile.layoutMissingPenalty
-            + outOfRangeCount * profile.layoutRangePenalty
-            + namingInvalidCount * profile.namingPenalty
-            + missingFloorTagCount * profile.floorPenalty
-            + Math.max(0, 72 - spacingStabilityScore)
-            + Math.max(0, 78 - groupStats.groupStabilityScore);
-        const qaScore = Math.max(0, 100 - penalty);
-        bimLayoutQaResult = {
-            duplicatePointCount,
-            duplicateClusterCount,
-            missingGeometryCount,
-            outOfRangeCount,
-            namingInvalidCount,
-            missingFloorTagCount,
-            maxDeviation: Math.round(maxDeviation * 1000) / 1000,
-            spacingStabilityScore,
-            groupStabilityScore: groupStats.groupStabilityScore,
-            groupCount: groupStats.groupCount,
-            precisionEnabled,
-            qaProfile: currentQaProfile,
-            bimSpecPreset: currentBimSpecPreset,
-            qaScore,
-            checkedAt: new Date().toISOString()
-        };
-        renderBimLayoutQaSummary();
-        const qaLevel = getQaLevelByScore(qaScore);
-        addAuditLog('放樣QA檢核', `等級 ${qaLevel} / 分數 ${qaScore} / 100 / 制度 ${profile.label} / 規格 ${spec.label}`);
-        showToast(`放樣 QA 完成：${qaLevel}（${qaScore} 分，命名 ${namingInvalidCount}，樓層缺漏 ${missingFloorTagCount}）`);
     }
 
     function evaluateGroupStability(points) {
@@ -2569,12 +3194,12 @@
         showToast('放樣點 CSV 已匯出');
     }
 
-    function exportBimLayoutQaReport() {
+    async function exportBimLayoutQaReport() {
         if (!bimLayoutPoints.length) return showToast('請先產生放樣點');
-        if (!bimLayoutQaResult) runBimLayoutQa();
+        if (!bimLayoutQaResult) await runBimLayoutQa();
         const qa = bimLayoutQaResult || {};
         const projectName = (document.getElementById('project_name') && document.getElementById('project_name').value) || '未命名專案';
-        const qaLevel = getQaLevelByScore(qa.qaScore || 0);
+        const qaLevel = qa.qaLevel || getQaLevelByScore(qa.qaScore || 0);
         const specResult = bimModelData ? evaluateBimSpecCompliance(bimModelData) : null;
         const rows = [
             ['報告時間', new Date().toLocaleString('zh-TW')],

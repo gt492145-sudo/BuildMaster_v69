@@ -14,7 +14,7 @@
             coachBound = true;
         }
         setTimeout(() => {
-            speakCoach('點任何功能框，我都會即時告訴你用途與下一步。');
+            speakCoach('點任何功能框，我都會即時告訴你用途與下一步。新版固定規則：第1到3頁做計算，第4頁做放樣。');
         }, 550);
     }
 
@@ -27,25 +27,25 @@
 
     function getAiCoachConfig() {
         return {
-            endpoint: localStorage.getItem(AI_COACH_ENDPOINT_KEY) || 'https://api.openai.com/v1/chat/completions',
-            model: localStorage.getItem(AI_COACH_MODEL_KEY) || 'gpt-4o-mini',
-            apiKey: localStorage.getItem(AI_COACH_API_KEY) || ''
+            model: localStorage.getItem(AI_COACH_MODEL_KEY) || 'gpt-4.1-mini'
         };
     }
 
     function isAiCoachAllowedForCurrentLevel() {
-        const level = getCurrentUserLevel();
-        return level === 'pro';
+        return hasFeatureEntitlement('aiCoach');
     }
 
     function applyAiCoachMode() {
         const allowedForLevel = isAiCoachAllowedForCurrentLevel();
-        aiCoachState.enabled = AI_API_ENABLED && allowedForLevel && localStorage.getItem(AI_COACH_ENABLED_KEY) === '1';
+        const backendConfigured = !!(backendSessionState.integrations && backendSessionState.integrations.aiCoachConfigured);
+        aiCoachState.enabled = AI_API_ENABLED && backendConfigured && allowedForLevel && localStorage.getItem(AI_COACH_ENABLED_KEY) === '1';
         const btn = document.getElementById('aiCoachToggle');
         const askBtn = document.getElementById('coachAiAskBtn');
         const askInput = document.getElementById('coachAiInput');
         if (btn) btn.innerText = !allowedForLevel
             ? 'AI解說: 限會員3'
+            : (!backendSessionState.integrations || !backendSessionState.integrations.aiCoachConfigured)
+            ? 'AI解說: 後端未設'
             : (AI_API_ENABLED
             ? (aiCoachState.enabled ? 'AI解說: 開' : 'AI解說: 關')
             : 'AI解說: 停用');
@@ -54,10 +54,10 @@
     }
 
     async function toggleAiCoachMode() {
-        if (!isAiCoachAllowedForCurrentLevel()) {
+        if (!(await ensureFeatureAccess('aiCoach', 'AI 解說僅開放會員3（專家）使用'))) {
             aiCoachState.enabled = false;
             applyAiCoachMode();
-            return showToast('AI 解說僅開放會員3（專家）使用');
+            return;
         }
         if (!AI_API_ENABLED) {
             localStorage.setItem(AI_COACH_ENABLED_KEY, '0');
@@ -65,10 +65,16 @@
             applyAiCoachMode();
             return showToast('AI API 已停用');
         }
+        if (!backendSessionState.integrations || !backendSessionState.integrations.aiCoachConfigured) {
+            localStorage.setItem(AI_COACH_ENABLED_KEY, '0');
+            aiCoachState.enabled = false;
+            applyAiCoachMode();
+            return showToast('後端尚未設定 AI 代理金鑰');
+        }
         const next = !aiCoachState.enabled;
         if (next) {
             localStorage.setItem(AI_COACH_ENABLED_KEY, '1');
-            if (!localStorage.getItem(AI_COACH_MODEL_KEY)) localStorage.setItem(AI_COACH_MODEL_KEY, 'gpt-4o-mini');
+            if (!localStorage.getItem(AI_COACH_MODEL_KEY)) localStorage.setItem(AI_COACH_MODEL_KEY, 'gpt-4.1-mini');
             // 開啟 AI 時同步開啟解說員，避免「AI 開了但點擊無回應」的誤解。
             if (localStorage.getItem(COACH_DISABLED_KEY) === '1') {
                 localStorage.setItem(COACH_DISABLED_KEY, '0');
@@ -76,8 +82,8 @@
                 initTouchCoach();
             }
             applyAiCoachMode();
-            speakCoach('AI 解說員已開啟（免解鎖模式）。你可直接在泡泡下方輸入問題。');
-            return showToast('AI 解說員已開啟（免解鎖）');
+            speakCoach('AI 解說員已開啟。你可直接在泡泡下方輸入問題。');
+            return showToast('AI 解說員已開啟');
         }
         localStorage.setItem(AI_COACH_ENABLED_KEY, '0');
         applyAiCoachMode();
@@ -137,43 +143,23 @@
                 '4) 若問題要求「數量/估價/風險」，務必列出對應 IFC 類型與影響。'
             ].join('\n');
         };
-        if (!config.apiKey) {
-            // 免解鎖模式：未設定 API Key 時，回退到本機提示，不阻斷操作流程。
-            return '目前為免解鎖模式（未設定 API Key）。已切換為本機解說：請先確認地區價目、再輸入尺寸與數量，最後檢查即時小計。';
+        if (!(await ensureFeatureAccess('aiCoach', 'AI 解說僅開放會員3（專家）使用'))) {
+            throw new Error('AI coach denied');
         }
         aiCoachState.busy = true;
         applyAiCoachMode();
         try {
-            const res = await fetchWithRetry(
-                config.endpoint,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${config.apiKey}`
-                    },
-                    body: JSON.stringify({
-                        model: config.model,
-                        temperature: 0.2,
-                        messages: [
-                            {
-                                role: 'system',
-                                content: '你是 Construction Master 工程估算助手，請用繁體中文、短句、可操作步驟回答。'
-                            },
-                            {
-                                role: 'user',
-                                content: `${promptText}\n\n${buildBimIfcAiContext(promptText)}`
-                            }
-                        ]
-                    })
+            const data = await apiRequest('/ai/coach', {
+                method: 'POST',
+                body: {
+                    model: config.model,
+                    prompt: promptText,
+                    context: buildBimIfcAiContext(promptText)
                 },
-                { retries: 1, timeoutMs: 15000 }
-            );
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            const text = data && data.choices && data.choices[0] && data.choices[0].message
-                ? String(data.choices[0].message.content || '').trim()
-                : '';
+                retries: 0,
+                timeoutMs: 20000
+            });
+            const text = data && data.answer ? String(data.answer || '').trim() : '';
             if (!text) throw new Error('AI 回應為空');
             return text;
         } finally {
@@ -216,7 +202,7 @@
             if (input) input.value = '';
         } catch (e) {
             console.warn('AI 手動提問失敗', e);
-            showToast('AI 回覆失敗，請檢查 API Key 或網路');
+            showToast('AI 回覆失敗，請檢查後端代理或網路');
         }
     }
 
@@ -241,6 +227,12 @@
     }
 
     function resolveCoachMessage(target) {
+        if (target.closest('#calcMeasureCluster')) return '這一組是第1到3頁的智慧量測工具：先做智慧定比例，再做智慧量圖，之後尺寸會回填到右側計算欄位。';
+        if (target.closest('#calcAiVisionCluster')) return '這一組是第三頁 AI 看圖辨識：依序可做快速判讀、精準辨識、讀柱樑尺寸標註，再把結果送進自動估算。';
+        if (target.closest('#calcIbmCluster')) return '這一組是第三頁 IBM 自動計算區：先做估算與匯入清單，第四頁放樣功能不會在這裡顯示。';
+        if (target.closest('#stakeExecutionCluster')) return '這一組是第四頁放樣執行設定：先勾選柱、牆、梁與放樣高精度，再執行一鍵放樣流程或 IBM 雲端放樣。';
+        if (target.closest('#stakeQaCluster')) return '這一組是第四頁放樣 QA 檢核：集中做控制點配準、偏差熱圖、穩定度重測、分群與放樣 QA。';
+        if (target.closest('#stakeExportCluster')) return '這一組是第四頁放樣輸出與現場工具：完成 QA 後再匯出放樣點、QA 報告、施工包，或開啟補點建議與現場抽驗。';
         if (target.closest('#ifcInput')) return '這裡上傳模型檔，系統會做 BIM QA 解析與構件統計。';
         if (target.closest('#ifcSearch')) return '可輸入構件類型或 #ID 查詢模型，例如 牆、柱、梁、#123。';
         if (target.closest('#bimRuleIfcType')) return '先輸入構件類型，例如 牆、柱、梁。';
@@ -250,8 +242,8 @@
         if (target.closest('button[onclick="exportBimRules()"]')) return '匯出目前 BIM 規則檔（JSON），可跨裝置共用。';
         if (target.closest('button[onclick="triggerImportBimRules()"]')) return '匯入規則檔（JSON），快速套用既有 BIM 匹配設定。';
         if (target.closest('button[onclick="resetBimRules()"]')) return '清空全部 BIM 規則，恢復系統預設匹配。';
-        if (target.closest('button[onclick="generateBIMEstimate()"]')) return '依構件類型與材料單價自動產生估價預覽表。';
-        if (target.closest('button[onclick="importBIMEstimateToList()"]')) return '把 BIM 估價結果一鍵匯入主清單，直接進入總價彙整。';
+        if (target.closest('button[onclick="generateBIMEstimate()"]')) return '依構件類型與材料單價自動產生 IBM/BIM 估價預覽表。';
+        if (target.closest('button[onclick="importBIMEstimateToList()"]')) return '把 IBM/BIM 估價結果一鍵匯入主清單，直接進入總價彙整。';
         if (target.closest('button[onclick="runQuantumAutoStakeLayout()"]')) return '核心自進放樣：自動執行生成點位、高精度修正、分群 QA 與放樣 QA。';
         if (target.closest('button[onclick="generateBimLayoutPoints()"]')) return '從模型自動抽取放樣點（柱心、牆端點、梁端點）。';
         if (target.closest('button[onclick="runBimLayoutQa()"]')) return '執行放樣 QA，檢查重複點、缺漏與越界，產生分數。';
@@ -272,7 +264,7 @@
         if (target.closest('button[onclick="rollbackLatestSnapshot(\'estimate\')"]')) return '只回滾最近快照中的 BIM 估價表，不會改動規則與主清單。';
         if (target.closest('button[onclick="exportSnapshots()"]')) return '匯出所有快照為 JSON，可做備份或跨裝置還原。';
         if (target.closest('button[onclick="triggerImportSnapshots()"]')) return '匯入快照 JSON，把歷史版本帶回本機。';
-        if (target.closest('#bimEstimateBody')) return '這裡是 BIM 估價預覽，可先確認匹配結果再匯入。';
+        if (target.closest('#bimEstimateBody')) return '這裡是 IBM/BIM 估價預覽，可先確認匹配結果再匯入。';
 
         if (target.closest('#regionSelect')) return '可選地區價目；若地區資料筆數太少，系統會自動改用全台完整價目。';
         if (target.closest('button[onclick="autoDetectRegion()"]')) return '按這裡才會要求抓取目前工地，並把所在地區套用到價目與天氣。';
@@ -308,9 +300,9 @@
         if (target.closest('#levelBasicBtn')) return '會員1（基礎）：保留最必要功能，適合快速上手。';
         if (target.closest('#levelStandardBtn')) return '會員2（工程）：開啟量圖輔助、QA 報告與部分進階工具。';
         if (target.closest('#levelProBtn')) return '會員3（專家）：顯示完整 BIM/規則/快照等高階模組。';
-        if (target.closest('#workCalcBtn')) return '計算模式：聚焦工種試算、價目套用、清單與報表輸出。';
-        if (target.closest('#workStakeBtn')) return '放樣模式：聚焦模型解析、放樣點抽取、QA 檢核與放樣輸出。';
-        if (target.closest('#aiCoachToggle')) return 'AI 解說員：可在規則解說外補充更彈性的操作建議（需先設定 API Key）。';
+        if (target.closest('#workCalcBtn')) return '計算模式：固定對應第1到3頁，包含工種試算、智慧量圖、AI 看圖辨識、IBM 自動估算與報表輸出。';
+        if (target.closest('#workStakeBtn')) return '放樣模式：固定對應第4頁，包含模型解析、放樣點抽取、控制點配準、放樣 QA 與施工包輸出。';
+        if (target.closest('#aiCoachToggle')) return 'AI 解說員：可在規則解說外補充更彈性的操作建議（需先完成後端代理設定）。';
         if (target.closest('#coachAiInput')) return '可直接問 BIM/IFC 問題，例如「IFC 裡柱有幾根？未匹配有哪些？」再按問AI。';
         if (target.closest('#coachAiAskBtn')) return '送出你輸入的問題給 AI 解說員，回覆會顯示在氣泡中。';
         if (target.closest('#coachGuideBtn')) return '點這裡可重跑新手導覽，系統會一步一步帶你操作。';
@@ -330,7 +322,7 @@
         if (target.closest('.btn-clear')) return '重置按鈕：清空所有資料並重新開始。';
         if (target.closest('.footer-bar')) return '底部總覽：顯示各工種加總與總預算。';
         if (target.closest('.drawing-panel')) return '左側是圖紙操作區：上傳、定比例、量測都在這裡。';
-        if (target.closest('.calc-panel')) return '右側是參數與預算區：輸入尺寸、單價並產生清單。';
+        if (target.closest('.calc-panel')) return '右側是主控制區：計算模式只顯示第1到3頁內容，放樣模式只顯示第四頁內容；兩邊現在已分開顯示。';
 
         return '';
     }
@@ -382,7 +374,7 @@
         applyCoachMode();
         if (disabled) {
             initTouchCoach();
-            speakCoach('解說員已開啟，點任一區塊可查看功能說明。');
+            speakCoach('解說員已開啟。新版固定規則：第1到3頁做計算，第4頁做放樣；點任一區塊可查看功能說明。');
             showToast('解說員已開啟');
         } else {
             showToast('解說員已關閉');
@@ -724,10 +716,25 @@
         return Math.max(0, Math.min(100, score));
     }
 
-    function exportMeasureQaReport() {
-        const avgTilt = measureQaStats.tiltSamples > 0 ? (measureQaStats.tiltSum / measureQaStats.tiltSamples) : 0;
-        const qaScore = calcMeasureQaScore();
-        const qaLevel = getQaLevelByScore(qaScore);
+    async function exportMeasureQaReport() {
+        if (!(await ensureFeatureAccess('measureQaReport', '量圖 QA 匯出暫時不可用'))) {
+            return;
+        }
+        let qaPayload;
+        try {
+            qaPayload = await apiRequest('/qa/measure', {
+                method: 'POST',
+                body: { measureQaStats },
+                retries: 0,
+                timeoutMs: 15000
+            });
+        } catch (error) {
+            console.warn('量圖 QA 匯出失敗', error);
+            return showToast((error && error.message) || '量圖 QA 匯出失敗');
+        }
+        const avgTilt = Number(qaPayload && qaPayload.avgTilt ? qaPayload.avgTilt : 0);
+        const qaScore = Number(qaPayload && qaPayload.qaScore ? qaPayload.qaScore : 0);
+        const qaLevel = qaPayload && qaPayload.qaLevel ? qaPayload.qaLevel : getQaLevelByScore(qaScore);
         const projectName = (document.getElementById('project_name') && document.getElementById('project_name').value) || '未命名專案';
         const reportRows = [
             ['報告時間', new Date().toLocaleString('zh-TW')],
@@ -841,17 +848,19 @@
     function updateMobileFocusLabel() {
         const label = document.querySelector('#mobileFocusBtn span');
         if (!label) return;
-        const mode = localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto';
+        const mode = localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'normal';
         const modeText = mode === 'clear' ? '釋放' : (mode === 'normal' ? '一般' : '自動');
         label.textContent = `🧲 視圖模式：${modeText}`;
     }
 
     function applyMobileViewMode(mode, opts = {}) {
-        const normalized = (mode === 'clear' || mode === 'normal' || mode === 'auto') ? mode : 'auto';
+        const normalized = (mode === 'clear' || mode === 'normal' || mode === 'auto') ? mode : 'normal';
         localStorage.setItem(MOBILE_VIEW_MODE_KEY, normalized);
-        const activeMeasure = (drawMode === 'calibration' || drawMode === 'measure');
+        const activeMeasure = typeof isMeasureInteractionMode === 'function'
+            ? isMeasureInteractionMode(drawMode)
+            : (drawMode === 'calibration' || drawMode === 'measure');
         if (normalized === 'clear') {
-            document.body.classList.add('mobile-focus-mode');
+            document.body.classList.toggle('mobile-focus-mode', activeMeasure);
         } else if (normalized === 'normal') {
             document.body.classList.remove('mobile-focus-mode');
         } else {
@@ -861,12 +870,15 @@
         if (!opts.silent) {
             const text = normalized === 'clear' ? '釋放畫面' : (normalized === 'normal' ? '一般模式' : '自動釋放');
             appendMobileTestLog(`視圖模式: ${text}`);
+            if (normalized === 'clear' && !activeMeasure) {
+                showToast('釋放畫面會在量測時自動生效');
+            }
         }
     }
 
     function cycleMobileViewMode() {
-        const current = localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto';
-        const next = current === 'normal' ? 'clear' : (current === 'clear' ? 'auto' : 'normal');
+        const current = localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'normal';
+        const next = current === 'normal' ? 'auto' : (current === 'auto' ? 'clear' : 'normal');
         applyMobileViewMode(next);
     }
 
@@ -899,11 +911,11 @@
         }
         const activeMeasure = isMeasureInteractionMode(drawMode);
         document.body.classList.toggle('mobile-measure-mode', activeMeasure);
-        const mode = localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto';
+        const mode = localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'normal';
         if (mode === 'auto') {
             document.body.classList.toggle('mobile-focus-mode', activeMeasure);
         } else if (mode === 'clear') {
-            document.body.classList.add('mobile-focus-mode');
+            document.body.classList.toggle('mobile-focus-mode', activeMeasure);
         } else {
             document.body.classList.remove('mobile-focus-mode');
         }
@@ -994,6 +1006,9 @@
         case 'toggle-chaos':
             await toggleChaosMonkey();
             break;
+        case 'start-bm-autotest':
+            await startBmAutoTestFromUi();
+            break;
         case 'usage-guide':
             showCalcResetGuide();
             break;
@@ -1025,11 +1040,11 @@
             if (typeof removeLoadedImage === 'function') removeLoadedImage();
             break;
         case 'mode-calc':
-            window.location.href = 'index.html';
-            return;
+            setWorkMode('calc');
+            break;
         case 'mode-stake':
-            window.location.href = 'stake.html';
-            return;
+            setWorkMode('stake');
+            break;
         case 'top':
             window.scrollTo({ top: 0, behavior: 'smooth' });
             break;
@@ -1068,10 +1083,10 @@
                 document.body.classList.remove('mobile-focus-mode');
                 document.body.classList.remove('mobile-measure-mode');
             }
-            applyMobileViewMode(localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto', { silent: true });
+            applyMobileViewMode(localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'normal', { silent: true });
             syncMobileMeasureModeUI();
         });
-        applyMobileViewMode(localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'auto', { silent: true });
+        applyMobileViewMode(localStorage.getItem(MOBILE_VIEW_MODE_KEY) || 'normal', { silent: true });
         applySunlightMode();
         syncMobileMeasureModeUI();
         syncMobileBlueprintStatusCard();

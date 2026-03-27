@@ -1,14 +1,19 @@
+    let measurementLogsHiddenLocally = false;
+
     function loadMeasurementLogs() {
+        if (workspaceHydratedFromBackend) {
+            measurementLogs = Array.isArray(measurementLogs) ? measurementLogs : [];
+            return;
+        }
         try {
-            const parsed = JSON.parse(localStorage.getItem(MEASUREMENT_LOG_STORAGE_KEY) || '[]');
-            measurementLogs = Array.isArray(parsed) ? parsed : [];
+            measurementLogs = [];
         } catch (_e) {
             measurementLogs = [];
         }
     }
 
     function persistMeasurementLogs() {
-        localStorage.setItem(MEASUREMENT_LOG_STORAGE_KEY, JSON.stringify(measurementLogs.slice(0, 200)));
+        queueWorkspacePersist('measurementLogs', measurementLogs.slice(0, 200));
     }
 
     function getCalcTypeLabel() {
@@ -18,6 +23,7 @@
     }
 
     function recordMeasurementLog(entry) {
+        measurementLogsHiddenLocally = false;
         const row = {
             ts: new Date().toISOString(),
             project: String((document.getElementById('project_name') && document.getElementById('project_name').value) || '').trim() || '未命名專案',
@@ -84,6 +90,12 @@
         const dateFilter = String(dateFilterEl && dateFilterEl.value ? dateFilterEl.value : '').trim();
         const keyword = String(keywordFilterEl && keywordFilterEl.value ? keywordFilterEl.value : '').trim().toLowerCase();
         body.innerHTML = '';
+        if (measurementLogsHiddenLocally) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="6" style="color:#99b2c9;">本機畫面已清空，記憶紀錄仍保留；重新整理頁面後可再顯示。</td>';
+            body.appendChild(tr);
+            return;
+        }
         if (!measurementLogs.length) {
             const tr = document.createElement('tr');
             tr.innerHTML = '<td colspan="6" style="color:#99b2c9;">尚無測量紀錄</td>';
@@ -242,9 +254,8 @@
             return;
         }
         if (!window.confirm(`確定要清空 ${measurementLogs.length} 筆測量紀錄嗎？`)) return;
-        measurementLogs = [];
-        persistMeasurementLogs();
+        measurementLogsHiddenLocally = true;
         renderMeasurementLogTable();
-        addAuditLog('清空測量紀錄', '使用者手動清空測量紀錄');
-        showToast('測量紀錄已清空');
+        addAuditLog('清空測量紀錄畫面', '僅清空本機畫面，保留記憶紀錄');
+        showToast('已清空本機畫面，測量紀錄記憶仍保留');
     }
