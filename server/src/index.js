@@ -65,9 +65,65 @@ const MIME_TYPES = {
 };
 
 const activeLearningJobs = new Map();
+const accountTaskQueues = new Map();
 
 function normalizeAccount(account) {
     return String(account || '').trim().toLowerCase();
+}
+
+function getOrCreateAccountQueue(account) {
+    const key = normalizeAccount(account);
+    if (!accountTaskQueues.has(key)) {
+        accountTaskQueues.set(key, {
+            running: false,
+            items: []
+        });
+    }
+    return accountTaskQueues.get(key);
+}
+
+async function drainAccountQueue(account) {
+    const key = normalizeAccount(account);
+    const queue = accountTaskQueues.get(key);
+    if (!queue || queue.running) return;
+    queue.running = true;
+    try {
+        while (queue.items.length) {
+            const task = queue.items.shift();
+            try {
+                const result = await task.runner();
+                task.resolve(result);
+            } catch (error) {
+                task.reject(error);
+            }
+        }
+    } finally {
+        queue.running = false;
+        if (!queue.items.length) accountTaskQueues.delete(key);
+    }
+}
+
+function runAccountSerialTask(session, taskName, runner) {
+    const account = normalizeAccount(session && session.account);
+    if (!account) return runner();
+    const queue = getOrCreateAccountQueue(account);
+    return new Promise((resolve, reject) => {
+        queue.items.push({
+            taskName: String(taskName || 'task'),
+            runner,
+            resolve,
+            reject
+        });
+        drainAccountQueue(account).catch((error) => {
+            const pendingQueue = accountTaskQueues.get(account);
+            if (!pendingQueue) return;
+            while (pendingQueue.items.length) {
+                const pending = pendingQueue.items.shift();
+                pending.reject(error);
+            }
+            accountTaskQueues.delete(account);
+        });
+    });
 }
 
 function isAllowedOrigin(origin) {
@@ -458,20 +514,24 @@ async function handleIbmQuantum(request, response) {
 async function handleCalcCore(request, response) {
     const session = requireFeature(request, response, 'calcCore');
     if (!session) return;
-    const body = await readJsonBody(request);
-    const result = calculateCore(body);
-    sendJson(response, 200, result, request);
+    await runAccountSerialTask(session, 'calc-core', async () => {
+        const body = await readJsonBody(request);
+        const result = calculateCore(body);
+        sendJson(response, 200, result, request);
+    });
 }
 
 async function handleCalcAdvancedEstimate(request, response) {
     const session = requireFeature(request, response, 'advancedEstimateExport');
     if (!session) return;
-    const body = await readJsonBody(request);
-    const result = calculateAdvancedEstimate({
-        ...body,
-        isPro: session.userLevel === 'pro'
+    await runAccountSerialTask(session, 'advanced-estimate', async () => {
+        const body = await readJsonBody(request);
+        const result = calculateAdvancedEstimate({
+            ...body,
+            isPro: session.userLevel === 'pro'
+        });
+        sendJson(response, 200, result, request);
     });
-    sendJson(response, 200, result, request);
 }
 
 async function handleMeasureQa(request, response) {
@@ -493,9 +553,11 @@ async function handleBimLayoutQa(request, response) {
 async function handleAutoInterpretQa(request, response) {
     const session = requireFeature(request, response, 'blueprintAutoInterpret');
     if (!session) return;
-    const body = await readJsonBody(request);
-    const result = scoreAutoInterpret(body);
-    sendJson(response, 200, result, request);
+    await runAccountSerialTask(session, 'auto-interpret-qa', async () => {
+        const body = await readJsonBody(request);
+        const result = scoreAutoInterpret(body);
+        sendJson(response, 200, result, request);
+    });
 }
 
 function upsertByKey(list, keyName, item, limit = 160) {
@@ -572,7 +634,8 @@ async function updateLearningJobSnapshot(account, jobId, mutate) {
 }
 
 async function runAutoInterpretLearningJob(account, jobId) {
-    const key = `${account}:${jobId}`;
+    const accountKey = normalizeAccount(account);
+    const key = `${accountKey}:${jobId}`;
     if (activeLearningJobs.has(key)) return activeLearningJobs.get(key);
     const task = (async () => {
         try {
@@ -672,27 +735,41 @@ async function runAutoInterpretLearningJob(account, jobId) {
 async function handleCreateAutoInterpretLearningJob(request, response) {
     const session = requireFeature(request, response, 'blueprintAutoInterpret');
     if (!session) return;
-    const body = await readJsonBody(request);
-    const assetId = String(body.assetId || '').trim();
-    if (!assetId) {
-        throw createHttpError(400, '缺少圖紙資產編號。', 'ASSET_ID_REQUIRED');
-    }
-    let createdJob = null;
-    const workspace = await withDb(config, async (db) => updateWorkspace(db, session.account, (current) => {
-        const asset = (current.blueprintLearningAssets || []).find((item) => String(item && item.assetId || '') === assetId);
-        if (!asset) throw createHttpError(404, '找不到對應圖紙資產', 'LEARNING_ASSET_NOT_FOUND');
-        createdJob = createLearningJob(asset, {
-            thresholdScore: body.thresholdScore,
-            maxAttempts: body.maxAttempts
+    await runAccountSerialTask(session, 'learning-create', async () => {
+        const body = await readJsonBody(request);
+        const assetId = String(body.assetId || '').trim();
+        if (!assetId) {
+            throw createHttpError(400, '缺少圖紙資產編號。', 'ASSET_ID_REQUIRED');
+        }
+        const learningKeyPrefix = `${normalizeAccount(session.account)}:`;
+        const hasActiveLearning = Array.from(activeLearningJobs.keys()).some((key) => String(key || '').startsWith(learningKeyPrefix));
+        if (hasActiveLearning) {
+            const current = await withDb(config, async (db) => sanitizeWorkspace(await getWorkspace(db, session.account)));
+            const runningJob = (current.autoInterpretLearningJobs || []).find((item) => String(item && item.status || '') === 'running') || null;
+            sendJson(response, 200, {
+                ok: true,
+                reused: true,
+                job: runningJob
+            }, request);
+            return;
+        }
+        let createdJob = null;
+        const workspace = await withDb(config, async (db) => updateWorkspace(db, session.account, (current) => {
+            const asset = (current.blueprintLearningAssets || []).find((item) => String(item && item.assetId || '') === assetId);
+            if (!asset) throw createHttpError(404, '找不到對應圖紙資產', 'LEARNING_ASSET_NOT_FOUND');
+            createdJob = createLearningJob(asset, {
+                thresholdScore: body.thresholdScore,
+                maxAttempts: body.maxAttempts
+            });
+            current.autoInterpretLearningJobs = upsertByKey(current.autoInterpretLearningJobs, 'jobId', createdJob, 160);
+            return current;
         });
-        current.autoInterpretLearningJobs = upsertByKey(current.autoInterpretLearningJobs, 'jobId', createdJob, 160);
-        return current;
-    }));
-    runAutoInterpretLearningJob(session.account, createdJob.jobId).catch(() => {});
-    sendJson(response, 200, {
-        ok: true,
-        job: (workspace.autoInterpretLearningJobs || []).find((item) => String(item && item.jobId || '') === createdJob.jobId) || createdJob
-    }, request);
+        runAutoInterpretLearningJob(session.account, createdJob.jobId).catch(() => {});
+        sendJson(response, 200, {
+            ok: true,
+            job: (workspace.autoInterpretLearningJobs || []).find((item) => String(item && item.jobId || '') === createdJob.jobId) || createdJob
+        }, request);
+    });
 }
 
 async function handleGetAutoInterpretLearningJob(request, response, jobId) {

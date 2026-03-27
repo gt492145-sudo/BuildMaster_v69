@@ -165,6 +165,13 @@
         } finally {
             aiCoachState.busy = false;
             applyAiCoachMode();
+            const pendingQuestion = String(aiCoachState.pendingManualQuestion || '').trim();
+            if (pendingQuestion && aiCoachState.enabled) {
+                aiCoachState.pendingManualQuestion = '';
+                setTimeout(() => {
+                    askAiCoachManualWithQuestion(pendingQuestion);
+                }, 80);
+            }
         }
     }
 
@@ -189,21 +196,31 @@
         }
     }
 
-    async function askAiCoachManual() {
-        if (!aiCoachState.enabled) return showToast('請先開啟 AI 解說員');
-        if (aiCoachState.busy) return showToast('AI 正在回覆中，請稍候');
-        const input = document.getElementById('coachAiInput');
-        const q = String((input && input.value) || '').trim();
-        if (!q) return showToast('請先輸入你想問的問題');
+    async function askAiCoachManualWithQuestion(questionText) {
+        const q = String(questionText || '').trim();
+        if (!q) return;
         speakCoach('AI 回覆中...');
         try {
             const answer = await askAiCoach(`使用者問題：${q}`);
             speakCoach(answer);
-            if (input) input.value = '';
         } catch (e) {
             console.warn('AI 手動提問失敗', e);
             showToast('AI 回覆失敗，請檢查後端代理或網路');
         }
+    }
+
+    async function askAiCoachManual() {
+        if (!aiCoachState.enabled) return showToast('請先開啟 AI 解說員');
+        const input = document.getElementById('coachAiInput');
+        const q = String((input && input.value) || '').trim();
+        if (!q) return showToast('請先輸入你想問的問題');
+        if (aiCoachState.busy) {
+            aiCoachState.pendingManualQuestion = q;
+            if (input) input.value = '';
+            return showToast('已接續排入本帳號 AI 提問流程');
+        }
+        if (input) input.value = '';
+        await askAiCoachManualWithQuestion(q);
     }
 
     function handleCoachInteraction(e) {

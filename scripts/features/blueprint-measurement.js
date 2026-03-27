@@ -1,6 +1,12 @@
     // --- 圖紙測量模組 (保留 V6.8 完整邏輯) ---
     var blueprintAutoCalcAfterUploadTimer = null;
     var BLUEPRINT_AUTO_CALC_AFTER_UPLOAD_KEY = 'bm_69:blueprint_auto_calc_after_upload';
+    var BLUEPRINT_AUTO_CALC_COOLDOWN_MS = 4500;
+    var blueprintAutoCalcDriverState = {
+        running: false,
+        queued: false,
+        lastRunAt: 0
+    };
 
     function applyBlueprintAutoCalcAfterUploadPref() {
         var el = document.getElementById('blueprintAutoCalcAfterUpload');
@@ -25,6 +31,43 @@
         } catch (_e) {}
     }
 
+    function canRunBlueprintAutoCalcNow() {
+        if (!img || !img.src) return false;
+        if (autoInterpretBusy || edgeAiDetectBusy) return false;
+        const now = Date.now();
+        return now - (blueprintAutoCalcDriverState.lastRunAt || 0) >= BLUEPRINT_AUTO_CALC_COOLDOWN_MS;
+    }
+
+    async function driveBlueprintAutoCalcByContext() {
+        if (blueprintAutoCalcDriverState.running) {
+            blueprintAutoCalcDriverState.queued = true;
+            return;
+        }
+        if (!canRunBlueprintAutoCalcNow()) return;
+        blueprintAutoCalcDriverState.running = true;
+        blueprintAutoCalcDriverState.queued = false;
+        blueprintAutoCalcDriverState.lastRunAt = Date.now();
+        try {
+            const hasBimModel = !!(bimModelData && Array.isArray(bimModelData.elements) && bimModelData.elements.length);
+            // Task-driven execution: run only the path that is truly needed now.
+            if (hasBimModel && typeof runAutoBlueprintPlusBIM === 'function') {
+                await runAutoBlueprintPlusBIM();
+            } else if (typeof autoInterpretBlueprintAndCalculate === 'function') {
+                await autoInterpretBlueprintAndCalculate();
+            }
+        } catch (_e) {
+            // Keep silent here; downstream functions already show user-facing messages.
+        } finally {
+            blueprintAutoCalcDriverState.running = false;
+            if (blueprintAutoCalcDriverState.queued) {
+                blueprintAutoCalcDriverState.queued = false;
+                setTimeout(() => {
+                    driveBlueprintAutoCalcByContext();
+                }, 300);
+            }
+        }
+    }
+
     function scheduleAutoBlueprintAutoCalcIfEnabled() {
         var toggle = document.getElementById('blueprintAutoCalcAfterUpload');
         if (!toggle || !toggle.checked) return;
@@ -42,15 +85,7 @@
         if (blueprintAutoCalcAfterUploadTimer) clearTimeout(blueprintAutoCalcAfterUploadTimer);
         blueprintAutoCalcAfterUploadTimer = setTimeout(function() {
             blueprintAutoCalcAfterUploadTimer = null;
-            // Prefer full one-click pipeline (Blueprint + IBM),
-            // fallback to blueprint-only auto calc when BIM model is missing.
-            if (typeof runAutoBlueprintPlusBIM === 'function') {
-                runAutoBlueprintPlusBIM();
-                return;
-            }
-            if (typeof autoInterpretBlueprintAndCalculate === 'function') {
-                autoInterpretBlueprintAndCalculate();
-            }
+            driveBlueprintAutoCalcByContext();
         }, 700);
     }
 
@@ -371,7 +406,91 @@
     const AUTO_INTERPRET_MEMORY_STORAGE_KEY = 'bm_69:auto_interpret_memory';
     const AUTO_INTERPRET_MEMORY_MAX = 48;
     const GUIDED_PRECISION_REVIEW_MAX = 80;
+    const AUTO_INTERPRET_SPLIT_PROFILE_DEFAULT = {
+        maxSide: 360,
+        rowChunk: 14,
+        bfsYieldNodes: 900,
+        maskChunk: 4600,
+        sliceBudgetMs: 9
+    };
     let autoInterpretBusy = false;
+    let autoInterpretQueuedMode = '';
+    let autoInterpretSplitProfile = { ...AUTO_INTERPRET_SPLIT_PROFILE_DEFAULT };
+    function flushAutoInterpretQueue() {
+        if (autoInterpretBusy || edgeAiDetectBusy) {
+            setTimeout(() => {
+                flushAutoInterpretQueue();
+            }, 120);
+            return;
+        }
+        const mode = autoInterpretQueuedMode;
+        if (!mode) return;
+        autoInterpretQueuedMode = '';
+        if (mode === 'guided') {
+            runGuidedPrecisionAutoInterpret();
+            return;
+        }
+        if (mode === 'bim') {
+            runAutoBlueprintPlusBIM();
+            return;
+        }
+        autoInterpretBlueprintAndCalculate();
+    }
+
+    function queueAutoInterpretMode(mode, statusText) {
+        autoInterpretQueuedMode = String(mode || 'auto');
+        if (statusText) updateBlueprintAutoInterpretStatus(statusText, '#bfe7ff');
+        setTimeout(() => {
+            flushAutoInterpretQueue();
+        }, 120);
+    }
+
+    function yieldAutoInterpretExecutionSlot(preferMacro = false) {
+        if (preferMacro) return new Promise(resolve => setTimeout(resolve, 0));
+        return Promise.resolve();
+    }
+
+    function createAutoInterpretSliceController(sliceBudgetMs) {
+        const budgetMs = Math.max(5, Number(sliceBudgetMs) || 9);
+        let sliceStartedAt = performance.now();
+        let yieldCount = 0;
+        return {
+            async maybeYield(force = false) {
+                const now = performance.now();
+                if (!force && now - sliceStartedAt < budgetMs) return;
+                yieldCount += 1;
+                // Prefer micro-yield for speed; occasionally macro-yield for UI paint.
+                await yieldAutoInterpretExecutionSlot(yieldCount % 4 === 0);
+                sliceStartedAt = performance.now();
+            }
+        };
+    }
+
+    function tuneAutoInterpretSplitProfile(stageDurationMs) {
+        const duration = Number(stageDurationMs) || 0;
+        const next = { ...autoInterpretSplitProfile };
+        if (duration >= 240) {
+            next.rowChunk = Math.max(4, next.rowChunk - 2);
+            next.bfsYieldNodes = Math.max(220, next.bfsYieldNodes - 180);
+            next.maskChunk = Math.max(1200, next.maskChunk - 700);
+            next.maxSide = Math.max(240, next.maxSide - 24);
+            next.sliceBudgetMs = Math.max(6, Number(next.sliceBudgetMs || 9) - 1);
+        } else if (duration >= 170) {
+            next.rowChunk = Math.max(6, next.rowChunk - 1);
+            next.bfsYieldNodes = Math.max(320, next.bfsYieldNodes - 90);
+            next.maskChunk = Math.max(1800, next.maskChunk - 300);
+            next.maxSide = Math.max(260, next.maxSide - 12);
+            next.sliceBudgetMs = Math.max(7, Number(next.sliceBudgetMs || 9) - 0.5);
+        } else if (duration > 0 && duration <= 110) {
+            next.rowChunk = Math.min(20, next.rowChunk + 1);
+            next.bfsYieldNodes = Math.min(1800, next.bfsYieldNodes + 120);
+            next.maskChunk = Math.min(12000, next.maskChunk + 650);
+            next.maxSide = Math.min(420, next.maxSide + 10);
+            next.sliceBudgetMs = Math.min(12, Number(next.sliceBudgetMs || 9) + 0.5);
+        }
+        autoInterpretSplitProfile = next;
+    }
+
     let autoInterpretRunSeq = 0;
     let autoInterpretLastReport = null;
     let autoInterpretNeedsReview = false;
@@ -1147,7 +1266,7 @@
             }
             return payload;
         } catch (error) {
-            updateAutoInterpretLearningSummary(`後台學習：讀取任務失敗｜${error && error.message ? error.message : '請稍後再試'}`, '#ff9a9a');
+            updateAutoInterpretLearningSummary(`後台學習：讀取任務失敗｜${error && error.message ? error.message : '請重試'}`, '#ff9a9a');
             throw error;
         }
     }
@@ -1178,10 +1297,10 @@
                 } else if (status === 'review_required') {
                     showToast(`後台學習已跑完 ${payload.job.maxAttempts} 輪，最佳 ${bestScore} / 99.9，請人工審核`);
                 } else if (status === 'failed') {
-                    showToast(`後台學習失敗：${payload.job.lastError || '請稍後再試'}`);
+                    showToast(`後台學習失敗：${payload.job.lastError || '請重試'}`);
                 }
             } catch (error) {
-                updateAutoInterpretLearningSummary(`後台學習：更新失敗｜${error && error.message ? error.message : '請稍後再試'}`, '#ff9a9a');
+                updateAutoInterpretLearningSummary(`後台學習：更新失敗｜${error && error.message ? error.message : '請重試'}`, '#ff9a9a');
             }
         };
         await poll();
@@ -1221,8 +1340,8 @@
             showToast(`後台學習已建立，來源 ${getBlueprintSourceTypeLabel(upload.asset.sourceType)}，已先校正再開始自動重跑`);
             await pollAutoInterpretLearningJob(created.job.jobId);
         } catch (error) {
-            updateAutoInterpretLearningSummary(`後台學習：建立失敗｜${error && error.message ? error.message : '請稍後再試'}`, '#ff9a9a');
-            showToast(`後台學習啟動失敗：${error && error.message ? error.message : '請稍後再試'}`);
+            updateAutoInterpretLearningSummary(`後台學習：建立失敗｜${error && error.message ? error.message : '請重試'}`, '#ff9a9a');
+            showToast(`後台學習啟動失敗：${error && error.message ? error.message : '請重試'}`);
         }
     }
 
@@ -1256,8 +1375,8 @@
             renderAutoInterpretLearningPanel();
             showToast(normalizedDecision === 'approved' ? '已人工通過並加入核心記憶' : '已退回此筆後台學習結果');
         } catch (error) {
-            updateAutoInterpretLearningSummary(`後台學習：審核失敗｜${error && error.message ? error.message : '請稍後再試'}`, '#ff9a9a');
-            showToast(`後台學習審核失敗：${error && error.message ? error.message : '請稍後再試'}`);
+            updateAutoInterpretLearningSummary(`後台學習：審核失敗｜${error && error.message ? error.message : '請重試'}`, '#ff9a9a');
+            showToast(`後台學習審核失敗：${error && error.message ? error.message : '請重試'}`);
         }
     }
 
@@ -1697,11 +1816,16 @@
         }
     }
 
-    function estimateBlueprintObjectCount(bounds) {
+    async function estimateBlueprintObjectCount(bounds, splitOptions = {}) {
         if (!img.src || !img.naturalWidth || !img.naturalHeight || !bounds) {
             return { count: 1, confidence: 0, sampleCount: 0 };
         }
-        const maxSide = 360;
+        const maxSide = Math.max(180, Number(splitOptions.maxSide) || 360);
+        const rowChunk = Math.max(2, Number(splitOptions.rowChunk) || 14);
+        const bfsYieldNodes = Math.max(100, Number(splitOptions.bfsYieldNodes) || 900);
+        const maskChunk = Math.max(500, Number(splitOptions.maskChunk) || 4600);
+        const sliceBudgetMs = Math.max(5, Number(splitOptions.sliceBudgetMs) || 9);
+        const slicer = createAutoInterpretSliceController(sliceBudgetMs);
         const ratio = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
         const w = Math.max(80, Math.round(img.naturalWidth * ratio));
         const h = Math.max(80, Math.round(img.naturalHeight * ratio));
@@ -1725,6 +1849,7 @@
         let sum = 0;
         const gray = new Uint8Array(roiSize);
         let gi = 0;
+        let rowsSinceYield = 0;
         for (let y = y0; y < y1; y += 1) {
             for (let x = x0; x < x1; x += 1) {
                 const i = (y * w + x) * 4;
@@ -1733,11 +1858,24 @@
                 sum += g;
                 gi += 1;
             }
+            rowsSinceYield += 1;
+            if (rowsSinceYield >= rowChunk) {
+                rowsSinceYield = 0;
+                await slicer.maybeYield();
+            }
         }
         const mean = sum / gray.length;
         const threshold = Math.max(35, Math.min(210, mean * 0.82));
         const mask = new Uint8Array(gray.length);
-        for (let i = 0; i < gray.length; i += 1) mask[i] = gray[i] < threshold ? 1 : 0;
+        let maskTick = 0;
+        for (let i = 0; i < gray.length; i += 1) {
+            mask[i] = gray[i] < threshold ? 1 : 0;
+            maskTick += 1;
+            if (maskTick >= maskChunk) {
+                maskTick = 0;
+                await slicer.maybeYield();
+            }
+        }
 
         const visited = new Uint8Array(mask.length);
         const queue = new Int32Array(mask.length);
@@ -1745,6 +1883,7 @@
         const maxArea = Math.max(minArea + 1, Math.floor(roiSize * 0.06));
         let components = 0;
         let acceptedSamples = 0;
+        let scanTick = 0;
         for (let i = 0; i < mask.length; i += 1) {
             if (!mask[i] || visited[i]) continue;
             let head = 0;
@@ -1752,9 +1891,11 @@
             queue[tail++] = i;
             visited[i] = 1;
             let area = 0;
+            let bfsTick = 0;
             while (head < tail) {
                 const cur = queue[head++];
                 area += 1;
+                bfsTick += 1;
                 const cx = cur % roiW;
                 const cy = Math.floor(cur / roiW);
                 const left = cx > 0 ? cur - 1 : -1;
@@ -1765,10 +1906,19 @@
                 if (right >= 0 && mask[right] && !visited[right]) { visited[right] = 1; queue[tail++] = right; }
                 if (up >= 0 && mask[up] && !visited[up]) { visited[up] = 1; queue[tail++] = up; }
                 if (down >= 0 && mask[down] && !visited[down]) { visited[down] = 1; queue[tail++] = down; }
+                if (bfsTick >= bfsYieldNodes) {
+                    bfsTick = 0;
+                    await slicer.maybeYield();
+                }
             }
             if (area >= minArea && area <= maxArea) {
                 components += 1;
                 acceptedSamples += area;
+            }
+            scanTick += 1;
+            if (scanTick >= rowChunk * 3) {
+                scanTick = 0;
+                await slicer.maybeYield();
             }
         }
         if (components <= 0) return { count: 1, confidence: 0.18, sampleCount: 0 };
@@ -1810,7 +1960,10 @@
     }
 
     async function collectAutoInterpretStageSignals(options = {}) {
+        const stageStartAt = performance.now();
+        const stageSlicer = createAutoInterpretSliceController(Math.max(5, Number(autoInterpretSplitProfile.sliceBudgetMs) || 9));
         const qualityReport = updateBlueprintQualityStatus();
+        await stageSlicer.maybeYield();
         const bounds = detectBlueprintPrimaryBounds();
         if (!bounds) {
             return {
@@ -1836,7 +1989,8 @@
             };
         }
         const inputState = readAutoInterpretCurrentInputs();
-        const countResult = estimateBlueprintObjectCount(bounds);
+        await stageSlicer.maybeYield();
+        const countResult = await estimateBlueprintObjectCount(bounds, autoInterpretSplitProfile);
         const memoryTypeMatch = findAutoInterpretMemoryMatch(bounds, qualityReport, '');
         const geometryConfidence = clampNumber(
             qualityToScore(qualityReport && qualityReport.quality) * 0.45 + Math.min(0.55, Number(bounds.coverage || 0) * 1.2),
@@ -1844,6 +1998,7 @@
             0.95
         );
         const ocrCandidates = options.includeOcr ? await collectGuidedPrecisionOcrCandidates() : [];
+        tuneAutoInterpretSplitProfile(performance.now() - stageStartAt);
         return {
             ok: true,
             qualityReport,
@@ -2994,7 +3149,10 @@
     async function runGuidedPrecisionAutoInterpret() {
         if (!ensureCalcAdvancedPageReady('第三頁精準辨識區尚未載入')) return;
         if (!(await ensureFeatureAccess('guidedPrecisionAuto', '極強精準辨識僅開放會員3（專家）'))) return;
-        if (autoInterpretBusy) return showToast('單一運算進行中，請稍候完成');
+        if (autoInterpretBusy) {
+            queueAutoInterpretMode('guided', '極強精準: 已接續排入本帳號執行流程');
+            return;
+        }
         if (!img.src) return showToast('請先上傳圖紙再做極強精準辨識');
         autoInterpretBusy = true;
         autoInterpretNeedsReview = false;
@@ -3073,6 +3231,7 @@
             showToast('極強精準模式已完成初判，請逐欄確認後再套用');
         } finally {
             autoInterpretBusy = false;
+            flushAutoInterpretQueue();
         }
     }
 
@@ -3080,7 +3239,10 @@
         if (typeof ensureWorkModeAccess === 'function' && !ensureWorkModeAccess('calc', '請先切到第三頁計算模式再做看圖自動判讀')) return;
         if (!ensureCalcAdvancedPageReady('第三頁自動計算區尚未載入')) return;
         if (!(await ensureFeatureAccess('blueprintAutoInterpret', '看圖自動判讀僅開放會員3（專家）'))) return;
-        if (autoInterpretBusy) return showToast('單一運算進行中，請稍候完成');
+        if (autoInterpretBusy) {
+            queueAutoInterpretMode('auto', '自動判讀: 已接續排入本帳號執行流程');
+            return;
+        }
         if (!img.src) return showToast('請先上傳圖紙再做自動判讀');
         clearGuidedPrecisionCalcState(true);
         autoInterpretBusy = true;
@@ -3284,6 +3446,7 @@
             }
         } finally {
             autoInterpretBusy = false;
+            flushAutoInterpretQueue();
         }
     }
 
@@ -3294,7 +3457,8 @@
             return;
         }
         if (autoInterpretBusy || edgeAiDetectBusy) {
-            return showToast('AI 流程執行中，請稍候');
+            queueAutoInterpretMode('bim', '一鍵流程：已接續排入本帳號執行流程');
+            return;
         }
         if (!img.src) {
             return showToast('請先上傳圖紙再執行「自動看圖計算+BIM」');

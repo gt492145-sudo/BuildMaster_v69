@@ -361,9 +361,15 @@
     let quantumWallTimers = [];
     let chaosMonkeyMode = false;
     let chaosMonkeyTimer = null;
+    let chaosMonkeyBurstRaf = null;
     let chaosMonkeyTickCount = 0;
+    let chaosMonkeyBurstState = null;
     let siteWeatherAutoRefreshTimer = null;
-    const CHAOS_MONKEY_ENABLED = false;
+    const CHAOS_MONKEY_ENABLED = true;
+    const CHAOS_MONKEY_FRAME_BUDGET_MAX_MS = 14;
+    const CHAOS_MONKEY_FRAME_BUDGET_MIN_MS = 2;
+    const CHAOS_MONKEY_FRAME_DROP_THRESHOLD_MS = 28;
+    const CHAOS_MONKEY_DEFAULT_PROFILE = 'brutal';
     let laserChaosStats = { dirtyBlocked: 0, successWrites: 0 };
     const SITE_WEATHER_REFRESH_MS = 12 * 60 * 1000;
 
@@ -1306,9 +1312,8 @@
         startQaStressTest();
     }
 
-    function runChaosMonkeyTick() {
-        if (!chaosMonkeyMode) return;
-        const actions = [
+    function buildChaosMonkeyActions() {
+        return [
             {
                 name: '開始量測',
                 run: () => {
@@ -1331,25 +1336,79 @@
                 }
             }
         ];
-        const selected = actions[Math.floor(Math.random() * actions.length)];
+    }
+
+    function runChaosMonkeyAction(selected) {
+        if (!selected || typeof selected.run !== 'function') return false;
         chaosMonkeyTickCount += 1;
-        appendMobileTestLog(`猴子動作 #${chaosMonkeyTickCount}: ${selected.name}`);
+        if (chaosMonkeyTickCount <= 30 || chaosMonkeyTickCount % 250 === 0) {
+            appendMobileTestLog(`猴子動作 #${chaosMonkeyTickCount}: ${selected.name}`);
+        }
         try {
             selected.run();
+            return true;
         } catch (error) {
             console.warn('Chaos monkey action failed', error);
             appendMobileTestLog(`猴子動作失敗: ${selected.name}`);
+            return false;
         }
     }
 
-    function startChaosMonkey() {
+    function runChaosMonkeyTick() {
+        if (!chaosMonkeyMode) return;
+        const actions = buildChaosMonkeyActions();
+        const selected = actions[Math.floor(Math.random() * actions.length)];
+        runChaosMonkeyAction(selected);
+    }
+
+    function runChaosMonkeyBrutalFrame() {
+        if (!chaosMonkeyMode || !chaosMonkeyBurstState) return;
+        const state = chaosMonkeyBurstState;
+        const actions = buildChaosMonkeyActions();
+        const frameStart = performance.now();
+        const frameGap = Math.max(0, frameStart - (state.lastFrameAt || frameStart));
+        state.lastFrameAt = frameStart;
+        if (frameGap > CHAOS_MONKEY_FRAME_DROP_THRESHOLD_MS || watchdogLagStrikes >= 2) {
+            // Auto split workload when lag is detected.
+            state.frameBudgetMs = Math.max(CHAOS_MONKEY_FRAME_BUDGET_MIN_MS, state.frameBudgetMs - 1);
+        } else if (watchdogLagStrikes === 0 && frameGap < 18) {
+            state.frameBudgetMs = Math.min(CHAOS_MONKEY_FRAME_BUDGET_MAX_MS, state.frameBudgetMs + 1);
+        }
+        while (performance.now() - frameStart < state.frameBudgetMs) {
+            const selected = actions[Math.floor(Math.random() * actions.length)];
+            if (runChaosMonkeyAction(selected)) state.success += 1;
+            else state.failed += 1;
+            state.done += 1;
+        }
+        chaosMonkeyBurstRaf = requestAnimationFrame(runChaosMonkeyBrutalFrame);
+    }
+
+    function startChaosMonkeyBrutalBurst() {
+        chaosMonkeyBurstState = {
+            startedAt: performance.now(),
+            lastFrameAt: 0,
+            frameBudgetMs: CHAOS_MONKEY_FRAME_BUDGET_MAX_MS,
+            done: 0,
+            success: 0,
+            failed: 0
+        };
+        appendMobileTestLog('猴子暴力測試啟動：無上限模式（持續全速轟炸，直到手動停止）');
+        showToast('🐒 暴力猴子啟動：無上限破壞模式');
+        chaosMonkeyBurstRaf = requestAnimationFrame(runChaosMonkeyBrutalFrame);
+    }
+
+    function startChaosMonkey(profile = CHAOS_MONKEY_DEFAULT_PROFILE) {
         if (!CHAOS_MONKEY_ENABLED) return;
         if (chaosMonkeyMode) return;
         chaosMonkeyMode = true;
         chaosMonkeyTickCount = 0;
-        chaosMonkeyTimer = setInterval(runChaosMonkeyTick, 2600);
+        if (String(profile) === 'brutal') {
+            startChaosMonkeyBrutalBurst();
+        } else {
+            chaosMonkeyTimer = setInterval(runChaosMonkeyTick, 2600);
+            showToast('🐒 混沌猴子已放出（每 2.6 秒隨機壓測）');
+        }
         applyFeatureControlStatus();
-        showToast('🐒 混沌猴子已放出（每 2.6 秒隨機壓測）');
     }
 
     function stopChaosMonkey(silent) {
@@ -1357,6 +1416,15 @@
             clearInterval(chaosMonkeyTimer);
             chaosMonkeyTimer = null;
         }
+        if (chaosMonkeyBurstRaf) {
+            cancelAnimationFrame(chaosMonkeyBurstRaf);
+            chaosMonkeyBurstRaf = null;
+        }
+        if (chaosMonkeyBurstState) {
+            const elapsed = Math.max(0, Math.round(performance.now() - chaosMonkeyBurstState.startedAt));
+            appendMobileTestLog(`猴子暴力測試停止：總 ${chaosMonkeyBurstState.done} 次 / 成功 ${chaosMonkeyBurstState.success} / 失敗 ${chaosMonkeyBurstState.failed} / ${elapsed}ms`);
+        }
+        chaosMonkeyBurstState = null;
         if (!chaosMonkeyMode) return;
         chaosMonkeyMode = false;
         applyFeatureControlStatus();
@@ -1371,7 +1439,7 @@
             return showToast('🐒 混沌猴子已暫時收掉');
         }
         if (chaosMonkeyMode) return stopChaosMonkey(false);
-        startChaosMonkey();
+        startChaosMonkey(CHAOS_MONKEY_DEFAULT_PROFILE);
     }
 
     async function startBmAutoTestFromUi() {
