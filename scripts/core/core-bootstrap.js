@@ -1,6 +1,6 @@
     // 1.0 資料隔離與相容性設定
     const STORAGE_KEY = 'bm_69:list';
-    const SCHEMA_VERSION = '8.3.1';
+    const SCHEMA_VERSION = '8.3.3';
     const SECURITY_UNLOCK_KEY = 'bm_69:security_unlocked';
     const OWNER_LOCK_HASH_KEY = 'cm_owner_lock_hash_v1';
     const OWNER_UNLOCK_SESSION_KEY = 'cm_owner_lock_unlocked_v1';

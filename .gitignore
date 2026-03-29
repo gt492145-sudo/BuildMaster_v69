@@ -24,3 +24,10 @@ build/
 GoogleService-Info.plist
 **/*credentials*.json
 Secrets/
+
+# Local temporary / archive artifacts
+*.tgz
+*.tmp
+*.log
+*.bak
+*~
