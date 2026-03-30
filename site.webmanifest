@@ -1,20 +1,9 @@
 {
-  "name": "Construction Master V8.0",
+  "name": "Construction Master V8.3.5",
   "short_name": "Construction Master",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0b1220",
   "theme_color": "#0b1220",
-  "icons": [
-    {
-      "src": "favicon-32.png",
-      "sizes": "32x32",
-      "type": "image/png"
-    },
-    {
-      "src": "apple-touch-icon.png",
-      "sizes": "180x180",
-      "type": "image/png"
-    }
-  ]
+  "icons": []
 }

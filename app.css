@@ -34,6 +34,52 @@
     .drawing-panel { flex: 1.2; min-width: 0; min-height: 0; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01)), var(--panel-bg); border: 1px solid var(--line-soft); display: flex; flex-direction: column; border-radius: 12px; backdrop-filter: blur(8px) saturate(115%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -20px 30px rgba(5,10,20,0.12), 0 10px 24px rgba(0,0,0,0.24); }
     .calc-panel { flex: 1; min-width: 0; min-height: 0; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01)), var(--panel-bg); border: 1px solid var(--line-soft); padding: 15px; overflow-y: auto; border-radius: 12px; backdrop-filter: blur(8px) saturate(115%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -20px 30px rgba(5,10,20,0.12), 0 10px 24px rgba(0,0,0,0.24); }
     .tool-bar { display: flex; gap: 8px; padding: 10px; background: rgba(255,255,255,0.025); align-items: center; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; }
+    .upload-laser-panel {
+        position: relative;
+        min-width: 176px;
+        padding: 10px 10px 11px;
+        border-radius: 10px;
+        border: 1px solid rgba(196, 143, 255, 0.4);
+        background: linear-gradient(180deg, rgba(124, 65, 206, 0.16), rgba(72, 38, 121, 0.14));
+        box-shadow: inset 0 0 18px rgba(161, 102, 255, 0.16), 0 0 16px rgba(139, 92, 246, 0.18);
+        overflow: hidden;
+    }
+    .tool-group--file .upload-laser-panel {
+        flex: 0 1 auto;
+        min-width: min(100%, 176px);
+        align-self: center;
+    }
+    .tool-group--file .tool-group-label {
+        align-self: center;
+    }
+    .upload-laser-panel::before,
+    .upload-laser-panel::after {
+        content: '';
+        position: absolute;
+        left: 8px;
+        right: 8px;
+        height: 2px;
+        border-radius: 999px;
+        pointer-events: none;
+        background: linear-gradient(90deg, rgba(179, 136, 255, 0), rgba(248, 220, 255, 0.98), rgba(224, 64, 251, 0.98), rgba(179, 136, 255, 0));
+        box-shadow: 0 0 10px rgba(224, 64, 251, 0.62), 0 0 20px rgba(179, 136, 255, 0.46);
+        animation: upload-laser-pulse 1.9s ease-in-out infinite;
+    }
+    .upload-laser-panel::before { top: 5px; }
+    .upload-laser-panel::after {
+        bottom: 5px;
+        animation-delay: 0.95s;
+    }
+    .upload-file-input {
+        width: 150px;
+        color: #dfc7ff;
+        position: relative;
+        z-index: 1;
+    }
+    @keyframes upload-laser-pulse {
+        0%, 100% { opacity: 0.46; filter: saturate(1) brightness(1); }
+        50% { opacity: 1; filter: saturate(1.35) brightness(1.22); }
+    }
     .tool-btn { padding: 6px 12px; cursor: pointer; border: 1px solid rgba(255,255,255,0.22); border-radius: 6px; color: #e9f3ff; font-weight: bold; font-size: 0.85em; transition: 0.25s; background: linear-gradient(135deg, rgba(67, 102, 131, 0.55), rgba(55, 86, 113, 0.45)); }
     .tool-btn:hover { background: linear-gradient(135deg, rgba(106, 157, 198, 0.7), rgba(77, 120, 155, 0.6)); color: white; transform: translateY(-1px); box-shadow: 0 6px 14px rgba(0,0,0,0.25); }
     .tool-btn:active { transform: translateY(0); opacity: 0.93; }
@@ -718,6 +764,22 @@
     body[data-user-level="pro"] .level-only-standard { display: none !important; }
     body[data-work-mode="calc"] .work-mode-only-stake { display: none !important; }
     body[data-work-mode="stake"] .work-mode-only-calc { display: none !important; }
+    .calc-mode-banner {
+        margin-bottom: 12px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(144, 202, 249, 0.22);
+        background: rgba(33, 150, 243, 0.07);
+    }
+    .calc-page-label,
+    .stake-page-label {
+        margin-top: 14px;
+        margin-bottom: 6px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 0.95em;
+        color: #b8d9ff;
+    }
     @media (max-width: 1200px) {
         .drawing-panel { flex: 1; }
         .calc-panel { flex: 1; }

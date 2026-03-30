@@ -1,7 +1,0 @@
-task_id,name,zone,duration_days,crew_type,priority,planned_start,planned_finish
-T001,1F_Layout_Staking,Zone_A,1,SURVEY,1,2026-03-15,2026-03-15
-T002,1F_Formwork,Zone_A,2,FORM,1,2026-03-16,2026-03-17
-T003,1F_Rebar,Zone_A,2,REBAR,1,2026-03-18,2026-03-19
-T004,1F_MEP_RoughIn,Zone_A,2,MEP,1,2026-03-20,2026-03-21
-T005,1F_Concrete_Pour,Zone_A,1,CONCRETE,1,2026-03-22,2026-03-22
-T006,1F_Curing,Zone_A,3,CONCRETE,2,2026-03-23,2026-03-25

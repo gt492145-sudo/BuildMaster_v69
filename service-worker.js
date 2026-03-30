@@ -1,15 +1,35 @@
-const CACHE_VERSION = 'buildmaster-v80-sw-v1';
+const CACHE_VERSION = 'buildmaster-v835-sw-modular-v5';
 const CORE_ASSETS = [
   './',
   './index.html',
+  './stake.html',
   './site.webmanifest',
   './favicon-32.png',
   './apple-touch-icon.png',
   './icon-192.png',
   './icon-512.png',
-  './logo.png',
   './logo-app.png',
-  './app-wallpaper.jpg'
+  './app-wallpaper.jpg',
+  './app.css',
+  './styles/app-layout.css',
+  './styles/blueprint-core.css',
+  './styles/app-panels.css',
+  './styles/blueprint-effects.css',
+  './styles/app-overlays.css',
+  './styles/weather-effects.css',
+  './styles/app-responsive.css',
+  './scripts/modules/shared-ui.js',
+  './scripts/modules/calc-pages.js',
+  './scripts/modules/stake-page.js',
+  './scripts/modules/navigation.js',
+  './scripts/core/core-bootstrap.js',
+  './scripts/features/materials-weather.js',
+  './scripts/features/measurement-logs.js',
+  './scripts/features/bim-qa.js',
+  './scripts/features/blueprint-measurement.js',
+  './scripts/features/calc-engine.js',
+  './scripts/features/app-shell.js',
+  './scripts/app-main.js'
 ];
 
 self.addEventListener('install', event => {

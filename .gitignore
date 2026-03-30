@@ -1,6 +1,10 @@
 .DS_Store
 **/.DS_Store
 
+# Ad-hoc screen recordings (not part of the app)
+ScreenRecording*.MP4
+ScreenRecording*.mp4
+
 # Xcode user-specific files
 **/xcuserdata/
 **/*.xcuserstate
