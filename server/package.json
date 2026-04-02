@@ -1,0 +1,17 @@
+{
+  "name": "buildmaster-security-api",
+  "private": true,
+  "version": "1.0.0",
+  "description": "PostgreSQL-backed security API for BuildMaster.",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "pg": "^8.20.0"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "migrate:legacy-json": "node src/scripts/import-legacy-json.js"
+  }
+}
