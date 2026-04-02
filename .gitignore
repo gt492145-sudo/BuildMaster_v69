@@ -1,9 +1,8 @@
 .DS_Store
 **/.DS_Store
 
-# Ad-hoc screen recordings (not part of the app)
-ScreenRecording*.MP4
-ScreenRecording*.mp4
+node_modules/
+www/
 
 # Xcode user-specific files
 **/xcuserdata/
@@ -13,11 +12,13 @@ ScreenRecording*.mp4
 DerivedData/
 build/
 
-# Secrets / credentials
+# Secrets / credentials (keep .env.example in repo as template)
 .env
 .env.*
 **/.env
 **/.env.*
+!.env.example
+!**/.env.example
 *.pem
 *.key
 *.p12
