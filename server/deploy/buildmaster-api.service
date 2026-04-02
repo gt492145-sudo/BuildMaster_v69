@@ -1,0 +1,30 @@
+# BuildMaster API（同機同源 A）：Node 只聽本機 8787，對外由 Nginx 443 反代。
+#
+# 安裝：
+#   1. 整份 repo 放到例如 /var/www/buildmaster（內含 index.html、server/）
+#   2. 在 server 目錄：npm install
+#   3. 建立 /var/www/buildmaster/server/.env（DATABASE_URL、AUTH_SECRET 等，勿提交 git）
+#   4. sudo cp server/deploy/buildmaster-api.service /etc/systemd/system/
+#   5. 若路徑不同，請編輯此檔的 WorkingDirectory、User
+#   6: sudo systemctl daemon-reload && sudo systemctl enable --now buildmaster-api
+#
+[Unit]
+Description=BuildMaster API (Node + static)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/buildmaster/server
+Environment=NODE_ENV=production
+# 機密與 DATABASE_URL 請寫在 WorkingDirectory 下的 .env（由程式 loadDefaultEnv 讀取，勿用 systemd EnvironmentFile 以免 URL 特殊字元被拆壞）
+ExecStart=/usr/bin/node src/index.js
+Restart=on-failure
+RestartSec=5
+
+# 安全：只讀上層專案根（靜態檔在 ../）
+ReadWritePaths=/var/www/buildmaster/server
+
+[Install]
+WantedBy=multi-user.target
