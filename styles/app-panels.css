@@ -196,8 +196,66 @@
     .security-panel { width: min(420px, 92vw); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; background: rgba(12, 22, 38, 0.96); box-shadow: 0 12px 30px rgba(0,0,0,0.35); padding: 16px; }
     .security-panel h3 { margin: 0 0 8px; color: #ffd287; letter-spacing: 0.5px; }
     .security-panel p { margin: 0 0 10px; color: #c4d9ee; font-size: 0.86em; line-height: 1.45; }
+    .billing-block { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.12); }
+    .billing-block-title { color: #9deaff; font-size: 0.82em; font-weight: 700; margin-bottom: 6px; }
+    .billing-block-desc { color: #8aa3bd; font-size: 0.72em; line-height: 1.4; margin: 0 0 8px; }
+    .billing-block-desc--tight { margin-top: -4px; margin-bottom: 8px; opacity: 0.95; }
+    .billing-block-desc code { font-size: 0.95em; color: #c8e6ff; }
+    .billing-tiers-host { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+    .billing-tier-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.78em; }
+    .billing-tier-label { color: #e6f0ff; }
+    .billing-tier-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .billing-link { display: inline-block; padding: 6px 10px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.95em; }
+    .billing-link-stripe { background: linear-gradient(135deg, #635bff, #0a2540); color: #fff; border: 1px solid rgba(255,255,255,0.2); }
+    .billing-iap-hint { color: #a8c6ff; font-size: 0.9em; }
+    .billing-muted { color: #7a8fa3; font-size: 0.75em; margin: 0; }
+    .billing-stripe-session-preview {
+        margin: 0 0 8px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(99, 91, 255, 0.35);
+        background: rgba(16, 22, 42, 0.75);
+    }
+    .billing-stripe-session-preview-label {
+        display: block;
+        font-size: 0.68em;
+        font-weight: 700;
+        color: #a8c6ff;
+        letter-spacing: 0.02em;
+        margin-bottom: 4px;
+    }
+    .billing-stripe-session-preview-code {
+        display: block;
+        font-size: 0.7em;
+        line-height: 1.35;
+        word-break: break-all;
+        color: #dff5ff;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .billing-stripe-session-input { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.82em; }
+    .billing-manual-row { display: flex; flex-direction: column; gap: 8px; }
+    .billing-redeem-btn { width: 100%; }
+
+    .billing-status-chip {
+        max-width: min(46vw, 260px);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        border: 1px solid rgba(167, 139, 250, 0.4) !important;
+        background: rgba(24, 18, 48, 0.55) !important;
+        color: #d4c4ff !important;
+        font-size: 0.72em !important;
+        font-weight: 600;
+    }
     .security-input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.22); background: rgba(4, 10, 20, 0.84); color: #fff; box-sizing: border-box; margin-bottom: 10px; }
     .security-hint { font-size: 0.78em; color: #9fb9d3; min-height: 1.2em; }
+    .security-api-fix-btn { width: 100%; margin: 6px 0 4px; font-size: 0.82em; box-sizing: border-box; }
+    .security-self-delete-btn { width: 100%; margin: 4px 0 4px; font-size: 0.8em; box-sizing: border-box; opacity: 0.96; border-style: dashed; border-color: rgba(255, 140, 140, 0.5); color: #ffd6d6; }
+    .security-self-delete-hint { margin: 0 0 10px; font-size: 0.68em; line-height: 1.35; color: #9a8a8a; }
+    .security-offline-demo-btn { width: 100%; margin: 0 0 10px; font-size: 0.78em; box-sizing: border-box; opacity: 0.92; border-style: dashed; }
+    .security-onboarding-hint { margin: 0 0 10px; font-size: 0.72em; line-height: 1.4; color: #8aa3bd; }
+    .security-api-url-hint { border-left: 3px solid rgba(255, 180, 100, 0.55); padding-left: 10px; color: #c5d4e8; }
+    .security-api-url-hint code { font-size: 0.92em; color: #b8e0ff; }
     .security-watermark { position: fixed; right: 10px; bottom: 10px; z-index: 9997; pointer-events: none; opacity: 0.36; font-size: 11px; color: #d5e7ff; background: rgba(8, 16, 28, 0.55); border: 1px dashed rgba(173, 216, 255, 0.3); border-radius: 6px; padding: 5px 8px; letter-spacing: 0.3px; }
     .price-input { border-color: var(--money) !important; color: var(--money) !important; font-weight: bold; }
     .preview-bar { margin-top: 16px; padding: 16px 18px; background: linear-gradient(180deg, rgba(26, 48, 74, 0.76), rgba(13, 25, 44, 0.88)); border-radius: 16px; border: 1px solid rgba(94, 203, 255, 0.24); font-size: 0.9em; box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.16); }

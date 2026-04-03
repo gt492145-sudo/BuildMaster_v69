@@ -16,6 +16,7 @@ const MEMBER_SELECT_SQL = `
         password_salt,
         feature_overrides,
         can_manage_members,
+        trial_ends_at,
         created_at,
         updated_at
     FROM app_members
@@ -103,6 +104,13 @@ function sanitizeWorkspace(workspace) {
     };
 }
 
+function normalizeTrialEndsAt(value) {
+    if (value == null || value === '') return null;
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString();
+}
+
 function sanitizeUser(user) {
     const base = user && typeof user === 'object' ? user : {};
     return {
@@ -112,6 +120,7 @@ function sanitizeUser(user) {
         passwordSalt: String(base.passwordSalt || base.password_salt || ''),
         featureOverrides: sanitizeFeatureOverrides(base.featureOverrides || base.feature_overrides),
         canManageMembers: !!(base.canManageMembers ?? base.can_manage_members),
+        trialEndsAt: normalizeTrialEndsAt(base.trialEndsAt ?? base.trial_ends_at),
         createdAt: normalizeIsoTimestamp(base.createdAt || base.created_at),
         updatedAt: normalizeIsoTimestamp(base.updatedAt || base.updated_at)
     };
@@ -124,6 +133,7 @@ function sanitizeMemberView(user) {
         level: sanitized.level,
         featureOverrides: sanitizeFeatureOverrides(sanitized.featureOverrides),
         canManageMembers: !!sanitized.canManageMembers,
+        trialEndsAt: sanitized.trialEndsAt,
         updatedAt: sanitized.updatedAt
     };
 }
@@ -179,7 +189,10 @@ function buildPoolConfig(config) {
     const password = String(config.dbPassword || '');
 
     if (!host || !database || !user || !password) {
-        throw new Error('缺少 PostgreSQL 連線設定，請確認 DB_HOST、DB_NAME、DB_USER 與 DB_PASSWORD。');
+        throw new Error(
+            '缺少 PostgreSQL 連線設定：請在 server/.env 或 server/.env.local 設定 DATABASE_URL，'
+            + '或完整設定 DB_HOST、DB_NAME、DB_USER、DB_PASSWORD。'
+        );
     }
 
     return {
@@ -236,6 +249,23 @@ async function ensureStoreReady(config) {
                     CREATE INDEX IF NOT EXISTS app_workspaces_updated_at_idx
                     ON app_workspaces (updated_at DESC)
                 `);
+                await client.query(`
+                    CREATE TABLE IF NOT EXISTS app_shared_auto_interpret_samples (
+                        id BIGSERIAL PRIMARY KEY,
+                        sample JSONB NOT NULL,
+                        contributor_account TEXT NOT NULL DEFAULT '',
+                        source_job_id TEXT NOT NULL DEFAULT '',
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                `);
+                await client.query(`
+                    CREATE INDEX IF NOT EXISTS app_shared_samples_created_idx
+                    ON app_shared_auto_interpret_samples (created_at DESC)
+                `);
+                await client.query(`
+                    ALTER TABLE app_members
+                    ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ
+                `);
                 await client.query('COMMIT');
                 schemaReady = true;
             } catch (error) {
@@ -282,10 +312,11 @@ async function upsertMemberRecord(client, user) {
             password_salt,
             feature_overrides,
             can_manage_members,
+            trial_ends_at,
             created_at,
             updated_at
         )
-        VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7::timestamptz, $8::timestamptz)
+        VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7::timestamptz, $8::timestamptz, $9::timestamptz)
         ON CONFLICT (account)
         DO UPDATE SET
             level = EXCLUDED.level,
@@ -293,6 +324,7 @@ async function upsertMemberRecord(client, user) {
             password_salt = EXCLUDED.password_salt,
             feature_overrides = EXCLUDED.feature_overrides,
             can_manage_members = EXCLUDED.can_manage_members,
+            trial_ends_at = COALESCE(app_members.trial_ends_at, EXCLUDED.trial_ends_at),
             created_at = EXCLUDED.created_at,
             updated_at = EXCLUDED.updated_at
     `, [
@@ -302,6 +334,7 @@ async function upsertMemberRecord(client, user) {
         sanitized.passwordSalt,
         JSON.stringify(sanitized.featureOverrides),
         sanitized.canManageMembers,
+        sanitized.trialEndsAt,
         sanitized.createdAt,
         sanitized.updatedAt
     ]);
@@ -369,6 +402,7 @@ async function ensureDefaultAdmin(db, config) {
         passwordSalt: passwordRecord.salt,
         featureOverrides: { quantumStake: true },
         canManageMembers: true,
+        trialEndsAt: null,
         createdAt: now,
         updatedAt: now
     });
@@ -497,6 +531,7 @@ async function saveMember(db, payload) {
             passwordSalt,
             featureOverrides: hasFeatureOverrides ? featureOverrides : existing.featureOverrides,
             canManageMembers: canManageMembers || existing.canManageMembers,
+            trialEndsAt: existing.trialEndsAt,
             createdAt: existing.createdAt,
             updatedAt: now
         };
@@ -513,6 +548,7 @@ async function saveMember(db, payload) {
         passwordSalt: passwordRecord.salt,
         featureOverrides,
         canManageMembers,
+        trialEndsAt: null,
         createdAt: now,
         updatedAt: now
     };
@@ -525,6 +561,18 @@ async function deleteMember(db, account, currentAccount) {
     const normalized = normalizeAccount(account);
     if (!normalized) throw new Error('會員帳號不可為空');
     if (normalized === normalizeAccount(currentAccount)) throw new Error('不可刪除目前登入帳號');
+    const deletedMember = await db.client.query('DELETE FROM app_members WHERE account = $1', [normalized]);
+    if (deletedMember.rowCount < 1) throw new Error('找不到此會員帳號');
+    await db.client.query('DELETE FROM app_workspaces WHERE account = $1', [normalized]);
+    return normalized;
+}
+
+/** 會員本人憑密碼刪除帳號（App Store 帳號刪除要求用）。 */
+async function deleteOwnAccount(db, account, password) {
+    const normalized = normalizeAccount(account);
+    if (!normalized) throw new Error('會員帳號不可為空');
+    const user = await verifyMemberLogin(db, normalized, String(password || '').trim());
+    if (!user) throw new Error('帳號或密碼錯誤');
     const deletedMember = await db.client.query('DELETE FROM app_members WHERE account = $1', [normalized]);
     if (deletedMember.rowCount < 1) throw new Error('找不到此會員帳號');
     await db.client.query('DELETE FROM app_workspaces WHERE account = $1', [normalized]);
@@ -567,6 +615,31 @@ async function setWorkspaceResource(db, account, resourceName, value) {
     return updatedWorkspace;
 }
 
+async function appendSharedAutoInterpretSample(client, payload) {
+    const sample = payload && payload.sample && typeof payload.sample === 'object' ? payload.sample : null;
+    if (!sample || !sample.vector) return false;
+    const contributor = normalizeAccount(payload.contributorAccount || '');
+    const sourceJobId = String(payload.sourceJobId || '').trim().slice(0, 200);
+    await client.query(
+        `INSERT INTO app_shared_auto_interpret_samples (sample, contributor_account, source_job_id)
+         VALUES ($1::jsonb, $2, $3)`,
+        [JSON.stringify(sample), contributor || 'unknown', sourceJobId]
+    );
+    return true;
+}
+
+async function listSharedAutoInterpretSampleRows(client, limit = 400) {
+    const cap = Math.max(1, Math.min(800, Math.round(Number(limit) || 400)));
+    const result = await client.query(
+        `SELECT sample, contributor_account, source_job_id, created_at
+         FROM app_shared_auto_interpret_samples
+         ORDER BY id DESC
+         LIMIT $1`,
+        [cap]
+    );
+    return result.rows || [];
+}
+
 async function importLegacySnapshot(db, snapshot) {
     const source = snapshot && typeof snapshot === 'object' ? snapshot : {};
     const users = Array.isArray(source.users)
@@ -594,13 +667,16 @@ async function importLegacySnapshot(db, snapshot) {
 }
 
 module.exports = {
+    appendSharedAutoInterpretSample,
     closeStore,
     deleteMember,
+    deleteOwnAccount,
     findUser,
     getWorkspace,
     importLegacySnapshot,
     initializeStore,
     listMembers,
+    listSharedAutoInterpretSampleRows,
     readDb,
     saveMember,
     sanitizeWorkspace,

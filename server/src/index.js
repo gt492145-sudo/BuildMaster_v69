@@ -8,12 +8,36 @@ const { buildEntitlements, clampRequestedLevel, normalizeLevel } = require('./li
 const { calculateAdvancedEstimate, calculateCore } = require('./lib/calc');
 const { buildAutoInterpretMemorySample, callVisionRecognition, clampQaScore, createLearningJob, createLearningReview, persistBlueprintAsset, readAssetAsDataUrl } = require('./lib/learning');
 const { scoreAutoInterpret, scoreBimLayout, scoreMeasurementQa } = require('./lib/qa');
-const { deleteMember, getWorkspace, initializeStore, listMembers, saveMember, sanitizeWorkspace, setWorkspaceResource, updateWorkspace, verifyMemberLogin, withDb } = require('./lib/store');
+const {
+    appendSharedAutoInterpretSample,
+    deleteMember,
+    deleteOwnAccount,
+    getWorkspace,
+    initializeStore,
+    listMembers,
+    listSharedAutoInterpretSampleRows,
+    saveMember,
+    sanitizeWorkspace,
+    setWorkspaceResource,
+    updateWorkspace,
+    verifyMemberLogin,
+    withDb
+} = require('./lib/store');
+const {
+    buildAppleProductLevelMap,
+    buildPriceLevelMap,
+    buildPublicCatalog,
+    computeStripeBillingTtlSeconds,
+    extractStripePriceIdFromSession,
+    postAppleVerifyReceipt,
+    resolveAppleEntitlement,
+    stripeRetrieveCheckoutSession,
+    stripeRetrieveSubscription,
+    verifyStripeWebhookSignature
+} = require('./lib/billing');
 
 const serverRoot = path.resolve(__dirname, '..');
 const projectRoot = path.resolve(serverRoot, '..');
-const TEST_BLUEPRINT_PLACEHOLDER = path.join(serverRoot, 'fixtures', 'test-blueprint-placeholder.png');
-const TEST_BLUEPRINT_URL_RE = /^\/test-blueprint-(?:[1-9]|1[0-5])\.png$/;
 
 loadDefaultEnv(serverRoot);
 
@@ -46,7 +70,23 @@ const config = {
     allowedOrigins: String(process.env.ALLOWED_ORIGINS || '')
         .split(',')
         .map((entry) => entry.trim())
-        .filter(Boolean)
+        .filter(Boolean),
+    stripeSecretKey: String(process.env.STRIPE_SECRET_KEY || '').trim(),
+    stripeWebhookSecret: String(process.env.STRIPE_WEBHOOK_SECRET || '').trim(),
+    stripePublishableKey: String(process.env.STRIPE_PUBLISHABLE_KEY || '').trim(),
+    stripePriceBasic: String(process.env.STRIPE_PRICE_BASIC || '').trim(),
+    stripePriceStandard: String(process.env.STRIPE_PRICE_STANDARD || '').trim(),
+    stripePricePro: String(process.env.STRIPE_PRICE_PRO || '').trim(),
+    stripePaymentLinkBasic: String(process.env.STRIPE_PAYMENT_LINK_BASIC || '').trim(),
+    stripePaymentLinkStandard: String(process.env.STRIPE_PAYMENT_LINK_STANDARD || '').trim(),
+    stripePaymentLinkPro: String(process.env.STRIPE_PAYMENT_LINK_PRO || '').trim(),
+    appleSharedSecret: String(process.env.APPLE_APP_STORE_SHARED_SECRET || '').trim(),
+    appleProductBasic: String(process.env.APPLE_IAP_PRODUCT_BASIC || '').trim(),
+    appleProductStandard: String(process.env.APPLE_IAP_PRODUCT_STANDARD || '').trim(),
+    appleProductPro: String(process.env.APPLE_IAP_PRODUCT_PRO || '').trim(),
+    billingSessionTtlSeconds: Math.max(3600, Number(process.env.BILLING_SESSION_TTL_SECONDS) || 60 * 60 * 24 * 90),
+    billingSessionMaxTtlSeconds: Math.max(86400, Number(process.env.BILLING_SESSION_MAX_TTL_SECONDS) || 60 * 60 * 24 * 366),
+    sharedLearningEnabled: String(process.env.SHARED_LEARNING_ENABLED || '1').trim() !== '0'
 };
 
 const MIME_TYPES = {
@@ -75,9 +115,22 @@ function normalizeAccount(account) {
 function isAllowedOrigin(origin) {
     if (!origin) return false;
     if (config.allowedOrigins.includes(origin)) return true;
+    const originStr = String(origin).trim();
+    // file:// 等 opaque origin 常送 Origin: null；伺服器綁本機時放行以利雙擊 HTML 測試
+    if (
+        originStr === 'null'
+        && (config.host === '127.0.0.1' || config.host === 'localhost' || config.host === '0.0.0.0' || config.host === '::')
+    ) {
+        return true;
+    }
     try {
         const url = new URL(origin);
-        return url.hostname.endsWith('.netlify.app') || url.hostname.endsWith('.github.io');
+        const host = url.hostname.toLowerCase();
+        // 本機任意埠（Live Server、Vite、未寫進 ALLOWED_ORIGINS 的埠）
+        if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1') {
+            return true;
+        }
+        return host.endsWith('.netlify.app') || host.endsWith('.github.io');
     } catch (_error) {
         return false;
     }
@@ -122,6 +175,24 @@ function createHttpError(statusCode, message, errorCode = 'REQUEST_FAILED') {
     return error;
 }
 
+function readRawBodyBuffer(request, maxBytes = 512 * 1024) {
+    return new Promise((resolve, reject) => {
+        const chunks = [];
+        let size = 0;
+        request.on('data', (chunk) => {
+            size += chunk.length;
+            if (size > maxBytes) {
+                reject(new Error('Payload too large'));
+                request.destroy();
+                return;
+            }
+            chunks.push(chunk);
+        });
+        request.on('end', () => resolve(Buffer.concat(chunks)));
+        request.on('error', reject);
+    });
+}
+
 async function readJsonBody(request, maxBytes = 2 * 1024 * 1024) {
     return new Promise((resolve, reject) => {
         let size = 0;
@@ -156,27 +227,38 @@ function getBearerToken(request) {
     return header.slice(7).trim();
 }
 
-function getSessionFromRequest(request) {
-    const token = getBearerToken(request);
-    const payload = verifySessionToken(token, config.authSecret);
-    if (!payload) return null;
+const LOGIN_SESSION_TTL_SECONDS = 60 * 60 * 12;
+
+function sessionFromVerifiedPayload(payload) {
+    if (!payload || typeof payload !== 'object') return null;
     const sessionType = String(payload.sessionType || 'access');
     const grantedLevel = sessionType === 'access'
         ? normalizeLevel(config.accessLevel || 'basic')
         : normalizeLevel(payload.userLevel || 'basic');
+    const rawExp = Number(payload.exp);
+    const tokenExp = Number.isFinite(rawExp) && rawExp > 0 ? rawExp : 0;
     return {
         account: normalizeAccount(payload.account || 'access'),
         featureOverrides: payload.featureOverrides && typeof payload.featureOverrides === 'object' ? payload.featureOverrides : {},
         sessionType,
         userLevel: grantedLevel,
-        canManageMembers: !!payload.canManageMembers
+        canManageMembers: !!payload.canManageMembers,
+        tokenExp,
+        billing: payload.billing && typeof payload.billing === 'object' ? payload.billing : null
     };
+}
+
+function getSessionFromRequest(request) {
+    const token = getBearerToken(request);
+    const payload = verifySessionToken(token, config.authSecret);
+    if (!payload) return null;
+    return sessionFromVerifiedPayload(payload);
 }
 
 function buildSessionView(session) {
     const grantedLevel = normalizeLevel(session.userLevel);
     const requestedLevel = clampRequestedLevel(session.requestedLevel || grantedLevel, grantedLevel);
-    return {
+    const view = {
         account: normalizeAccount(session.account || 'access'),
         canManageMembers: !!session.canManageMembers,
         entitlements: buildEntitlements(grantedLevel, session.featureOverrides),
@@ -189,6 +271,13 @@ function buildSessionView(session) {
         sessionType: String(session.sessionType || 'access'),
         userLevel: grantedLevel
     };
+    if (Number(session.tokenExp) > 0) {
+        view.accessExpiresAt = new Date(session.tokenExp * 1000).toISOString();
+    }
+    if (session.billing && typeof session.billing === 'object') {
+        view.billing = session.billing;
+    }
+    return view;
 }
 
 function requireAuth(request, response) {
@@ -221,39 +310,54 @@ async function handleLogin(request, response) {
     }
 
     let sessionPayload = null;
-    await withDb(config, async (db) => {
-        const member = account ? await verifyMemberLogin(db, account, password) : null;
-        if (member) {
-            sessionPayload = {
-                account: member.account,
-                canManageMembers: !!member.canManageMembers,
-                featureOverrides: member.featureOverrides || {},
-                sessionType: 'member',
-                userLevel: normalizeLevel(member.level)
-            };
+    // 存取碼登入不依賴資料庫；密碼與存取碼一致時一律走此路徑（避免會員帳號欄誤填導致永遠登不進）。
+    if (hashText(password) === hashText(config.accessCode)) {
+        sessionPayload = {
+            account: 'access',
+            canManageMembers: false,
+            featureOverrides: {},
+            sessionType: 'access',
+            userLevel: config.accessLevel
+        };
+    } else if (account) {
+        try {
+            await withDb(config, async (db) => {
+                const member = await verifyMemberLogin(db, account, password);
+                if (member) {
+                    sessionPayload = {
+                        account: member.account,
+                        canManageMembers: !!member.canManageMembers,
+                        featureOverrides: member.featureOverrides || {},
+                        sessionType: 'member',
+                        userLevel: normalizeLevel(member.level)
+                    };
+                }
+            });
+        } catch (error) {
+            console.error('BuildMaster login DB error', error);
+            sendJson(response, 503, {
+                error: 'STORE_UNAVAILABLE',
+                message: '會員登入需要資料庫連線，請稍後再試或確認伺服器設定。'
+            }, request);
             return;
         }
-        if (account) return;
-        if (hashText(password) === hashText(config.accessCode)) {
-            sessionPayload = {
-                account: 'access',
-                canManageMembers: false,
-                featureOverrides: {},
-                sessionType: 'access',
-                userLevel: config.accessLevel
-            };
-        }
-    });
+    }
 
     if (!sessionPayload) {
         sendJson(response, 401, { error: 'LOGIN_FAILED', message: account ? '會員帳號或密碼錯誤。' : '存取碼錯誤。' }, request);
         return;
     }
 
-    const token = createSessionToken(sessionPayload, config.authSecret);
+    sessionPayload.billing = {
+        source: sessionPayload.sessionType === 'member' ? 'password' : 'access_code',
+        hasSubscriptionExpiry: false
+    };
+    const token = createSessionToken(sessionPayload, config.authSecret, LOGIN_SESSION_TTL_SECONDS);
+    const verified = verifySessionToken(token, config.authSecret);
+    const session = sessionFromVerifiedPayload(verified);
     sendJson(response, 200, {
         token,
-        ...buildSessionView(sessionPayload)
+        ...buildSessionView(session)
     }, request);
 }
 
@@ -273,6 +377,187 @@ async function handleAuthorizeFeature(request, response) {
     const session = requireFeature(request, response, feature);
     if (!session) return;
     sendJson(response, 200, { allowed: true, feature }, request);
+}
+
+function billingSubscriberAccount(emailHint, fallbackId) {
+    const raw = String(emailHint || '').trim().toLowerCase();
+    const cleaned = raw.replace(/[^a-z0-9@._-]+/g, '_').slice(0, 80);
+    if (cleaned) return normalizeAccount(cleaned);
+    return normalizeAccount(`subscriber_${fallbackId}`);
+}
+
+async function handleBillingCatalog(request, response) {
+    sendJson(response, 200, buildPublicCatalog(config), request);
+}
+
+async function handleStripeRedeem(request, response) {
+    if (!config.stripeSecretKey) {
+        sendJson(response, 503, { error: 'STRIPE_DISABLED', message: '尚未設定 STRIPE_SECRET_KEY。' }, request);
+        return;
+    }
+    const body = await readJsonBody(request);
+    const sessionId = String(body.sessionId || '').trim();
+    if (!sessionId.startsWith('cs_')) {
+        sendJson(response, 400, { error: 'INVALID_SESSION', message: '請提供有效的 Stripe Checkout Session ID（cs_ 開頭）。' }, request);
+        return;
+    }
+    const priceMap = buildPriceLevelMap(config);
+    if (!Object.keys(priceMap).length) {
+        sendJson(response, 503, { error: 'STRIPE_PRICES_UNSET', message: '請在環境變數設定 STRIPE_PRICE_BASIC 等 Price ID。' }, request);
+        return;
+    }
+    let stripeSession;
+    try {
+        stripeSession = await stripeRetrieveCheckoutSession(config.stripeSecretKey, sessionId);
+    } catch (error) {
+        console.warn('Stripe session retrieve failed', error && error.message);
+        sendJson(response, 400, { error: 'STRIPE_SESSION_FAILED', message: error.message || '無法向 Stripe 查詢付款狀態。' }, request);
+        return;
+    }
+    if (String(stripeSession.payment_status || '') !== 'paid') {
+        sendJson(response, 400, { error: 'NOT_PAID', message: '此筆尚未完成付款。' }, request);
+        return;
+    }
+    const priceId = extractStripePriceIdFromSession(stripeSession);
+    const userLevel = priceMap[priceId];
+    if (!userLevel) {
+        sendJson(response, 400, {
+            error: 'UNKNOWN_PRICE',
+            message: '此付款使用的價格 ID 未對應到會員等級，請檢查 Stripe Price 與環境變數。',
+            priceId
+        }, request);
+        return;
+    }
+    const email =
+        (stripeSession.customer_details && stripeSession.customer_details.email) ||
+        stripeSession.customer_email ||
+        '';
+    const account = billingSubscriberAccount(email, sessionId.replace(/[^a-z0-9]/gi, '').slice(-12) || 'stripe');
+    let subscriptionObj = stripeSession.subscription && typeof stripeSession.subscription === 'object'
+        ? stripeSession.subscription
+        : null;
+    if (!subscriptionObj && typeof stripeSession.subscription === 'string' && stripeSession.subscription.startsWith('sub_')) {
+        try {
+            subscriptionObj = await stripeRetrieveSubscription(config.stripeSecretKey, stripeSession.subscription);
+        } catch (err) {
+            console.warn('Stripe subscription fetch failed', err && err.message);
+        }
+    }
+    const ttlResult = computeStripeBillingTtlSeconds(stripeSession, subscriptionObj, config);
+    if (ttlResult.error) {
+        sendJson(response, 400, { error: ttlResult.error, message: ttlResult.message || '無法核發通行證。' }, request);
+        return;
+    }
+    const ttlSeconds = ttlResult.ttlSeconds;
+    const sessionPayload = {
+        account,
+        canManageMembers: false,
+        featureOverrides: {},
+        sessionType: 'member',
+        userLevel: normalizeLevel(userLevel),
+        billing: {
+            source: 'stripe',
+            mode: String(stripeSession.mode || ''),
+            ttlSeconds,
+            hasSubscriptionExpiry: String(stripeSession.mode || '') === 'subscription'
+        }
+    };
+    const token = createSessionToken(sessionPayload, config.authSecret, ttlSeconds);
+    const verified = verifySessionToken(token, config.authSecret);
+    const session = sessionFromVerifiedPayload(verified);
+    sendJson(response, 200, {
+        token,
+        ...buildSessionView(session)
+    }, request);
+}
+
+async function handleStripeWebhook(request, response) {
+    if (!config.stripeWebhookSecret) {
+        sendText(response, 503, 'Webhook 未啟用', request);
+        return;
+    }
+    const sig = String(request.headers['stripe-signature'] || '');
+    let raw;
+    try {
+        raw = await readRawBodyBuffer(request, 512 * 1024);
+    } catch (_error) {
+        sendText(response, 400, 'Bad body', request);
+        return;
+    }
+    if (!verifyStripeWebhookSignature(raw, sig, config.stripeWebhookSecret)) {
+        sendText(response, 400, 'Invalid signature', request);
+        return;
+    }
+    let event;
+    try {
+        event = JSON.parse(raw.toString('utf8'));
+    } catch (_error) {
+        sendText(response, 400, 'Invalid JSON', request);
+        return;
+    }
+    if (event && event.type === 'checkout.session.completed') {
+        const sid = event.data && event.data.object && event.data.object.id;
+        console.log('[billing] checkout.session.completed', sid || '(no id)');
+    }
+    response.writeHead(200, { 'Content-Type': 'text/plain' });
+    response.end('ok');
+}
+
+async function handleAppleRedeem(request, response) {
+    if (!config.appleSharedSecret) {
+        sendJson(response, 503, { error: 'APPLE_IAP_DISABLED', message: '尚未設定 APPLE_APP_STORE_SHARED_SECRET。' }, request);
+        return;
+    }
+    const body = await readJsonBody(request);
+    const receiptBase64 = String(body.receiptBase64 || body.receiptData || '').trim();
+    if (!receiptBase64) {
+        sendJson(response, 400, { error: 'RECEIPT_REQUIRED', message: '請提供 receipt-base64（App 收據）。' }, request);
+        return;
+    }
+    const productMap = buildAppleProductLevelMap(config);
+    if (!Object.keys(productMap).length) {
+        sendJson(response, 503, { error: 'APPLE_PRODUCTS_UNSET', message: '請設定 APPLE_IAP_PRODUCT_BASIC 等產品 ID。' }, request);
+        return;
+    }
+    let { json } = await postAppleVerifyReceipt(receiptBase64, config.appleSharedSecret, true);
+    if (Number(json.status) === 21007) {
+        ({ json } = await postAppleVerifyReceipt(receiptBase64, config.appleSharedSecret, false));
+    }
+    if (Number(json.status) !== 0) {
+        sendJson(response, 400, { error: 'APPLE_VERIFY_FAILED', status: json.status, message: 'Apple 收據驗證未通過。' }, request);
+        return;
+    }
+    const resolved = resolveAppleEntitlement(json, productMap, config);
+    if (resolved.error) {
+        sendJson(response, 400, {
+            error: resolved.error,
+            message: resolved.message || '無法核發通行證。'
+        }, request);
+        return;
+    }
+    const userLevel = resolved.userLevel;
+    const productId = resolved.productId || 'apple';
+    const account = billingSubscriberAccount('', String(productId).replace(/[^a-z0-9]/gi, '').slice(-14) || 'apple');
+    const ttlSeconds = resolved.ttlSeconds;
+    const sessionPayload = {
+        account,
+        canManageMembers: false,
+        featureOverrides: {},
+        sessionType: 'member',
+        userLevel: normalizeLevel(userLevel),
+        billing: {
+            source: 'apple',
+            ttlSeconds,
+            hasSubscriptionExpiry: resolved.hasSubscriptionExpiry === true
+        }
+    };
+    const token = createSessionToken(sessionPayload, config.authSecret, ttlSeconds);
+    const verified = verifySessionToken(token, config.authSecret);
+    const session = sessionFromVerifiedPayload(verified);
+    sendJson(response, 200, {
+        token,
+        ...buildSessionView(session)
+    }, request);
 }
 
 async function handleWorkspaceBootstrap(request, response) {
@@ -344,6 +629,34 @@ async function handleDeleteMember(request, response, account) {
     }
 }
 
+/** POST /api/account/self-delete — 會員憑帳號+密碼刪除自己（登入頁／審核用）。 */
+async function handleSelfDeleteAccount(request, response) {
+    const body = await readJsonBody(request);
+    const account = normalizeAccount(body.account);
+    const password = String(body.password || '').trim();
+    if (!account) {
+        sendJson(response, 400, { error: 'ACCOUNT_REQUIRED', message: '請提供會員帳號。' }, request);
+        return;
+    }
+    if (!password) {
+        sendJson(response, 400, { error: 'PASSWORD_REQUIRED', message: '請提供會員密碼以確認刪除。' }, request);
+        return;
+    }
+    try {
+        const deleted = await withDb(config, async (db) => deleteOwnAccount(db, account, password));
+        sendJson(response, 200, { ok: true, deleted }, request);
+    } catch (error) {
+        console.warn('Self-delete account failed', error && error.message);
+        sendJson(response, 400, { error: 'SELF_DELETE_FAILED', message: error.message || '刪除失敗。' }, request);
+    }
+}
+
+/**
+ * POST /api/ai/coach — AI 解說員（僅後端代理，瀏覽器不直連 OpenAI）。
+ * 前端通常送 { prompt, context?, model? }；此處組成 Chat Completions 請求體（model、messages、temperature），
+ * 再以 Bearer OPENAI_API_KEY POST 至 OPENAI_ENDPOINT（預設 https://api.openai.com/v1/chat/completions）。
+ * 上游須回傳 OpenAI 相容的 JSON（choices[0].message.content）。另需 OPENAI_ENABLED=true 才會轉發。
+ */
 async function handleAiCoach(request, response) {
     const session = requireFeature(request, response, 'aiCoach');
     if (!session) return;
@@ -645,13 +958,30 @@ async function runAutoInterpretLearningJob(account, jobId) {
                         nextJob.reviewRequiredAt = new Date().toISOString();
                         return {
                             job: nextJob,
-                            review: createLearningReview(nextJob, 'pending', '已達重跑上限，待人工審核')
+                            review: createLearningReview(nextJob, 'pending', '已達重跑上限，待人工審核（審核通過後才會寫入核心記憶；可選發布至全站共用池）')
                         };
                     }
                     return { job: nextJob };
                 });
                 jobs = snapshot.autoInterpretLearningJobs || [];
                 currentJob = jobs.find((item) => String(item && item.jobId || '') === String(jobId)) || currentJob;
+                if (currentJob && currentJob.status === 'completed' && currentJob.publishToSharedOnSuccess && config.sharedLearningEnabled) {
+                    const shareAsset = (snapshot.blueprintLearningAssets || []).find((item) => String(item && item.assetId || '') === String(currentJob.assetId || '')) || asset;
+                    const shareSample = buildAutoInterpretMemorySample(currentJob, shareAsset);
+                    if (shareSample && shareSample.vector) {
+                        try {
+                            await withDb(config, async (db) => {
+                                await appendSharedAutoInterpretSample(db.client, {
+                                    sample: shareSample,
+                                    contributorAccount: account,
+                                    sourceJobId: String(jobId || '')
+                                });
+                            });
+                        } catch (shareErr) {
+                            console.warn('[learning] shared pool append (auto) failed', shareErr && shareErr.message);
+                        }
+                    }
+                }
                 if (currentJob.status !== 'running') break;
             }
         } catch (error) {
@@ -671,6 +1001,27 @@ async function runAutoInterpretLearningJob(account, jobId) {
     return task;
 }
 
+async function handleGetSharedAutoInterpretMemory(request, response) {
+    const session = requireFeature(request, response, 'blueprintAutoInterpret');
+    if (!session) return;
+    if (!config.sharedLearningEnabled) {
+        sendJson(response, 200, { samples: [], sharedLearningEnabled: false }, request);
+        return;
+    }
+    const rows = await withDb(config, async (db) => listSharedAutoInterpretSampleRows(db.client, 500));
+    const chronological = rows.slice().reverse();
+    let merged = [];
+    chronological.forEach((row) => {
+        const sample = row && row.sample && typeof row.sample === 'object' ? row.sample : null;
+        if (sample) merged = mergeAutoInterpretMemory(merged, sample);
+    });
+    sendJson(response, 200, {
+        samples: merged,
+        sharedLearningEnabled: true,
+        sourceRows: rows.length
+    }, request);
+}
+
 async function handleCreateAutoInterpretLearningJob(request, response) {
     const session = requireFeature(request, response, 'blueprintAutoInterpret');
     if (!session) return;
@@ -685,7 +1036,8 @@ async function handleCreateAutoInterpretLearningJob(request, response) {
         if (!asset) throw createHttpError(404, '找不到對應圖紙資產', 'LEARNING_ASSET_NOT_FOUND');
         createdJob = createLearningJob(asset, {
             thresholdScore: body.thresholdScore,
-            maxAttempts: body.maxAttempts
+            maxAttempts: body.maxAttempts,
+            publishToSharedOnSuccess: !!body.publishToSharedOnSuccess && config.sharedLearningEnabled
         });
         current.autoInterpretLearningJobs = upsertByKey(current.autoInterpretLearningJobs, 'jobId', createdJob, 160);
         return current;
@@ -719,6 +1071,8 @@ async function handleReviewAutoInterpretLearningJob(request, response, jobId) {
     if (!['approved', 'rejected'].includes(decision)) {
         throw createHttpError(400, '審核決策僅支援 approved 或 rejected。', 'INVALID_REVIEW_DECISION');
     }
+    const publishToSharedPool = !!body.publishToSharedPool && config.sharedLearningEnabled;
+    let sharedSampleToPublish = null;
     const workspace = await updateLearningJobSnapshot(session.account, jobId, ({ job, asset }) => {
         const overrideReport = {
             ...(job.bestReport || {}),
@@ -738,14 +1092,31 @@ async function handleReviewAutoInterpretLearningJob(request, response, jobId) {
             completedAt: job.completedAt || new Date().toISOString()
         };
         const nextReview = createLearningReview(nextJob, decision, String(body.note || '').trim());
+        const mem = decision === 'approved' ? buildAutoInterpretMemorySample(nextJob, asset) : null;
+        if (mem && mem.vector && publishToSharedPool) {
+            sharedSampleToPublish = mem;
+        }
         return {
             job: nextJob,
             review: nextReview,
-            memorySample: decision === 'approved' ? buildAutoInterpretMemorySample(nextJob, asset) : null
+            memorySample: mem
         };
     });
+    if (sharedSampleToPublish) {
+        try {
+            await withDb(config, async (db) => {
+                await appendSharedAutoInterpretSample(db.client, {
+                    sample: sharedSampleToPublish,
+                    contributorAccount: session.account,
+                    sourceJobId: String(jobId || '')
+                });
+            });
+        } catch (shareErr) {
+            console.warn('[learning] shared pool append (review) failed', shareErr && shareErr.message);
+        }
+    }
     const job = (workspace.autoInterpretLearningJobs || []).find((item) => String(item && item.jobId || '') === String(jobId || '')) || null;
-    sendJson(response, 200, { ok: true, job }, request);
+    sendJson(response, 200, { ok: true, job, publishedToSharedPool: !!sharedSampleToPublish }, request);
 }
 
 function isAllowedStaticPath(pathname) {
@@ -754,15 +1125,14 @@ function isAllowedStaticPath(pathname) {
         pathname === '/stake.html' ||
         pathname === '/site.webmanifest' ||
         pathname === '/service-worker.js' ||
-        pathname === '/favicon.ico' ||
         pathname === '/favicon-32.png' ||
         pathname === '/apple-touch-icon.png' ||
         pathname === '/icon-192.png' ||
         pathname === '/icon-512.png' ||
-        pathname === '/app.css' ||
+        pathname === '/logo.png' ||
         pathname === '/logo-app.png' ||
         pathname === '/app-wallpaper.jpg' ||
-        TEST_BLUEPRINT_URL_RE.test(pathname) ||
+        /^\/test-blueprint-(?:[1-9]|1[0-5])\.png$/.test(pathname) ||
         pathname === '/bm-auto-test.js' ||
         pathname.startsWith('/scripts/') ||
         pathname.startsWith('/styles/') ||
@@ -774,7 +1144,7 @@ async function serveStatic(request, response, pathname) {
     if (!isAllowedStaticPath(pathname)) return false;
 
     const normalizedPath = pathname === '/' ? '/index.html' : pathname;
-    const absolutePath = path.normalize(path.join(projectRoot, normalizedPath.slice(1)));
+    const absolutePath = path.normalize(path.join(projectRoot, normalizedPath));
     if (!absolutePath.startsWith(projectRoot)) {
         sendText(response, 403, 'Forbidden', request);
         return true;
@@ -794,24 +1164,6 @@ async function serveStatic(request, response, pathname) {
         response.end(data);
         return true;
     } catch (_error) {
-        if (TEST_BLUEPRINT_URL_RE.test(pathname)) {
-            try {
-                const fallback = await fs.readFile(TEST_BLUEPRINT_PLACEHOLDER);
-                response.writeHead(200, {
-                    ...buildCorsHeaders(request),
-                    'Cache-Control': 'public, max-age=300',
-                    'Content-Type': 'image/png'
-                });
-                if (request.method === 'HEAD') {
-                    response.end();
-                    return true;
-                }
-                response.end(fallback);
-                return true;
-            } catch (_fallbackErr) {
-                // fall through to 404
-            }
-        }
         sendText(response, 404, 'Not Found', request);
         return true;
     }
@@ -827,8 +1179,17 @@ async function routeRequest(request, response) {
         return;
     }
 
+    if (pathname === '/api/health' && request.method === 'GET') {
+        sendJson(response, 200, { ok: true, service: 'buildmaster-api' }, request);
+        return;
+    }
+
     if (pathname === '/api/auth/login' && request.method === 'POST') {
         await handleLogin(request, response);
+        return;
+    }
+    if (pathname === '/api/account/self-delete' && request.method === 'POST') {
+        await handleSelfDeleteAccount(request, response);
         return;
     }
     if (pathname === '/api/me' && request.method === 'GET') {
@@ -837,6 +1198,22 @@ async function routeRequest(request, response) {
     }
     if (pathname === '/api/features/authorize' && request.method === 'POST') {
         await handleAuthorizeFeature(request, response);
+        return;
+    }
+    if (pathname === '/api/billing/catalog' && request.method === 'GET') {
+        await handleBillingCatalog(request, response);
+        return;
+    }
+    if (pathname === '/api/billing/stripe/redeem' && request.method === 'POST') {
+        await handleStripeRedeem(request, response);
+        return;
+    }
+    if (pathname === '/api/billing/stripe/webhook' && request.method === 'POST') {
+        await handleStripeWebhook(request, response);
+        return;
+    }
+    if (pathname === '/api/billing/apple/redeem' && request.method === 'POST') {
+        await handleAppleRedeem(request, response);
         return;
     }
     if (pathname === '/api/data/bootstrap' && request.method === 'GET') {
@@ -889,6 +1266,10 @@ async function routeRequest(request, response) {
         await handleAutoInterpretQa(request, response);
         return;
     }
+    if (pathname === '/api/learning/shared-memory' && request.method === 'GET') {
+        await handleGetSharedAutoInterpretMemory(request, response);
+        return;
+    }
     if (pathname === '/api/learning/blueprints/upload' && request.method === 'POST') {
         await handleBlueprintLearningUpload(request, response);
         return;
@@ -924,13 +1305,18 @@ const server = http.createServer(async (request, response) => {
     }
 });
 
-initializeStore(config)
-    .then(() => {
-        server.listen(config.port, config.host, () => {
-            console.log(`BuildMaster security API listening on http://${config.host}:${config.port}`);
+server.listen(config.port, config.host, () => {
+    const origin = `http://${config.host}:${config.port}`;
+    console.log(`BuildMaster security API listening on ${origin}`);
+    console.log(`Open ${origin}/index.html in your browser.`);
+    initializeStore(config)
+        .then(() => {
+            console.log('[buildmaster] PostgreSQL 已連線，工作區同步可用。');
+        })
+        .catch((error) => {
+            console.error(
+                '[buildmaster] PostgreSQL 尚未就緒（伺服器仍運行中）。存取碼登入可用；/api/data/bootstrap 與會員功能需資料庫：',
+                error && error.message ? error.message : error
+            );
         });
-    })
-    .catch((error) => {
-        console.error('BuildMaster API startup failed', error);
-        process.exit(1);
-    });
+});
