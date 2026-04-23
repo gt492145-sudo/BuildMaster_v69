@@ -429,6 +429,23 @@
         } catch (_e) {}
     }
 
+    function describeRuntimeError(error) {
+        if (!error) return '(unknown error)';
+        if (typeof error === 'string') return error;
+        if (error instanceof Error) return `${error.name}: ${error.message}`;
+        if (typeof error === 'object') {
+            const name = error.name ? `${error.name}: ` : '';
+            const message = error.message ? String(error.message) : '';
+            if (name || message) return `${name}${message}`.trim();
+            try {
+                return JSON.stringify(error);
+            } catch (_e) {
+                return String(error);
+            }
+        }
+        return String(error);
+    }
+
     function updateLaserChaosChip() {
         const chip = document.getElementById('laserChaosChip');
         if (!chip) return;
@@ -474,12 +491,12 @@
         resilienceGuardsBound = true;
         window.addEventListener('error', event => {
             resilienceState.globalErrors += 1;
-            console.error('全域錯誤', event.error || event.message || event);
+            console.error('全域錯誤', describeRuntimeError(event.error || event.message || event));
             safeToast('偵測到執行異常，已啟用保護模式。');
         });
         window.addEventListener('unhandledrejection', event => {
             resilienceState.globalErrors += 1;
-            console.error('未處理的非同步錯誤', event.reason || event);
+            console.error('未處理的非同步錯誤', describeRuntimeError(event.reason || event));
             safeToast('偵測到非同步異常，已自動降級部分功能。');
         });
     }
@@ -522,7 +539,7 @@
         }
 
         resilienceState.networkErrors += 1;
-        console.warn('網路請求重試後仍失敗', url, lastError);
+        console.warn('網路請求重試後仍失敗', url, describeRuntimeError(lastError));
         throw lastError || new Error('Network request failed');
     }
 

@@ -713,6 +713,23 @@
         } catch (_e) {}
     }
 
+    function describeRuntimeError(error) {
+        if (!error) return '(unknown error)';
+        if (typeof error === 'string') return error;
+        if (error instanceof Error) return `${error.name}: ${error.message}`;
+        if (typeof error === 'object') {
+            const name = error.name ? `${error.name}: ` : '';
+            const message = error.message ? String(error.message) : '';
+            if (name || message) return `${name}${message}`.trim();
+            try {
+                return JSON.stringify(error);
+            } catch (_e) {
+                return String(error);
+            }
+        }
+        return String(error);
+    }
+
     function updateLaserChaosChip() {
         const chip = document.getElementById('laserChaosChip');
         if (!chip) return;
@@ -758,12 +775,12 @@
         resilienceGuardsBound = true;
         window.addEventListener('error', event => {
             resilienceState.globalErrors += 1;
-            console.error('全域錯誤', event.error || event.message || event);
+            console.error('全域錯誤', describeRuntimeError(event.error || event.message || event));
             safeToast('偵測到執行異常，已啟用保護模式。');
         });
         window.addEventListener('unhandledrejection', event => {
             resilienceState.globalErrors += 1;
-            console.error('未處理的非同步錯誤', event.reason || event);
+            console.error('未處理的非同步錯誤', describeRuntimeError(event.reason || event));
             safeToast('偵測到非同步異常，已自動降級部分功能。');
         });
     }
@@ -806,7 +823,7 @@
         }
 
         resilienceState.networkErrors += 1;
-        console.warn('網路請求重試後仍失敗', url, lastError);
+        console.warn('網路請求重試後仍失敗', url, describeRuntimeError(lastError));
         throw lastError || new Error('Network request failed');
     }
 
@@ -2593,9 +2610,42 @@
 
 /* === scripts/billing/membership-billing.js === */
 (function () {
+    function describeError(error) {
+        if (!error) return '(unknown error)';
+        if (typeof error === 'string') return error;
+        if (error instanceof Error) return `${error.name}: ${error.message}`;
+        if (typeof error === 'object') {
+            const name = error.name ? `${error.name}: ` : '';
+            const message = error.message ? String(error.message) : '';
+            if (name || message) return `${name}${message}`.trim();
+            try {
+                return JSON.stringify(error);
+            } catch (_e) {
+                return String(error);
+            }
+        }
+        return String(error);
+    }
+
+    function isCapacitorIos() {
+        try {
+            const cap = typeof window !== 'undefined' ? window.Capacitor : null;
+            return !!(cap && typeof cap.getPlatform === 'function' && String(cap.getPlatform()) === 'ios');
+        } catch (_e) {
+            return false;
+        }
+    }
+
     function normalizeApiBase() {
         try {
-            const raw = String(localStorage.getItem('bm_69:api_base_url') || '/api').trim();
+            let explicit = null;
+            try {
+                explicit = localStorage.getItem('bm_69:api_base_url');
+            } catch (_e) {
+                explicit = null;
+            }
+            const fallback = isCapacitorIos() ? 'https://wenwenming.com' : '/api';
+            const raw = String(explicit !== null && explicit !== '' ? explicit : fallback).trim();
             if (!raw || raw === '/') return '/api';
             if (/^https?:\/\/[^/]+$/i.test(raw)) return `${raw.replace(/\/+$/g, '')}/api`;
             return raw.replace(/\/+$/g, '');
@@ -2764,15 +2814,24 @@
     async function initBillingPanel() {
         const tiersHost = document.getElementById('billingTiersHost');
         if (tiersHost) {
-            const catalog = await fetchCatalog();
-            if (catalog) renderTierButtons(tiersHost, catalog);
+            try {
+                const catalog = await fetchCatalog();
+                if (catalog) {
+                    renderTierButtons(tiersHost, catalog);
+                } else {
+                    tiersHost.innerHTML = '<p class="billing-muted">付款方案讀取中斷，仍可手動貼上 Session ID 兌換。</p>';
+                }
+            } catch (error) {
+                console.warn('billing catalog unavailable', describeError(error));
+                tiersHost.innerHTML = '<p class="billing-muted">付款方案暫時無法連線，仍可手動貼上 Session ID 兌換。</p>';
+            }
         }
         bindManualRedeem();
         await tryAutoRedeemStripe();
     }
 
     function boot() {
-        initBillingPanel().catch((e) => console.warn('billing ui', e));
+        initBillingPanel().catch((e) => console.warn('billing ui', describeError(e)));
     }
 
     window.BuildMasterBilling = {

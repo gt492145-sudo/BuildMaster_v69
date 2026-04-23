@@ -1,4 +1,21 @@
 (function () {
+    function describeError(error) {
+        if (!error) return '(unknown error)';
+        if (typeof error === 'string') return error;
+        if (error instanceof Error) return `${error.name}: ${error.message}`;
+        if (typeof error === 'object') {
+            const name = error.name ? `${error.name}: ` : '';
+            const message = error.message ? String(error.message) : '';
+            if (name || message) return `${name}${message}`.trim();
+            try {
+                return JSON.stringify(error);
+            } catch (_e) {
+                return String(error);
+            }
+        }
+        return String(error);
+    }
+
     function isCapacitorIos() {
         try {
             const cap = typeof window !== 'undefined' ? window.Capacitor : null;
@@ -196,15 +213,24 @@
     async function initBillingPanel() {
         const tiersHost = document.getElementById('billingTiersHost');
         if (tiersHost) {
-            const catalog = await fetchCatalog();
-            if (catalog) renderTierButtons(tiersHost, catalog);
+            try {
+                const catalog = await fetchCatalog();
+                if (catalog) {
+                    renderTierButtons(tiersHost, catalog);
+                } else {
+                    tiersHost.innerHTML = '<p class="billing-muted">付款方案讀取中斷，仍可手動貼上 Session ID 兌換。</p>';
+                }
+            } catch (error) {
+                console.warn('billing catalog unavailable', describeError(error));
+                tiersHost.innerHTML = '<p class="billing-muted">付款方案暫時無法連線，仍可手動貼上 Session ID 兌換。</p>';
+            }
         }
         bindManualRedeem();
         await tryAutoRedeemStripe();
     }
 
     function boot() {
-        initBillingPanel().catch((e) => console.warn('billing ui', e));
+        initBillingPanel().catch((e) => console.warn('billing ui', describeError(e)));
     }
 
     window.BuildMasterBilling = {
