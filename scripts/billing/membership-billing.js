@@ -29,8 +29,9 @@
             const fallback = getDefaultApiBaseForBilling();
             const raw = String(explicit !== null && explicit !== '' ? explicit : fallback).trim();
             if (!raw || raw === '/') return '/api';
-            if (/^https?:\/\/[^/]+$/i.test(raw)) return `${raw.replace(/\/+$/g, '')}/api`;
-            return raw.replace(/\/+$/g, '');
+            const normalized = raw.replace(/\/+$/g, '');
+            if (/^https?:\/\/[^/]+$/i.test(normalized)) return `${normalized}/api`;
+            return normalized;
         } catch (_e) {
             return '/api';
         }

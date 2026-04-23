@@ -537,8 +537,9 @@
     function normalizeApiBaseUrl(rawBase) {
         const raw = String(rawBase || '').trim();
         if (!raw || raw === '/') return '/api';
-        if (/^https?:\/\/[^/]+$/i.test(raw)) return `${raw}/api`;
-        return raw.replace(/\/+$/g, '');
+        const normalized = raw.replace(/\/+$/g, '');
+        if (/^https?:\/\/[^/]+$/i.test(normalized)) return `${normalized}/api`;
+        return normalized;
     }
 
     function getDefaultApiBaseForRuntime() {
