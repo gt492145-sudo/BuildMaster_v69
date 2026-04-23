@@ -1143,7 +1143,11 @@ async function serveStatic(request, response, pathname) {
     if (request.method !== 'GET' && request.method !== 'HEAD') return false;
     if (!isAllowedStaticPath(pathname)) return false;
 
-    const normalizedPath = pathname === '/' ? '/index.html' : pathname;
+    let normalizedPath = pathname === '/' ? '/index.html' : pathname;
+    // Backward compatibility: keep legacy logo URL working after asset rename.
+    if (normalizedPath === '/logo.png') {
+        normalizedPath = '/logo-app.png';
+    }
     const absolutePath = path.normalize(path.join(projectRoot, normalizedPath));
     if (!absolutePath.startsWith(projectRoot)) {
         sendText(response, 403, 'Forbidden', request);
