@@ -1139,11 +1139,20 @@ function isAllowedStaticPath(pathname) {
         /^\/prices(?:-[a-z]+)?\.json$/i.test(pathname);
 }
 
+function resolveStaticPath(pathname) {
+    const normalizedPath = pathname === '/' ? '/index.html' : pathname;
+    // 舊版仍可能請求 /logo.png，若檔案不存在就回退至現有 logo-app.png。
+    if (normalizedPath === '/logo.png') {
+        return '/logo-app.png';
+    }
+    return normalizedPath;
+}
+
 async function serveStatic(request, response, pathname) {
     if (request.method !== 'GET' && request.method !== 'HEAD') return false;
     if (!isAllowedStaticPath(pathname)) return false;
 
-    const normalizedPath = pathname === '/' ? '/index.html' : pathname;
+    const normalizedPath = resolveStaticPath(pathname);
     const absolutePath = path.normalize(path.join(projectRoot, normalizedPath));
     if (!absolutePath.startsWith(projectRoot)) {
         sendText(response, 403, 'Forbidden', request);

@@ -1,4 +1,5 @@
-const { Pool } = require('pg');
+let PgPool = null;
+let pgModuleLoadError = null;
 
 const { hashPassword, verifyPassword } = require('./crypto');
 const { normalizeLevel, sanitizeFeatureOverrides } = require('./entitlements');
@@ -7,6 +8,29 @@ const { normalizeBimSpecPreset, normalizeQaProfile } = require('./qa');
 let pool = null;
 let schemaReady = false;
 let schemaPromise = null;
+
+function resolvePgPool() {
+    if (PgPool) return PgPool;
+    if (pgModuleLoadError) return null;
+    try {
+        ({ Pool: PgPool } = require('pg'));
+        return PgPool;
+    } catch (error) {
+        pgModuleLoadError = error;
+        return null;
+    }
+}
+
+function assertPgAvailable() {
+    const PoolCtor = resolvePgPool();
+    if (PoolCtor) return PoolCtor;
+    const detail = pgModuleLoadError && pgModuleLoadError.code === 'MODULE_NOT_FOUND'
+        ? '缺少 PostgreSQL 驅動套件 pg，請在 server 目錄執行 npm install 後重試。'
+        : `載入 pg 失敗：${pgModuleLoadError && pgModuleLoadError.message ? pgModuleLoadError.message : '未知錯誤'}`;
+    const error = new Error(`資料庫驅動未就緒：${detail}`);
+    error.code = 'PG_DRIVER_UNAVAILABLE';
+    throw error;
+}
 
 const MEMBER_SELECT_SQL = `
     SELECT
@@ -208,7 +232,8 @@ function buildPoolConfig(config) {
 
 function getPool(config) {
     if (pool) return pool;
-    pool = new Pool(buildPoolConfig(config));
+    const PoolCtor = assertPgAvailable();
+    pool = new PoolCtor(buildPoolConfig(config));
     pool.on('error', (error) => {
         console.error('BuildMaster PostgreSQL idle client error', error);
     });
