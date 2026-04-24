@@ -840,8 +840,6 @@
 
     function persistAutoInterpretMemoryStore(store) {
         autoInterpretMemoryCache = Array.isArray(store) ? store.slice(0, AUTO_INTERPRET_MEMORY_MAX) : [];
-        autoInterpretMemoryHiddenLocally = false;
-        autoInterpretMemoryLocalHiddenKeys = new Set();
         queueWorkspacePersist('autoInterpretMemory', autoInterpretMemoryCache);
     }
 
@@ -915,20 +913,8 @@
         };
     }
 
-    let autoInterpretMemoryHiddenLocally = false;
-    let autoInterpretMemoryLocalHiddenKeys = new Set();
     let autoInterpretMemoryVisibleRows = [];
     let guidedPrecisionReviewHiddenLocally = false;
-
-    function getAutoInterpretMemoryLocalKey(item) {
-        return [
-            String(item && item.ts || ''),
-            String(item && item.type || ''),
-            String(item && item.quantity || ''),
-            String(item && item.longM || ''),
-            String(item && item.shortM || '')
-        ].join('|');
-    }
 
     function renderAutoInterpretMemoryPanel() {
         const body = document.getElementById('autoInterpretMemoryBody');
@@ -937,31 +923,20 @@
         if (!body || !summary) return;
         body.innerHTML = '';
         autoInterpretMemoryVisibleRows = [];
-        if (autoInterpretMemoryHiddenLocally) {
-            body.innerHTML = '<tr><td colspan="6" style="color:#99b2c9;">本機畫面已清空，AI 看圖記憶仍保留；重新整理頁面後可再顯示。</td></tr>';
-            summary.innerText = `記憶庫：本機畫面已清空｜實際保留 ${store.length} 筆`;
-            return;
-        }
         if (!store.length) {
             body.innerHTML = '<tr><td colspan="6" style="color:#99b2c9;">尚無已學習案例</td></tr>';
             summary.innerText = '記憶庫：尚未建立';
             return;
         }
-        const visibleStore = store.filter(item => !autoInterpretMemoryLocalHiddenKeys.has(getAutoInterpretMemoryLocalKey(item)));
-        autoInterpretMemoryVisibleRows = visibleStore.slice();
-        if (!visibleStore.length) {
-            body.innerHTML = '<tr><td colspan="6" style="color:#99b2c9;">本機畫面已隱藏所有案例，記憶仍保留；重新整理頁面後可再顯示。</td></tr>';
-            summary.innerText = `記憶庫：本機已隱藏｜實際保留 ${store.length} 筆`;
-            return;
-        }
-        const typeCounts = visibleStore.reduce((acc, item) => {
+        autoInterpretMemoryVisibleRows = store.slice();
+        const typeCounts = store.reduce((acc, item) => {
             const key = String(item.type || '未分類');
             acc[key] = (acc[key] || 0) + 1;
             return acc;
         }, {});
         const topTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([type, count]) => `${type}:${count}`).join(' / ');
-        summary.innerText = `記憶庫：畫面 ${visibleStore.length} 筆｜實際保留 ${store.length} 筆｜類型分佈 ${topTypes || '無'}${autoInterpretLastReport && autoInterpretLastReport.memoryStoreSize ? `｜最近套用後總數 ${autoInterpretLastReport.memoryStoreSize}` : ''}`;
-        visibleStore.slice(0, 12).forEach((item, idx) => {
+        summary.innerText = `記憶庫：${store.length} 筆｜類型分佈 ${topTypes || '無'}${autoInterpretLastReport && autoInterpretLastReport.memoryStoreSize ? `｜最近套用後總數 ${autoInterpretLastReport.memoryStoreSize}` : ''}`;
+        store.slice(0, 12).forEach((item, idx) => {
             const tr = document.createElement('tr');
             const ratio = item && item.vector ? Number(item.vector.ratio || 0) : 0;
             tr.innerHTML = `<td>${new Date(item.ts || Date.now()).toLocaleString('zh-TW')}</td><td>${item.type || '-'}</td><td>${item.quantity || '-'}</td><td>${Number(item.longM || 0).toFixed(2)} × ${Number(item.shortM || 0).toFixed(2)} m</td><td>${item.quality || '未知'} / 比例 ${ratio.toFixed(2)}</td><td><button class="tool-btn" style="padding:4px 8px;" onclick="deleteAutoInterpretMemory(${idx})">刪除</button></td>`;
@@ -970,18 +945,21 @@
     }
 
     function deleteAutoInterpretMemory(index) {
-        const removed = autoInterpretMemoryVisibleRows[index];
+        const store = getAutoInterpretMemoryStore().slice();
+        if (index < 0 || index >= store.length) return;
+        const removed = store[index];
         if (!removed) return;
-        autoInterpretMemoryLocalHiddenKeys.add(getAutoInterpretMemoryLocalKey(removed));
+        store.splice(index, 1);
+        persistAutoInterpretMemoryStore(store);
         renderAutoInterpretMemoryPanel();
-        showToast(`已從本機畫面隱藏記憶：${removed && removed.type ? removed.type : '案例'}（雲端記憶仍保留）`);
+        showToast(`已刪除記憶：${removed && removed.type ? removed.type : '案例'}`);
     }
 
     function clearAutoInterpretMemory() {
         if (!confirm('確定清空 AI 看圖學習記憶庫嗎？')) return;
-        autoInterpretMemoryHiddenLocally = true;
+        persistAutoInterpretMemoryStore([]);
         renderAutoInterpretMemoryPanel();
-        showToast('已清空本機畫面，AI 看圖記憶仍保留');
+        showToast('已清空 AI 看圖學習記憶庫');
     }
 
     function getGuidedPrecisionReviewStore() {
