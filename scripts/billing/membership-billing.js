@@ -12,9 +12,9 @@
         try {
             if (isCapacitorIos()) return true;
             const ua = String(navigator.userAgent || '');
-            const isiPad = /iPad/i.test(ua) || (navigator.platform === 'MacIntel' && Number(navigator.maxTouchPoints || 0) > 1);
-            const isStandalone = !!(navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches));
-            return isiPad && isStandalone;
+            const platform = String(navigator.platform || '');
+            const hasAppleTouch = Number(navigator.maxTouchPoints || 0) > 1;
+            return /iPad|iPhone|iPod/i.test(ua) || (/MacIntel/i.test(platform) && hasAppleTouch);
         } catch (_e) {
             return false;
         }
