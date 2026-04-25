@@ -15,15 +15,19 @@ Use this checklist before resubmitting after the April 25, 2026 review notes.
   - Log in with the App Review demo credentials.
   - Confirm the app enters the main workspace and shows pro-level access.
 
-## 2) Take photo / screenshot crash
+## 2) Photo upload / take photo flow
 
-- Build and run the release configuration on a physical iPad.
-- Tap the photo/screenshot button that saves the AR view to Photos.
-- Confirm iPadOS shows the Photos add permission prompt and the app does not crash.
-- Confirm the saved image appears in Photos.
-- Confirm the release Info.plist includes:
-  - `NSCameraUsageDescription`
-  - `NSPhotoLibraryAddUsageDescription`
+- Build the calculation app package with the current web assets.
+- Delete the previous app from the iPad before installing the new build.
+- Open the calculation app and confirm the header shows `Construction Master V9.2`.
+- Use the blueprint/photo upload control to choose or take a photo.
+- Confirm the uploaded image appears and the app does not show the global abnormality warning.
+- Confirm the loaded app package contains:
+  - `index.html`
+  - `scripts/bundles/bm-core.js`
+  - `scripts/bundles/bm-blueprint.js`
+  - `scripts/bundles/bm-calc.js`
+  - `service-worker.js`
 
 ## 3) In-app purchase compliance
 
@@ -46,7 +50,7 @@ Hello App Review Team,
 Thank you for the detailed review notes. We addressed the reported issues in this resubmission:
 
 1. Demo login: the production API now supports the App Review demo credentials through a dedicated configured review account, so the provided credentials can log in without depending on member database availability.
-2. Take photo crash: the iOS target now includes the required Photos add permission description for saving measurement screenshots to the photo library, and the camera/photo flow should no longer terminate due to missing privacy usage text.
+2. Photo upload/take photo flow: the calculation app package now includes the missing blueprint/calc bundle files and the upload flow is guarded so secondary UI or auto-calc failures do not trigger the global abnormality warning after a photo is loaded.
 3. Payments: on iOS/iPadOS, external Stripe payment and redemption controls are hidden. The app directs iOS users to Apple In-App Purchase only, while Stripe remains limited to the web experience where permitted.
 
 Please test with a clean install on iPad using the demo credentials provided in App Review Information.
@@ -59,17 +63,8 @@ Please test with a clean install on iPad using the demo credentials provided in 
 ```bash
 node --check server/src/index.js
 node --check scripts/bundles/bm-core.js
+node --check scripts/bundles/bm-blueprint.js
+node --check scripts/bundles/bm-calc.js
+node --check scripts/features/blueprint-measurement.js
 node --check scripts/billing/membership-billing.js
-```
-
-- Run an iOS build on macOS:
-
-```bash
-cd LiDARRangefinder/LiDARRangefinder
-xcodebuild \
-  -project "LiDARRangefinder.xcodeproj" \
-  -scheme "LiDARRangefinder" \
-  -destination "generic/platform=iOS Simulator" \
-  -configuration Release \
-  build
 ```
