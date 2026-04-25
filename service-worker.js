@@ -29,6 +29,9 @@ const CORE_ASSETS = [
   './scripts/features/blueprint-measurement.js',
   './scripts/features/calc-engine.js',
   './scripts/features/app-shell.js',
+  './scripts/bundles/bm-core.js',
+  './scripts/bundles/bm-blueprint.js',
+  './scripts/bundles/bm-calc.js',
   './scripts/app-main.js'
 ];
 
