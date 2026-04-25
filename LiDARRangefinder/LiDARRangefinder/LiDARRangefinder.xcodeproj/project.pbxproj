@@ -294,6 +294,7 @@
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "需要使用相機進行工地雷射測量";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "需要麥克風接收核心引擎語音口令";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "需要將工地量測截圖儲存到相簿，方便保存與分享紀錄";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "需要語音辨識啟用核心引擎戰術模式";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -335,6 +336,7 @@
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "需要使用相機進行工地雷射測量";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "需要麥克風接收核心引擎語音口令";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "需要將工地量測截圖儲存到相簿，方便保存與分享紀錄";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "需要語音辨識啟用核心引擎戰術模式";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

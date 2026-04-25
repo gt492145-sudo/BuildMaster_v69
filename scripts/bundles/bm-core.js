@@ -327,6 +327,18 @@
             return false;
         }
     }
+    function isIosReviewRuntime() {
+        try {
+            if (isCapacitorIos()) return true;
+            if (typeof navigator === 'undefined') return false;
+            const ua = String(navigator.userAgent || '');
+            const platform = String(navigator.platform || '');
+            const hasAppleTouch = Number(navigator.maxTouchPoints || 0) > 1;
+            return /iPad|iPhone|iPod/i.test(ua) || (/MacIntel/i.test(platform) && hasAppleTouch);
+        } catch (_e) {
+            return false;
+        }
+    }
     function shouldShowLocalApiDevButton() {
         try {
             if (isCapacitorShell()) return false;
@@ -2666,7 +2678,7 @@
             label.textContent = tier.label || tier.id;
             const actions = document.createElement('div');
             actions.className = 'billing-tier-actions';
-            if (tier.stripePaymentLinkUrl && !isCapacitorIos()) {
+            if (tier.stripePaymentLinkUrl && !isIosReviewRuntime()) {
                 const a = document.createElement('a');
                 a.className = 'billing-link billing-link-stripe';
                 a.href = tier.stripePaymentLinkUrl;
@@ -2696,6 +2708,11 @@
         const codeEl = document.getElementById('billingStripeSessionPreviewValue');
         const sid = String(raw || '').trim();
         if (!wrap || !codeEl) return;
+        if (isIosReviewRuntime()) {
+            codeEl.textContent = '';
+            wrap.hidden = true;
+            return;
+        }
         if (sid.startsWith('cs_')) {
             codeEl.textContent = sid;
             wrap.hidden = false;
@@ -2706,6 +2723,10 @@
     }
 
     async function tryAutoRedeemStripe() {
+        if (isIosReviewRuntime()) {
+            clearStripeReturnParams();
+            return;
+        }
         const params = new URLSearchParams(window.location.search);
         const sid = params.get('stripe_session') || params.get('session_id');
         if (!sid || !sid.startsWith('cs_')) return;
@@ -2734,6 +2755,13 @@
         const input = document.getElementById('billingStripeSessionInput');
         const hint = document.getElementById('securityHint');
         if (!btn || !input) return;
+        if (isIosReviewRuntime()) {
+            btn.disabled = true;
+            btn.hidden = true;
+            input.disabled = true;
+            input.hidden = true;
+            return;
+        }
         const syncPreview = () => setBillingStripeSessionPreview(input.value);
         input.addEventListener('input', syncPreview);
         input.addEventListener('paste', () => queueMicrotask(syncPreview));

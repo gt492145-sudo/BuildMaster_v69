@@ -50,6 +50,9 @@ const config = {
     defaultAdminAccount: String(process.env.DEFAULT_ADMIN_ACCOUNT || 'owner').trim().toLowerCase(),
     defaultAdminPassword: String(process.env.DEFAULT_ADMIN_PASSWORD || 'ChangeMe123!').trim(),
     defaultAdminLevel: normalizeLevel(process.env.DEFAULT_ADMIN_LEVEL || 'pro'),
+    appReviewDemoAccount: String(process.env.APP_REVIEW_DEMO_ACCOUNT || '').trim().toLowerCase(),
+    appReviewDemoPassword: String(process.env.APP_REVIEW_DEMO_PASSWORD || '').trim(),
+    appReviewDemoLevel: normalizeLevel(process.env.APP_REVIEW_DEMO_LEVEL || 'pro'),
     openAiEnabled: String(process.env.OPENAI_ENABLED || 'false').trim().toLowerCase() === 'true',
     openAiApiKey: String(process.env.OPENAI_API_KEY || '').trim(),
     openAiEndpoint: String(process.env.OPENAI_ENDPOINT || 'https://api.openai.com/v1/chat/completions').trim(),
@@ -255,6 +258,28 @@ function getSessionFromRequest(request) {
     return sessionFromVerifiedPayload(payload);
 }
 
+function buildConfiguredDemoSession(account, password) {
+    if (
+        config.appReviewDemoAccount
+        && config.appReviewDemoPassword
+        && account === config.appReviewDemoAccount
+        && hashText(password) === hashText(config.appReviewDemoPassword)
+    ) {
+        return {
+            account: config.appReviewDemoAccount,
+            canManageMembers: false,
+            featureOverrides: {},
+            sessionType: 'member',
+            userLevel: config.appReviewDemoLevel,
+            billing: {
+                source: 'app_review_demo',
+                hasSubscriptionExpiry: false
+            }
+        };
+    }
+    return null;
+}
+
 function buildSessionView(session) {
     const grantedLevel = normalizeLevel(session.userLevel);
     const requestedLevel = clampRequestedLevel(session.requestedLevel || grantedLevel, grantedLevel);
@@ -320,6 +345,10 @@ async function handleLogin(request, response) {
             userLevel: config.accessLevel
         };
     } else if (account) {
+        sessionPayload = buildConfiguredDemoSession(account, password);
+    }
+
+    if (!sessionPayload && account) {
         try {
             await withDb(config, async (db) => {
                 const member = await verifyMemberLogin(db, account, password);
@@ -348,10 +377,12 @@ async function handleLogin(request, response) {
         return;
     }
 
-    sessionPayload.billing = {
-        source: sessionPayload.sessionType === 'member' ? 'password' : 'access_code',
-        hasSubscriptionExpiry: false
-    };
+    if (!sessionPayload.billing) {
+        sessionPayload.billing = {
+            source: sessionPayload.sessionType === 'member' ? 'password' : 'access_code',
+            hasSubscriptionExpiry: false
+        };
+    }
     const token = createSessionToken(sessionPayload, config.authSecret, LOGIN_SESSION_TTL_SECONDS);
     const verified = verifySessionToken(token, config.authSecret);
     const session = sessionFromVerifiedPayload(verified);
