@@ -7,6 +7,7 @@ Use this checklist when deploying `buildmaster.service` to a Linux server.
 - Create `server/.env.local` from `server/.env.example`.
 - Ensure these keys are set: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`.
 - Use `DB_PASSWORD` only. `DBPASS` is deprecated and kept for migration compatibility.
+- For App Store review builds, set `APP_REVIEW_DEMO_ACCOUNT`, `APP_REVIEW_DEMO_PASSWORD`, and `APP_REVIEW_DEMO_LEVEL` to exactly match the credentials entered in App Store Connect. This login path is intentionally independent from the member database so reviewers can enter the app even during DB maintenance.
 - Normalize line endings if edited on Windows:
 
 ```bash
