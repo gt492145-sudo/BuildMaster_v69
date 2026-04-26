@@ -3343,14 +3343,9 @@
         const viewH = Math.max(120, canvasContainer.clientHeight - padding);
         const ratioW = viewW / img.naturalWidth;
         const ratioH = viewH / img.naturalHeight;
-        let fitZoom = Math.min(ratioW, ratioH);
-        if (isMobileViewport()) {
-            // Keep a small overflow margin on mobile so the drawing can pan
-            // in both axes instead of feeling locked after upload.
-            fitZoom *= 1.08;
-        }
-        fitZoom = Math.max(0.2, Math.min(5, fitZoom));
-        const resolvedZoom = Math.max(0.2, Math.min(5, Number(targetZoom) || fitZoom));
+        const minFitZoom = isMobileViewport() ? 0.05 : 0.2;
+        const fitZoom = Math.max(minFitZoom, Math.min(5, Math.min(ratioW, ratioH)));
+        const resolvedZoom = Math.max(minFitZoom, Math.min(5, Number(targetZoom) || fitZoom));
         const contentW = img.naturalWidth * resolvedZoom;
         const contentH = img.naturalHeight * resolvedZoom;
         return {
@@ -3365,10 +3360,10 @@
         if (!canUseBlueprintGestures()) return false;
         const metrics = getBlueprintViewportMetrics();
         if (!metrics) return false;
-        const zoomedPastFit = zoomLevel > metrics.fitZoom + 0.018;
+        const zoomedPastFit = zoomLevel > metrics.fitZoom + Math.max(0.018, metrics.fitZoom * 0.04);
         const hasOverflow = metrics.overflowX > 18 || metrics.overflowY > 18;
         const isScrolled = (canvasContainer && (canvasContainer.scrollLeft > 6 || canvasContainer.scrollTop > 6));
-        return zoomedPastFit || hasOverflow || isScrolled;
+        return (zoomedPastFit && hasOverflow) || isScrolled;
     }
 
     function getBlueprintTouchMode() {
