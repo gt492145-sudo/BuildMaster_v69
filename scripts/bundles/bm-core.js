@@ -1429,7 +1429,7 @@
         await initMaterialCatalog();
         updateUI();
         renderTable();
-        applyAiCoachMode();
+        if (typeof applyAiCoachMode === 'function') applyAiCoachMode();
         maybeWarnBillingExpirySoon();
         if (typeof renderMeasurementLogTable === 'function') renderMeasurementLogTable();
         if (typeof renderAuditTable === 'function') renderAuditTable();
@@ -1443,7 +1443,7 @@
 
     function runDeferredBootTasks() {
         runWhenIdle(async () => {
-            initTouchCoach();
+            if (typeof initTouchCoach === 'function') initTouchCoach();
             try {
                 if (typeof window.ensurePanelWidgetsLoaded === 'function') {
                     await window.ensurePanelWidgetsLoaded();
@@ -1457,7 +1457,7 @@
         runWhenIdle(() => {
             restoreMeasureAssistMode();
             restoreGyroMode();
-            maybeStartCoachGuide();
+            if (typeof maybeStartCoachGuide === 'function') maybeStartCoachGuide();
         }, 1800);
     }
 
@@ -1577,7 +1577,7 @@
             if (!el) return;
             el.classList.toggle('active', !!active);
         });
-        applyAiCoachMode();
+        if (typeof applyAiCoachMode === 'function') applyAiCoachMode();
     }
 
     function setWorkMode(mode) {
