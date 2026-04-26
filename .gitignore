@@ -29,3 +29,4 @@ build/
 GoogleService-Info.plist
 **/*credentials*.json
 Secrets/
+artifacts/
