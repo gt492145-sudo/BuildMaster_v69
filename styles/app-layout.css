@@ -92,21 +92,21 @@
     .mode-btn { border: 1px solid rgba(255,255,255,0.16); border-radius: 999px; background: rgba(16, 29, 48, 0.52); color: #e8f5ff; font-weight: 700; padding: 8px 12px; cursor: pointer; transition: 0.2s; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); }
     .mode-btn:hover { background: rgba(36, 61, 92, 0.72); transform: translateY(-1px); }
     .mode-btn:active { transform: translateY(0); opacity: 0.92; }
-    .main-layout { width: 100%; box-sizing: border-box; display: flex; flex-direction: row; flex: 1; min-height: 0; overflow: hidden; padding: 12px; gap: 12px; border-radius: 20px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04), 0 22px 44px rgba(0,0,0,0.24); }
-    .drawing-panel { flex: 1.2; min-width: 0; min-height: 0; background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)), var(--panel-strong); border: 1px solid var(--line-strong); display: flex; flex-direction: column; border-radius: 18px; backdrop-filter: blur(16px) saturate(125%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -20px 30px rgba(5,10,20,0.12), var(--shadow-panel); overflow: hidden; }
-    .calc-panel { flex: 1; min-width: 0; min-height: 0; background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)), var(--panel-strong); border: 1px solid var(--line-strong); padding: 18px; overflow-y: auto; border-radius: 18px; backdrop-filter: blur(16px) saturate(125%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -20px 30px rgba(5,10,20,0.12), var(--shadow-panel); display: flex; flex-direction: column; }
+    .main-layout { width: 100%; box-sizing: border-box; display: flex; flex-direction: row; flex: 1; min-height: 0; overflow: hidden; padding: 0; gap: 0; border-radius: 0; box-shadow: none; }
+    .drawing-panel { flex: 1.35; min-width: 0; min-height: 0; background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)), var(--panel-strong); border: 0; border-right: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; border-radius: 0; backdrop-filter: blur(10px) saturate(112%); box-shadow: none; overflow: hidden; }
+    .calc-panel { flex: 1; min-width: 0; min-height: 0; background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)), var(--panel-strong); border: 0; padding: 16px 14px; overflow-y: auto; border-radius: 0; backdrop-filter: blur(10px) saturate(112%); box-shadow: none; display: flex; flex-direction: column; }
     #calcModePage { order: 30; }
     #stakeModePage { order: 40; }
     #stakeProjectTitle { order: 41; }
     #stakeProjectMetaRow { order: 42; }
     .member-wrap { order: 43; }
     .action-cluster {
-        margin-top: 12px;
-        padding: 14px;
-        border-radius: 12px;
-        border: 1px solid rgba(167, 214, 255, 0.14);
-        background: linear-gradient(180deg, rgba(19, 33, 54, 0.76), rgba(10, 19, 34, 0.68));
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 10px 20px rgba(0,0,0,0.16);
+        margin-top: 10px;
+        padding: 12px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(167, 214, 255, 0.12);
+        background: linear-gradient(180deg, rgba(19, 33, 54, 0.48), rgba(10, 19, 34, 0.42));
+        box-shadow: none;
     }
     .action-cluster--accent {
         border-color: rgba(157, 127, 255, 0.28);
@@ -169,8 +169,8 @@
         gap: 8px;
         margin-bottom: 10px;
     }
-    .tool-bar { display: flex; gap: 10px; padding: 12px 14px; background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)); align-items: stretch; border-bottom: 1px solid rgba(255,255,255,0.08); flex-wrap: wrap; }
-    .tool-group { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.025); border-radius: 14px; flex-wrap: wrap; box-shadow: inset 0 1px 0 rgba(255,255,255,0.03); }
+    .tool-bar { display: flex; gap: 8px; padding: 10px 12px; background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)); align-items: stretch; border-bottom: 1px solid rgba(255,255,255,0.07); flex-wrap: wrap; }
+    .tool-group { display: flex; align-items: center; gap: 8px; padding: 8px 8px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.018); border-radius: 10px; flex-wrap: wrap; box-shadow: none; }
     .tool-group--file { min-width: min(100%, 260px); }
     .tool-group--status { margin-left: auto; }
     .tool-group-label { font-size: 0.7em; text-transform: uppercase; letter-spacing: 1px; font-weight: 800; color: #91d7ff; }
