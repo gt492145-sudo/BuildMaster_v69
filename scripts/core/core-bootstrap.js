@@ -1368,12 +1368,13 @@
             const parsed = JSON.parse(localStorage.getItem(FEATURE_FLAGS_KEY) || '{}');
             featureFlags = {
                 aiVision: parsed.aiVision !== false,
-                voice: parsed.voice !== false,
+                // Keep voice assistant available, but default it OFF unless explicitly enabled.
+                voice: parsed.voice === true,
                 laser: parsed.laser !== false,
                 warRoom: parsed.warRoom !== false
             };
         } catch (_e) {
-            featureFlags = { aiVision: true, voice: true, laser: true, warRoom: true };
+            featureFlags = { aiVision: true, voice: false, laser: true, warRoom: true };
         }
     }
 

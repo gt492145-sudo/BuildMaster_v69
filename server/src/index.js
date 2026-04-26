@@ -1154,6 +1154,7 @@ function isAllowedStaticPath(pathname) {
     return pathname === '/' ||
         pathname === '/index.html' ||
         pathname === '/stake.html' ||
+        pathname === '/app.css' ||
         pathname === '/site.webmanifest' ||
         pathname === '/service-worker.js' ||
         pathname === '/favicon.ico' ||

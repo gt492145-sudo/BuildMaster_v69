@@ -7,23 +7,23 @@
 - 文件狀態：正式版 LIVE
 - 核心資料：價格表（資料夾內試算表）共 118 筆
 - 備註：主程式標頭已加入紫色 `正式版 LIVE` 標示；放樣與計算已整合於同一套模組化頁面
-- 版本公告：計算主系統目前對外標示為 `V9.2`（程式內資料結構版本見 `scripts/core/core-bootstrap.js` 的 `SCHEMA_VERSION`）
+- 版本公告：計算主系統目前對外標示為 `V9.5`（程式內資料結構版本見 `scripts/core/core-bootstrap.js` 的 `SCHEMA_VERSION`）
 - 🟣 紫色標示：`LiDARRangefinder` Xcode 匯整存檔已建立於 `Xcode更新匯整存檔_黃色檔案.md`
 
 ## 目前正式版清單
 
 | 項目 | 檔案 | 版本 | 角色定位 | 狀態 |
 | --- | --- | --- | --- | --- |
-| 1 | `index.html` | Construction Master V9.2 | 主系統（計算 + 圖面） | LIVE |
-| 2 | `stake.html` → `index.html` | 同 V9.2 | 放樣模式入口（設定工作模式後進主頁） | LIVE |
+| 1 | `index.html` | Construction Master V9.5 | 主系統（計算 + 圖面） | LIVE |
+| 2 | `stake.html` → `index.html` | 同 V9.5 | 放樣模式入口（設定工作模式後進主頁） | LIVE |
 
 ## 本版重點
 
 - 單一 Web 正式版：`index.html` 模組化載入；放樣經 `stake.html` 切換模式後與主程式共用同一套程式
 - 價格表資料固定為 118 筆，作為目前正式版基準資料
 - 統一正式版視覺識別，降低操作與辨識混淆
-- 計算主系統為 `V9.2` 產品線，維持量子更新能力（IBM Quantum API 可選接入、A/B/C + 雷射融合評分、量子一鍵補齊流程）
-- 已移除獨立單檔放樣頁（舊 V4.2 HTML），避免與 V9.2 主線重複維護
+- 計算主系統為 `V9.5` 產品線，維持量子更新能力（IBM Quantum API 可選接入、A/B/C + 雷射融合評分、量子一鍵補齊流程）
+- 已移除獨立單檔放樣頁（舊 V4.2 HTML），避免與 V9.5 主線重複維護
 
 ## 會員等級規劃
 

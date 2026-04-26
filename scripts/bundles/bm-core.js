@@ -677,7 +677,7 @@
     let warRoomTimer = null;
     let warRoomConnectTimer = null;
     let isWarRoomActive = false;
-    let featureFlags = { aiVision: true, voice: true, laser: true, warRoom: true };
+    let featureFlags = { aiVision: true, voice: false, laser: true, warRoom: true };
     let showWarRoomRows = true;
     let demoModeEnabled = true;
     let warRoomList = [];
@@ -1441,7 +1441,7 @@
         await initMaterialCatalog();
         updateUI();
         renderTable();
-        applyAiCoachMode();
+        if (typeof applyAiCoachMode === 'function') applyAiCoachMode();
         maybeWarnBillingExpirySoon();
         if (typeof renderMeasurementLogTable === 'function') renderMeasurementLogTable();
         if (typeof renderAuditTable === 'function') renderAuditTable();
@@ -1589,7 +1589,7 @@
             if (!el) return;
             el.classList.toggle('active', !!active);
         });
-        applyAiCoachMode();
+        if (typeof applyAiCoachMode === 'function') applyAiCoachMode();
     }
 
     function setWorkMode(mode) {
@@ -1664,12 +1664,12 @@
             const parsed = JSON.parse(localStorage.getItem(FEATURE_FLAGS_KEY) || '{}');
             featureFlags = {
                 aiVision: parsed.aiVision !== false,
-                voice: parsed.voice !== false,
+                voice: parsed.voice === true,
                 laser: parsed.laser !== false,
                 warRoom: parsed.warRoom !== false
             };
         } catch (_e) {
-            featureFlags = { aiVision: true, voice: true, laser: true, warRoom: true };
+            featureFlags = { aiVision: true, voice: false, laser: true, warRoom: true };
         }
     }
 
