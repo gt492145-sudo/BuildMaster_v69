@@ -1156,6 +1156,7 @@ function isAllowedStaticPath(pathname) {
         pathname === '/stake.html' ||
         pathname === '/site.webmanifest' ||
         pathname === '/service-worker.js' ||
+        pathname === '/favicon.ico' ||
         pathname === '/favicon-32.png' ||
         pathname === '/apple-touch-icon.png' ||
         pathname === '/icon-192.png' ||
