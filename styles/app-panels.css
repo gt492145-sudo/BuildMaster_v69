@@ -192,9 +192,9 @@
     .unit-wrap { margin-top: 8px; border: 0; border-top: 1px solid rgba(180, 180, 255, 0.1); border-radius: 0; padding: 8px 0; background: transparent; }
     .unit-grid { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: end; }
     .unit-grid input, .unit-grid select { width: 100%; padding: 9px; background: rgba(10, 20, 36, 0.56); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 6px; box-sizing: border-box; }
-    .security-lock { position: fixed; inset: 0; z-index: 99999; background: rgba(3, 8, 18, 0.92); display: none; align-items: center; justify-content: center; padding: 20px; }
+    .security-lock { position: fixed; inset: 0; z-index: 99999; background: rgba(3, 8, 18, 0.92); display: none; align-items: flex-start; justify-content: center; padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom)); overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .security-lock.show { display: flex; }
-    .security-panel { width: min(420px, 92vw); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; background: rgba(12, 22, 38, 0.96); box-shadow: 0 12px 30px rgba(0,0,0,0.35); padding: 16px; }
+    .security-panel { width: min(420px, 92vw); max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 40px); overflow-y: auto; -webkit-overflow-scrolling: touch; border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; background: rgba(12, 22, 38, 0.96); box-shadow: 0 12px 30px rgba(0,0,0,0.35); padding: 16px; margin: 0 auto; }
     .security-panel h3 { margin: 0 0 8px; color: #ffd287; letter-spacing: 0.5px; }
     .security-panel p { margin: 0 0 10px; color: #c4d9ee; font-size: 0.86em; line-height: 1.45; }
     .billing-block { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.12); }

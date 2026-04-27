@@ -5,6 +5,7 @@ This repository contains both:
 - Native iOS prototype files under `LiDARRangefinder/`
 
 For Apple review submission of the **calculation app only**, use the packaging script below to generate a filtered archive that excludes native iOS files and can optionally bundle review evidence (logs/videos).
+The script now has a hard guard: if any native iOS/Xcode file appears in the package, it exits with non-zero status to prevent accidental mixed submissions.
 
 ## Build package(s)
 
@@ -34,6 +35,16 @@ If no matching files are found, no `app-review-evidence/` folder will be created
 - iOS-specific follow-up note:
   - `APP_STORE_REVIEW_FOLLOW_UP.md`
   - `Xcode更新匯整存檔_黃色檔案.md`
+
+## Guard behavior (anti-rejection safety)
+
+`scripts/package-calculation-app-only.sh` blocks packaging when any of these are found in the output:
+- `LiDARRangefinder/**`
+- `*.xcodeproj/**`
+- `*.xcworkspace/**`
+- `*.pbxproj`
+- `*.swift`
+- `*.xcscheme`
 
 ## What is included in main package
 

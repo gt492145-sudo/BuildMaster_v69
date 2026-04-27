@@ -86,13 +86,7 @@ struct ContentView: View {
     private let tacticalMenuWidth: CGFloat = 230
     private let touchOpenCloseThreshold: CGFloat = 34
     private let monkeyPassHashStorageKey = "lidar_rangefinder_monkey_pass_hash_v1"
-    private var appVersionBadgeText: String {
-        let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-        let version = String(shortVersion ?? "9.5").trimmingCharacters(in: .whitespacesAndNewlines)
-        let buildText = String(build ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        return buildText.isEmpty ? "V\(version)" : "V\(version) (\(buildText))"
-    }
+    private let appStatusBadgeText = "開發中"
 
     var body: some View {
         GeometryReader { proxy in
@@ -466,7 +460,7 @@ struct ContentView: View {
         let compactTopStats = !isTopPanelExpanded
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("LiDAR 雷射測距鏡 \(appVersionBadgeText)")
+                Text("LiDAR 雷射測距鏡（\(appStatusBadgeText)）")
                     .font(.subheadline.bold())
                     .foregroundStyle(.white)
                 Spacer()

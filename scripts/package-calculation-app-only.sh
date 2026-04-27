@@ -9,6 +9,7 @@ ARTIFACTS_DIR="${ROOT_DIR}/release-artifacts"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 OUTPUT_DIR="${ARTIFACTS_DIR}/calculation-app-only-${STAMP}"
 REVIEW_EVIDENCE_DIR="${OUTPUT_DIR}/app-review-evidence"
+NATIVE_GUARD_PATTERN='(^|/)LiDARRangefinder(/|$)|\.xcodeproj(/|$)|\.xcworkspace(/|$)|\.swift$|(^|/)Xcode更新匯整存檔_黃色檔案\.md$|(^|/)APP_STORE_REVIEW_FOLLOW_UP\.md$'
 
 mkdir -p "${OUTPUT_DIR}"
 mkdir -p "${REVIEW_EVIDENCE_DIR}"
@@ -96,6 +97,16 @@ rm -rf "${OUTPUT_DIR}/LiDARRangefinder" || true
 rm -f "${OUTPUT_DIR}/APP_STORE_REVIEW_FOLLOW_UP.md" || true
 rm -f "${OUTPUT_DIR}/Xcode更新匯整存檔_黃色檔案.md" || true
 
+NATIVE_HITS="$(
+    cd "${OUTPUT_DIR}" &&
+    rg --files | rg "${NATIVE_GUARD_PATTERN}" || true
+)"
+if [[ -n "${NATIVE_HITS}" ]]; then
+    echo "ERROR: calculation-app-only package contains forbidden native iOS files:" >&2
+    echo "${NATIVE_HITS}" >&2
+    exit 1
+fi
+
 MANIFEST_PATH="${OUTPUT_DIR}/CALC_APP_ONLY_MANIFEST.txt"
 {
     echo "package_type=calculation_app_only"
@@ -108,6 +119,15 @@ MANIFEST_PATH="${OUTPUT_DIR}/CALC_APP_ONLY_MANIFEST.txt"
 
 ARCHIVE_PATH="${ARTIFACTS_DIR}/calculation-app-only-${STAMP}.tar.gz"
 tar -czf "${ARCHIVE_PATH}" -C "${ARTIFACTS_DIR}" "calculation-app-only-${STAMP}"
+
+ARCHIVE_NATIVE_HITS="$(
+    tar -tzf "${ARCHIVE_PATH}" | rg "${NATIVE_GUARD_PATTERN}" || true
+)"
+if [[ -n "${ARCHIVE_NATIVE_HITS}" ]]; then
+    echo "ERROR: archive contains forbidden native iOS files:" >&2
+    echo "${ARCHIVE_NATIVE_HITS}" >&2
+    exit 1
+fi
 
 EVIDENCE_MANIFEST_PATH="${REVIEW_EVIDENCE_DIR}/APP_REVIEW_EVIDENCE_MANIFEST.txt"
 {
@@ -123,3 +143,4 @@ echo "Archive: ${ARCHIVE_PATH}"
 echo "Manifest: ${MANIFEST_PATH}"
 echo "Review evidence directory: ${REVIEW_EVIDENCE_DIR}"
 echo "Review evidence manifest: ${EVIDENCE_MANIFEST_PATH}"
+echo "Native guard: passed (no iOS/Xcode files in package)"
