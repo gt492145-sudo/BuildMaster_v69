@@ -73,3 +73,29 @@ xcodebuild \
   -configuration Release \
   build
 ```
+
+## 6) Prepare review attachment package (logs + videos)
+
+- Apple review follow-up may require evidence artifacts. Build both submission package and evidence package:
+
+```bash
+bash scripts/package-calculation-app-only.sh
+```
+
+- The script now produces:
+  - Main package: `release-artifacts/calculation-app-only-<timestamp>.tar.gz`
+  - Review evidence package: `release-artifacts/calculation-app-review-evidence-<timestamp>.tar.gz`
+
+- To include specific evidence files, put them under:
+  - `release-artifacts/review-evidence/logs/`
+  - `release-artifacts/review-evidence/videos/`
+  - (optional) `release-artifacts/review-evidence/screenshots/`
+
+- Example:
+
+```bash
+mkdir -p release-artifacts/review-evidence/logs release-artifacts/review-evidence/videos
+cp /opt/cursor/artifacts/v95_full_verification_with_db.log release-artifacts/review-evidence/logs/
+cp /opt/cursor/artifacts/v95_logo_v90_applied_demo.mp4 release-artifacts/review-evidence/videos/
+bash scripts/package-calculation-app-only.sh
+```
