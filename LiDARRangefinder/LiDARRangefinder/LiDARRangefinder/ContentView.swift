@@ -89,7 +89,8 @@ struct ContentView: View {
     private var appVersionBadgeText: String {
         let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-        let version = String(shortVersion ?? "9.5").trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawVersion = String(shortVersion ?? "9.5.1").trimmingCharacters(in: .whitespacesAndNewlines)
+        let version = rawVersion.isEmpty ? "9.5.1" : rawVersion
         let buildText = String(build ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return buildText.isEmpty ? "V\(version)" : "V\(version) (\(buildText))"
     }
