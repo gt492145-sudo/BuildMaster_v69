@@ -8,13 +8,22 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACTS_DIR="${ROOT_DIR}/release-artifacts"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 OUTPUT_DIR="${ARTIFACTS_DIR}/calculation-app-only-${STAMP}"
+REVIEW_EVIDENCE_DIR="${ARTIFACTS_DIR}/app-review-evidence-${STAMP}"
 
 mkdir -p "${OUTPUT_DIR}"
+mkdir -p "${REVIEW_EVIDENCE_DIR}"
 
 copy_path() {
     local src_rel="$1"
     if [[ -e "${ROOT_DIR}/${src_rel}" ]]; then
         cp -R "${ROOT_DIR}/${src_rel}" "${OUTPUT_DIR}/${src_rel}"
+    fi
+}
+
+copy_evidence() {
+    local src_abs="$1"
+    if [[ -f "${src_abs}" ]]; then
+        cp "${src_abs}" "${REVIEW_EVIDENCE_DIR}/"
     fi
 }
 
@@ -70,6 +79,18 @@ copy_path "apple-touch-icon.png"
 copy_path "icon-192.png"
 copy_path "icon-512.png"
 
+# App Review evidence artifacts (logs/videos/screenshots) that Apple may request.
+# These are packaged separately from the app bundle.
+copy_evidence "/opt/cursor/artifacts/v95_full_verification_with_db.log"
+copy_evidence "/opt/cursor/artifacts/v95_privacy_url_alignment_check.log"
+copy_evidence "/opt/cursor/artifacts/v95_privacy_url_alignment_check_round2.log"
+copy_evidence "/opt/cursor/artifacts/v95_mobile_icon_alignment.log"
+copy_evidence "/opt/cursor/artifacts/v95_logo_v90_applied_demo.mp4"
+copy_evidence "/opt/cursor/artifacts/v95_layout_single_surface_v3_demo.mp4"
+copy_evidence "/opt/cursor/artifacts/v95_layout_single_surface_v3.png"
+copy_evidence "/opt/cursor/artifacts/v95_logo_v90_applied_header.png"
+copy_evidence "/opt/cursor/artifacts/v95_mobile_icon_logo_header_confirm.png"
+
 # Purge native/iOS-only content if accidentally copied.
 rm -rf "${OUTPUT_DIR}/LiDARRangefinder" || true
 rm -f "${OUTPUT_DIR}/APP_STORE_REVIEW_FOLLOW_UP.md" || true
@@ -88,6 +109,21 @@ MANIFEST_PATH="${OUTPUT_DIR}/CALC_APP_ONLY_MANIFEST.txt"
 ARCHIVE_PATH="${ARTIFACTS_DIR}/calculation-app-only-${STAMP}.tar.gz"
 tar -czf "${ARCHIVE_PATH}" -C "${ARTIFACTS_DIR}" "calculation-app-only-${STAMP}"
 
+EVIDENCE_MANIFEST_PATH="${REVIEW_EVIDENCE_DIR}/APP_REVIEW_EVIDENCE_MANIFEST.txt"
+{
+    echo "package_type=app_review_evidence"
+    echo "created_at=${STAMP}"
+    echo
+    echo "included_files:"
+    (cd "${REVIEW_EVIDENCE_DIR}" && rg --files | sort)
+} > "${EVIDENCE_MANIFEST_PATH}"
+
+EVIDENCE_ARCHIVE_PATH="${ARTIFACTS_DIR}/app-review-evidence-${STAMP}.tar.gz"
+tar -czf "${EVIDENCE_ARCHIVE_PATH}" -C "${ARTIFACTS_DIR}" "app-review-evidence-${STAMP}"
+
 echo "Output directory: ${OUTPUT_DIR}"
 echo "Archive: ${ARCHIVE_PATH}"
 echo "Manifest: ${MANIFEST_PATH}"
+echo "Review evidence directory: ${REVIEW_EVIDENCE_DIR}"
+echo "Review evidence archive: ${EVIDENCE_ARCHIVE_PATH}"
+echo "Review evidence manifest: ${EVIDENCE_MANIFEST_PATH}"
