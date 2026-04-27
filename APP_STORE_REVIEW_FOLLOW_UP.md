@@ -52,6 +52,14 @@ Thank you for the detailed review notes. We addressed the reported issues in thi
 Please test with a clean install on iPad using the demo credentials provided in App Review Information.
 ```
 
+## 4.1) Privacy consistency note (public site vs app)
+
+- Confirm app login page points to the same public privacy URL:
+  - `https://sites.google.com/view/buildmaster-privacy/首頁`
+- Confirm in-app/website summary page `privacy.html` includes this exact maintenance note:
+  - `[備注往後原生App完成後會做陸續更新進去這個版本]`
+- Keep the public Google Sites privacy policy and app-side summary text aligned for every future release.
+
 ## 5) Final local checks
 
 - Run JavaScript syntax checks:
