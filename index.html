@@ -45,10 +45,10 @@
         <button type="button" id="securityApi8787Btn" class="tool-btn security-api-fix-btn">將 API 指向本機 Node（8787）並重新整理</button>
         <button type="button" id="securityOfflineDemoBtn" class="tool-btn security-offline-demo-btn" hidden>先略過登入，進主流程（本機／不接後端）</button>
         <p class="security-onboarding-hint">登入後右上方可開「解說員」與「新手導覽」，邊用邊有白話說明。</p>
-        <p class="security-onboarding-hint security-api-url-hint"><strong>若顯示找不到網址／404／HTTP 501：</strong>純靜態託管（GitHub Pages、Live Server、<code>python -m http.server</code>）沒有真正的 API，POST 常會變成 <strong>501</strong>，與資料庫無關。請啟動專案內 Node <code>server</code> 後用 <code>http://127.0.0.1:8787/index.html</code> 開啟；或於 Application → Local Storage 設 <code>bm_69:api_base_url</code> = <code>http://127.0.0.1:8787</code>（勿重複加 <code>/api</code>）。更新腳本後若仍舊訊息，請關閉分頁、在 Application 取消註冊 Service Worker 後再開。Stripe 導回網址須與實際開本頁的<strong>完整公開網址</strong>一致。</p>
+        <p class="security-onboarding-hint security-api-url-hint"><strong>若顯示找不到網址／404／HTTP 501：</strong>純靜態託管（GitHub Pages、Live Server、<code>python -m http.server</code>）沒有真正的 API，POST 常會變成 <strong>501</strong>，與資料庫無關。請啟動專案內 Node <code>server</code> 後用 <code>http://127.0.0.1:8787/index.html</code> 開啟；或於 Application → Local Storage 設 <code>bm_69:api_base_url</code> = <code>http://127.0.0.1:8787</code>（勿重複加 <code>/api</code>）。更新腳本後若仍舊訊息，請關閉分頁、在 Application 取消註冊 Service Worker 後再開。Stripe 導回網址、設定說明中的 API 根網址，必須與你實際使用的<strong>完整公開網址</strong>一致。<a href="privacy.html" target="_blank" rel="noopener noreferrer">隱私權政策</a></p>
         <div class="billing-block">
             <div class="billing-block-title">付費開通（網頁 Stripe／iOS Apple 內購）</div>
-            <p class="billing-block-desc">網頁版可使用 <strong>Stripe</strong>：付款完成後回到本站，若網址帶 <code>stripe_session</code> 或 <code>session_id</code> 會自動兌換登入通行證。</p>
+            <p class="billing-block-desc">網頁版可使用 <strong>Stripe</strong>：付款完成後回到本站，若網址帶 <code>stripe_session</code> 或 <code>session_id</code> 會自動兌換登入通行證。會員訂製方案採固定價格：月繳 NT$199、年繳 NT$1990。</p>
             <p class="billing-block-desc billing-block-desc--tight"><strong>iOS／iPadOS App</strong> 不提供外部付款或 Session ID 兌換；請使用 Apple App 內購開通。登入後標題列會顯示「通行證至 …」。</p>
             <div id="billingTiersHost" class="billing-tiers-host"></div>
             <div id="billingStripeSessionPreview" class="billing-stripe-session-preview" hidden aria-live="polite">

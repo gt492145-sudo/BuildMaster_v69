@@ -32,15 +32,19 @@ function buildPublicCatalog(config) {
     const tiers = [
         {
             id: 'basic',
-            label: '會員 1（基礎）',
+            label: '會員訂製（月繳 NT$199）',
             userLevel: 'basic',
+            displayPrice: 'NT$199/月',
+            billingCycle: 'monthly',
             stripePaymentLinkUrl: parseEnvTrim(config.stripePaymentLinkBasic),
             appleProductId: parseEnvTrim(config.appleProductBasic)
         },
         {
             id: 'standard',
-            label: '會員 2（工程）',
+            label: '會員訂製（年繳 NT$1,990）',
             userLevel: 'standard',
+            displayPrice: 'NT$1,990/年',
+            billingCycle: 'yearly',
             stripePaymentLinkUrl: parseEnvTrim(config.stripePaymentLinkStandard),
             appleProductId: parseEnvTrim(config.appleProductStandard)
         },
@@ -48,6 +52,8 @@ function buildPublicCatalog(config) {
             id: 'pro',
             label: '會員 3（專家）',
             userLevel: 'pro',
+            displayPrice: '依方案設定',
+            billingCycle: 'custom',
             stripePaymentLinkUrl: parseEnvTrim(config.stripePaymentLinkPro),
             appleProductId: parseEnvTrim(config.appleProductPro)
         }

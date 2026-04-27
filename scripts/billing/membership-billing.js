@@ -107,7 +107,10 @@
             row.className = 'billing-tier-row';
             const label = document.createElement('span');
             label.className = 'billing-tier-label';
-            label.textContent = tier.label || tier.id;
+            const priceText = String(tier && tier.displayPrice || '').trim();
+            label.textContent = priceText
+                ? `${tier.label || tier.id}｜${priceText}`
+                : (tier.label || tier.id);
             const actions = document.createElement('div');
             actions.className = 'billing-tier-actions';
             if (tier.stripePaymentLinkUrl && !isIosReviewRuntime()) {
