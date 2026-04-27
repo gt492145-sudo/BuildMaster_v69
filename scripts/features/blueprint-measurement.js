@@ -5619,6 +5619,9 @@
             blueprintPinchState.active = true;
             blueprintPinchState.startDistance = touchDistance(e.touches[0], e.touches[1]);
             blueprintPinchState.startZoom = zoomLevel;
+            blueprintPinchState.startCenter = touchCenter(e.touches[0], e.touches[1]);
+            blueprintPinchState.startScrollLeft = canvasContainer ? canvasContainer.scrollLeft : 0;
+            blueprintPinchState.startScrollTop = canvasContainer ? canvasContainer.scrollTop : 0;
             blueprintPanState.active = false;
             blueprintPanState.moved = false;
             return;
@@ -5641,6 +5644,12 @@
             const ratio = blueprintPinchState.startDistance > 0 ? dist / blueprintPinchState.startDistance : 1;
             const targetZoom = blueprintPinchState.startZoom * ratio;
             setZoomAt(center.x, center.y, targetZoom);
+            if (canvasContainer && blueprintPinchState.startCenter) {
+                const dx = center.x - blueprintPinchState.startCenter.x;
+                const dy = center.y - blueprintPinchState.startCenter.y;
+                canvasContainer.scrollLeft = (blueprintPinchState.startScrollLeft || 0) - dx;
+                canvasContainer.scrollTop = (blueprintPinchState.startScrollTop || 0) - dy;
+            }
             suppressNextCanvasTouch = true;
             if (e.cancelable) e.preventDefault();
             return;
