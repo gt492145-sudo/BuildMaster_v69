@@ -4,11 +4,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Construction Master V8.5 - 預算決策系統 (會員上線版)</title>
+<title>Construction Master V9.5 - 預算決策系統 (會員上線版)</title>
 <link rel="manifest" href="site.webmanifest">
 <meta name="theme-color" content="#0b1220">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Construction Master">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=v950logo">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=v950logo">
+<link rel="icon" href="favicon.ico?v=v950logo">
 <meta name="referrer" content="no-referrer">
 <link rel="stylesheet" href="styles/app-layout.css?v=v841">
 <link rel="stylesheet" href="styles/blueprint-core.css?v=v831">
@@ -45,11 +48,11 @@
         <button type="button" id="securityApi8787Btn" class="tool-btn security-api-fix-btn">將 API 指向本機 Node（8787）並重新整理</button>
         <button type="button" id="securityOfflineDemoBtn" class="tool-btn security-offline-demo-btn" hidden>先略過登入，進主流程（本機／不接後端）</button>
         <p class="security-onboarding-hint">登入後右上方可開「解說員」與「新手導覽」，邊用邊有白話說明。</p>
-        <p class="security-onboarding-hint security-api-url-hint"><strong>若顯示找不到網址／404／HTTP 501：</strong>純靜態託管（GitHub Pages、Live Server、<code>python -m http.server</code>）沒有真正的 API，POST 常會變成 <strong>501</strong>，與資料庫無關。請啟動專案內 Node <code>server</code> 後用 <code>http://127.0.0.1:8787/index.html</code> 開啟；或於 Application → Local Storage 設 <code>bm_69:api_base_url</code> = <code>http://127.0.0.1:8787</code>（勿重複加 <code>/api</code>）。更新腳本後若仍舊訊息，請關閉分頁、在 Application 取消註冊 Service Worker 後再開。Stripe 導回網址須與實際開本頁的<strong>完整公開網址</strong>一致。</p>
+        <p class="security-onboarding-hint security-api-url-hint"><strong>若顯示找不到網址／404／HTTP 501：</strong>純靜態託管（GitHub Pages、Live Server、<code>python -m http.server</code>）沒有真正的 API，POST 常會變成 <strong>501</strong>，與資料庫無關。請啟動專案內 Node <code>server</code> 後用 <code>http://127.0.0.1:8787/index.html</code> 開啟；或於 Application → Local Storage 設 <code>bm_69:api_base_url</code> = <code>http://127.0.0.1:8787</code>（勿重複加 <code>/api</code>）。更新腳本後若仍舊訊息，請關閉分頁、在 Application 取消註冊 Service Worker 後再開。Stripe 導回網址、設定說明中的 API 根網址，必須與你實際使用的<strong>完整公開網址</strong>一致。對外公開隱私權政策請以 <a href="https://sites.google.com/view/buildmaster-privacy/%E9%A6%96%E9%A0%81" target="_blank" rel="noopener noreferrer">Google Sites 版本</a> 為準，並與本頁版本說明同步維護。<a href="privacy.html" target="_blank" rel="noopener noreferrer">站內隱私權頁</a></p>
         <div class="billing-block">
-            <div class="billing-block-title">付費開通（Stripe／Apple）</div>
-            <p class="billing-block-desc">網頁使用 <strong>Stripe</strong>：付款完成後回到本站，若網址帶 <code>stripe_session</code> 或 <code>session_id</code> 會自動兌換登入通行證；失敗時可手動貼上 <code>cs_…</code> Session ID。訂閱制通行證效期與帳單週期連動；單次／買斷則依伺服器設定核發天數。</p>
-            <p class="billing-block-desc billing-block-desc--tight"><strong>iOS App</strong> 請走 Apple 內購，由 App 將收據送後端驗證。登入後標題列會顯示「通行證至 …」；到期後請續約、重新兌換，或改以會員密碼／存取碼登入（預設約 12 小時需重登）。</p>
+            <div class="billing-block-title">付費開通（網頁 Stripe／iOS Apple 內購）</div>
+            <p class="billing-block-desc">網頁版可使用 <strong>Stripe</strong>：付款完成後回到本站，若網址帶 <code>stripe_session</code> 或 <code>session_id</code> 會自動兌換登入通行證。會員訂製方案採固定價格：月繳 NT$199、年繳 NT$1990。</p>
+            <p class="billing-block-desc billing-block-desc--tight"><strong>iOS／iPadOS App</strong> 不提供外部付款或 Session ID 兌換；請使用 Apple App 內購開通。登入後標題列會顯示「通行證至 …」。</p>
             <div id="billingTiersHost" class="billing-tiers-host"></div>
             <div id="billingStripeSessionPreview" class="billing-stripe-session-preview" hidden aria-live="polite">
                 <span class="billing-stripe-session-preview-label">已貼上的 Session ID</span>
@@ -65,17 +68,13 @@
 <div id="securityWatermark" class="security-watermark"></div>
 
 <header>
-    <div class="logo-img logo-blackhole-photo" aria-label="Construction Master black hole logo">
-        <span class="blackhole-accretion-cloud" aria-hidden="true"></span>
-        <span class="blackhole-jet blackhole-jet-top" aria-hidden="true"></span>
-        <span class="blackhole-jet blackhole-jet-bottom" aria-hidden="true"></span>
-    </div>
+    <img class="logo-img" src="logo-app.png" alt="Construction Master logo">
     <div class="header-brand">
         <div class="header-kicker">Premium Touch Workspace</div>
-        <div class="header-title">Construction Master <span class="header-version">V8.5</span></div>
+        <div class="header-title">Construction Master <span class="header-version">V9.5</span></div>
         <div class="header-subtitle">
             <span class="live-badge">正式版 LIVE</span>
-            <span class="live-badge">V8.5 放樣整合版</span>
+            <span class="live-badge">V9.5 放樣整合版</span>
             <span class="header-meta-chip">圖面觸控優先</span>
             <span id="billingStatusChip" class="header-meta-chip billing-status-chip" hidden></span>
         </div>
@@ -306,7 +305,7 @@
         <div class="control-grid">
             <button id="btnDemoMode" class="tool-btn" onclick="toggleDemoMode()">Demo模式: 開</button>
             <button id="btnCtrlAiVision" class="tool-btn" onclick="toggleFeatureFlag('aiVision')">AI盤點: 開</button>
-            <button id="btnCtrlVoice" class="tool-btn" onclick="toggleFeatureFlag('voice')">語音助理: 開</button>
+            <button id="btnCtrlVoice" class="tool-btn" onclick="toggleFeatureFlag('voice')">語音助理: 關</button>
             <button id="btnCtrlLaser" class="tool-btn" onclick="toggleFeatureFlag('laser')">雷射尺: 開</button>
             <button id="btnCtrlWarRoom" class="tool-btn" onclick="toggleFeatureFlag('warRoom')">戰情室: 開</button>
             <button id="btnQaStress" class="tool-btn" style="border-color:#ffd166; color:#ffe4a1;" onclick="toggleQaStressTest()">QA 壓力測試: 關</button>
@@ -1159,8 +1158,14 @@
     <div class="coach-avatar" aria-hidden="true">🐣</div>
 </div>
 
-<script src="scripts/bundles/bm-core.js?v=v924"></script>
+<script src="scripts/bundles/bm-core.js?v=v950"></script>
 <script src="scripts/bundles/bm-blueprint.js?v=v904"></script>
 <script src="scripts/bundles/bm-calc.js?v=v911"></script>
+<script src="scripts/features/app-shell.js?v=v950"></script>
+<script src="scripts/features/materials-weather.js?v=v950"></script>
+<script src="scripts/features/measurement-logs.js?v=v950"></script>
+<script src="scripts/features/bim-qa.js?v=v950"></script>
+<script src="scripts/features/calc-engine.js?v=v950"></script>
+<script src="scripts/app-main.js?v=v950"></script>
 </body>
 </html>

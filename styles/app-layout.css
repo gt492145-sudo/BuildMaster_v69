@@ -92,31 +92,24 @@
     .mode-btn { border: 1px solid rgba(255,255,255,0.16); border-radius: 999px; background: rgba(16, 29, 48, 0.52); color: #e8f5ff; font-weight: 700; padding: 8px 12px; cursor: pointer; transition: 0.2s; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); }
     .mode-btn:hover { background: rgba(36, 61, 92, 0.72); transform: translateY(-1px); }
     .mode-btn:active { transform: translateY(0); opacity: 0.92; }
-    .main-layout { width: 100%; box-sizing: border-box; display: flex; flex-direction: row; flex: 1; min-height: 0; overflow: hidden; padding: 12px; gap: 12px; border-radius: 20px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04), 0 22px 44px rgba(0,0,0,0.24); }
-    .drawing-panel { flex: 1.2; min-width: 0; min-height: 0; background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)), var(--panel-strong); border: 1px solid var(--line-strong); display: flex; flex-direction: column; border-radius: 18px; backdrop-filter: blur(16px) saturate(125%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -20px 30px rgba(5,10,20,0.12), var(--shadow-panel); overflow: hidden; }
-    .calc-panel { flex: 1; min-width: 0; min-height: 0; background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)), var(--panel-strong); border: 1px solid var(--line-strong); padding: 18px; overflow-y: auto; border-radius: 18px; backdrop-filter: blur(16px) saturate(125%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -20px 30px rgba(5,10,20,0.12), var(--shadow-panel); display: flex; flex-direction: column; }
+    .main-layout { width: 100%; box-sizing: border-box; display: flex; flex-direction: row; flex: 1; min-height: 0; overflow: hidden; padding: 8px 10px; gap: 0; border-radius: 14px; border: 1px solid rgba(148, 196, 255, 0.22); background: linear-gradient(180deg, rgba(34, 53, 82, 0.62), rgba(18, 31, 52, 0.52)); box-shadow: inset 0 1px 0 rgba(255,255,255,0.06); }
+    .drawing-panel { flex: 1.35; min-width: 0; min-height: 0; background: transparent; border: 0; display: flex; flex-direction: column; border-radius: 0; backdrop-filter: none; box-shadow: none; overflow: hidden; }
+    .calc-panel { flex: 1; min-width: 0; min-height: 0; background: transparent; border: 0; padding: 10px 8px 8px; overflow-y: auto; border-radius: 0; backdrop-filter: none; box-shadow: none; display: flex; flex-direction: column; }
     #calcModePage { order: 30; }
     #stakeModePage { order: 40; }
     #stakeProjectTitle { order: 41; }
     #stakeProjectMetaRow { order: 42; }
     .member-wrap { order: 43; }
     .action-cluster {
-        margin-top: 12px;
-        padding: 14px;
-        border-radius: 12px;
-        border: 1px solid rgba(167, 214, 255, 0.14);
-        background: linear-gradient(180deg, rgba(19, 33, 54, 0.76), rgba(10, 19, 34, 0.68));
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 10px 20px rgba(0,0,0,0.16);
+        margin-top: 6px;
+        padding: 8px 0;
+        border-radius: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
     }
-    .action-cluster--accent {
-        border-color: rgba(157, 127, 255, 0.28);
-        background: linear-gradient(180deg, rgba(37, 25, 66, 0.72), rgba(15, 19, 38, 0.72));
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 28px rgba(44, 22, 84, 0.22);
-    }
-    .action-cluster--warm {
-        border-color: rgba(255, 201, 122, 0.24);
-        background: linear-gradient(180deg, rgba(54, 34, 18, 0.66), rgba(18, 16, 25, 0.72));
-    }
+    .action-cluster--accent { background: transparent; box-shadow: none; }
+    .action-cluster--warm { background: transparent; }
     .action-cluster-header {
         display: flex;
         align-items: flex-start;
@@ -158,10 +151,10 @@
     }
     .action-cluster-grid .tool-btn {
         width: 100%;
-        min-height: 42px;
+        min-height: 40px;
         justify-content: center;
         text-align: center;
-        box-shadow: 0 6px 12px rgba(0,0,0,0.18);
+        box-shadow: none;
     }
     .action-cluster-tags {
         display: flex;
@@ -169,8 +162,8 @@
         gap: 8px;
         margin-bottom: 10px;
     }
-    .tool-bar { display: flex; gap: 10px; padding: 12px 14px; background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015)); align-items: stretch; border-bottom: 1px solid rgba(255,255,255,0.08); flex-wrap: wrap; }
-    .tool-group { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.025); border-radius: 14px; flex-wrap: wrap; box-shadow: inset 0 1px 0 rgba(255,255,255,0.03); }
+    .tool-bar { display: flex; gap: 8px; padding: 8px 6px 10px; background: transparent; align-items: stretch; border-bottom: 1px solid rgba(255,255,255,0.06); flex-wrap: wrap; }
+    .tool-group { display: flex; align-items: center; gap: 8px; padding: 8px 2px; border: 0; background: transparent; border-radius: 0; flex-wrap: wrap; box-shadow: none; }
     .tool-group--file { min-width: min(100%, 260px); }
     .tool-group--status { margin-left: auto; }
     .tool-group-label { font-size: 0.7em; text-transform: uppercase; letter-spacing: 1px; font-weight: 800; color: #91d7ff; }

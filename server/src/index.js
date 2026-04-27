@@ -50,6 +50,9 @@ const config = {
     defaultAdminAccount: String(process.env.DEFAULT_ADMIN_ACCOUNT || 'owner').trim().toLowerCase(),
     defaultAdminPassword: String(process.env.DEFAULT_ADMIN_PASSWORD || 'ChangeMe123!').trim(),
     defaultAdminLevel: normalizeLevel(process.env.DEFAULT_ADMIN_LEVEL || 'pro'),
+    appReviewDemoAccount: String(process.env.APP_REVIEW_DEMO_ACCOUNT || '').trim().toLowerCase(),
+    appReviewDemoPassword: String(process.env.APP_REVIEW_DEMO_PASSWORD || '').trim(),
+    appReviewDemoLevel: normalizeLevel(process.env.APP_REVIEW_DEMO_LEVEL || 'pro'),
     openAiEnabled: String(process.env.OPENAI_ENABLED || 'false').trim().toLowerCase() === 'true',
     openAiApiKey: String(process.env.OPENAI_API_KEY || '').trim(),
     openAiEndpoint: String(process.env.OPENAI_ENDPOINT || 'https://api.openai.com/v1/chat/completions').trim(),
@@ -107,9 +110,49 @@ const MIME_TYPES = {
 };
 
 const activeLearningJobs = new Map();
+const localWorkspaceFallbackStore = new Map();
+const WORKSPACE_RESOURCE_KEYS = new Set([
+    'list',
+    'bimRuleMap',
+    'bimAuditLogs',
+    'bimSnapshots',
+    'stakingRunHistory',
+    'stakingReviewMemory',
+    'measurementLogs',
+    'qaProfile',
+    'bimSpecPreset',
+    'autoInterpretMemory',
+    'guidedPrecisionReviews',
+    'blueprintLearningAssets',
+    'autoInterpretLearningJobs',
+    'autoInterpretLearningReviews'
+]);
 
 function normalizeAccount(account) {
     return String(account || '').trim().toLowerCase();
+}
+
+function getLocalFallbackWorkspace(account) {
+    const key = normalizeAccount(account) || 'guest';
+    if (!localWorkspaceFallbackStore.has(key)) {
+        localWorkspaceFallbackStore.set(key, sanitizeWorkspace({}));
+    }
+    return sanitizeWorkspace(localWorkspaceFallbackStore.get(key));
+}
+
+function updateLocalFallbackWorkspace(account, resourceName, value) {
+    if (!WORKSPACE_RESOURCE_KEYS.has(resourceName)) {
+        throw new Error('不支援的資料資源');
+    }
+    const key = normalizeAccount(account) || 'guest';
+    const current = getLocalFallbackWorkspace(key);
+    const next = sanitizeWorkspace({
+        ...current,
+        [resourceName]: value,
+        updatedAt: new Date().toISOString()
+    });
+    localWorkspaceFallbackStore.set(key, next);
+    return sanitizeWorkspace(next);
 }
 
 function isAllowedOrigin(origin) {
@@ -255,6 +298,28 @@ function getSessionFromRequest(request) {
     return sessionFromVerifiedPayload(payload);
 }
 
+function buildConfiguredDemoSession(account, password) {
+    if (
+        config.appReviewDemoAccount
+        && config.appReviewDemoPassword
+        && account === config.appReviewDemoAccount
+        && hashText(password) === hashText(config.appReviewDemoPassword)
+    ) {
+        return {
+            account: config.appReviewDemoAccount,
+            canManageMembers: false,
+            featureOverrides: {},
+            sessionType: 'member',
+            userLevel: config.appReviewDemoLevel,
+            billing: {
+                source: 'app_review_demo',
+                hasSubscriptionExpiry: false
+            }
+        };
+    }
+    return null;
+}
+
 function buildSessionView(session) {
     const grantedLevel = normalizeLevel(session.userLevel);
     const requestedLevel = clampRequestedLevel(session.requestedLevel || grantedLevel, grantedLevel);
@@ -320,6 +385,10 @@ async function handleLogin(request, response) {
             userLevel: config.accessLevel
         };
     } else if (account) {
+        sessionPayload = buildConfiguredDemoSession(account, password);
+    }
+
+    if (!sessionPayload && account) {
         try {
             await withDb(config, async (db) => {
                 const member = await verifyMemberLogin(db, account, password);
@@ -348,10 +417,12 @@ async function handleLogin(request, response) {
         return;
     }
 
-    sessionPayload.billing = {
-        source: sessionPayload.sessionType === 'member' ? 'password' : 'access_code',
-        hasSubscriptionExpiry: false
-    };
+    if (!sessionPayload.billing) {
+        sessionPayload.billing = {
+            source: sessionPayload.sessionType === 'member' ? 'password' : 'access_code',
+            hasSubscriptionExpiry: false
+        };
+    }
     const token = createSessionToken(sessionPayload, config.authSecret, LOGIN_SESSION_TTL_SECONDS);
     const verified = verifySessionToken(token, config.authSecret);
     const session = sessionFromVerifiedPayload(verified);
@@ -563,22 +634,59 @@ async function handleAppleRedeem(request, response) {
 async function handleWorkspaceBootstrap(request, response) {
     const session = requireFeature(request, response, 'dataSync');
     if (!session) return;
-    const result = await withDb(config, async (db) => {
-        const workspace = sanitizeWorkspace(await getWorkspace(db, session.account));
-        return {
-            members: session.canManageMembers ? await listMembers(db) : [],
-            workspace
-        };
-    });
-    sendJson(response, 200, result, request);
+    try {
+        const result = await withDb(config, async (db) => {
+            const workspace = sanitizeWorkspace(await getWorkspace(db, session.account));
+            return {
+                members: session.canManageMembers ? await listMembers(db) : [],
+                workspace,
+                syncMode: 'postgres'
+            };
+        });
+        sendJson(response, 200, result, request);
+    } catch (error) {
+        const message = String((error && error.message) || '').trim();
+        console.warn('[workspace-bootstrap] PostgreSQL unavailable, returning local fallback:', message || error);
+        sendJson(response, 200, {
+            members: [],
+            workspace: getLocalFallbackWorkspace(session.account),
+            syncMode: 'local-fallback',
+            syncWarning: message || '資料庫暫時不可用，已改用本機暫存。'
+        }, request);
+    }
 }
 
 async function handleWorkspaceResourceUpdate(request, response, resourceName) {
     const session = requireFeature(request, response, 'dataSync');
     if (!session) return;
     const body = await readJsonBody(request);
-    const result = await withDb(config, async (db) => setWorkspaceResource(db, session.account, resourceName, body.value));
-    sendJson(response, 200, { ok: true, resource: resourceName, workspace: result }, request);
+    try {
+        const result = await withDb(config, async (db) => setWorkspaceResource(db, session.account, resourceName, body.value));
+        sendJson(response, 200, {
+            ok: true,
+            resource: resourceName,
+            workspace: result,
+            syncMode: 'postgres'
+        }, request);
+    } catch (error) {
+        const message = String((error && error.message) || '').trim();
+        console.warn('[workspace-resource] PostgreSQL unavailable, writing local fallback:', resourceName, message || error);
+        try {
+            const fallbackWorkspace = updateLocalFallbackWorkspace(session.account, resourceName, body.value);
+            sendJson(response, 200, {
+                ok: true,
+                resource: resourceName,
+                workspace: fallbackWorkspace,
+                syncMode: 'local-fallback',
+                syncWarning: message || '資料庫暫時不可用，已改用本機暫存。'
+            }, request);
+        } catch (fallbackError) {
+            sendJson(response, 400, {
+                error: 'WORKSPACE_RESOURCE_INVALID',
+                message: fallbackError && fallbackError.message ? fallbackError.message : '不支援的資料資源。'
+            }, request);
+        }
+    }
 }
 
 async function handleListMembers(request, response) {
@@ -1123,8 +1231,11 @@ function isAllowedStaticPath(pathname) {
     return pathname === '/' ||
         pathname === '/index.html' ||
         pathname === '/stake.html' ||
+        pathname === '/privacy.html' ||
+        pathname === '/app.css' ||
         pathname === '/site.webmanifest' ||
         pathname === '/service-worker.js' ||
+        pathname === '/favicon.ico' ||
         pathname === '/favicon-32.png' ||
         pathname === '/apple-touch-icon.png' ||
         pathname === '/icon-192.png' ||

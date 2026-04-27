@@ -33,9 +33,9 @@
         .calc-panel { overflow: visible; }
     }
     @media (min-width: 993px) {
-        .main-layout { flex-direction: row !important; overflow: hidden; min-height: 0; }
-        .drawing-panel { min-height: 0; }
-        .calc-panel { overflow-y: auto; }
+        .main-layout { flex-direction: column !important; overflow: auto; min-height: auto; }
+        .drawing-panel { min-height: 44vh; border-right: 0 !important; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .calc-panel { overflow: visible; padding-top: 8px; }
     }
     @media (max-width: 768px) {
         header { padding: 10px 12px; align-items: flex-start; }

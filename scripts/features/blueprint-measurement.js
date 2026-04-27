@@ -25,6 +25,15 @@
         } catch (_e) {}
     }
 
+    function runBlueprintUploadStep(label, fn) {
+        try {
+            if (typeof fn === 'function') return fn();
+        } catch (error) {
+            console.warn('圖紙上傳後續步驟失敗', label, error);
+        }
+        return null;
+    }
+
     function scheduleAutoBlueprintAutoCalcIfEnabled() {
         var toggle = document.getElementById('blueprintAutoCalcAfterUpload');
         if (!toggle || !toggle.checked) return;
@@ -45,11 +54,17 @@
             // Prefer full one-click pipeline (Blueprint + IBM),
             // fallback to blueprint-only auto calc when BIM model is missing.
             if (typeof runAutoBlueprintPlusBIM === 'function') {
-                runAutoBlueprintPlusBIM();
+                Promise.resolve(runAutoBlueprintPlusBIM()).catch(function(error) {
+                    console.warn('上傳後自動計算失敗', error);
+                    showToast('圖紙已載入；自動計算暫時無法執行，仍可手動量測。');
+                });
                 return;
             }
             if (typeof autoInterpretBlueprintAndCalculate === 'function') {
-                autoInterpretBlueprintAndCalculate();
+                Promise.resolve(autoInterpretBlueprintAndCalculate()).catch(function(error) {
+                    console.warn('上傳後自動判讀失敗', error);
+                    showToast('圖紙已載入；自動判讀暫時無法執行，仍可手動量測。');
+                });
             }
         }, 700);
     }
@@ -59,60 +74,86 @@
         if (!file) return;
         const reader = new FileReader();
         reader.onload = function(event) {
+            const dataUrl = String(event && event.target && event.target.result || '');
+            if (!dataUrl) {
+                showToast('照片讀取失敗，請重新選擇圖片');
+                return;
+            }
             currentBlueprintUploadState = {
                 fileName: String(file.name || 'blueprint.png'),
                 mimeType: String(file.type || 'image/png'),
                 sizeBytes: Number(file.size) || 0,
-                dataUrl: String(event.target.result || ''),
+                dataUrl,
                 sourceType: detectBlueprintSourceType(file),
                 captureMode: 'single-image'
             };
-            img.src = event.target.result;
+            img.onerror = function() {
+                console.warn('圖紙照片解碼失敗', file);
+                showToast('照片格式無法載入，請改用 JPG/PNG 或重新拍照後再上傳。');
+            };
+            img.src = dataUrl;
             img.onload = () => {
-                // Always reset interaction state on new upload to avoid being stuck
-                // in calibration/measure mode where pan gestures are disabled.
-                drawMode = 'none';
-                clickPoints = [];
-                calibrationPendingPoint = null;
-                manualPrecisionState.active = false;
-                resetSmartMeasureSession({ preserveLastResult: false });
-                blueprintPanState.active = false;
-                blueprintPinchState.active = false;
-                suppressNextCanvasClick = false;
-                suppressNextCanvasTouch = false;
-                canvas.width = img.naturalWidth;
-                canvas.height = img.naturalHeight;
-                imageFilterState = { contrast: 1, brightness: 1 };
-                syncImageFilterUI();
-                applyImageFilter();
-                reset3DView(true);
-                syncCanvasEmptyState();
-                updateTouchInteractionMode();
-                syncMobileMeasureModeUI();
-                renderManualMeasurePad();
-                fitBlueprintToViewport();
-                const qualityReport = updateBlueprintQualityStatus();
-                currentBlueprintUploadState = {
-                    ...(currentBlueprintUploadState || {}),
-                    width: Number(img.naturalWidth) || 0,
-                    height: Number(img.naturalHeight) || 0,
-                    orientation: img.naturalWidth >= img.naturalHeight ? 'landscape' : 'portrait',
-                    sourceType: currentBlueprintUploadState && currentBlueprintUploadState.sourceType
-                        ? currentBlueprintUploadState.sourceType
-                        : detectBlueprintSourceType(file)
-                };
-                updateAutoInterpretLearningSummary(`後台學習：已載入 ${currentBlueprintUploadState.sourceType || 'clean-blueprint'}｜待建立任務`, '#d7e9ff');
-                if (qualityReport && qualityReport.quality === '待重拍') {
-                    showToast(`圖紙品質偏低（${qualityReport.issues.join('、')}），建議重拍再量測`);
-                } else if (qualityReport && qualityReport.quality === '可用') {
-                    showToast(`圖紙已載入（${qualityReport.issues.join('、')}，可先量測）`);
-                } else {
-                    showToast('圖紙載入完成，可拖曳/縮放（雙擊可回適配視圖）');
+                try {
+                    if (!img.naturalWidth || !img.naturalHeight) {
+                        throw new Error('IMAGE_DIMENSION_UNAVAILABLE');
+                    }
+                    // Always reset interaction state on new upload to avoid being stuck
+                    // in calibration/measure mode where pan gestures are disabled.
+                    drawMode = 'none';
+                    clickPoints = [];
+                    calibrationPendingPoint = null;
+                    if (manualPrecisionState) manualPrecisionState.active = false;
+                    runBlueprintUploadStep('resetSmartMeasureSession', () => resetSmartMeasureSession({ preserveLastResult: false }));
+                    if (blueprintPanState) blueprintPanState.active = false;
+                    if (blueprintPinchState) blueprintPinchState.active = false;
+                    suppressNextCanvasClick = false;
+                    suppressNextCanvasTouch = false;
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    imageFilterState = { contrast: 1, brightness: 1 };
+                    runBlueprintUploadStep('syncImageFilterUI', syncImageFilterUI);
+                    runBlueprintUploadStep('applyImageFilter', applyImageFilter);
+                    runBlueprintUploadStep('reset3DView', () => reset3DView(true));
+                    runBlueprintUploadStep('syncCanvasEmptyState', syncCanvasEmptyState);
+                    runBlueprintUploadStep('updateTouchInteractionMode', updateTouchInteractionMode);
+                    runBlueprintUploadStep('syncMobileMeasureModeUI', syncMobileMeasureModeUI);
+                    runBlueprintUploadStep('renderManualMeasurePad', renderManualMeasurePad);
+                    runBlueprintUploadStep('fitBlueprintToViewport', fitBlueprintToViewport);
+                    const qualityReport = runBlueprintUploadStep('updateBlueprintQualityStatus', updateBlueprintQualityStatus);
+                    currentBlueprintUploadState = {
+                        ...(currentBlueprintUploadState || {}),
+                        width: Number(img.naturalWidth) || 0,
+                        height: Number(img.naturalHeight) || 0,
+                        orientation: img.naturalWidth >= img.naturalHeight ? 'landscape' : 'portrait',
+                        sourceType: currentBlueprintUploadState && currentBlueprintUploadState.sourceType
+                            ? currentBlueprintUploadState.sourceType
+                            : detectBlueprintSourceType(file)
+                    };
+                    runBlueprintUploadStep('updateAutoInterpretLearningSummary', () => updateAutoInterpretLearningSummary(`後台學習：已載入 ${currentBlueprintUploadState.sourceType || 'clean-blueprint'}｜待建立任務`, '#d7e9ff'));
+                    if (qualityReport && qualityReport.quality === '待重拍') {
+                        showToast(`圖紙品質偏低（${qualityReport.issues.join('、')}），建議重拍再量測`);
+                    } else if (qualityReport && qualityReport.quality === '可用') {
+                        showToast(`圖紙已載入（${qualityReport.issues.join('、')}，可先量測）`);
+                    } else {
+                        showToast('圖紙載入完成，可拖曳/縮放（雙擊可回適配視圖）');
+                    }
+                    runBlueprintUploadStep('scheduleAutoBlueprintAutoCalcIfEnabled', scheduleAutoBlueprintAutoCalcIfEnabled);
+                } catch (error) {
+                    console.warn('圖紙載入後初始化失敗', error);
+                    showToast('照片已載入，但部分輔助功能暫時無法初始化；仍可手動量測。');
                 }
-                scheduleAutoBlueprintAutoCalcIfEnabled();
             };
         };
-        reader.readAsDataURL(file);
+        reader.onerror = function() {
+            console.warn('照片讀取失敗', reader.error);
+            showToast('照片讀取失敗，請重新選擇圖片。');
+        };
+        try {
+            reader.readAsDataURL(file);
+        } catch (error) {
+            console.warn('照片上傳啟動失敗', error);
+            showToast('照片上傳失敗，請重新選擇 JPG/PNG 圖片。');
+        }
     }
 
     function changeZoom(delta) {

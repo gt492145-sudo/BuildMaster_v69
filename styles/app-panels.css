@@ -1,5 +1,5 @@
     }
-    .group-title { color: var(--highlight); font-weight: 800; margin-top: 18px; border-left: 4px solid var(--highlight); padding-left: 12px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; letter-spacing: 0.2px; }
+    .group-title { color: var(--highlight); font-weight: 800; margin-top: 10px; border-left: 0; padding-left: 0; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; letter-spacing: 0.2px; }
     .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
     .input-wrapper { flex: 1; }
     .input-wrapper label { display: block; font-size: 0.75em; color: var(--text-subtle); margin-bottom: 4px; }
@@ -10,18 +10,19 @@
     .material-chip strong { color: #ffd08b; }
     .material-chip.material-chip-warning { border-color: rgba(255, 132, 132, 0.55); background: rgba(255, 72, 72, 0.14); color: #ffd8d8; }
     .material-chip.material-chip-warning strong { color: #ffe6a7; }
-    .bim-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0 10px; }
+    .bim-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 6px 0 8px; }
     .control-grid { display: grid; grid-template-columns: repeat(6, minmax(96px, 1fr)); gap: 8px; margin: 8px 0; }
-    .status-pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(255,255,255,0.14); border-radius: 999px; padding: 6px 11px; font-size: 0.74em; color: #cfe4f8; background: rgba(255,255,255,0.04); box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }
-    .bim-card { border: 1px solid rgba(255,255,255,0.12); background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.025)); border-radius: 14px; padding: 12px; font-size: 0.76em; color: #d9e8f6; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }
+    .status-pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(255,255,255,0.12); border-radius: 999px; padding: 6px 11px; font-size: 0.74em; color: #cfe4f8; background: rgba(255,255,255,0.02); box-shadow: none; }
+    .bim-card { border: 0; border-radius: 0; padding: 8px 6px; font-size: 0.76em; color: #d9e8f6; background: transparent; box-shadow: none; }
     .bim-card strong { display: block; font-size: 1.24em; color: #ffd287; margin-top: 6px; letter-spacing: 0.2px; }
     .bim-note { font-size: 0.78em; color: var(--text-subtle); margin-top: 6px; }
     .precision-review-panel {
-        margin-top: 10px;
-        border: 1px solid rgba(140, 214, 255, 0.32);
-        border-radius: 10px;
-        padding: 10px;
-        background: rgba(86, 155, 255, 0.06);
+        margin-top: 8px;
+        border: 0;
+        border-top: 1px solid rgba(140, 214, 255, 0.2);
+        border-radius: 0;
+        padding: 8px 0;
+        background: transparent;
     }
     .precision-review-panel[hidden] { display: none; }
     .precision-review-head {
@@ -38,12 +39,12 @@
         font-size: 0.92em;
     }
     .precision-review-badge {
-        border: 1px solid rgba(255,255,255,0.18);
+        border: 1px solid rgba(255,255,255,0.14);
         border-radius: 999px;
         padding: 4px 8px;
         font-size: 0.72em;
         color: #dff2ff;
-        background: rgba(255,255,255,0.05);
+        background: rgba(255,255,255,0.02);
     }
     .precision-review-summary {
         font-size: 0.78em;
@@ -57,10 +58,10 @@
         gap: 8px;
     }
     .precision-review-field {
-        border: 1px solid rgba(255,255,255,0.12);
-        border-radius: 8px;
-        padding: 8px;
-        background: rgba(6, 14, 24, 0.44);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 6px;
+        padding: 7px;
+        background: rgba(6, 14, 24, 0.2);
     }
     .precision-review-field-head {
         display: flex;
@@ -91,9 +92,9 @@
         gap: 6px;
     }
     .precision-review-btn {
-        border: 1px solid rgba(255,255,255,0.16);
-        border-radius: 8px;
-        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 6px;
+        background: rgba(255,255,255,0.02);
         color: #eaf6ff;
         padding: 6px 8px;
         font-size: 0.72em;
@@ -106,7 +107,7 @@
         color: #fff3bf;
     }
     .precision-review-btn:hover {
-        background: rgba(255,255,255,0.12);
+        background: rgba(255,255,255,0.06);
     }
     .precision-review-detail {
         margin-top: 6px;
@@ -166,29 +167,29 @@
             min-width: 0;
         }
     }
-    .bim-table-wrap { max-height: 180px; overflow: auto; border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; margin-top: 8px; }
+    .bim-table-wrap { max-height: 180px; overflow: auto; border: 0; border-top: 1px solid rgba(255,255,255,0.09); border-radius: 0; margin-top: 6px; background: transparent; }
     .bim-table-wrap table { margin-top: 0; }
-    .bim-warn { margin-top: 8px; border: 1px solid rgba(255, 140, 140, 0.45); background: rgba(255, 80, 80, 0.08); color: #ffd5d5; border-radius: 8px; padding: 8px; font-size: 0.78em; min-height: 18px; }
+    .bim-warn { margin-top: 8px; border: 1px solid rgba(255, 140, 140, 0.22); background: rgba(255, 80, 80, 0.02); color: #ffd5d5; border-radius: 4px; padding: 8px; font-size: 0.78em; min-height: 18px; }
     .bim-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-    .bim-estimate-wrap { max-height: 200px; overflow: auto; border: 1px solid rgba(135, 220, 170, 0.28); border-radius: 8px; margin-top: 8px; }
-    .bim-rule-wrap { margin-top: 8px; border: 1px solid rgba(120, 180, 255, 0.28); border-radius: 8px; padding: 8px; background: rgba(120, 180, 255, 0.05); }
+    .bim-estimate-wrap { max-height: 200px; overflow: auto; border: 0; border-top: 1px solid rgba(135, 220, 170, 0.12); border-radius: 0; margin-top: 8px; background: transparent; }
+    .bim-rule-wrap { margin-top: 8px; border: 0; border-top: 1px solid rgba(120, 180, 255, 0.1); border-radius: 0; padding: 8px 0; background: transparent; }
     .bim-rule-grid { display: grid; grid-template-columns: 1.1fr 1fr auto auto; gap: 8px; align-items: end; }
     .bim-rule-grid input, .bim-rule-grid select { width: 100%; padding: 9px; background: rgba(10, 20, 36, 0.56); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 6px; box-sizing: border-box; }
-    .bim-rule-table { max-height: 150px; overflow: auto; margin-top: 8px; border: 1px solid rgba(120, 180, 255, 0.22); border-radius: 8px; }
+    .bim-rule-table { max-height: 150px; overflow: auto; margin-top: 8px; border: 0; border-top: 1px solid rgba(120, 180, 255, 0.08); border-radius: 0; background: transparent; }
     .bim-rule-table table { margin-top: 0; }
-    .bim-unmatched-wrap { margin-top: 8px; border: 1px solid rgba(255, 196, 120, 0.35); border-radius: 8px; padding: 8px; background: rgba(255, 196, 120, 0.08); }
+    .bim-unmatched-wrap { margin-top: 8px; border: 0; border-top: 1px solid rgba(255, 196, 120, 0.14); border-radius: 0; padding: 8px 0; background: transparent; }
     .bim-unmatched-grid { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 8px; align-items: end; }
     .bim-unmatched-grid select { width: 100%; padding: 9px; background: rgba(10, 20, 36, 0.56); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 6px; box-sizing: border-box; }
-    .audit-wrap { margin-top: 8px; border: 1px solid rgba(160, 255, 210, 0.28); border-radius: 8px; padding: 8px; background: rgba(130, 255, 190, 0.06); }
-    .audit-table { max-height: 150px; overflow: auto; border: 1px solid rgba(160, 255, 210, 0.2); border-radius: 8px; margin-top: 8px; }
+    .audit-wrap { margin-top: 8px; border: 0; border-top: 1px solid rgba(160, 255, 210, 0.1); border-radius: 0; padding: 8px 0; background: transparent; }
+    .audit-table { max-height: 150px; overflow: auto; border: 0; border-top: 1px solid rgba(160, 255, 210, 0.08); border-radius: 0; margin-top: 8px; background: transparent; }
     .audit-table table { margin-top: 0; }
-    .snapshot-wrap { margin-top: 8px; border: 1px solid rgba(255, 220, 140, 0.32); border-radius: 8px; padding: 8px; background: rgba(255, 210, 110, 0.08); }
-    .snapshot-table { max-height: 160px; overflow: auto; border: 1px solid rgba(255, 220, 140, 0.22); border-radius: 8px; margin-top: 8px; }
+    .snapshot-wrap { margin-top: 8px; border: 0; border-top: 1px solid rgba(255, 220, 140, 0.12); border-radius: 0; padding: 8px 0; background: transparent; }
+    .snapshot-table { max-height: 160px; overflow: auto; border: 0; border-top: 1px solid rgba(255, 220, 140, 0.08); border-radius: 0; margin-top: 8px; background: transparent; }
     .snapshot-table table { margin-top: 0; }
-    .member-wrap { margin-top: 8px; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 8px; background: rgba(255,255,255,0.04); }
-    .member-table { max-height: 140px; overflow: auto; border: 1px solid rgba(255,255,255,0.14); border-radius: 8px; margin-top: 8px; }
+    .member-wrap { margin-top: 8px; border: 0; border-top: 1px solid rgba(255,255,255,0.08); border-radius: 0; padding: 8px 0; background: transparent; }
+    .member-table { max-height: 140px; overflow: auto; border: 0; border-top: 1px solid rgba(255,255,255,0.08); border-radius: 0; margin-top: 8px; background: transparent; }
     .member-table table { margin-top: 0; }
-    .unit-wrap { margin-top: 8px; border: 1px solid rgba(180, 180, 255, 0.28); border-radius: 8px; padding: 8px; background: rgba(150, 170, 255, 0.07); }
+    .unit-wrap { margin-top: 8px; border: 0; border-top: 1px solid rgba(180, 180, 255, 0.1); border-radius: 0; padding: 8px 0; background: transparent; }
     .unit-grid { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: end; }
     .unit-grid input, .unit-grid select { width: 100%; padding: 9px; background: rgba(10, 20, 36, 0.56); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 6px; box-sizing: border-box; }
     .security-lock { position: fixed; inset: 0; z-index: 99999; background: rgba(3, 8, 18, 0.92); display: none; align-items: center; justify-content: center; padding: 20px; }
@@ -258,15 +259,15 @@
     .security-api-url-hint code { font-size: 0.92em; color: #b8e0ff; }
     .security-watermark { position: fixed; right: 10px; bottom: 10px; z-index: 9997; pointer-events: none; opacity: 0.36; font-size: 11px; color: #d5e7ff; background: rgba(8, 16, 28, 0.55); border: 1px dashed rgba(173, 216, 255, 0.3); border-radius: 6px; padding: 5px 8px; letter-spacing: 0.3px; }
     .price-input { border-color: var(--money) !important; color: var(--money) !important; font-weight: bold; }
-    .preview-bar { margin-top: 16px; padding: 16px 18px; background: linear-gradient(180deg, rgba(26, 48, 74, 0.76), rgba(13, 25, 44, 0.88)); border-radius: 16px; border: 1px solid rgba(94, 203, 255, 0.24); font-size: 0.9em; box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 26px rgba(0,0,0,0.16); }
+    .preview-bar { margin-top: 16px; padding: 16px 18px; background: rgba(255,255,255,0.015); border-radius: 0; border: 0; border-top: 1px solid rgba(94, 203, 255, 0.18); font-size: 0.9em; box-shadow: none; }
     .preview-bar-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
     .preview-bar-kicker { color: #9ad4ff; font-size: 0.72em; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
-    .preview-unit-chip { display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(94, 203, 255, 0.24); background: rgba(94, 203, 255, 0.08); color: #dff5ff; font-size: 0.74em; font-weight: 800; }
+    .preview-unit-chip { display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(94, 203, 255, 0.2); background: rgba(94, 203, 255, 0.03); color: #dff5ff; font-size: 0.74em; font-weight: 800; }
     .preview-bar-main { color: #eef9ff; font-weight: 800; font-size: 1.02em; line-height: 1.6; }
     .preview-bar-sub { margin-top: 8px; color: #ffd9a1; font-weight: 700; font-size: 0.88em; line-height: 1.45; }
     .preview-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
-    .preview-summary-card { border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; padding: 12px 14px; background: rgba(255,255,255,0.03); box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }
-    .preview-summary-card--accent { border-color: rgba(255, 209, 102, 0.24); background: rgba(255, 209, 102, 0.06); }
+    .preview-summary-card { border: 0; border-radius: 0; padding: 10px 8px; background: transparent; box-shadow: none; }
+    .preview-summary-card--accent { border-top: 1px solid rgba(255, 209, 102, 0.2); background: transparent; }
     .preview-summary-label { display: block; font-size: 0.72em; color: #9fc0da; margin-bottom: 6px; letter-spacing: 0.3px; }
     .preview-summary-card strong { display: block; color: #eef8ff; font-size: 1.04em; }
     .btn-add { background: linear-gradient(135deg, #ffb347, #ff9800); color: #1d1400; font-size: 1.1em; margin: 15px 0; border: none; font-weight: 900; box-shadow: 0 8px 18px rgba(255,152,0,0.35); padding: 12px; cursor: pointer; width: 100%; border-radius: 8px; transition: 0.25s; }
@@ -277,7 +278,7 @@
     th { background: rgba(255,255,255,0.05); color: var(--highlight); padding: 11px 10px; border-bottom: 1px solid var(--line-soft); letter-spacing: 0.5px; font-weight: 700; }
     td { padding: 11px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: center; color: #e4eef8; }
     tbody tr:hover { background: rgba(255,255,255,0.04); }
-    .footer-bar { background: linear-gradient(180deg, rgba(10, 16, 30, 0.62), rgba(10, 16, 30, 0.42)); padding: 20px; border-radius: 18px; border: 1px solid rgba(255,152,0,0.32); margin-top: 20px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; backdrop-filter: blur(12px) saturate(118%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 14px 28px rgba(0,0,0,0.24); }
+    .footer-bar { background: rgba(255,255,255,0.01); padding: 16px 8px; border-radius: 0; border: 0; border-top: 1px solid rgba(255,152,0,0.18); margin-top: 16px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; backdrop-filter: none; box-shadow: none; }
     .total-budget { grid-column: span 4; text-align: center; font-size: 1.5em; color: var(--money); font-weight: bold; border-top: 1px solid var(--line-soft); padding-top: 15px; }
     #toast { visibility: hidden; background: var(--highlight); color: black; padding: 12px 25px; position: fixed; left: 50%; bottom: 50px; transform: translateX(-50%); border-radius: 50px; font-weight: bold; z-index: 9999; }
     #toast.show { visibility: visible; animation: fadeInUp 0.5s; }
