@@ -12,11 +12,10 @@ Run from repository root:
 
 `bash scripts/package-calculation-app-only.sh`
 
-The script outputs under `release-artifacts/`:
-- `calculation-app-only-<timestamp>.tar.gz` (main submission package)
-- `calculation-app-review-evidence-<timestamp>.tar.gz` (only if review evidence files are found)
+The script now outputs under `release-artifacts/`:
+- `calculation-app-submission-all-in-one-<timestamp>.tar.gz` (main submission package + review evidence in one archive)
 
-## Review evidence sources (auto-collected)
+## Review evidence sources (auto-collected into the all-in-one package)
 
 The evidence archive is generated from these folders (if files exist):
 - `/opt/cursor/artifacts`
@@ -27,7 +26,7 @@ Included evidence extensions:
 - Videos: `.mp4`, `.mov`, `.webm`
 - Images: `.png`, `.jpg`, `.jpeg`, `.webp`
 
-If no matching files are found, the script skips evidence archive creation.
+If no matching files are found, no `app-review-evidence/` folder will be created in the archive.
 
 ## What is excluded from main package
 

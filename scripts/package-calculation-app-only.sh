@@ -8,7 +8,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACTS_DIR="${ROOT_DIR}/release-artifacts"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 OUTPUT_DIR="${ARTIFACTS_DIR}/calculation-app-only-${STAMP}"
-REVIEW_EVIDENCE_DIR="${ARTIFACTS_DIR}/app-review-evidence-${STAMP}"
+REVIEW_EVIDENCE_DIR="${OUTPUT_DIR}/app-review-evidence"
 
 mkdir -p "${OUTPUT_DIR}"
 mkdir -p "${REVIEW_EVIDENCE_DIR}"
@@ -80,7 +80,7 @@ copy_path "icon-192.png"
 copy_path "icon-512.png"
 
 # App Review evidence artifacts (logs/videos/screenshots) that Apple may request.
-# These are packaged separately from the app bundle.
+# These are copied INTO the same submission bundle so you can upload once.
 copy_evidence "/opt/cursor/artifacts/v95_full_verification_with_db.log"
 copy_evidence "/opt/cursor/artifacts/v95_privacy_url_alignment_check.log"
 copy_evidence "/opt/cursor/artifacts/v95_privacy_url_alignment_check_round2.log"
@@ -118,12 +118,8 @@ EVIDENCE_MANIFEST_PATH="${REVIEW_EVIDENCE_DIR}/APP_REVIEW_EVIDENCE_MANIFEST.txt"
     (cd "${REVIEW_EVIDENCE_DIR}" && rg --files | sort)
 } > "${EVIDENCE_MANIFEST_PATH}"
 
-EVIDENCE_ARCHIVE_PATH="${ARTIFACTS_DIR}/app-review-evidence-${STAMP}.tar.gz"
-tar -czf "${EVIDENCE_ARCHIVE_PATH}" -C "${ARTIFACTS_DIR}" "app-review-evidence-${STAMP}"
-
 echo "Output directory: ${OUTPUT_DIR}"
 echo "Archive: ${ARCHIVE_PATH}"
 echo "Manifest: ${MANIFEST_PATH}"
 echo "Review evidence directory: ${REVIEW_EVIDENCE_DIR}"
-echo "Review evidence archive: ${EVIDENCE_ARCHIVE_PATH}"
 echo "Review evidence manifest: ${EVIDENCE_MANIFEST_PATH}"
