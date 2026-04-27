@@ -110,9 +110,49 @@ const MIME_TYPES = {
 };
 
 const activeLearningJobs = new Map();
+const localWorkspaceFallbackStore = new Map();
+const WORKSPACE_RESOURCE_KEYS = new Set([
+    'list',
+    'bimRuleMap',
+    'bimAuditLogs',
+    'bimSnapshots',
+    'stakingRunHistory',
+    'stakingReviewMemory',
+    'measurementLogs',
+    'qaProfile',
+    'bimSpecPreset',
+    'autoInterpretMemory',
+    'guidedPrecisionReviews',
+    'blueprintLearningAssets',
+    'autoInterpretLearningJobs',
+    'autoInterpretLearningReviews'
+]);
 
 function normalizeAccount(account) {
     return String(account || '').trim().toLowerCase();
+}
+
+function getLocalFallbackWorkspace(account) {
+    const key = normalizeAccount(account) || 'guest';
+    if (!localWorkspaceFallbackStore.has(key)) {
+        localWorkspaceFallbackStore.set(key, sanitizeWorkspace({}));
+    }
+    return sanitizeWorkspace(localWorkspaceFallbackStore.get(key));
+}
+
+function updateLocalFallbackWorkspace(account, resourceName, value) {
+    if (!WORKSPACE_RESOURCE_KEYS.has(resourceName)) {
+        throw new Error('不支援的資料資源');
+    }
+    const key = normalizeAccount(account) || 'guest';
+    const current = getLocalFallbackWorkspace(key);
+    const next = sanitizeWorkspace({
+        ...current,
+        [resourceName]: value,
+        updatedAt: new Date().toISOString()
+    });
+    localWorkspaceFallbackStore.set(key, next);
+    return sanitizeWorkspace(next);
 }
 
 function isAllowedOrigin(origin) {
@@ -594,22 +634,59 @@ async function handleAppleRedeem(request, response) {
 async function handleWorkspaceBootstrap(request, response) {
     const session = requireFeature(request, response, 'dataSync');
     if (!session) return;
-    const result = await withDb(config, async (db) => {
-        const workspace = sanitizeWorkspace(await getWorkspace(db, session.account));
-        return {
-            members: session.canManageMembers ? await listMembers(db) : [],
-            workspace
-        };
-    });
-    sendJson(response, 200, result, request);
+    try {
+        const result = await withDb(config, async (db) => {
+            const workspace = sanitizeWorkspace(await getWorkspace(db, session.account));
+            return {
+                members: session.canManageMembers ? await listMembers(db) : [],
+                workspace,
+                syncMode: 'postgres'
+            };
+        });
+        sendJson(response, 200, result, request);
+    } catch (error) {
+        const message = String((error && error.message) || '').trim();
+        console.warn('[workspace-bootstrap] PostgreSQL unavailable, returning local fallback:', message || error);
+        sendJson(response, 200, {
+            members: [],
+            workspace: getLocalFallbackWorkspace(session.account),
+            syncMode: 'local-fallback',
+            syncWarning: message || '資料庫暫時不可用，已改用本機暫存。'
+        }, request);
+    }
 }
 
 async function handleWorkspaceResourceUpdate(request, response, resourceName) {
     const session = requireFeature(request, response, 'dataSync');
     if (!session) return;
     const body = await readJsonBody(request);
-    const result = await withDb(config, async (db) => setWorkspaceResource(db, session.account, resourceName, body.value));
-    sendJson(response, 200, { ok: true, resource: resourceName, workspace: result }, request);
+    try {
+        const result = await withDb(config, async (db) => setWorkspaceResource(db, session.account, resourceName, body.value));
+        sendJson(response, 200, {
+            ok: true,
+            resource: resourceName,
+            workspace: result,
+            syncMode: 'postgres'
+        }, request);
+    } catch (error) {
+        const message = String((error && error.message) || '').trim();
+        console.warn('[workspace-resource] PostgreSQL unavailable, writing local fallback:', resourceName, message || error);
+        try {
+            const fallbackWorkspace = updateLocalFallbackWorkspace(session.account, resourceName, body.value);
+            sendJson(response, 200, {
+                ok: true,
+                resource: resourceName,
+                workspace: fallbackWorkspace,
+                syncMode: 'local-fallback',
+                syncWarning: message || '資料庫暫時不可用，已改用本機暫存。'
+            }, request);
+        } catch (fallbackError) {
+            sendJson(response, 400, {
+                error: 'WORKSPACE_RESOURCE_INVALID',
+                message: fallbackError && fallbackError.message ? fallbackError.message : '不支援的資料資源。'
+            }, request);
+        }
+    }
 }
 
 async function handleListMembers(request, response) {
