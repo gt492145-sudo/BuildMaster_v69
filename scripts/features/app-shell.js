@@ -516,10 +516,6 @@
         const btn = document.getElementById('btnWarRoom');
         if (!btn) return;
         isWarRoomActive = localStorage.getItem(WAR_ROOM_KEY) === '1';
-        if (!demoModeEnabled) {
-            isWarRoomActive = false;
-            localStorage.setItem(WAR_ROOM_KEY, '0');
-        }
         if (isWarRoomActive) {
             btn.innerText = '🌐 戰情室: LIVE';
             btn.style.color = '#fff';
@@ -536,12 +532,6 @@
     }
 
     function toggleWarRoom() {
-        if (!featureFlags.warRoom) {
-            return showToast('戰情室功能目前已停用（請先到總控開啟）');
-        }
-        if (!demoModeEnabled) {
-            return showToast('Demo 模式已關閉，戰情室模擬協作不可啟用');
-        }
         isWarRoomActive = !isWarRoomActive;
         localStorage.setItem(WAR_ROOM_KEY, isWarRoomActive ? '1' : '0');
         const btn = document.getElementById('btnWarRoom');
@@ -588,7 +578,6 @@
     }
 
     function startMockRemoteDataStream() {
-        if (!featureFlags.warRoom || !demoModeEnabled) return;
         if (warRoomTimer) clearInterval(warRoomTimer);
 
         const colleagues = ['B1-機電組 老王', '2F-泥作組 陳主任', '總部-採購部', 'A棟-鋼筋班 阿明'];
