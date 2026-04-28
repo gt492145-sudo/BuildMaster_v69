@@ -343,14 +343,16 @@
     };
     const COACH_GUIDE_STEPS = [
         { selector: '#coachToggle', message: '第 1 步：建議保持「解說員」為開啟。你點畫面上任何按鈕或區塊，我都會用白話說明用途與下一步；進階問題可再開「AI解說」（會員3＋後端設定）。' },
-        { selector: '#workCalcBtn', message: '第 2 步：記住新版固定規則——第 1 到 3 頁是計算模式；先從這裡留在計算頁。' },
-        { selector: '#calcMeasureCluster', message: '第 3 步：在第三頁先做智慧定比例與智慧量圖，讓圖紙尺寸和比例更穩定。' },
-        { selector: '#calcAiVisionCluster', message: '第 4 步：再做 AI 看圖辨識，包含快速判讀、精準辨識與柱樑尺寸標註。' },
-        { selector: '#calcIbmCluster', message: '第 5 步：第三頁只做 IBM 自動計算、估價預覽與匯入清單；放樣本身改在第四頁執行。' },
-        { selector: '.btn-add', message: '第 6 步：確認即時預覽後，把資料吸入計算清單並匯出報表。' },
-        { selector: '#workStakeBtn', message: '第 7 步：需要放樣時，再切到第四頁放樣模式；切換後只會顯示第四頁放樣相關內容。' },
-        { selector: '#stakeExecutionCluster', message: '第 8 步：第四頁先設定柱、牆、梁與高精度，再執行一鍵放樣流程。' },
-        { selector: '#stakeQaCluster', message: '第 9 步：最後做控制點配準、偏差熱圖、穩定度重測與放樣 QA。' }
+        { selector: '#fileInput', message: '第 2 步：先上傳圖紙。請點「圖紙」上傳框，選擇 JPG/PNG 後，確認圖面已出現在左側畫布。' },
+        { selector: '#btn3D', message: '第 3 步：圖紙上傳後，先開「3D檢視」。操作建議：單指拖曳視角、雙指縮放圖面。' },
+        { selector: '#touchGestureInfo', message: '第 4 步：看這裡的手勢提示，確認目前模式是可操作圖面的狀態，再進行拖曳/縮放。' },
+        { selector: '#workCalcBtn', message: '第 5 步：記住新版固定規則——第 1 到 3 頁是計算模式；先從這裡留在計算頁。' },
+        { selector: '#calcMeasureCluster', message: '第 6 步：在第三頁先做智慧定比例與智慧量圖，讓圖紙尺寸和比例更穩定。' },
+        { selector: '#calcAiVisionCluster', message: '第 7 步：再做 AI 看圖辨識，包含快速判讀、精準辨識與柱樑尺寸標註。' },
+        { selector: '#calcIbmCluster', message: '第 8 步：第三頁只做 IBM 自動計算、估價預覽與匯入清單；放樣本身改在第四頁執行。' },
+        { selector: '.btn-add', message: '第 9 步：確認即時預覽後，把資料吸入計算清單並匯出報表。' },
+        { selector: '#workStakeBtn', message: '第 10 步：需要放樣時，再切到第四頁放樣模式；切換後只會顯示第四頁放樣相關內容。' },
+        { selector: '#stakeExecutionCluster', message: '第 11 步：第四頁先設定柱、牆、梁與高精度，再執行一鍵放樣流程；最後再做放樣 QA。' }
     ];
     let coachTimer = null;
     let coachBound = false;

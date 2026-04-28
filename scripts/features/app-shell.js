@@ -14,7 +14,7 @@
             coachBound = true;
         }
         setTimeout(() => {
-            speakCoach('點任何功能框，我都會即時告訴你用途與下一步。新版固定規則：第1到3頁做計算，第4頁做放樣。');
+            speakCoach('點任何功能框，我都會即時告訴你用途與下一步。先上傳圖紙，再開 3D 檢視操作圖面；新版固定規則：第1到3頁做計算，第4頁做放樣。');
         }, 550);
     }
 
@@ -274,7 +274,8 @@
         if (target.closest('#materialCountChip')) return '這裡顯示目前載入的價目筆數，正常應該是多筆資料。';
         if (target.closest('button[onclick="applySelectedMaterialPrice()"]')) return '把選好的材料單價帶入「單價欄」，省去手動輸入。';
 
-        if (target.closest('#fileInput')) return '這格是圖紙上傳框：先選圖片，再做定比例與量測。';
+        if (target.closest('#fileInput') || target.closest('#mobileBlueprintFileInput')) return '圖紙操作建議：先上傳圖片，確認畫面顯示圖紙後，先按「3D檢視」再做拖曳/縮放，之後再回到定比例與量測。';
+        if (target.closest('#btn3D')) return '3D 檢視操作：先上傳圖紙後按這顆，單指可拖曳視角、雙指可縮放；需要定比例或量測時，再關閉 3D 回平面模式。';
         if (target.closest('button[onclick="changeZoom(0.2)"]')) return '放大圖面，方便點更精準的位置。';
         if (target.closest('button[onclick="changeZoom(-0.2)"]')) return '縮小圖面，方便看整體配置。';
         if (target.closest('button[onclick="toggleMeasureAssist()"]')) return '量圖輔助：只在定比例與測量時提示手機傾斜，幫你提高量圖穩定度。';
