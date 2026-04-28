@@ -5654,9 +5654,19 @@
                 canvasContainer.scrollTop -= dy;
             }
             blueprintPinchState.lastCenter = center;
+            blueprintPinchState.lastGestureAt = Date.now();
             suppressNextCanvasTouch = true;
             if (e.cancelable) e.preventDefault();
             return;
+        }
+        if (!blueprintPanState.active && e.touches.length === 1 && !isMeasureInteractionMode(drawMode)) {
+            const withinRecentPinchWindow = Date.now() - Number(blueprintPinchState.lastGestureAt || 0) < 520;
+            if (withinRecentPinchWindow) {
+                blueprintPanState.active = true;
+                blueprintPanState.lastX = e.touches[0].clientX;
+                blueprintPanState.lastY = e.touches[0].clientY;
+                blueprintPanState.moved = false;
+            }
         }
         if (blueprintPanState.active && e.touches.length === 1) {
             const touch = e.touches[0];
@@ -5693,7 +5703,8 @@
         if (blueprintPinchState.active && e && e.touches && e.touches.length === 1) {
             blueprintPinchState.active = false;
             blueprintPinchState.lastCenter = null;
-            blueprintPanState.active = canSingleFingerPanBlueprint();
+            blueprintPinchState.lastGestureAt = Date.now();
+            blueprintPanState.active = true;
             blueprintPanState.moved = false;
             if (blueprintPanState.active) {
                 blueprintPanState.lastX = e.touches[0].clientX;
