@@ -1,4 +1,14 @@
+    function ensureCoachEnabledByDefault() {
+        // Keep coach enabled on every launch so reviewers/users do not need
+        // to manually turn it on before following guided steps.
+        if (localStorage.getItem(COACH_DISABLED_KEY) === '1') {
+            localStorage.setItem(COACH_DISABLED_KEY, '0');
+        }
+        applyCoachMode();
+    }
+
     function initTouchCoach() {
+        ensureCoachEnabledByDefault();
         applyCoachMode();
         applyAiCoachMode();
         if (localStorage.getItem(COACH_DISABLED_KEY) === '1') return;
