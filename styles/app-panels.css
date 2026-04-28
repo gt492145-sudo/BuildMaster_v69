@@ -354,7 +354,13 @@
     .security-watermark { position: fixed; right: 10px; bottom: 10px; z-index: 9997; pointer-events: none; opacity: 0.36; font-size: 11px; color: #d5e7ff; background: rgba(8, 16, 28, 0.55); border: 1px dashed rgba(173, 216, 255, 0.3); border-radius: 6px; padding: 5px 8px; letter-spacing: 0.3px; }
     .qty-field-row {
         align-items: flex-end;
+        margin-top: 4px;
+        padding: 8px 10px;
+        border: 1px solid rgba(255, 209, 102, 0.42);
+        border-radius: 10px;
+        background: rgba(255, 209, 102, 0.08);
     }
+    .qty-field-row #lbl_qty { color: #ffe39f; font-weight: 800; }
     .qty-inline-wrap {
         display: flex;
         align-items: center;
