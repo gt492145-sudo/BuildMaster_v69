@@ -92,7 +92,7 @@
     <div class="header-actions">
         <button id="coachToggle" class="mode-btn">解說員: 開</button>
         <button id="aiCoachToggle" class="mode-btn level-only-pro">AI解說: 關</button>
-        <button id="btnWarRoom" class="mode-btn" style="border-color: #00e676; color: #00e676; font-weight: 900;">🌐 戰情室: 離線</button>
+        <button id="btnWarRoom" class="mode-btn" style="border-color: #00e676; color: #00e676; font-weight: 900;">🌐 群組聊天/戰情室: 離線</button>
         <button id="coachGuideBtn" class="mode-btn">新手導覽</button>
         <button id="contrastToggle" class="mode-btn">高對比: 關</button>
         <button id="contrastAutoToggle" class="mode-btn">自動: 關</button>
@@ -643,6 +643,14 @@
 
         <!-- 固定規則：第1~3頁只保留計算內容 -->
         <section id="calcModePage">
+        <div id="freeWarRoomCard" class="free-war-room-card">
+            <div class="free-war-room-card-head">
+                <strong>🌐 免費群組聊天入口（第一頁）</strong>
+                <span id="freeWarRoomStatus" class="free-war-room-status">目前狀態：離線</span>
+            </div>
+            <p class="free-war-room-card-note">會員進入 App 後可先在這裡交流、同步現場資訊；按下方按鈕立即進入群組聊天戰情室。</p>
+            <button type="button" class="tool-btn free-war-room-btn" onclick="toggleWarRoom()">立即開啟群組聊天／戰情室</button>
+        </div>
         <div id="stakeMemberWrap" class="member-wrap level-hide-basic work-mode-only-calc">
             <div class="bim-note" style="margin-top:0;">會員管理（後端）：可新增會員帳號、更新密碼。下方勾選<strong>僅管控 IBM Quantum／後端雲端呼叫</strong>（第四頁「⚛️ IBM 雲端放樣」按鈕）；<strong>一般放樣流程不由這裡控制</strong>，依會員等級。（請以具管理權限的帳號登入，例如預設 owner；僅存取碼無法寫入後台。）</div>
             <div class="input-row">
@@ -673,14 +681,6 @@
         <div class="group-title">
             第1頁｜一般計算＋群組交流（免費）
             <span style="font-size: 0.6em; color: #98c8ff;">固定顯示一般計算，頁首可直接進入戰情室互動</span>
-        </div>
-        <div id="freeWarRoomCard" class="free-war-room-card">
-            <div class="free-war-room-card-head">
-                <strong>🌐 免費群組聊天入口（第一頁）</strong>
-                <span id="freeWarRoomStatus" class="free-war-room-status">目前狀態：離線</span>
-            </div>
-            <p class="free-war-room-card-note">會員進入 App 後可先在這裡交流、同步現場資訊；按下方按鈕立即進入群組聊天戰情室。</p>
-            <button type="button" class="tool-btn free-war-room-btn" onclick="toggleWarRoom()">立即開啟群組聊天／戰情室</button>
         </div>
         <button class="tool-btn level-only-standard" style="width: 100%; margin-bottom: 15px; border-color: #e91e63; color: #ffb1c2; font-size: 1.1em; padding: 10px;" onclick="startVoiceAgent()">
             🎙️ 呼叫工地語音助理 (點我說話)

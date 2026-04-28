@@ -522,14 +522,14 @@
             entryState.classList.toggle('active', isWarRoomActive);
         }
         if (isWarRoomActive) {
-            btn.innerText = '🌐 戰情室: LIVE';
+            btn.innerText = '🌐 群組聊天/戰情室: LIVE';
             btn.style.color = '#fff';
             btn.style.background = '#00c853';
             btn.style.boxShadow = '0 0 15px #00e676';
             if (!warRoomTimer) startMockRemoteDataStream();
             return;
         }
-        btn.innerText = '🌐 戰情室: 離線';
+        btn.innerText = '🌐 群組聊天/戰情室: 離線';
         btn.style.background = '';
         btn.style.color = '#00e676';
         btn.style.boxShadow = 'none';
@@ -552,7 +552,7 @@
             if (warRoomConnectTimer) clearTimeout(warRoomConnectTimer);
             warRoomConnectTimer = setTimeout(() => {
                 if (!isWarRoomActive) return;
-                btn.innerText = '🌐 戰情室: LIVE';
+                btn.innerText = '🌐 群組聊天/戰情室: LIVE';
                 btn.style.color = '#fff';
                 btn.style.background = '#00c853';
                 btn.style.boxShadow = '0 0 15px #00e676';
@@ -573,7 +573,7 @@
         }
         warRoomList = [];
         renderTable();
-        btn.innerText = '🌐 戰情室: 離線';
+        btn.innerText = '🌐 群組聊天/戰情室: 離線';
         btn.style.background = '';
         btn.style.color = '#00e676';
         btn.style.boxShadow = 'none';

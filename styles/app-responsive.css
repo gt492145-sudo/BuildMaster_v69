@@ -1,9 +1,12 @@
     body[data-user-level="basic"] .level-hide-basic { display: none !important; }
     body[data-user-level="basic"] .level-only-standard { display: none !important; }
     body[data-user-level="basic"] .level-only-pro { display: none !important; }
-body[data-user-level="basic"] .drawing-panel { display: none !important; }
-body[data-user-level="basic"] .calc-panel { flex: 1 1 100%; width: 100%; }
-body[data-user-level="basic"] .main-layout { display: block; }
+    body[data-user-level="basic"] .drawing-panel { display: none !important; }
+    body[data-user-level="basic"] .calc-panel { flex: 1 1 100%; width: 100%; }
+    body[data-user-level="basic"] .main-layout { display: block; }
+    body[data-work-mode="calc"] .drawing-panel { display: none !important; }
+    body[data-work-mode="calc"] .calc-panel { flex: 1 1 100%; width: 100%; }
+    body[data-work-mode="calc"] .main-layout { display: block; }
     body[data-user-level="standard"] .level-only-basic { display: none !important; }
     body[data-user-level="standard"] .level-only-pro { display: none !important; }
     body[data-user-level="pro"] .level-only-basic { display: none !important; }
