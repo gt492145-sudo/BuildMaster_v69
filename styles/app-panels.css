@@ -289,6 +289,17 @@
         font-size: 0.8em;
         line-height: 1.45;
     }
+    .qty-row {
+        align-items: stretch;
+    }
+    .qty-input-wrap {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+    .qty-input-wrap #qty {
+        flex: 1;
+    }
     .free-war-room-btn {
         width: 100%;
         border-color: rgba(0, 230, 118, 0.74);
@@ -341,6 +352,25 @@
         box-shadow: 0 0 16px rgba(0, 230, 118, 0.16);
     }
     .security-watermark { position: fixed; right: 10px; bottom: 10px; z-index: 9997; pointer-events: none; opacity: 0.36; font-size: 11px; color: #d5e7ff; background: rgba(8, 16, 28, 0.55); border: 1px dashed rgba(173, 216, 255, 0.3); border-radius: 6px; padding: 5px 8px; letter-spacing: 0.3px; }
+    .qty-field-row {
+        align-items: flex-end;
+    }
+    .qty-inline-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .calc-qty-input {
+        flex: 1;
+        min-width: 120px;
+    }
+    .calc-qty-ai-btn {
+        border-color: #9c27b0;
+        color: #e1bee7;
+        padding: 0 10px;
+        font-weight: bold;
+        white-space: nowrap;
+    }
     .price-input { border-color: var(--money) !important; color: var(--money) !important; font-weight: bold; }
     .preview-bar { margin-top: 16px; padding: 16px 18px; background: rgba(255,255,255,0.015); border-radius: 0; border: 0; border-top: 1px solid rgba(94, 203, 255, 0.18); font-size: 0.9em; box-shadow: none; }
     .preview-bar-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }

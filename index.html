@@ -782,14 +782,13 @@
         </div>
         <div class="input-row">
             <div class="input-wrapper"><label id="lbl_v3">高 / 深 (m)</label><input type="number" id="v3" step="0.01" min="0" oninput="previewCalc()" onblur="normalizeDimensionInputDisplay('v3')"></div>
-            <div class="input-wrapper">
+            <div class="input-wrapper calc-qty-wrapper">
                 <label id="lbl_qty">數量 (N)</label>
-                <div style="display: flex; gap: 5px;">
-                    <input type="number" id="qty" value="1" min="0" oninput="previewCalc()" style="flex: 1;">
-                    <button class="tool-btn level-only-pro" style="border-color: #9c27b0; color: #e1bee7; padding: 0 10px; font-weight: bold;" onclick="startEdgeAIVision()">
-                        👁️ AI 盤點
-                    </button>
-                </div>
+                <input type="number" id="qty" value="1" min="0" oninput="previewCalc()" class="calc-qty-input">
+                <div class="calc-qty-hint">同一部位有幾組，就填幾。</div>
+                <button class="tool-btn level-only-pro calc-qty-ai-btn" onclick="startEdgeAIVision()">
+                    👁️ AI 盤點
+                </button>
             </div>
         </div>
         <div id="templateFormulaPanel" class="bim-rule-wrap" style="margin-top:10px; display:none;">
