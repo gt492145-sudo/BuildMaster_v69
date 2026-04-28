@@ -257,6 +257,46 @@
     .security-onboarding-hint { margin: 0 0 10px; font-size: 0.72em; line-height: 1.4; color: #8aa3bd; }
     .security-api-url-hint { border-left: 3px solid rgba(255, 180, 100, 0.55); padding-left: 10px; color: #c5d4e8; }
     .security-api-url-hint code { font-size: 0.92em; color: #b8e0ff; }
+    .free-war-room-card {
+        margin: 8px 0 14px;
+        padding: 12px 12px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(0, 230, 118, 0.5);
+        background: linear-gradient(135deg, rgba(0, 102, 76, 0.35), rgba(14, 33, 54, 0.58));
+        box-shadow: 0 8px 18px rgba(0, 120, 88, 0.22);
+    }
+    .free-war-room-card-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        color: #dfffea;
+        font-size: 0.92em;
+        margin-bottom: 6px;
+    }
+    .free-war-room-status {
+        border: 1px solid rgba(184, 255, 219, 0.38);
+        border-radius: 999px;
+        padding: 3px 9px;
+        font-size: 0.72em;
+        color: #c8ffe0;
+        background: rgba(3, 25, 18, 0.45);
+    }
+    .free-war-room-card-note {
+        margin: 0 0 10px;
+        color: #d5f8e5;
+        font-size: 0.8em;
+        line-height: 1.45;
+    }
+    .free-war-room-btn {
+        width: 100%;
+        border-color: rgba(0, 230, 118, 0.74);
+        color: #eafff2;
+        font-size: 0.92em;
+        font-weight: 800;
+        background: linear-gradient(135deg, rgba(0, 186, 124, 0.36), rgba(20, 76, 104, 0.36));
+    }
     .war-room-entry-card {
         margin: 8px 0 12px;
         border: 1px solid rgba(0, 230, 118, 0.5);

@@ -516,10 +516,10 @@
         const btn = document.getElementById('btnWarRoom');
         if (!btn) return;
         isWarRoomActive = localStorage.getItem(WAR_ROOM_KEY) === '1';
-        const entryChip = document.getElementById('warRoomEntryState');
-        if (entryChip) {
-            entryChip.innerText = isWarRoomActive ? 'LIVE 連線中' : '可立即加入';
-            entryChip.classList.toggle('active', isWarRoomActive);
+        const entryState = document.getElementById('freeWarRoomStatus');
+        if (entryState) {
+            entryState.innerText = isWarRoomActive ? '目前狀態：LIVE 連線中' : '目前狀態：離線';
+            entryState.classList.toggle('active', isWarRoomActive);
         }
         if (isWarRoomActive) {
             btn.innerText = '🌐 戰情室: LIVE';
