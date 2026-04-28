@@ -257,6 +257,49 @@
     .security-onboarding-hint { margin: 0 0 10px; font-size: 0.72em; line-height: 1.4; color: #8aa3bd; }
     .security-api-url-hint { border-left: 3px solid rgba(255, 180, 100, 0.55); padding-left: 10px; color: #c5d4e8; }
     .security-api-url-hint code { font-size: 0.92em; color: #b8e0ff; }
+    .war-room-entry-card {
+        margin: 8px 0 12px;
+        border: 1px solid rgba(0, 230, 118, 0.5);
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: linear-gradient(135deg, rgba(0, 180, 110, 0.16), rgba(7, 24, 40, 0.55));
+        display: grid;
+        gap: 8px;
+    }
+    .war-room-entry-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .war-room-entry-title {
+        color: #b8ffd7;
+        font-weight: 800;
+        font-size: 0.88em;
+        letter-spacing: 0.2px;
+    }
+    .war-room-entry-desc {
+        color: #d7fbe7;
+        font-size: 0.76em;
+        line-height: 1.45;
+    }
+    .war-room-entry-btn {
+        border-color: rgba(0, 230, 118, 0.72);
+        color: #e9fff3;
+        background: linear-gradient(135deg, rgba(0, 154, 90, 0.42), rgba(7, 43, 70, 0.34));
+        box-shadow: 0 0 12px rgba(0, 230, 118, 0.2);
+        font-size: 0.8em;
+        min-width: 176px;
+        justify-self: start;
+    }
+    .war-room-entry-btn:hover {
+        background: linear-gradient(135deg, rgba(0, 196, 116, 0.6), rgba(13, 68, 108, 0.45));
+    }
+    body[data-user-level="basic"] .war-room-entry-card {
+        border-color: rgba(0, 230, 118, 0.7);
+        box-shadow: 0 0 16px rgba(0, 230, 118, 0.16);
+    }
     .security-watermark { position: fixed; right: 10px; bottom: 10px; z-index: 9997; pointer-events: none; opacity: 0.36; font-size: 11px; color: #d5e7ff; background: rgba(8, 16, 28, 0.55); border: 1px dashed rgba(173, 216, 255, 0.3); border-radius: 6px; padding: 5px 8px; letter-spacing: 0.3px; }
     .price-input { border-color: var(--money) !important; color: var(--money) !important; font-weight: bold; }
     .preview-bar { margin-top: 16px; padding: 16px 18px; background: rgba(255,255,255,0.015); border-radius: 0; border: 0; border-top: 1px solid rgba(94, 203, 255, 0.18); font-size: 0.9em; box-shadow: none; }

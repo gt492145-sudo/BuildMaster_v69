@@ -516,6 +516,11 @@
         const btn = document.getElementById('btnWarRoom');
         if (!btn) return;
         isWarRoomActive = localStorage.getItem(WAR_ROOM_KEY) === '1';
+        const entryChip = document.getElementById('warRoomEntryState');
+        if (entryChip) {
+            entryChip.innerText = isWarRoomActive ? 'LIVE 連線中' : '可立即加入';
+            entryChip.classList.toggle('active', isWarRoomActive);
+        }
         if (isWarRoomActive) {
             btn.innerText = '🌐 戰情室: LIVE';
             btn.style.color = '#fff';
