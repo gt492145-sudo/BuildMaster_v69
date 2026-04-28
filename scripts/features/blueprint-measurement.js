@@ -3406,6 +3406,7 @@
         if (!canUseBlueprintGestures()) return false;
         const metrics = getBlueprintViewportMetrics();
         if (!metrics) return false;
+        if (isMobileViewport()) return true;
         const zoomedPastFit = zoomLevel > metrics.fitZoom + 0.018;
         const hasOverflow = metrics.overflowX > 18 || metrics.overflowY > 18;
         const isScrolled = (canvasContainer && (canvasContainer.scrollLeft > 6 || canvasContainer.scrollTop > 6));
@@ -5585,7 +5586,7 @@
 
     function beginBlueprintPanMouse(e) {
         if (!canUseBlueprintGestures()) return;
-        if (!e.target.closest('#img-wrapper')) return;
+        if (!e.target.closest('#canvas-container')) return;
         blueprintPanState.active = true;
         blueprintPanState.lastX = e.clientX;
         blueprintPanState.lastY = e.clientY;
@@ -5613,7 +5614,7 @@
 
     function onBlueprintTouchStart(e) {
         if (!canUseBlueprintGestures()) return;
-        if (!e.target.closest('#img-wrapper')) return;
+        if (!e.target.closest('#canvas-container')) return;
         if (e.touches.length >= 2) {
             if (e.cancelable) e.preventDefault();
             const center = touchCenter(e.touches[0], e.touches[1]);
