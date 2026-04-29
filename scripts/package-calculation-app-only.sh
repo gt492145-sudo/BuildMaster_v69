@@ -107,6 +107,15 @@ if [[ -n "${NATIVE_HITS}" ]]; then
     exit 1
 fi
 
+EVIDENCE_MANIFEST_PATH="${REVIEW_EVIDENCE_DIR}/APP_REVIEW_EVIDENCE_MANIFEST.txt"
+{
+    echo "package_type=app_review_evidence"
+    echo "created_at=${STAMP}"
+    echo
+    echo "included_files:"
+    (cd "${REVIEW_EVIDENCE_DIR}" && rg --files | sort)
+} > "${EVIDENCE_MANIFEST_PATH}"
+
 MANIFEST_PATH="${OUTPUT_DIR}/CALC_APP_ONLY_MANIFEST.txt"
 {
     echo "package_type=calculation_app_only"
@@ -128,15 +137,6 @@ if [[ -n "${ARCHIVE_NATIVE_HITS}" ]]; then
     echo "${ARCHIVE_NATIVE_HITS}" >&2
     exit 1
 fi
-
-EVIDENCE_MANIFEST_PATH="${REVIEW_EVIDENCE_DIR}/APP_REVIEW_EVIDENCE_MANIFEST.txt"
-{
-    echo "package_type=app_review_evidence"
-    echo "created_at=${STAMP}"
-    echo
-    echo "included_files:"
-    (cd "${REVIEW_EVIDENCE_DIR}" && rg --files | sort)
-} > "${EVIDENCE_MANIFEST_PATH}"
 
 echo "Output directory: ${OUTPUT_DIR}"
 echo "Archive: ${ARCHIVE_PATH}"
