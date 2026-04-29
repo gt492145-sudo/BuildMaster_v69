@@ -34,5 +34,30 @@ jobs:
 
       - name: Security baseline check
         run: |
-          rg -n "NSAllowsArbitraryLoads\\s*=\\s*YES" "LiDARRangefinder/LiDARRangefinder/LiDARRangefinder.xcodeproj/project.pbxproj" && exit 1 || true
-          rg -n "X-Client-Nonce|X-Client-Timestamp|X-Body-SHA256|X-DeviceCheck-Token" "LiDARRangefinder/LiDARRangefinder" --glob "*.swift"
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          project_file = Path("LiDARRangefinder/LiDARRangefinder/LiDARRangefinder.xcodeproj/project.pbxproj")
+          arbitrary_loads = re.compile(r"NSAllowsArbitraryLoads\s*=\s*YES")
+          header_tokens = re.compile(r"X-Client-Nonce|X-Client-Timestamp|X-Body-SHA256|X-DeviceCheck-Token")
+
+          for line_number, line in enumerate(project_file.read_text().splitlines(), start=1):
+              if arbitrary_loads.search(line):
+                  print(f"{project_file}:{line_number}:{line}")
+                  print("::error::NSAllowsArbitraryLoads must not be enabled")
+                  sys.exit(1)
+
+          matches = []
+          for swift_file in Path("LiDARRangefinder/LiDARRangefinder").rglob("*.swift"):
+              for line_number, line in enumerate(swift_file.read_text().splitlines(), start=1):
+                  if header_tokens.search(line):
+                      matches.append(f"{swift_file}:{line_number}:{line}")
+
+          if not matches:
+              print("::error::Client security headers were not found in Swift sources")
+              sys.exit(1)
+
+          print("\n".join(matches))
+          PY

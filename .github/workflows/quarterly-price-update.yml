@@ -24,6 +24,7 @@ jobs:
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     env:
       DEFAULT_CSV_URL: ${{ secrets.SEASONAL_CSV_URL }}
+      PRICE_UPDATE_WEBHOOK: ${{ secrets.PRICE_UPDATE_WEBHOOK }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -89,8 +90,8 @@ jobs:
           fi
 
       - name: Notify webhook on failure (optional)
-        if: ${{ failure() && secrets.PRICE_UPDATE_WEBHOOK != '' }}
+        if: ${{ failure() && env.PRICE_UPDATE_WEBHOOK != '' }}
         run: |
-          curl -X POST "${{ secrets.PRICE_UPDATE_WEBHOOK }}" \
+          curl -X POST "$PRICE_UPDATE_WEBHOOK" \
             -H "Content-Type: application/json" \
             -d '{"text":"BuildMaster price update failed. Please check GitHub Actions logs."}'
