@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'buildmaster-v951-sw-modular-v3';
+const CACHE_VERSION = 'buildmaster-v951-sw-modular-v4-chatfix';
 const CORE_ASSETS = [
   './',
   './index.html',

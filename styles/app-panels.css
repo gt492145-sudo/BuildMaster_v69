@@ -353,6 +353,118 @@
         font-weight: 800;
         background: linear-gradient(135deg, rgba(0, 186, 124, 0.36), rgba(20, 76, 104, 0.36));
     }
+    .member-chat-panel {
+        margin: 0 0 14px;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(98, 168, 255, 0.52);
+        background: linear-gradient(135deg, rgba(16, 46, 84, 0.45), rgba(8, 23, 46, 0.72));
+        box-shadow: 0 8px 18px rgba(19, 86, 150, 0.2);
+    }
+    .member-chat-panel[hidden] {
+        display: none !important;
+    }
+    .member-chat-panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 6px;
+        color: #e4f3ff;
+        font-size: 0.92em;
+    }
+    .member-chat-status {
+        border: 1px solid rgba(162, 211, 255, 0.46);
+        border-radius: 999px;
+        padding: 3px 9px;
+        font-size: 0.72em;
+        color: #d8eeff;
+        background: rgba(8, 24, 45, 0.55);
+    }
+    .member-chat-identity {
+        margin: 0 0 10px;
+        color: #c5deff;
+        font-size: 0.78em;
+        line-height: 1.45;
+    }
+    .member-chat-tools {
+        display: grid;
+        grid-template-columns: minmax(180px, 1fr) auto minmax(160px, 0.9fr) auto;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    .member-chat-select {
+        width: 100%;
+        min-height: 38px;
+        border-radius: 8px;
+        border: 1px solid rgba(169, 214, 255, 0.38);
+        background: rgba(8, 18, 34, 0.86);
+        color: #e7f4ff;
+        padding: 8px 10px;
+    }
+    .member-chat-btn {
+        border-color: rgba(110, 187, 255, 0.74);
+        color: #eaf6ff;
+        background: linear-gradient(135deg, rgba(60, 145, 214, 0.34), rgba(18, 59, 94, 0.46));
+        font-weight: 800;
+        white-space: nowrap;
+    }
+    .member-chat-btn--ghost {
+        border-style: dashed;
+        background: rgba(16, 48, 80, 0.28);
+    }
+    .member-chat-message-list {
+        min-height: 96px;
+        max-height: 230px;
+        overflow-y: auto;
+        border-radius: 10px;
+        border: 1px solid rgba(151, 198, 255, 0.36);
+        background: rgba(6, 15, 30, 0.75);
+        padding: 9px 10px;
+        color: #e7f1ff;
+        font-size: 0.82em;
+        line-height: 1.5;
+        margin-bottom: 10px;
+    }
+    .member-chat-empty {
+        color: #aac7e7;
+    }
+    .member-chat-msg {
+        margin-bottom: 8px;
+        padding: 7px 8px;
+        border-radius: 8px;
+        border: 1px solid rgba(116, 171, 233, 0.24);
+        background: rgba(25, 57, 90, 0.28);
+    }
+    .member-chat-msg.me {
+        border-color: rgba(111, 212, 174, 0.44);
+        background: rgba(24, 86, 70, 0.34);
+    }
+    .member-chat-meta {
+        font-size: 0.7em;
+        color: #a6c2e4;
+        margin-bottom: 2px;
+    }
+    .member-chat-text {
+        color: #eef6ff;
+        word-break: break-word;
+    }
+    .member-chat-compose {
+        display: grid;
+        grid-template-columns: minmax(180px, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+    }
+    @media (max-width: 900px) {
+        .member-chat-tools {
+            grid-template-columns: 1fr;
+        }
+        .member-chat-compose {
+            grid-template-columns: 1fr;
+        }
+    }
     .war-room-entry-card {
         margin: 8px 0 12px;
         border: 1px solid rgba(0, 230, 118, 0.5);

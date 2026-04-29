@@ -586,6 +586,22 @@
     const MEMBER_CHAT_LOGS_KEY = 'bm_69:member_chat_logs';
     let memberChatActiveFriend = '';
 
+    function getMemberChatFriendListElement() {
+        return document.getElementById('memberChatFriendList') || document.getElementById('memberChatFriendSelect');
+    }
+
+    function getMemberChatHintElement() {
+        return document.getElementById('memberChatHint') || document.getElementById('memberChatStatus');
+    }
+
+    function getMemberChatMessageBodyElement() {
+        return document.getElementById('memberChatBody') || document.getElementById('memberChatMessageList');
+    }
+
+    function getMemberChatInputElement() {
+        return document.getElementById('memberChatInput') || document.getElementById('memberChatMessageInput');
+    }
+
     function normalizeMemberChatName(value) {
         return String(value || '').trim().slice(0, 24);
     }
@@ -625,31 +641,65 @@
         return account || '訪客';
     }
 
+    function updateMemberChatIdentity(friendCount = null) {
+        const identityEl = document.getElementById('memberChatIdentity');
+        const toggleBtn = document.getElementById('memberChatToggleBtn');
+        const panel = document.getElementById('memberChatPanel');
+        const statusEl = document.getElementById('memberChatStatus');
+        const resolvedFriendCount = Number.isFinite(Number(friendCount)) ? Number(friendCount) : loadMemberChatFriends().length;
+        const me = getCurrentMemberChatIdentity();
+        if (identityEl) {
+            identityEl.innerText = memberChatActiveFriend
+                ? `目前身份：${me}｜對話對象：${memberChatActiveFriend}`
+                : `目前身份：${me}`;
+        }
+        if (statusEl) {
+            statusEl.innerText = memberChatActiveFriend
+                ? `好友 ${resolvedFriendCount}｜對話：${memberChatActiveFriend}`
+                : `好友 ${resolvedFriendCount}`;
+        }
+        if (toggleBtn && panel) {
+            toggleBtn.innerText = panel.hidden ? '開啟聊天' : '收合';
+        }
+    }
+
     function renderMemberChatFriends() {
-        const listEl = document.getElementById('memberChatFriendList');
-        const hintEl = document.getElementById('memberChatHint');
+        const listEl = getMemberChatFriendListElement();
+        const hintEl = getMemberChatHintElement();
         const friends = loadMemberChatFriends();
         if (!listEl) return;
         if (!friends.length) {
-            listEl.innerHTML = '<div class="member-chat-empty">尚未新增好友，先輸入好友名稱加入。</div>';
+            if (listEl.tagName === 'SELECT') {
+                listEl.innerHTML = '<option value="">請先加入好友</option>';
+                listEl.value = '';
+            } else {
+                listEl.innerHTML = '<div class="member-chat-empty">尚未新增好友，先輸入好友名稱加入。</div>';
+            }
             if (hintEl) hintEl.innerText = '先新增至少 1 位好友，再開始聊天。';
             memberChatActiveFriend = '';
+            updateMemberChatIdentity(0);
             renderMemberChatMessages();
             return;
         }
         if (!friends.includes(memberChatActiveFriend)) {
             memberChatActiveFriend = friends[0];
         }
-        listEl.innerHTML = friends.map((friend) => {
-            const activeClass = friend === memberChatActiveFriend ? ' active' : '';
-            return `<button type="button" class="member-chat-friend-btn${activeClass}" onclick="selectMemberChatFriend('${escapeHTML(friend)}')">${escapeHTML(friend)}</button>`;
-        }).join('');
-        if (hintEl) hintEl.innerText = `目前對話：${memberChatActiveFriend}`;
+        if (listEl.tagName === 'SELECT') {
+            listEl.innerHTML = friends.map((friend) => `<option value="${escapeHTML(friend)}">${escapeHTML(friend)}</option>`).join('');
+            listEl.value = memberChatActiveFriend;
+        } else {
+            listEl.innerHTML = friends.map((friend) => {
+                const activeClass = friend === memberChatActiveFriend ? ' active' : '';
+                return `<button type="button" class="member-chat-friend-btn${activeClass}" onclick="selectMemberChatFriend('${escapeHTML(friend)}')">${escapeHTML(friend)}</button>`;
+            }).join('');
+        }
+        if (hintEl) hintEl.innerText = `好友 ${friends.length}｜目前對話：${memberChatActiveFriend}`;
+        updateMemberChatIdentity(friends.length);
         renderMemberChatMessages();
     }
 
     function renderMemberChatMessages() {
-        const body = document.getElementById('memberChatBody');
+        const body = getMemberChatMessageBodyElement();
         if (!body) return;
         if (!memberChatActiveFriend) {
             body.innerHTML = '<div class="member-chat-empty">請先新增好友並選擇對話對象。</div>';
@@ -692,8 +742,12 @@
         renderMemberChatFriends();
     }
 
+    function switchMemberChatFriend(friend) {
+        selectMemberChatFriend(friend);
+    }
+
     function sendMemberChatMessage() {
-        const input = document.getElementById('memberChatInput');
+        const input = getMemberChatInputElement();
         if (!input) return;
         const text = String(input.value || '').trim().slice(0, 280);
         if (!memberChatActiveFriend) return showToast('請先選擇好友');
@@ -714,6 +768,8 @@
         const panel = document.getElementById('memberChatPanel');
         if (!panel) return;
         panel.hidden = false;
+        panel.classList.add('is-open');
+        updateMemberChatIdentity();
         panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
         renderMemberChatFriends();
         showToast('已開啟會員聊天（好友）');
@@ -723,7 +779,30 @@
         const panel = document.getElementById('memberChatPanel');
         if (!panel) return;
         panel.hidden = true;
+        panel.classList.remove('is-open');
+        updateMemberChatIdentity();
     }
+
+    function toggleMemberChatPanel(forceOpen) {
+        const panel = document.getElementById('memberChatPanel');
+        if (!panel) return;
+        const next = typeof forceOpen === 'boolean' ? forceOpen : panel.hidden;
+        if (next) {
+            openMemberChatPanel();
+            return;
+        }
+        closeMemberChatPanel();
+    }
+
+    Object.assign(window, {
+        addMemberChatFriend,
+        sendMemberChatMessage,
+        selectMemberChatFriend,
+        switchMemberChatFriend,
+        openMemberChatPanel,
+        closeMemberChatPanel,
+        toggleMemberChatPanel
+    });
 
     function startMockRemoteDataStream() {
         if (warRoomTimer) clearInterval(warRoomTimer);
