@@ -648,7 +648,12 @@
                 <strong>💬 第一頁交流入口（免費）</strong>
                 <span id="freeWarRoomStatus" class="free-war-room-status">戰情室：離線</span>
             </div>
-            <p class="free-war-room-card-note">會員聊天（好友互聊）與戰情室（現場協作）是分開功能；可依需求各自開啟。</p>
+            <p class="free-war-room-card-note">會員聊天（好友互聊）與戰情室（現場協作）是分開功能；不需開戰情室也能直接聊天。</p>
+            <div class="member-chat-quick-compose">
+                <input type="text" id="memberChatQuickInput" class="security-input member-chat-input" placeholder="第一頁直接輸入聊天訊息（不需開戰情室）" onkeydown="if(event.key==='Enter'){event.preventDefault();quickSendMemberChatMessage();}">
+                <button type="button" class="tool-btn member-chat-btn member-chat-btn--quick" onclick="quickSendMemberChatMessage()">快速送出</button>
+            </div>
+            <div id="memberChatQuickHint" class="member-chat-quick-hint">提示：先輸入文字即可送出到會員聊天（預設對話：群組大廳）。</div>
             <div class="free-war-room-actions">
                 <button type="button" class="tool-btn free-war-room-btn" onclick="toggleMemberChatPanel(true)">開啟會員聊天（好友）</button>
                 <button type="button" class="tool-btn free-war-room-btn free-war-room-btn--alt" onclick="toggleWarRoom()">開啟戰情室</button>

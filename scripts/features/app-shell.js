@@ -764,6 +764,42 @@
         renderMemberChatMessages();
     }
 
+    function quickSendMemberChatMessage() {
+        const quickInput = document.getElementById('memberChatQuickInput');
+        const quickHint = document.getElementById('memberChatQuickHint');
+        if (!quickInput) return;
+        const text = String(quickInput.value || '').trim().slice(0, 280);
+        if (!text) return showToast('請先輸入聊天內容');
+        if (!memberChatActiveFriend) {
+            const friends = loadMemberChatFriends();
+            if (!friends.length) {
+                const defaultFriend = '群組大廳';
+                saveMemberChatFriends([defaultFriend]);
+                memberChatActiveFriend = defaultFriend;
+            }
+            memberChatActiveFriend = loadMemberChatFriends()[0];
+        }
+        const logs = loadMemberChatLogs();
+        const friend = memberChatActiveFriend;
+        const friendRows = Array.isArray(logs[friend]) ? logs[friend] : [];
+        const now = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+        const sender = getCurrentMemberChatIdentity();
+        friendRows.push({ sender, text, time: now });
+        logs[friend] = friendRows.slice(-120);
+        saveMemberChatLogs(logs);
+        quickInput.value = '';
+        const panel = document.getElementById('memberChatPanel');
+        if (panel && panel.hidden) {
+            panel.hidden = false;
+            panel.classList.add('is-open');
+        }
+        renderMemberChatFriends();
+        if (quickHint) {
+            quickHint.innerText = `已送出到：${friend}（可在下方會員聊天持續對話）`;
+        }
+        showToast('已送出聊天訊息');
+    }
+
     function openMemberChatPanel() {
         const panel = document.getElementById('memberChatPanel');
         if (!panel) return;
@@ -797,6 +833,7 @@
     Object.assign(window, {
         addMemberChatFriend,
         sendMemberChatMessage,
+        quickSendMemberChatMessage,
         selectMemberChatFriend,
         switchMemberChatFriend,
         openMemberChatPanel,
