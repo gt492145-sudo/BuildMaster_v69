@@ -582,6 +582,149 @@
         showToast('已中斷雲端連線，恢復單機模式');
     }
 
+    const MEMBER_CHAT_FRIENDS_KEY = 'bm_69:member_chat_friends';
+    const MEMBER_CHAT_LOGS_KEY = 'bm_69:member_chat_logs';
+    let memberChatActiveFriend = '';
+
+    function normalizeMemberChatName(value) {
+        return String(value || '').trim().slice(0, 24);
+    }
+
+    function loadMemberChatFriends() {
+        try {
+            const raw = JSON.parse(localStorage.getItem(MEMBER_CHAT_FRIENDS_KEY) || '[]');
+            if (!Array.isArray(raw)) return [];
+            const seen = new Set();
+            return raw
+                .map(normalizeMemberChatName)
+                .filter((name) => name && !seen.has(name) && seen.add(name));
+        } catch (_e) {
+            return [];
+        }
+    }
+
+    function saveMemberChatFriends(list) {
+        localStorage.setItem(MEMBER_CHAT_FRIENDS_KEY, JSON.stringify(Array.isArray(list) ? list : []));
+    }
+
+    function loadMemberChatLogs() {
+        try {
+            const raw = JSON.parse(localStorage.getItem(MEMBER_CHAT_LOGS_KEY) || '{}');
+            return raw && typeof raw === 'object' ? raw : {};
+        } catch (_e) {
+            return {};
+        }
+    }
+
+    function saveMemberChatLogs(map) {
+        localStorage.setItem(MEMBER_CHAT_LOGS_KEY, JSON.stringify(map && typeof map === 'object' ? map : {}));
+    }
+
+    function getCurrentMemberChatIdentity() {
+        const account = normalizeMemberAccount(backendSessionState && backendSessionState.account);
+        return account || '訪客';
+    }
+
+    function renderMemberChatFriends() {
+        const listEl = document.getElementById('memberChatFriendList');
+        const hintEl = document.getElementById('memberChatHint');
+        const friends = loadMemberChatFriends();
+        if (!listEl) return;
+        if (!friends.length) {
+            listEl.innerHTML = '<div class="member-chat-empty">尚未新增好友，先輸入好友名稱加入。</div>';
+            if (hintEl) hintEl.innerText = '先新增至少 1 位好友，再開始聊天。';
+            memberChatActiveFriend = '';
+            renderMemberChatMessages();
+            return;
+        }
+        if (!friends.includes(memberChatActiveFriend)) {
+            memberChatActiveFriend = friends[0];
+        }
+        listEl.innerHTML = friends.map((friend) => {
+            const activeClass = friend === memberChatActiveFriend ? ' active' : '';
+            return `<button type="button" class="member-chat-friend-btn${activeClass}" onclick="selectMemberChatFriend('${escapeHTML(friend)}')">${escapeHTML(friend)}</button>`;
+        }).join('');
+        if (hintEl) hintEl.innerText = `目前對話：${memberChatActiveFriend}`;
+        renderMemberChatMessages();
+    }
+
+    function renderMemberChatMessages() {
+        const body = document.getElementById('memberChatBody');
+        if (!body) return;
+        if (!memberChatActiveFriend) {
+            body.innerHTML = '<div class="member-chat-empty">請先新增好友並選擇對話對象。</div>';
+            return;
+        }
+        const logs = loadMemberChatLogs();
+        const rows = Array.isArray(logs[memberChatActiveFriend]) ? logs[memberChatActiveFriend] : [];
+        if (!rows.length) {
+            body.innerHTML = `<div class="member-chat-empty">與 ${escapeHTML(memberChatActiveFriend)} 尚無對話，輸入訊息後送出。</div>`;
+            return;
+        }
+        body.innerHTML = rows.map((row) => {
+            const me = row.sender === getCurrentMemberChatIdentity();
+            const cls = me ? ' me' : '';
+            return `<div class="member-chat-msg${cls}"><div class="member-chat-meta">${escapeHTML(String(row.sender || '訪客'))}｜${escapeHTML(String(row.time || ''))}</div><div class="member-chat-text">${escapeHTML(String(row.text || ''))}</div></div>`;
+        }).join('');
+        body.scrollTop = body.scrollHeight;
+    }
+
+    function addMemberChatFriend() {
+        const input = document.getElementById('memberChatFriendInput');
+        if (!input) return;
+        const friend = normalizeMemberChatName(input.value);
+        if (!friend) return showToast('請先輸入好友名稱');
+        const me = getCurrentMemberChatIdentity();
+        if (friend === me) return showToast('好友名稱不可與自己相同');
+        const friends = loadMemberChatFriends();
+        if (!friends.includes(friend)) friends.push(friend);
+        saveMemberChatFriends(friends);
+        input.value = '';
+        memberChatActiveFriend = friend;
+        renderMemberChatFriends();
+        showToast(`已新增好友：${friend}`);
+    }
+
+    function selectMemberChatFriend(friend) {
+        const name = normalizeMemberChatName(friend);
+        if (!name) return;
+        memberChatActiveFriend = name;
+        renderMemberChatFriends();
+    }
+
+    function sendMemberChatMessage() {
+        const input = document.getElementById('memberChatInput');
+        if (!input) return;
+        const text = String(input.value || '').trim().slice(0, 280);
+        if (!memberChatActiveFriend) return showToast('請先選擇好友');
+        if (!text) return showToast('請輸入訊息內容');
+        const logs = loadMemberChatLogs();
+        const friend = memberChatActiveFriend;
+        const friendRows = Array.isArray(logs[friend]) ? logs[friend] : [];
+        const now = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+        const sender = getCurrentMemberChatIdentity();
+        friendRows.push({ sender, text, time: now });
+        logs[friend] = friendRows.slice(-120);
+        saveMemberChatLogs(logs);
+        input.value = '';
+        renderMemberChatMessages();
+    }
+
+    function openMemberChatPanel() {
+        const panel = document.getElementById('memberChatPanel');
+        if (!panel) return;
+        panel.hidden = false;
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        renderMemberChatFriends();
+        showToast('已開啟會員聊天（好友）');
+    }
+
+    function closeMemberChatPanel() {
+        const panel = document.getElementById('memberChatPanel');
+        if (!panel) return;
+        panel.hidden = true;
+    }
+
     function startMockRemoteDataStream() {
         if (warRoomTimer) clearInterval(warRoomTimer);
 

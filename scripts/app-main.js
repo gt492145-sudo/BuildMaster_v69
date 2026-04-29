@@ -42,6 +42,8 @@
         bindTapAction(document.getElementById('coachToggle'), () => toggleCoachMode());
         bindTapAction(document.getElementById('aiCoachToggle'), () => toggleAiCoachMode());
         bindTapAction(document.getElementById('btnWarRoom'), () => toggleWarRoom());
+        bindTapAction(document.getElementById('btnMemberChatEntry'), () => toggleMemberChatPanel());
+        bindTapAction(document.getElementById('btnWarRoomEntry'), () => toggleWarRoom());
         bindTapAction(document.getElementById('coachGuideBtn'), () => startCoachGuide(true));
         bindTapAction(document.getElementById('contrastToggle'), () => toggleContrastMode());
         bindTapAction(document.getElementById('contrastAutoToggle'), () => toggleAutoContrastMode());

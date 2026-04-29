@@ -265,6 +265,51 @@
         background: linear-gradient(135deg, rgba(0, 102, 76, 0.35), rgba(14, 33, 54, 0.58));
         box-shadow: 0 8px 18px rgba(0, 120, 88, 0.22);
     }
+    .free-social-chat-card {
+        margin: 8px 0 14px;
+        padding: 12px 12px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(94, 203, 255, 0.48);
+        background: linear-gradient(135deg, rgba(18, 78, 128, 0.36), rgba(14, 28, 54, 0.62));
+        box-shadow: 0 8px 18px rgba(44, 140, 210, 0.2);
+    }
+    .free-social-chat-card-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        color: #dcf4ff;
+        font-size: 0.92em;
+        margin-bottom: 6px;
+    }
+    .free-social-chat-status {
+        border: 1px solid rgba(160, 225, 255, 0.42);
+        border-radius: 999px;
+        padding: 3px 9px;
+        font-size: 0.72em;
+        color: #cdeeff;
+        background: rgba(4, 22, 40, 0.48);
+    }
+    .free-social-chat-status.active {
+        color: #eef8ff;
+        border-color: rgba(94, 203, 255, 0.72);
+        background: rgba(36, 122, 188, 0.4);
+    }
+    .free-social-chat-card-note {
+        margin: 0 0 10px;
+        color: #d6ebff;
+        font-size: 0.8em;
+        line-height: 1.45;
+    }
+    .free-social-chat-btn {
+        width: 100%;
+        border-color: rgba(94, 203, 255, 0.78);
+        color: #ecf8ff;
+        font-size: 0.92em;
+        font-weight: 800;
+        background: linear-gradient(135deg, rgba(70, 162, 228, 0.36), rgba(20, 76, 104, 0.36));
+    }
     .free-war-room-card-head {
         display: flex;
         justify-content: space-between;
