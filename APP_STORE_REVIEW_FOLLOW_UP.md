@@ -11,6 +11,7 @@ Use this checklist before resubmitting after the April 25, 2026 review notes.
   - `https://gt492145-sudo.github.io/BuildMaster_v69/`
   - `https://gt492145-sudo.github.io/BuildMaster_v69/index.html`
 - Do not use `https://gt492145-sudo.github.io` by itself; the account root returns GitHub Pages 404 and will show "We couldn't find the page you were looking for."
+- If the phone still shows `www.wenwenming.com`, Xcode is still loading the old site URL. In the Xcode project, search for `wenwenming.com` and replace the WebView/launch URL with `https://gt492145-sudo.github.io/BuildMaster_v69/`, then delete the app from the phone and run again.
 - Configure the production API environment with the exact credentials supplied in App Store Connect:
   - `APP_REVIEW_DEMO_ACCOUNT`
   - `APP_REVIEW_DEMO_PASSWORD`
