@@ -3406,6 +3406,7 @@
         if (!canUseBlueprintGestures()) return false;
         const metrics = getBlueprintViewportMetrics();
         if (!metrics) return false;
+        if (isMobileViewport()) return true;
         const zoomedPastFit = zoomLevel > metrics.fitZoom + 0.018;
         const hasOverflow = metrics.overflowX > 18 || metrics.overflowY > 18;
         const isScrolled = (canvasContainer && (canvasContainer.scrollLeft > 6 || canvasContainer.scrollTop > 6));
@@ -5585,7 +5586,7 @@
 
     function beginBlueprintPanMouse(e) {
         if (!canUseBlueprintGestures()) return;
-        if (!e.target.closest('#img-wrapper')) return;
+        if (!e.target.closest('#canvas-container')) return;
         blueprintPanState.active = true;
         blueprintPanState.lastX = e.clientX;
         blueprintPanState.lastY = e.clientY;
@@ -5613,13 +5614,15 @@
 
     function onBlueprintTouchStart(e) {
         if (!canUseBlueprintGestures()) return;
-        if (!e.target.closest('#img-wrapper')) return;
+        if (!e.target.closest('#canvas-container')) return;
         if (e.touches.length >= 2) {
             if (e.cancelable) e.preventDefault();
+            const center = touchCenter(e.touches[0], e.touches[1]);
             blueprintPinchState.active = true;
             blueprintPinchState.startDistance = touchDistance(e.touches[0], e.touches[1]);
             blueprintPinchState.startZoom = zoomLevel;
-            blueprintPinchState.startCenter = touchCenter(e.touches[0], e.touches[1]);
+            blueprintPinchState.startCenter = center;
+            blueprintPinchState.lastCenter = center;
             blueprintPinchState.startScrollLeft = canvasContainer ? canvasContainer.scrollLeft : 0;
             blueprintPinchState.startScrollTop = canvasContainer ? canvasContainer.scrollTop : 0;
             blueprintPanState.active = false;
@@ -5644,15 +5647,27 @@
             const ratio = blueprintPinchState.startDistance > 0 ? dist / blueprintPinchState.startDistance : 1;
             const targetZoom = blueprintPinchState.startZoom * ratio;
             setZoomAt(center.x, center.y, targetZoom);
-            if (canvasContainer && blueprintPinchState.startCenter) {
-                const dx = center.x - blueprintPinchState.startCenter.x;
-                const dy = center.y - blueprintPinchState.startCenter.y;
-                canvasContainer.scrollLeft = (blueprintPinchState.startScrollLeft || 0) - dx;
-                canvasContainer.scrollTop = (blueprintPinchState.startScrollTop || 0) - dy;
+            if (canvasContainer) {
+                const lastCenter = blueprintPinchState.lastCenter || blueprintPinchState.startCenter || center;
+                const dx = center.x - lastCenter.x;
+                const dy = center.y - lastCenter.y;
+                canvasContainer.scrollLeft -= dx;
+                canvasContainer.scrollTop -= dy;
             }
+            blueprintPinchState.lastCenter = center;
+            blueprintPinchState.lastGestureAt = Date.now();
             suppressNextCanvasTouch = true;
             if (e.cancelable) e.preventDefault();
             return;
+        }
+        if (!blueprintPanState.active && e.touches.length === 1 && !isMeasureInteractionMode(drawMode)) {
+            const withinRecentPinchWindow = Date.now() - Number(blueprintPinchState.lastGestureAt || 0) < 520;
+            if (withinRecentPinchWindow) {
+                blueprintPanState.active = true;
+                blueprintPanState.lastX = e.touches[0].clientX;
+                blueprintPanState.lastY = e.touches[0].clientY;
+                blueprintPanState.moved = false;
+            }
         }
         if (blueprintPanState.active && e.touches.length === 1) {
             const touch = e.touches[0];
@@ -5669,15 +5684,38 @@
         }
     }
 
-    function onBlueprintTouchEnd() {
+    function onBlueprintTouchEnd(e) {
         if (blueprintPanState.moved || blueprintPinchState.active) {
             suppressNextCanvasTouch = true;
             suppressNextCanvasClick = true;
             blueprintTapState.lastAt = 0;
         }
-        if (blueprintPinchState.active) {
-            blueprintPinchState.active = false;
+        if (blueprintPinchState.active && e && e.touches && e.touches.length >= 2) {
+            const center = touchCenter(e.touches[0], e.touches[1]);
+            blueprintPinchState.startDistance = touchDistance(e.touches[0], e.touches[1]);
+            blueprintPinchState.startZoom = zoomLevel;
+            blueprintPinchState.startCenter = center;
+            blueprintPinchState.lastCenter = center;
+            blueprintPanState.active = false;
+            blueprintPanState.moved = false;
+            updateTouchInteractionMode();
+            return;
         }
+        if (blueprintPinchState.active && e && e.touches && e.touches.length === 1) {
+            blueprintPinchState.active = false;
+            blueprintPinchState.lastCenter = null;
+            blueprintPinchState.lastGestureAt = Date.now();
+            blueprintPanState.active = true;
+            blueprintPanState.moved = false;
+            if (blueprintPanState.active) {
+                blueprintPanState.lastX = e.touches[0].clientX;
+                blueprintPanState.lastY = e.touches[0].clientY;
+            }
+            updateTouchInteractionMode();
+            return;
+        }
+        blueprintPinchState.active = false;
+        blueprintPinchState.lastCenter = null;
         blueprintPanState.active = false;
         blueprintPanState.moved = false;
         updateTouchInteractionMode();
@@ -5764,14 +5802,25 @@
         imgWrapperEl.addEventListener('gesturechange', blockNativeGestureOnBlueprint, { passive: false });
         imgWrapperEl.addEventListener('gestureend', blockNativeGestureOnBlueprint, { passive: false });
         imgWrapperEl.addEventListener('touchstart', function(e) {
+            if (!isMeasureInteractionMode(drawMode)) return;
+            if (e.touches && e.touches.length > 1) return;
             if (beginManualPrecisionPlacement(e)) return;
             if (!e.touches || !e.touches.length) return;
             const t = e.touches[0];
             handleWrapperPointTap(t.clientX, t.clientY, e);
         }, { passive: false, capture: true });
-        imgWrapperEl.addEventListener('touchmove', moveManualPrecisionPlacement, { passive: false, capture: true });
-        imgWrapperEl.addEventListener('touchend', endManualPrecisionPlacement, { passive: false, capture: true });
-        imgWrapperEl.addEventListener('touchcancel', endManualPrecisionPlacement, { passive: false, capture: true });
+        imgWrapperEl.addEventListener('touchmove', function(e) {
+            if (!isMeasureInteractionMode(drawMode)) return;
+            moveManualPrecisionPlacement(e);
+        }, { passive: false, capture: true });
+        imgWrapperEl.addEventListener('touchend', function(e) {
+            if (!isMeasureInteractionMode(drawMode)) return;
+            endManualPrecisionPlacement(e);
+        }, { passive: false, capture: true });
+        imgWrapperEl.addEventListener('touchcancel', function(e) {
+            if (!isMeasureInteractionMode(drawMode)) return;
+            endManualPrecisionPlacement(e);
+        }, { passive: false, capture: true });
 
         imgWrapperEl.addEventListener('click', function(e) {
             if (Date.now() - canvasLastTouchAt < CANVAS_TOUCH_CLICK_GUARD_MS) return;
