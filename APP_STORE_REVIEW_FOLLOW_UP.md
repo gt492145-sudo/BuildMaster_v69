@@ -4,6 +4,10 @@ Use this checklist before resubmitting after the April 25, 2026 review notes.
 
 ## 1) Demo login
 
+- For Xcode/WebView phone testing, load the GitHub Pages project URL, not the account root:
+  - `https://gt492145-sudo.github.io/BuildMaster_v69/`
+  - `https://gt492145-sudo.github.io/BuildMaster_v69/index.html`
+- Do not use `https://gt492145-sudo.github.io` by itself; the account root returns GitHub Pages 404 and will show "We couldn't find the page you were looking for."
 - Configure the production API environment with the exact credentials supplied in App Store Connect:
   - `APP_REVIEW_DEMO_ACCOUNT`
   - `APP_REVIEW_DEMO_PASSWORD`
