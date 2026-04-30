@@ -34,5 +34,8 @@ jobs:
 
       - name: Security baseline check
         run: |
-          rg -n "NSAllowsArbitraryLoads\\s*=\\s*YES" "LiDARRangefinder/LiDARRangefinder/LiDARRangefinder.xcodeproj/project.pbxproj" && exit 1 || true
-          rg -n "X-Client-Nonce|X-Client-Timestamp|X-Body-SHA256|X-DeviceCheck-Token" "LiDARRangefinder/LiDARRangefinder" --glob "*.swift"
+          if grep -En "NSAllowsArbitraryLoads[[:space:]]*=[[:space:]]*YES" "LiDARRangefinder/LiDARRangefinder/LiDARRangefinder.xcodeproj/project.pbxproj"; then
+            echo "NSAllowsArbitraryLoads must not be enabled"
+            exit 1
+          fi
+          grep -REn "X-Client-Nonce|X-Client-Timestamp|X-Body-SHA256|X-DeviceCheck-Token" "LiDARRangefinder/LiDARRangefinder" --include="*.swift"
