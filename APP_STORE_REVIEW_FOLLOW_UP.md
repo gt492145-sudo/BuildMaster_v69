@@ -4,6 +4,9 @@ Use this checklist before resubmitting after the April 25, 2026 review notes.
 
 ## 1) Demo login
 
+- Computer-only local test URL for the V9.5.1 calculation app:
+  - `http://127.0.0.1:8787/index.html`
+- Do not use the `127.0.0.1` URL in Xcode/WebView phone testing; on a phone it points back to the phone, not the computer.
 - For Xcode/WebView phone testing, load the GitHub Pages project URL, not the account root:
   - `https://gt492145-sudo.github.io/BuildMaster_v69/`
   - `https://gt492145-sudo.github.io/BuildMaster_v69/index.html`
