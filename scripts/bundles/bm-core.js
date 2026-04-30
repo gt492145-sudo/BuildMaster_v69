@@ -289,6 +289,24 @@
         measureQaReport: false,
         dataSync: false
     };
+    const LOCAL_OFFLINE_FULL_ENTITLEMENTS = {
+        aiCoach: true,
+        blueprintAnnotationOcr: true,
+        guidedPrecisionRefine: true,
+        guidedPrecisionAuto: true,
+        blueprintAutoInterpret: true,
+        autoBlueprintBim: true,
+        smartCalibration: true,
+        smartMeasure: true,
+        aiVision: true,
+        advancedEstimateExport: true,
+        quantumStake: false,
+        stakingDesktopPipeline: true,
+        bimLayoutQa: true,
+        measureQaReport: true,
+        calcCore: true,
+        dataSync: true
+    };
     const SECURITY_CONFIG = {
         allowedHosts: [
             'gt492145-sudo.github.io',
@@ -1028,15 +1046,16 @@
         updateBillingStatusChip();
     }
 
-    function applyLocalOfflineDemoSession() {
+    function applyLocalOfflineDemoSession(options = {}) {
+        const fullMode = !!(options && options.full);
         backendSessionState = {
             token: '',
-            account: 'local',
+            account: fullMode ? 'local-pro' : 'local',
             sessionType: 'access',
-            userLevel: 'basic',
-            entitlements: { ...LOCAL_OFFLINE_BASIC_ENTITLEMENTS },
+            userLevel: fullMode ? 'pro' : 'basic',
+            entitlements: fullMode ? { ...LOCAL_OFFLINE_FULL_ENTITLEMENTS } : { ...LOCAL_OFFLINE_BASIC_ENTITLEMENTS },
             featureOverrides: {},
-            integrations: { localOfflineDemo: true },
+            integrations: { localOfflineDemo: true, fullOfflineDemo: fullMode },
             canManageMembers: false,
             accessExpiresAt: '',
             billing: {}
@@ -1046,7 +1065,7 @@
         } catch (_e) {}
         sessionStorage.setItem(SECURITY_UNLOCK_KEY, '1');
         sessionStorage.setItem(LOCAL_OFFLINE_DEMO_KEY, '1');
-        safeStorage.set(localStorage, USER_LEVEL_KEY, 'basic');
+        safeStorage.set(localStorage, USER_LEVEL_KEY, fullMode ? 'pro' : 'basic');
         applyUserLevel();
         updateBillingStatusChip();
     }
@@ -1062,6 +1081,19 @@
             return;
         }
         showToast('已略過登入（免費第一頁）：高階會員功能待後端登入後啟用');
+    }
+
+    async function enterFullOfflineDemoFromButton() {
+        applyLocalOfflineDemoSession({ full: true });
+        hideSecurityLock();
+        try {
+            await startApp();
+        } catch (error) {
+            console.warn('全功能測試模式啟動失敗', error);
+            showToast(error.message || '載入主畫面失敗');
+            return;
+        }
+        showToast('已啟用全功能測試模式（僅測試用）');
     }
 
     function getGrantedUserLevel() {
@@ -2403,13 +2435,23 @@
 
     function bindSecurityOfflineDemoButton() {
         const btn = document.getElementById('securityOfflineDemoBtn');
-        if (!btn || btn.dataset.bmOfflineBound === '1') return;
-        btn.dataset.bmOfflineBound = '1';
-        if (isLocalOfflineBypassAllowed()) {
-            btn.hidden = false;
+        const fullBtn = document.getElementById('securityFullDemoBtn');
+        if (btn && btn.dataset.bmOfflineBound !== '1') {
+            btn.dataset.bmOfflineBound = '1';
+            if (isLocalOfflineBypassAllowed()) {
+                btn.hidden = false;
+            }
+            btn.addEventListener('click', () => {
+                enterLocalOfflineDemoFromButton().catch((e) => console.warn(e));
+            });
         }
-        btn.addEventListener('click', () => {
-            enterLocalOfflineDemoFromButton().catch((e) => console.warn(e));
+        if (!fullBtn || fullBtn.dataset.bmFullDemoBound === '1') return;
+        fullBtn.dataset.bmFullDemoBound = '1';
+        if (isLocalOfflineBypassAllowed()) {
+            fullBtn.hidden = false;
+        }
+        fullBtn.addEventListener('click', () => {
+            enterFullOfflineDemoFromButton().catch((e) => console.warn(e));
         });
     }
 
