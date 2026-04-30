@@ -5583,6 +5583,72 @@
         };
     }
 
+    function requestBlueprintFrame(callback) {
+        if (typeof requestAnimationFrame === 'function') return requestAnimationFrame(callback);
+        return setTimeout(callback, 16);
+    }
+
+    function cancelBlueprintFrame(frameId) {
+        if (!frameId) return;
+        if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frameId);
+        else clearTimeout(frameId);
+    }
+
+    function flushBlueprintPanFrame() {
+        blueprintPanState.frameId = 0;
+        if (!canvasContainer) return;
+        const dx = blueprintPanState.pendingDx || 0;
+        const dy = blueprintPanState.pendingDy || 0;
+        blueprintPanState.pendingDx = 0;
+        blueprintPanState.pendingDy = 0;
+        if (!dx && !dy) return;
+        canvasContainer.scrollLeft -= dx;
+        canvasContainer.scrollTop -= dy;
+    }
+
+    function scheduleBlueprintPan(dx, dy) {
+        blueprintPanState.pendingDx = (blueprintPanState.pendingDx || 0) + dx;
+        blueprintPanState.pendingDy = (blueprintPanState.pendingDy || 0) + dy;
+        if (!blueprintPanState.frameId) {
+            blueprintPanState.frameId = requestBlueprintFrame(flushBlueprintPanFrame);
+        }
+    }
+
+    function flushBlueprintPinchFrame() {
+        blueprintPinchState.frameId = 0;
+        const pending = blueprintPinchState.pending;
+        blueprintPinchState.pending = null;
+        if (!pending || !blueprintPinchState.active) return;
+        setZoomAt(pending.centerX, pending.centerY, pending.targetZoom);
+        if (canvasContainer && blueprintPinchState.startCenter) {
+            canvasContainer.scrollLeft = (blueprintPinchState.startScrollLeft || 0) - pending.dx;
+            canvasContainer.scrollTop = (blueprintPinchState.startScrollTop || 0) - pending.dy;
+        }
+    }
+
+    function scheduleBlueprintPinch(center, targetZoom) {
+        blueprintPinchState.pending = {
+            centerX: center.x,
+            centerY: center.y,
+            targetZoom,
+            dx: blueprintPinchState.startCenter ? center.x - blueprintPinchState.startCenter.x : 0,
+            dy: blueprintPinchState.startCenter ? center.y - blueprintPinchState.startCenter.y : 0
+        };
+        if (!blueprintPinchState.frameId) {
+            blueprintPinchState.frameId = requestBlueprintFrame(flushBlueprintPinchFrame);
+        }
+    }
+
+    function cancelPendingBlueprintGestureFrames() {
+        cancelBlueprintFrame(blueprintPanState.frameId);
+        cancelBlueprintFrame(blueprintPinchState.frameId);
+        blueprintPanState.frameId = 0;
+        blueprintPanState.pendingDx = 0;
+        blueprintPanState.pendingDy = 0;
+        blueprintPinchState.frameId = 0;
+        blueprintPinchState.pending = null;
+    }
+
     function beginBlueprintPanMouse(e) {
         if (!canUseBlueprintGestures()) return;
         if (!e.target.closest('#img-wrapper')) return;
@@ -5599,14 +5665,12 @@
         blueprintPanState.lastX = e.clientX;
         blueprintPanState.lastY = e.clientY;
         if (Math.abs(dx) > 1 || Math.abs(dy) > 1) blueprintPanState.moved = true;
-        if (canvasContainer) {
-            canvasContainer.scrollLeft -= dx;
-            canvasContainer.scrollTop -= dy;
-        }
+        scheduleBlueprintPan(dx, dy);
     }
 
     function endBlueprintPanMouse() {
         if (!blueprintPanState.active) return;
+        flushBlueprintPanFrame();
         if (blueprintPanState.moved) suppressNextCanvasClick = true;
         blueprintPanState.active = false;
     }
@@ -5616,6 +5680,7 @@
         if (!e.target.closest('#img-wrapper')) return;
         if (e.touches.length >= 2) {
             if (e.cancelable) e.preventDefault();
+            cancelPendingBlueprintGestureFrames();
             blueprintPinchState.active = true;
             blueprintPinchState.startDistance = touchDistance(e.touches[0], e.touches[1]);
             blueprintPinchState.startZoom = zoomLevel;
@@ -5643,13 +5708,7 @@
             const center = touchCenter(e.touches[0], e.touches[1]);
             const ratio = blueprintPinchState.startDistance > 0 ? dist / blueprintPinchState.startDistance : 1;
             const targetZoom = blueprintPinchState.startZoom * ratio;
-            setZoomAt(center.x, center.y, targetZoom);
-            if (canvasContainer && blueprintPinchState.startCenter) {
-                const dx = center.x - blueprintPinchState.startCenter.x;
-                const dy = center.y - blueprintPinchState.startCenter.y;
-                canvasContainer.scrollLeft = (blueprintPinchState.startScrollLeft || 0) - dx;
-                canvasContainer.scrollTop = (blueprintPinchState.startScrollTop || 0) - dy;
-            }
+            scheduleBlueprintPinch(center, targetZoom);
             suppressNextCanvasTouch = true;
             if (e.cancelable) e.preventDefault();
             return;
@@ -5661,15 +5720,14 @@
             blueprintPanState.lastX = touch.clientX;
             blueprintPanState.lastY = touch.clientY;
             if (Math.abs(dx) > 1 || Math.abs(dy) > 1) blueprintPanState.moved = true;
-            if (canvasContainer) {
-                canvasContainer.scrollLeft -= dx;
-                canvasContainer.scrollTop -= dy;
-            }
+            scheduleBlueprintPan(dx, dy);
             if (e.cancelable) e.preventDefault();
         }
     }
 
     function onBlueprintTouchEnd() {
+        flushBlueprintPanFrame();
+        flushBlueprintPinchFrame();
         if (blueprintPanState.moved || blueprintPinchState.active) {
             suppressNextCanvasTouch = true;
             suppressNextCanvasClick = true;
