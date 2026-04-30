@@ -14,6 +14,7 @@ Use this checklist before resubmitting after the April 25, 2026 review notes.
 - If the phone still shows `www.wenwenming.com`, Xcode is still loading the old site URL. In the Xcode project, search for `wenwenming.com` and replace the WebView/launch URL with `https://gt492145-sudo.github.io/BuildMaster_v69/`, then delete the app from the phone and run again.
 - `WebCalcHostView.swift` prints the loaded URL with `BM WebView URL:` after navigation finishes. The expected console value is `https://gt492145-sudo.github.io/BuildMaster_v69/index.html`.
 - Calculation native app entry is `WebCalcHostView()`, which is separate from the LiDAR/AR `ContentView()` workflow and loads the V9.5.1 web calculation app.
+- GitHub Pages phone testing can use the "先略過登入，進主流程（本機／不接後端）" button to validate front-end calculation flows before the production API is deployed.
 - Configure the production API environment with the exact credentials supplied in App Store Connect:
   - `APP_REVIEW_DEMO_ACCOUNT`
   - `APP_REVIEW_DEMO_PASSWORD`

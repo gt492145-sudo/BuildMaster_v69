@@ -1870,10 +1870,15 @@
         return location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     }
 
+    function isPublishedTestHost() {
+        return location.hostname === 'gt492145-sudo.github.io'
+            && location.pathname.startsWith('/BuildMaster_v69/');
+    }
+
     function isLocalOfflineBypassAllowed() {
         try {
             if (location.protocol === 'file:') return true;
-            return isDevHost();
+            return isDevHost() || isPublishedTestHost();
         } catch (_e) {
             return false;
         }
