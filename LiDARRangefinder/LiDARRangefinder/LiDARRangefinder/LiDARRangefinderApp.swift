@@ -7,7 +7,7 @@ struct LiDARRangefinderApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            WebCalcHostView()
                 .environmentObject(sessionManager)
                 .environmentObject(measurementStore)
         }
