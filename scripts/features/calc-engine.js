@@ -498,6 +498,8 @@
         let resultUnitDisplay = '';
         const baseQtyText = `${(result.baseRes || 0).toFixed(3)} ${result.unit}`;
         const adjustedQtyText = `${(result.res || 0).toFixed(3)} ${result.unit}`;
+        const footprintArea = roundCalc(v1 * v2 * n);
+        const footprintAreaText = footprintArea > 0 ? `｜底面積 ${footprintArea.toFixed(3)} M²` : '';
 
         if (type.startsWith('M_') || selectedType.includes('模板') || selectedType.includes('漆') || selectedType.includes('地磚')) {
             const area = result.res;
@@ -512,12 +514,12 @@
             resultUnitDisplay = '重量';
         } else if (selectedType.includes('混凝土') || selectedType.includes('水泥') || type.startsWith('C_')) {
             const trucks = Math.ceil(finalQty / 6);
-            resultDisplay = `基準 ${(result.baseRes || 0).toFixed(3)} ${result.unit}｜損耗 ${extraWasteQty.toFixed(3)} ${result.unit}｜合計 ${finalQty.toFixed(3)} ${result.unit}（約需 ${trucks} 台預拌車 🚚）`;
+            resultDisplay = `基準 ${(result.baseRes || 0).toFixed(3)} ${result.unit}${footprintAreaText}｜損耗 ${extraWasteQty.toFixed(3)} ${result.unit}｜合計 ${finalQty.toFixed(3)} ${result.unit}（約需 ${trucks} 台預拌車 🚚）`;
             resultUnitDisplay = '體積';
         } else if (selectedType.includes('土方') || selectedType.includes('開挖') || selectedType.includes('回填') || type.startsWith('E_')) {
             const volume = result.res;
             const trucks = Math.ceil(volume / 10);
-            resultDisplay = `基準 ${baseQtyText}｜施工 ${adjustedQtyText}（約需 ${trucks} 台砂石車 🚛）`;
+            resultDisplay = `基準 ${baseQtyText}${footprintAreaText}｜施工 ${adjustedQtyText}（約需 ${trucks} 台砂石車 🚛）`;
             resultUnitDisplay = '體積';
         } else {
             resultDisplay = `基準 ${baseQtyText}｜施工 ${adjustedQtyText}`;
