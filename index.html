@@ -300,7 +300,7 @@
     </div>
 
     <div class="calc-panel">
-        <section class="level-only-pro">
+        <section class="level-only-pro first-page-pro-tools">
         <div class="group-title">即時功能總控</div>
         <div class="control-grid">
             <button id="btnDemoMode" class="tool-btn" onclick="toggleDemoMode()">Demo模式: 開</button>
@@ -323,7 +323,7 @@
         </div>
         </section>
 
-        <section class="level-only-pro">
+        <section class="level-only-pro first-page-pro-tools">
         <div class="group-title">全域 QA 等級總覽</div>
         <div class="bim-grid">
             <div class="bim-card">BIM QA 等級<strong id="qaLevelBim">-</strong></div>
@@ -642,6 +642,42 @@
 
         <!-- 固定規則：第1~3頁只保留計算內容 -->
         <section id="calcModePage">
+        <div id="freeWarRoomCard" class="free-war-room-card">
+            <div class="free-war-room-card-head">
+                <strong>💬 第一頁交流入口（免費）</strong>
+                <span id="freeWarRoomStatus" class="free-war-room-status">戰情室：離線</span>
+            </div>
+            <p class="free-war-room-card-note">第一頁只保留一般計算、會員聊天群組與戰情室；高階 AI、圖紙判讀與進階估算請登入會員等級後使用。</p>
+            <div class="member-chat-quick-row">
+                <input type="text" id="memberChatQuickInput" class="security-input member-chat-quick-input" placeholder="第一頁會員聊天群組：輸入訊息後快速送出" onkeydown="if(event.key==='Enter'){event.preventDefault();quickSendMemberChatMessage();}">
+                <button type="button" class="tool-btn member-chat-quick-send" onclick="quickSendMemberChatMessage()">快速送出</button>
+            </div>
+            <div id="memberChatQuickHint" class="member-chat-quick-hint">提示：訊息會送到「群組大廳」，也可開啟會員聊天面板管理好友對話。</div>
+            <div class="free-war-room-actions">
+                <button type="button" class="tool-btn free-war-room-btn" onclick="toggleMemberChatPanel(true)">開啟會員聊天群組</button>
+                <button type="button" class="tool-btn free-war-room-btn free-war-room-btn--alt" onclick="toggleWarRoom()">開啟戰情室</button>
+            </div>
+        </div>
+        <div id="memberChatPanel" class="member-chat-panel" hidden>
+            <div class="member-chat-panel-head">
+                <strong>👥 會員聊天群組</strong>
+                <span id="memberChatStatus" class="member-chat-status">好友 0</span>
+            </div>
+            <div id="memberChatIdentity" class="member-chat-identity">目前身份：未登入會員帳號</div>
+            <div class="member-chat-tools">
+                <input type="text" id="memberChatFriendInput" class="security-input member-chat-input" placeholder="輸入好友帳號（例：engineer02）">
+                <button type="button" class="tool-btn member-chat-btn" onclick="addMemberChatFriend()">加入好友</button>
+                <select id="memberChatFriendSelect" class="member-chat-select" onchange="switchMemberChatFriend(this.value)">
+                    <option value="">請先加入好友</option>
+                </select>
+                <button type="button" id="memberChatToggleBtn" class="tool-btn member-chat-btn member-chat-btn--ghost" onclick="toggleMemberChatPanel()">收合</button>
+            </div>
+            <div id="memberChatMessageList" class="member-chat-message-list">尚無對話，先加入好友或從上方快速送出到群組大廳。</div>
+            <div class="member-chat-compose">
+                <input type="text" id="memberChatMessageInput" class="security-input member-chat-input" placeholder="輸入聊天訊息">
+                <button type="button" class="tool-btn member-chat-btn" onclick="sendMemberChatMessage()">送出訊息</button>
+            </div>
+        </div>
         <div id="stakeMemberWrap" class="member-wrap level-hide-basic work-mode-only-calc">
             <div class="bim-note" style="margin-top:0;">會員管理（後端）：可新增會員帳號、更新密碼。下方勾選<strong>僅管控 IBM Quantum／後端雲端呼叫</strong>（第四頁「⚛️ IBM 雲端放樣」按鈕）；<strong>一般放樣流程不由這裡控制</strong>，依會員等級。（請以具管理權限的帳號登入，例如預設 owner；僅存取碼無法寫入後台。）</div>
             <div class="input-row">
@@ -670,8 +706,8 @@
             </div>
         </div>
         <div class="group-title">
-            第1~3頁｜計算與自動估算
-            <span style="font-size: 0.6em; color: #98c8ff;">固定顯示計算按鍵</span>
+            第1頁｜一般計算＋會員聊天＋戰情室（免費）
+            <span style="font-size: 0.6em; color: #98c8ff;">免費第一頁只保留一般計算、會員聊天群組與戰情室入口</span>
         </div>
         <button class="tool-btn level-only-standard" style="width: 100%; margin-bottom: 15px; border-color: #e91e63; color: #ffb1c2; font-size: 1.1em; padding: 10px;" onclick="startVoiceAgent()">
             🎙️ 呼叫工地語音助理 (點我說話)
@@ -1161,11 +1197,11 @@
 <script src="scripts/bundles/bm-core.js?v=v9512"></script>
 <script src="scripts/bundles/bm-blueprint.js?v=v9512"></script>
 <script src="scripts/bundles/bm-calc.js?v=v9512"></script>
-<script src="scripts/features/app-shell.js?v=v9512"></script>
+<script src="scripts/features/app-shell.js?v=v9515-first-page-chat"></script>
 <script src="scripts/features/materials-weather.js?v=v9512"></script>
 <script src="scripts/features/measurement-logs.js?v=v9512"></script>
 <script src="scripts/features/bim-qa.js?v=v9512"></script>
 <script src="scripts/features/calc-engine.js?v=v9513-area-preview"></script>
-<script src="scripts/app-main.js?v=v9512"></script>
+<script src="scripts/app-main.js?v=v9515-first-page-chat"></script>
 </body>
 </html>

@@ -284,23 +284,10 @@
     const AUTH_TOKEN_KEY = 'bm_69:auth_token';
     const API_BASE_URL_KEY = 'bm_69:api_base_url';
     const LOCAL_OFFLINE_DEMO_KEY = 'bm_69:local_offline_demo';
-    const LOCAL_OFFLINE_PRO_ENTITLEMENTS = {
-        aiCoach: true,
-        blueprintAnnotationOcr: true,
-        guidedPrecisionRefine: true,
-        guidedPrecisionAuto: true,
-        blueprintAutoInterpret: true,
-        autoBlueprintBim: true,
-        smartCalibration: true,
-        smartMeasure: true,
-        aiVision: true,
-        advancedEstimateExport: true,
-        quantumStake: false,
-        stakingDesktopPipeline: true,
-        bimLayoutQa: true,
-        measureQaReport: true,
+    const LOCAL_OFFLINE_BASIC_ENTITLEMENTS = {
         calcCore: true,
-        dataSync: true
+        measureQaReport: false,
+        dataSync: false
     };
     const SECURITY_CONFIG = {
         allowedHosts: [
@@ -1046,8 +1033,8 @@
             token: '',
             account: 'local',
             sessionType: 'access',
-            userLevel: 'pro',
-            entitlements: { ...LOCAL_OFFLINE_PRO_ENTITLEMENTS },
+            userLevel: 'basic',
+            entitlements: { ...LOCAL_OFFLINE_BASIC_ENTITLEMENTS },
             featureOverrides: {},
             integrations: { localOfflineDemo: true },
             canManageMembers: false,
@@ -1059,7 +1046,7 @@
         } catch (_e) {}
         sessionStorage.setItem(SECURITY_UNLOCK_KEY, '1');
         sessionStorage.setItem(LOCAL_OFFLINE_DEMO_KEY, '1');
-        safeStorage.set(localStorage, USER_LEVEL_KEY, 'pro');
+        safeStorage.set(localStorage, USER_LEVEL_KEY, 'basic');
         applyUserLevel();
         updateBillingStatusChip();
     }
@@ -1074,7 +1061,7 @@
             showToast(error.message || '載入主畫面失敗');
             return;
         }
-        showToast('已略過登入（本機）：雲端同步／付費相關待後端就緒');
+        showToast('已略過登入（免費第一頁）：高階會員功能待後端登入後啟用');
     }
 
     function getGrantedUserLevel() {

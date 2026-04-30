@@ -257,6 +257,144 @@
     .security-onboarding-hint { margin: 0 0 10px; font-size: 0.72em; line-height: 1.4; color: #8aa3bd; }
     .security-api-url-hint { border-left: 3px solid rgba(255, 180, 100, 0.55); padding-left: 10px; color: #c5d4e8; }
     .security-api-url-hint code { font-size: 0.92em; color: #b8e0ff; }
+    .free-war-room-card {
+        margin: 8px 0 14px;
+        padding: 12px 12px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(0, 230, 118, 0.48);
+        background: linear-gradient(135deg, rgba(0, 102, 76, 0.35), rgba(14, 33, 54, 0.58));
+        box-shadow: 0 8px 18px rgba(0, 120, 88, 0.22);
+    }
+    .free-war-room-card-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        color: #dcffed;
+        font-size: 0.92em;
+        margin-bottom: 6px;
+    }
+    .free-war-room-status {
+        border: 1px solid rgba(184, 255, 219, 0.38);
+        border-radius: 999px;
+        padding: 3px 9px;
+        font-size: 0.72em;
+        color: #d7ffe9;
+        background: rgba(3, 25, 18, 0.45);
+    }
+    .free-war-room-card-note {
+        margin: 0 0 10px;
+        color: #d5f8e5;
+        font-size: 0.8em;
+        line-height: 1.45;
+    }
+    .member-chat-quick-row,
+    .member-chat-quick-compose,
+    .free-war-room-actions,
+    .member-chat-compose {
+        display: grid;
+        grid-template-columns: minmax(180px, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        margin-top: 8px;
+    }
+    .member-chat-quick-hint,
+    .member-chat-identity,
+    .member-chat-empty {
+        color: #aac7e7;
+        font-size: 0.78em;
+        line-height: 1.45;
+    }
+    .free-war-room-btn,
+    .member-chat-btn {
+        border-color: rgba(110, 187, 255, 0.74);
+        color: #eaf6ff;
+        background: linear-gradient(135deg, rgba(60, 145, 214, 0.34), rgba(18, 59, 94, 0.46));
+        font-weight: 800;
+        white-space: nowrap;
+    }
+    .free-war-room-btn--alt {
+        border-color: rgba(0, 230, 118, 0.74);
+        color: #e9fff3;
+        background: linear-gradient(135deg, rgba(0, 186, 124, 0.36), rgba(20, 76, 104, 0.36));
+    }
+    .member-chat-panel {
+        margin: 0 0 14px;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(110, 187, 255, 0.42);
+        background: linear-gradient(135deg, rgba(20, 52, 88, 0.36), rgba(10, 24, 44, 0.62));
+        box-shadow: 0 8px 18px rgba(19, 86, 150, 0.2);
+    }
+    .member-chat-panel[hidden] { display: none !important; }
+    .member-chat-panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        color: #e8f5ff;
+        font-size: 0.92em;
+        margin-bottom: 8px;
+    }
+    .member-chat-status {
+        border: 1px solid rgba(162, 211, 255, 0.46);
+        border-radius: 999px;
+        padding: 3px 9px;
+        color: #dceeff;
+        background: rgba(8, 24, 45, 0.55);
+        font-size: 0.72em;
+    }
+    .member-chat-tools {
+        display: grid;
+        grid-template-columns: minmax(180px, 1fr) auto minmax(160px, 0.9fr) auto;
+        gap: 8px;
+        align-items: center;
+        margin: 10px 0;
+    }
+    .member-chat-select {
+        width: 100%;
+        min-height: 38px;
+        color: #fff;
+        background: rgba(10, 20, 36, 0.72);
+        border: 1px solid rgba(255,255,255,0.18);
+        border-radius: 10px;
+        padding: 8px 10px;
+    }
+    .member-chat-btn--ghost {
+        border-style: dashed;
+        background: rgba(16, 48, 80, 0.28);
+    }
+    .member-chat-message-list {
+        min-height: 96px;
+        max-height: 230px;
+        overflow-y: auto;
+        border: 1px solid rgba(162, 211, 255, 0.18);
+        border-radius: 10px;
+        padding: 8px;
+        background: rgba(3, 14, 27, 0.4);
+        margin-bottom: 10px;
+    }
+    .member-chat-msg {
+        margin-bottom: 8px;
+        padding: 7px 8px;
+        border-radius: 10px;
+        background: rgba(25, 57, 90, 0.28);
+    }
+    .member-chat-msg.me {
+        border: 1px solid rgba(111, 212, 174, 0.44);
+        background: rgba(24, 86, 70, 0.34);
+    }
+    .member-chat-meta {
+        font-size: 0.7em;
+        color: #a6c2e4;
+        margin-bottom: 2px;
+    }
+    .member-chat-text {
+        color: #eef6ff;
+        word-break: break-word;
+    }
     .security-watermark { position: fixed; right: 10px; bottom: 10px; z-index: 9997; pointer-events: none; opacity: 0.36; font-size: 11px; color: #d5e7ff; background: rgba(8, 16, 28, 0.55); border: 1px dashed rgba(173, 216, 255, 0.3); border-radius: 6px; padding: 5px 8px; letter-spacing: 0.3px; }
     .price-input { border-color: var(--money) !important; color: var(--money) !important; font-weight: bold; }
     .preview-bar { margin-top: 16px; padding: 16px 18px; background: rgba(255,255,255,0.015); border-radius: 0; border: 0; border-top: 1px solid rgba(94, 203, 255, 0.18); font-size: 0.9em; box-shadow: none; }
