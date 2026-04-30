@@ -23,7 +23,7 @@ private struct WebCalcView: UIViewRepresentable {
 
 struct WebCalcHostView: View {
     // Phone build opens the same calculation app page as desktop web.
-    private let calcEntryURL = URL(string: "https://wenwenming.com/index.html")!
+    private let calcEntryURL = URL(string: "https://www.wenwenming.com/")!
 
     var body: some View {
         WebCalcView(url: calcEntryURL)
