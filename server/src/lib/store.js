@@ -253,8 +253,6 @@ async function ensureStoreReady(config) {
                     CREATE TABLE IF NOT EXISTS app_shared_auto_interpret_samples (
                         id BIGSERIAL PRIMARY KEY,
                         sample JSONB NOT NULL,
-                        contributor_account TEXT NOT NULL DEFAULT '',
-                        source_job_id TEXT NOT NULL DEFAULT '',
                         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     )
                 `);
@@ -263,8 +261,28 @@ async function ensureStoreReady(config) {
                     ON app_shared_auto_interpret_samples (created_at DESC)
                 `);
                 await client.query(`
+                    CREATE TABLE IF NOT EXISTS app_shared_auto_interpret_sample_audit (
+                        sample_id BIGINT PRIMARY KEY REFERENCES app_shared_auto_interpret_samples(id) ON DELETE CASCADE,
+                        contributor_account TEXT NOT NULL DEFAULT '',
+                        source_job_id TEXT NOT NULL DEFAULT '',
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                `);
+                await client.query(`
+                    CREATE INDEX IF NOT EXISTS app_shared_samples_audit_created_idx
+                    ON app_shared_auto_interpret_sample_audit (created_at DESC)
+                `);
+                await client.query(`
                     ALTER TABLE app_members
                     ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ
+                `);
+                await client.query(`
+                    ALTER TABLE app_shared_auto_interpret_samples
+                    DROP COLUMN IF EXISTS contributor_account
+                `);
+                await client.query(`
+                    ALTER TABLE app_shared_auto_interpret_samples
+                    DROP COLUMN IF EXISTS source_job_id
                 `);
                 await client.query('COMMIT');
                 schemaReady = true;
@@ -620,18 +638,31 @@ async function appendSharedAutoInterpretSample(client, payload) {
     if (!sample || !sample.vector) return false;
     const contributor = normalizeAccount(payload.contributorAccount || '');
     const sourceJobId = String(payload.sourceJobId || '').trim().slice(0, 200);
-    await client.query(
-        `INSERT INTO app_shared_auto_interpret_samples (sample, contributor_account, source_job_id)
-         VALUES ($1::jsonb, $2, $3)`,
-        [JSON.stringify(sample), contributor || 'unknown', sourceJobId]
+    const inserted = await client.query(
+        `INSERT INTO app_shared_auto_interpret_samples (sample)
+         VALUES ($1::jsonb)
+         RETURNING id`,
+        [JSON.stringify(sample)]
     );
+    const sampleId = Number(inserted.rows && inserted.rows[0] && inserted.rows[0].id);
+    if (sampleId > 0 && (contributor || sourceJobId)) {
+        await client.query(
+            `INSERT INTO app_shared_auto_interpret_sample_audit (sample_id, contributor_account, source_job_id)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (sample_id) DO UPDATE
+             SET contributor_account = EXCLUDED.contributor_account,
+                 source_job_id = EXCLUDED.source_job_id,
+                 created_at = NOW()`,
+            [sampleId, contributor || '', sourceJobId]
+        );
+    }
     return true;
 }
 
 async function listSharedAutoInterpretSampleRows(client, limit = 400) {
     const cap = Math.max(1, Math.min(800, Math.round(Number(limit) || 400)));
     const result = await client.query(
-        `SELECT sample, contributor_account, source_job_id, created_at
+        `SELECT sample, created_at
          FROM app_shared_auto_interpret_samples
          ORDER BY id DESC
          LIMIT $1`,
