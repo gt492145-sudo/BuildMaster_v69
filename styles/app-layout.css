@@ -64,6 +64,8 @@
     .header-version { color: var(--highlight); }
     .header-subtitle { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     .header-meta-chip { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.05); color: #d8e8ff; font-size: 0.7em; font-weight: 700; letter-spacing: 0.4px; }
+    .workspace-mode-chip { border-color: rgba(94, 203, 255, 0.28); background: rgba(94, 203, 255, 0.08); color: #dff6ff; }
+    .workspace-mode-chip.workspace-mode-chip--local { border-color: rgba(255, 200, 87, 0.32); background: rgba(255, 200, 87, 0.12); color: #ffe6a6; }
     .live-badge { display: inline-flex; align-items: center; gap: 4px; margin-left: 0; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(222, 189, 255, 0.52); background: linear-gradient(135deg, rgba(78, 48, 148, 0.7), rgba(112, 84, 211, 0.72)); color: #f7ebff; font-size: 0.66em; letter-spacing: 0.8px; box-shadow: 0 0 12px rgba(114, 88, 212, 0.28); }
     .level-switch { display: flex; gap: 6px; margin-left: 8px; }
     .level-btn { border: 1px solid rgba(255,255,255,0.16); border-radius: 999px; background: rgba(20,34,56,0.45); color: #d9ecff; font-size: 0.76em; padding: 7px 11px; cursor: pointer; transition: 0.2s ease; }

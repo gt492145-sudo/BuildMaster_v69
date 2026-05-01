@@ -719,6 +719,33 @@
         el.title = title;
     }
 
+    function updateWorkspaceModeChip(options = {}) {
+        const el = document.getElementById('workspaceModeChip');
+        if (!el) return;
+        const hasCloudSync = !!backendSessionState.token && hasFeatureEntitlement('dataSync');
+        const offlineDemo = !!(backendSessionState.integrations && backendSessionState.integrations.localOfflineDemo);
+        const forcedLocal = options.forceLocal === true;
+        if (hasCloudSync && !forcedLocal) {
+            el.hidden = false;
+            el.textContent = '工作區：雲端同步';
+            el.title = '目前可使用雲端工作區同步。';
+            el.classList.remove('workspace-mode-chip--local');
+            return;
+        }
+        el.hidden = false;
+        if (offlineDemo) {
+            el.textContent = '工作區：本機保底模式';
+            el.title = '目前使用本機保底模式。沒有後端也可繼續操作，資料暫存於此裝置。';
+        } else if (backendSessionState.token) {
+            el.textContent = '工作區：本機暫存';
+            el.title = '目前雲端同步暫時不可用，系統已改用本機暫存，待後端恢復後可再同步。';
+        } else {
+            el.textContent = '工作區：本機模式';
+            el.title = '目前尚未登入雲端工作區，資料暫存於此裝置。';
+        }
+        el.classList.add('workspace-mode-chip--local');
+    }
+
     function maybeWarnBillingExpirySoon() {
         try {
             if (sessionStorage.getItem('bm_69:billing_expiry_warn') === '1') return;
@@ -765,6 +792,7 @@
         safeStorage.set(localStorage, USER_LEVEL_KEY, backendSessionState.userLevel);
         applyUserLevel();
         updateBillingStatusChip();
+        updateWorkspaceModeChip();
     }
 
     function clearBackendSession(keepVisualState = false) {
@@ -812,6 +840,7 @@
         safeStorage.set(localStorage, USER_LEVEL_KEY, fullMode ? 'pro' : 'basic');
         applyUserLevel();
         updateBillingStatusChip();
+        updateWorkspaceModeChip({ forceLocal: true });
     }
 
     async function enterLocalOfflineDemoFromButton() {
@@ -942,6 +971,7 @@
             renderGuidedPrecisionReviewPanel();
         }
         purgeLegacySecurityStorage();
+        updateWorkspaceModeChip();
     }
 
     async function loadWorkspaceBootstrap() {
@@ -956,6 +986,7 @@
         } catch (error) {
             console.error('工作區同步啟動失敗', error);
             showToast('雲端工作區尚未同步（多為 PostgreSQL 未連線）。已改用本機資料，修復資料庫後可重新整理再同步。');
+            updateWorkspaceModeChip({ forceLocal: true });
             return false;
         }
     }
@@ -2126,6 +2157,7 @@
         const lock = document.getElementById('securityLock');
         const msg = document.getElementById('securityMessage');
         if (msg) msg.innerText = message || '請輸入存取碼以啟用系統。';
+        updateWorkspaceModeChip({ forceLocal: !backendSessionState.token });
         if (lock) lock.classList.add('show');
         const input = document.getElementById('securityCodeInput');
         if (input) setTimeout(() => input.focus(), 80);
@@ -2350,7 +2382,7 @@
                     ? '會員登入需資料庫，後端暫時無法連線，請稍後再試。'
                     : '後端暫時無法使用，請稍後再試。';
             } else if (status === 501) {
-                errText = 'HTTP 501：目前網頁所在伺服器不支援 API（POST）。請先啟動專案 server 的 Node（埠 8787），再按下方「將 API 指向本機 Node（8787）並重新整理」，或直接開 http://127.0.0.1:8787/index.html。';
+                errText = '目前站台不支援雲端登入。若你只是要先工作，請直接按下方「測試全功能（會員3／不接後端）」或「先略過登入」繼續使用，本機會先幫你保存資料。';
             } else if (status === 405) {
                 errText = `HTTP 405（不允許的 HTTP 方法）。請確認後端為 BuildMaster 的 Node server，且網址含正確路徑 /api/…。`;
             } else if (Number.isFinite(status) && status >= 500) {
@@ -2362,6 +2394,7 @@
                 errText = (account ? '會員帳號或密碼錯誤，請重試' : '無法完成登入，請確認後端與網址') + detail;
             }
             if (hint) hint.innerText = errText;
+            updateWorkspaceModeChip({ forceLocal: true });
             if (input) input.value = '';
         }
     }

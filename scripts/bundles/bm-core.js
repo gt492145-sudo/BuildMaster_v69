@@ -974,6 +974,31 @@
         ].forEach((key) => safeStorage.remove(localStorage, key));
     }
 
+    function updateWorkspaceModeChip() {
+        const el = document.getElementById('workspaceModeChip');
+        if (!el) return;
+        const offlineDemo = !!(backendSessionState.integrations && backendSessionState.integrations.localOfflineDemo);
+        const cloudSyncReady = !!backendSessionState.token && hasFeatureEntitlement('dataSync');
+        if (cloudSyncReady) {
+            el.hidden = false;
+            el.textContent = '工作區：雲端同步';
+            el.title = '目前登入正常，資料會優先同步到雲端工作區。';
+            el.classList.remove('workspace-mode-chip--local');
+            el.classList.add('workspace-mode-chip--cloud');
+            return;
+        }
+        el.hidden = false;
+        if (offlineDemo) {
+            el.textContent = '工作區：本機保底模式';
+            el.title = '後端未連線時，App 會自動改用本機保底模式，會員仍可繼續操作與暫存資料。';
+        } else {
+            el.textContent = '工作區：本機暫存';
+            el.title = '目前雲端同步未就緒，App 會先把資料保存在本機，等後端恢復後再切回雲端。';
+        }
+        el.classList.remove('workspace-mode-chip--cloud');
+        el.classList.add('workspace-mode-chip--local');
+    }
+
     function updateBillingStatusChip() {
         const el = document.getElementById('billingStatusChip');
         if (!el) return;
@@ -1062,6 +1087,7 @@
         safeStorage.set(localStorage, USER_LEVEL_KEY, backendSessionState.userLevel);
         applyUserLevel();
         updateBillingStatusChip();
+        updateWorkspaceModeChip();
     }
 
     function clearBackendSession(keepVisualState = false) {
@@ -1085,6 +1111,7 @@
         if (!keepVisualState) safeStorage.set(localStorage, USER_LEVEL_KEY, 'basic');
         applyUserLevel();
         updateBillingStatusChip();
+        updateWorkspaceModeChip();
     }
 
     function applyLocalOfflineDemoSession(options = {}) {
@@ -1109,6 +1136,7 @@
         safeStorage.set(localStorage, USER_LEVEL_KEY, fullMode ? 'pro' : 'basic');
         applyUserLevel();
         updateBillingStatusChip();
+        updateWorkspaceModeChip();
     }
 
     async function enterLocalOfflineDemoFromButton() {
@@ -1239,6 +1267,7 @@
             renderGuidedPrecisionReviewPanel();
         }
         purgeLegacySecurityStorage();
+        updateWorkspaceModeChip();
     }
 
     async function loadWorkspaceBootstrap() {
@@ -1253,6 +1282,7 @@
         } catch (error) {
             console.error('工作區同步啟動失敗', error);
             showToast('雲端工作區尚未同步（多為 PostgreSQL 未連線）。已改用本機資料，修復資料庫後可重新整理再同步。');
+            updateWorkspaceModeChip();
             return false;
         }
     }
@@ -1485,6 +1515,7 @@
         if (!workspaceLoaded) {
             loadLocalWorkspaceFallback();
         }
+        updateWorkspaceModeChip();
         applyUserLevel();
         ensureWorkModeSectionOrder();
         applyWorkMode();
@@ -2421,7 +2452,7 @@
     function showSecurityLock(message) {
         const lock = document.getElementById('securityLock');
         const msg = document.getElementById('securityMessage');
-        if (msg) msg.innerText = message || '請輸入存取碼以啟用系統。';
+        if (msg) msg.innerText = message || '請輸入存取碼以啟用系統；若雲端暫時不可用，App 仍會自動改用本機保底模式。';
         if (lock) lock.classList.add('show');
         const input = document.getElementById('securityCodeInput');
         if (input) setTimeout(() => input.focus(), 80);
@@ -2634,23 +2665,23 @@
             const aborted = error && error.name === 'AbortError';
             let errText;
             if (status === 404) {
-                errText = `找不到後端（404）：${loginUrl}。請用專案 server 開站（預設埠 8787）或設定 Local Storage 鍵 bm_69:api_base_url 為 API 根網址。`;
+                errText = '目前雲端服務尚未連上，App 會先改用本機保底模式；如需會員登入與跨裝置同步，再請管理者恢復後端。';
             } else if (netFail) {
-                errText = `無法連上後端：${loginUrl || '(請檢查 bm_69:api_base_url)'}。請確認伺服器已啟動且網址正確。`;
+                errText = '目前無法連上雲端服務，App 會先改用本機保底模式；如需會員登入與跨裝置同步，再請管理者檢查後端。';
             } else if (aborted || msgLower.includes('abort')) {
-                errText = `連線逾時或中斷。請確認後端可連線後重試（${loginUrl}）。`;
+                errText = '雲端連線逾時，App 會先改用本機保底模式；稍後可再重試登入。';
             } else if (status === 401) {
                 errText = account ? '會員帳號或密碼錯誤，請重試' : '存取碼錯誤（請對照 server 的 BUILDMASTER_ACCESS_CODE 或 .env）';
             } else if (status === 503) {
                 errText = account
-                    ? '會員登入需資料庫，後端暫時無法連線，請稍後再試。'
-                    : '後端暫時無法使用，請稍後再試。';
+                    ? '會員登入需要雲端服務，系統目前先切到本機保底模式；請稍後再試會員登入。'
+                    : '雲端服務暫時不可用，系統目前先切到本機保底模式。';
             } else if (status === 501) {
-                errText = 'HTTP 501：目前網頁所在伺服器不支援 API（POST）。請先啟動專案 server 的 Node（埠 8787），再按下方「將 API 指向本機 Node（8787）並重新整理」，或直接開 http://127.0.0.1:8787/index.html。';
+                errText = '目前這個開啟方式不支援雲端 API，但 App 仍可先用本機保底模式；若要啟用會員登入與同步，再請管理者啟動正式後端。';
             } else if (status === 405) {
-                errText = `HTTP 405（不允許的 HTTP 方法）。請確認後端為 BuildMaster 的 Node server，且網址含正確路徑 /api/…。`;
+                errText = '目前連到的不是 BuildMaster 正式雲端服務，App 先改用本機保底模式。';
             } else if (Number.isFinite(status) && status >= 500) {
-                errText = `後端錯誤（HTTP ${status}）${error.message ? `：${error.message}` : ''}。請看伺服器主控台；常見原因為資料庫未連線。`;
+                errText = `雲端服務暫時異常（HTTP ${status}）${error.message ? `：${error.message}` : ''}。App 會先改用本機保底模式。`;
             } else if (status === 400) {
                 errText = error.message || '請求格式錯誤，請重試。';
             } else {
@@ -2658,6 +2689,7 @@
                 errText = (account ? '會員帳號或密碼錯誤，請重試' : '無法完成登入，請確認後端與網址') + detail;
             }
             if (hint) hint.innerText = errText;
+            updateWorkspaceModeChip();
             if (input) input.value = '';
         }
     }
