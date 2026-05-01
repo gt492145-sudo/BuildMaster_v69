@@ -381,6 +381,48 @@
         return { ok, main, audit };
     }
 
+    function buildOfflineCoreCalculation(payload) {
+        const type = String(payload && payload.type || '').trim();
+        const v1 = Number(payload && payload.v1) || 0;
+        const v2 = Number(payload && payload.v2) || 0;
+        const v3 = Number(payload && payload.v3) || 0;
+        const n = Number(payload && payload.n) || 0;
+        const up = Number(payload && payload.up) || 0;
+        const isDeduct = !!(payload && payload.isDeduct);
+        const extraWasteRate = Math.min(40, Math.max(0, Number(payload && payload.extraWasteRate) || 0));
+        const templateExtras = payload && payload.templateExtras ? payload.templateExtras : {};
+        const base = coreCalculate(type, v1, v2, v3, n, up, templateExtras);
+        let baseRes = Number(base.baseRes || 0);
+        let res = Number(base.res || 0);
+        let adjustFactor = Number(base.adjustFactor || 1);
+        let wasteRate = 0;
+        let wasteRes = 0;
+
+        if (isDeduct) {
+            const baseAbs = Math.abs(baseRes);
+            baseRes = -baseAbs;
+            res = -baseAbs;
+            adjustFactor = 1;
+        } else if (base.cat === 'CEMENT') {
+            wasteRate = extraWasteRate;
+            wasteRes = roundCalc(baseRes * (wasteRate / 100));
+            res = roundCalc(baseRes + wasteRes);
+            adjustFactor = baseRes !== 0 ? roundCalc(res / baseRes, 6) : 1;
+        }
+
+        return {
+            ...base,
+            baseRes: roundCalc(baseRes),
+            res: roundCalc(res),
+            wasteRes: roundCalc(wasteRes),
+            wasteRate,
+            adjustFactor: roundCalc(adjustFactor, 6),
+            baseTotalCost: roundCalc(baseRes * up),
+            totalCost: roundCalc(res * up),
+            isDeduct
+        };
+    }
+
     function syncTemplateFormulaPanel() {
         const type = document.getElementById('calcType') ? document.getElementById('calcType').value : '';
         const panel = document.getElementById('templateFormulaPanel');
@@ -717,22 +759,25 @@
         }
 
         let isDeduct = confirm("這筆是要『扣除』的項目嗎？\n(如窗戶開口請點確定，一般計算點取消)");
+        const requestPayload = {
+            type,
+            v1,
+            v2,
+            v3,
+            n,
+            up,
+            isDeduct,
+            extraWasteRate: getExtraWasteRateForType(type),
+            templateExtras: getTemplateFormulaExtras()
+        };
         let result;
+        let usedOfflineFallback = false;
         try {
-            result = await requestServerCoreCalculation({
-                type,
-                v1,
-                v2,
-                v3,
-                n,
-                up,
-                isDeduct,
-                extraWasteRate: getExtraWasteRateForType(type),
-                templateExtras: getTemplateFormulaExtras()
-            });
+            result = await requestServerCoreCalculation(requestPayload);
         } catch (error) {
             console.warn('後端核心計算失敗', error);
-            return showToast((error && error.message) || '後端核心計算失敗');
+            result = buildOfflineCoreCalculation(requestPayload);
+            usedOfflineFallback = true;
         }
 
         let baseRes = Number(result.baseRes || 0);
@@ -753,7 +798,7 @@
         const baseTotalCost = Number(result.baseTotalCost || (baseRes * up));
         const totalCost = Number(result.totalCost || (res * up));
         const priceUnit = getPriceUnitByType(type);
-        const templateExtras = getTemplateFormulaExtras();
+        const templateExtras = requestPayload.templateExtras;
         const calcFormula = buildCalcFormulaText(type, v1, v2, v3, n, templateExtras);
         const formulaHint = getFormulaVariableHint(type, templateExtras);
         const templateSummary = summarizeTemplateBreakdown(type, result.templateBreakdown);
@@ -788,6 +833,10 @@
         });
         
         saveData(); renderTable(); 
+        if (usedOfflineFallback) {
+            showToast(isDeduct ? '✂️ 已離線執行扣除並存到本機' : '🚀 已離線吸入計算清單並存到本機');
+            return;
+        }
         showToast(isDeduct ? '✂️ 已執行自動扣除' : '🚀 數據已吸入黑洞！');
     }
 

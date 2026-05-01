@@ -6,7 +6,8 @@
             return;
         }
         try {
-            measurementLogs = [];
+            const saved = readJsonStorage(localStorage, MEASUREMENT_LOG_STORAGE_KEY, []);
+            measurementLogs = Array.isArray(saved) ? saved : [];
         } catch (_e) {
             measurementLogs = [];
         }

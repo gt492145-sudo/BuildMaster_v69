@@ -538,6 +538,47 @@
         }
     }
 
+    function readJsonStorage(storage, key, fallback) {
+        const raw = safeStorage.get(storage, key, '');
+        if (!raw) return cloneJsonPayload(fallback, fallback);
+        try {
+            return JSON.parse(raw);
+        } catch (_error) {
+            return cloneJsonPayload(fallback, fallback);
+        }
+    }
+
+    function writeJsonStorage(storage, key, value) {
+        const snapshot = cloneJsonPayload(value, null);
+        if (snapshot === null) return false;
+        return safeStorage.set(storage, key, JSON.stringify(snapshot));
+    }
+
+    function getLocalWorkspaceStorageKey(resourceName) {
+        switch (String(resourceName || '').trim()) {
+        case 'list':
+            return STORAGE_KEY;
+        case 'measurementLogs':
+            return MEASUREMENT_LOG_STORAGE_KEY;
+        default:
+            return '';
+        }
+    }
+
+    function loadLocalWorkspaceFallback() {
+        const savedList = readJsonStorage(localStorage, STORAGE_KEY, []);
+        list = Array.isArray(savedList) ? savedList.filter(item => item && item.source !== 'warroom') : [];
+        const savedMeasurementLogs = readJsonStorage(localStorage, MEASUREMENT_LOG_STORAGE_KEY, []);
+        measurementLogs = Array.isArray(savedMeasurementLogs) ? savedMeasurementLogs : [];
+        workspaceHydratedFromBackend = false;
+    }
+
+    function persistLocalWorkspaceResource(resourceName, value) {
+        const storageKey = getLocalWorkspaceStorageKey(resourceName);
+        if (!storageKey) return false;
+        return writeJsonStorage(localStorage, storageKey, value);
+    }
+
     function normalizeApiBaseUrl(rawBase) {
         const raw = String(rawBase || '').trim();
         if (!raw || raw === '/') return '/api';
@@ -920,10 +961,12 @@
     }
 
     function queueWorkspacePersist(resourceName, value, delayMs = 180) {
-        if (!backendSessionState.token) return false;
-        if (!hasFeatureEntitlement('dataSync')) return false;
         const snapshot = cloneJsonPayload(value, null);
         if (snapshot === null) return false;
+        const canSyncCloud = !!backendSessionState.token && hasFeatureEntitlement('dataSync');
+        if (!canSyncCloud) {
+            return persistLocalWorkspaceResource(resourceName, snapshot);
+        }
         if (workspacePersistTimers[resourceName]) {
             clearTimeout(workspacePersistTimers[resourceName]);
         }
@@ -937,6 +980,7 @@
                 });
             } catch (error) {
                 console.warn('雲端同步失敗', resourceName, error);
+                persistLocalWorkspaceResource(resourceName, snapshot);
             } finally {
                 delete workspacePersistTimers[resourceName];
             }
@@ -1140,7 +1184,10 @@
             console.warn('延伸面板模組載入失敗', err);
             showToast('進階面板腳本載入失敗，請重新整理頁面');
         }
-        await loadWorkspaceBootstrap();
+        const workspaceLoaded = await loadWorkspaceBootstrap();
+        if (!workspaceLoaded) {
+            loadLocalWorkspaceFallback();
+        }
         applyUserLevel();
         ensureWorkModeSectionOrder();
         applyWorkMode();
