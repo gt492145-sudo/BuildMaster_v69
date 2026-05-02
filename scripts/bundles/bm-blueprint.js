@@ -3,5 +3,5 @@
  * implementation lives in scripts/features/blueprint-measurement.js.
  */
 (function loadBuildMasterBlueprintBundle() {
-    document.write('<script src="scripts/features/blueprint-measurement.js?v=v9513-touch-pan"><\/script>');
+    document.write('<script src="scripts/features/blueprint-measurement.js?v=v960-touch-pan"><\/script>');
 }());

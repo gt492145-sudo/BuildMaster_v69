@@ -33,7 +33,7 @@ private struct WebCalcView: UIViewRepresentable {
 }
 
 struct WebCalcHostView: View {
-    // Phone build opens the official V9.5.1 calculation web app URL.
+    // Phone build opens the official V9.6 calculation web app URL.
     private let calcEntryURL = URL(string: "https://gt492145-sudo.github.io/BuildMaster_v69/index.html")!
 
     var body: some View {
