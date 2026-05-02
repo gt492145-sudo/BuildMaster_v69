@@ -14,6 +14,7 @@
 		51B353532F5F9E99009CC3D8 /* Contents.json in Resources */ = {isa = PBXBuildFile; fileRef = 51B353522F5F9E99009CC3D8 /* Contents.json */; };
 		51B353562F5F9EBC009CC3D8 /* MeasurementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B353552F5F9EBC009CC3D8 /* MeasurementStore.swift */; };
 		51B353582F5FA100009CC3D8 /* QuantumManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B353572F5FA100009CC3D8 /* QuantumManager.swift */; };
+		51B3535A2F6032C7009CC3D8 /* WebApp in Resources */ = {isa = PBXBuildFile; fileRef = 51B353592F6032C7009CC3D8 /* WebApp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +26,7 @@
 		51B353522F5F9E99009CC3D8 /* Contents.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Contents.json; sourceTree = "<group>"; };
 		51B353552F5F9EBC009CC3D8 /* MeasurementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasurementStore.swift; sourceTree = "<group>"; };
 		51B353572F5FA100009CC3D8 /* QuantumManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuantumManager.swift; sourceTree = "<group>"; };
+		51B353592F6032C7009CC3D8 /* WebApp */ = {isa = PBXFileReference; lastKnownFileType = folder; path = LiDARRangefinder/WebApp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -58,6 +60,7 @@
 				51B353572F5FA100009CC3D8 /* QuantumManager.swift */,
 				51B353522F5F9E99009CC3D8 /* Contents.json */,
 				51B353552F5F9EBC009CC3D8 /* MeasurementStore.swift */,
+				51B353592F6032C7009CC3D8 /* WebApp */,
 			);
 			sourceTree = "<group>";
 		};
@@ -135,6 +138,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				51B353532F5F9E99009CC3D8 /* Contents.json in Resources */,
+				51B3535A2F6032C7009CC3D8 /* WebApp in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
