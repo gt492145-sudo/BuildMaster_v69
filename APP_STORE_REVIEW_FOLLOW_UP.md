@@ -4,7 +4,7 @@ Use this checklist before resubmitting after the April 25, 2026 review notes.
 
 ## 1) Demo login
 
-- Computer-only local test URL for the V9.5.1 calculation app:
+- Computer-only local test URL for the V9.6 calculation app:
   - `http://127.0.0.1:8787/index.html`
 - Do not use the `127.0.0.1` URL in Xcode/WebView phone testing; on a phone it points back to the phone, not the computer.
 - For Xcode/WebView phone testing, load the GitHub Pages project URL, not the account root:
@@ -13,7 +13,7 @@ Use this checklist before resubmitting after the April 25, 2026 review notes.
 - Do not use `https://gt492145-sudo.github.io` by itself; the account root returns GitHub Pages 404 and will show "We couldn't find the page you were looking for."
 - If the phone still shows `www.wenwenming.com`, Xcode is still loading the old site URL. In the Xcode project, search for `wenwenming.com` and replace the WebView/launch URL with `https://gt492145-sudo.github.io/BuildMaster_v69/`, then delete the app from the phone and run again.
 - `WebCalcHostView.swift` prints the loaded URL with `BM WebView URL:` after navigation finishes. The expected console value is `https://gt492145-sudo.github.io/BuildMaster_v69/index.html`.
-- Calculation native app entry is `WebCalcHostView()`, which is separate from the LiDAR/AR `ContentView()` workflow and loads the V9.5.1 web calculation app.
+- Calculation native app entry is `WebCalcHostView()`, which is separate from the LiDAR/AR `ContentView()` workflow and loads the V9.6 web calculation app.
 - GitHub Pages phone testing can use the "先略過登入，進主流程（本機／不接後端）" button to validate the free/basic first-page calculation flow before the production API is deployed.
 - Configure the production API environment with the exact credentials supplied in App Store Connect:
   - `APP_REVIEW_DEMO_ACCOUNT`

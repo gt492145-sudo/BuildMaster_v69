@@ -27,14 +27,23 @@ private struct WebCalcView: UIViewRepresentable {
 
     func updateUIView(_ webView: WKWebView, context: Context) {
         if webView.url == nil || webView.url?.absoluteString != url.absoluteString {
-            webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
+            if url.isFileURL {
+                webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+            } else {
+                webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
+            }
         }
     }
 }
 
 struct WebCalcHostView: View {
-    // Phone build opens the official V9.5.1 calculation web app URL.
-    private let calcEntryURL = URL(string: "https://gt492145-sudo.github.io/BuildMaster_v69/index.html")!
+    // Phone builds prefer the bundled V9.6 web app so Xcode runs do not show
+    // stale GitHub Pages content while a release is still waiting to deploy.
+    private let calcEntryURL = Bundle.main.url(
+        forResource: "index",
+        withExtension: "html",
+        subdirectory: "WebApp"
+    ) ?? URL(string: "https://gt492145-sudo.github.io/BuildMaster_v69/index.html")!
 
     var body: some View {
         WebCalcView(url: calcEntryURL)
